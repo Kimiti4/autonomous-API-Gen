@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+**/node_modules/
+.pnpm-store/
+
+# Python environments and caches
+.venv/
+venv/
+ENV/
+env/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Build outputs
+build/
+dist/
+*.egg-info/
+
+# Runtime data
+*.db
+*.sqlite
+*.sqlite3
+logs/
+*.log
+memory.json
+*.json.bak
+output/
+generated-apis/
+
+# Environment and local config
+.env
+!.env.example
+*.local
+
+# IDE and OS files
+.vs/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Nested git metadata from copied projects
+**/.git/

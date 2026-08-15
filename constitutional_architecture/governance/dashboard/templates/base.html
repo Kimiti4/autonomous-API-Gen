@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="csrf-token" content="{{ csrf or '' }}">
+<title>{% block title %}{{ app_name }}{% endblock %}</title>
+<link rel="stylesheet" href="/static/styles.css">
+<script src="/static/app.js" defer></script>
+</head>
+<body>
+{% if user %}
+<header class="topbar">
+  <div class="brand">{{ app_name }}</div>
+  <div class="userbox">
+    <span>{{ user.username }}</span>
+    <span class="roles">{{ user.roles | join(", ") }}</span>
+    <form method="post" action="/logout" class="inline">
+      <button type="submit" class="linkbtn">Logout</button>
+    </form>
+  </div>
+</header>
+<nav class="sidebar">
+  <a href="/">Health</a>
+  <a href="/constitutions">Constitutions</a>
+  <a href="/policy-sets">Policy Sets</a>
+  <a href="/evaluations">Evaluations</a>
+  <a href="/approvals">Approvals</a>
+  <a href="/exceptions">Exceptions</a>
+  <a href="/audit">Audit Log</a>
+  <a href="/audit/integrity">Audit Integrity</a>
+  <a href="/lineage">Lineage</a>
+</nav>
+{% endif %}
+<main class="{% if user %}content{% else %}auth{% endif %}">
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

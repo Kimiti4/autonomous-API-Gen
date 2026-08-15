@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Unauthorized{% endblock %}
+{% block content %}
+<section class="card narrow">
+  <h2>Authentication required</h2>
+  <p>{{ message }}</p>
+  <a class="btn" href="/login">Go to login</a>
+</section>
+{% endblock %}

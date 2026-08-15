@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Governance Evaluations</h1>
+
+<form method="get" class="filters">
+  <label>Decision <select name="decision">
+    <option value="">any</option>
+    {% for d in ["ALLOW", "DENY", "REQUIRE_APPROVAL", "REQUIRE_EVIDENCE", "ALLOW_WITH_CONSTRAINTS"] %}
+    <option value="{{ d }}" {{ "selected" if filters.get("decision") == d }}>{{ d }}</option>
+    {% endfor %}
+  </select></label>
+  <label>Action <input type="text" name="action" value="{{ filters.get("action", "") }}"></label>
+  <label>Subject type <input type="text" name="subject_type" value="{{ filters.get("subject_type", "") }}"></label>
+  <label>Actor <input type="text" name="actor_id" value="{{ filters.get("actor_id", "") }}"></label>
+  <button type="submit">Filter</button>
+</form>
+
+<table>
+  <thead><tr><th>Decision ID</th><th>Subject</th><th>Action</th><th>Actor</th><th>Decision</th><th>Environment</th><th>Created</th></tr></thead>
+  <tbody>
+    {% for e in evaluations %}
+    <tr>
+      <td class="mono"><a href="/evaluations/{{ e.decision_id }}/reconstruct">{{ e.decision_id }}</a></td>
+      <td>{{ e.subject_type }} / {{ e.subject_id }}</td>
+      <td>{{ e.action }}</td>
+      <td>{{ e.actor_id }}</td>
+      <td><span class="badge {{ e.decision }}">{{ e.decision }}</span></td>
+      <td>{{ e.environment or "—" }}</td>
+      <td>{{ e.created_at }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="note">No evaluations match.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% endblock %}

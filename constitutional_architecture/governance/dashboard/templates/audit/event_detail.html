@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Audit Event {{ event.id }}</h1>
+<pre>{{ event | tojson(indent=2) }}</pre>
+<p class="note">Hashes cover the full payload plus the previous event's hash; any tampering breaks the chain.</p>
+
+{% endblock %}

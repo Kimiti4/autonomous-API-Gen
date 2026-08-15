@@ -1,0 +1,32 @@
+[project]
+name = "knowledge-graph-runtime"
+version = "0.1.0"
+description = "Phase 23 Enterprise Knowledge Graph runtime"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.111",
+  "uvicorn>=0.30",
+  "pydantic>=2.7",
+  "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+]
+
+[tool.setuptools.packages.find]
+include = [
+  "knowledge*",
+]
+
+[tool.pytest.ini_options]
+# Canonical run target: the project's unit-test suite lives under tests/.
+# --import-mode=importlib avoids the "No module named 'tests.test_*'"
+# package-name collisions caused by the multiple */tests/ directories
+# shipped across autonomous-api/, constitutional_architecture/, and generated/.
+testpaths = ["tests"]
+addopts = "--import-mode=importlib"
+# Make root-level packages (compiler, knowledge, civilization, learning, ...)
+# importable when invoking the pytest entry point directly.
+pythonpath = ["."]

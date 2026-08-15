@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Lineage Explorer</h1>
+<p class="note">All recorded lineage links. Trace a specific artifact: <code>/lineage/&lt;artifact_id&gt;</code></p>
+<table>
+  <thead><tr><th>ID</th><th>Parent</th><th>Child</th><th>Change type</th><th>Decision ref</th><th>Rollback ref</th></tr></thead>
+  <tbody>
+    {% for l in links %}
+    <tr>
+      <td class="mono">{{ l.id }}</td>
+      <td class="mono"><a href="/lineage/{{ l.parent_id }}">{{ l.parent_id }}</a></td>
+      <td class="mono"><a href="/lineage/{{ l.child_id }}">{{ l.child_id }}</a></td>
+      <td>{{ l.change_type }}</td>
+      <td class="mono">{{ l.decision_ref or "—" }}</td>
+      <td class="mono">{{ l.rollback_plan_ref or "—" }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="note">No lineage links recorded.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% endblock %}

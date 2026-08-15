@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Lineage — {{ trace.artifact_type }} {{ trace.artifact_id }}</h1>
+<p class="note"><a href="/lineage/{{ trace.artifact_id }}/backward">Backward</a> · <a href="/lineage/{{ trace.artifact_id }}/forward">Forward</a></p>
+
+<h2>Ancestors ({{ trace.ancestors | length }})</h2>
+<table>
+  <thead><tr><th>Parent</th><th>Child</th><th>Change type</th><th>Decision ref</th><th>Approval refs</th><th>Rollback ref</th></tr></thead>
+  <tbody>
+    {% for l in trace.ancestors %}
+    <tr>
+      <td class="mono"><a href="/lineage/{{ l.parent_id }}">{{ l.parent_id }}</a></td>
+      <td class="mono"><a href="/lineage/{{ l.child_id }}">{{ l.child_id }}</a></td>
+      <td>{{ l.change_type }}</td>
+      <td class="mono">{{ l.decision_ref or "—" }}</td>
+      <td class="mono">{{ l.approval_refs | join(", ") or "—" }}</td>
+      <td class="mono">{{ l.rollback_plan_ref or "—" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Backward (parents)</h2>
+<table>
+  <thead><tr><th>Parent</th><th>Child</th><th>Change type</th><th>Decision ref</th></tr></thead>
+  <tbody>
+    {% for l in trace.backward %}
+    <tr>
+      <td class="mono"><a href="/lineage/{{ l.parent_id }}">{{ l.parent_id }}</a></td>
+      <td class="mono"><a href="/lineage/{{ l.child_id }}">{{ l.child_id }}</a></td>
+      <td>{{ l.change_type }}</td>
+      <td class="mono">{{ l.decision_ref or "—" }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4" class="note">No parents found.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Forward (children)</h2>
+<table>
+  <thead><tr><th>Parent</th><th>Child</th><th>Change type</th><th>Decision ref</th></tr></thead>
+  <tbody>
+    {% for l in trace.forward %}
+    <tr>
+      <td class="mono"><a href="/lineage/{{ l.parent_id }}">{{ l.parent_id }}</a></td>
+      <td class="mono"><a href="/lineage/{{ l.child_id }}">{{ l.child_id }}</a></td>
+      <td>{{ l.change_type }}</td>
+      <td class="mono">{{ l.decision_ref or "—" }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4" class="note">No children found.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% endblock %}

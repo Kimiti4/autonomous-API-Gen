@@ -51,3 +51,7 @@ temp/
 
 # Nested git metadata from copied projects
 **/.git/
+
+# Stray partial duplicates (see AGENTS.md)
+(2)/
+tiannra/

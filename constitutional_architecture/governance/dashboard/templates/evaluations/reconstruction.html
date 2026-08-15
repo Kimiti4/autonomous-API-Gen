@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Decision Reconstruction Dossier</h1>
+<p class="note mono">{{ dossier.decision_id }}</p>
+{% if dossier.final_decision %}
+<p>Final decision: <span class="badge {{ dossier.final_decision }}">{{ dossier.final_decision }}</span></p>
+{% endif %}
+
+<h2>1. Request</h2>
+<pre>{{ dossier.request | tojson(indent=2) }}</pre>
+
+<h2>2. Decision</h2>
+<pre>{{ dossier.decision | tojson(indent=2) }}</pre>
+
+<h2>3. Policy evaluations ({{ dossier.policy_evaluations | length }})</h2>
+<table>
+  <thead><tr><th>Policy set</th><th>Rule</th><th>Outcome</th><th>Explanation</th></tr></thead>
+  <tbody>
+    {% for p in dossier.policy_evaluations %}
+    <tr>
+      <td class="mono">{{ p.policy_set_id }}</td>
+      <td>{{ p.rule_name }} <span class="muted mono">({{ p.rule_id }})</span></td>
+      <td><span class="badge {{ p.outcome }}">{{ p.outcome }}</span></td>
+      <td>{{ p.explanation }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>4. Evidence</h2>
+<table>
+  <thead><tr><th>Status</th><th>References</th></tr></thead>
+  <tbody>
+    <tr><td>Required</td><td class="mono">{{ dossier.evidence.required | join(", ") or "—" }}</td></tr>
+    <tr><td>Provided</td><td class="mono">{{ dossier.evidence.provided | join(", ") or "—" }}</td></tr>
+    <tr><td>Missing</td><td class="mono">{{ dossier.evidence.missing | join(", ") or "—" }}</td></tr>
+  </tbody>
+</table>
+
+<h2>5. Approvals ({{ dossier.approvals | length }})</h2>
+<table>
+  <thead><tr><th>ID</th><th>Approver</th><th>Status</th><th>Decision</th><th>By</th><th>Comments</th></tr></thead>
+  <tbody>
+    {% for a in dossier.approvals %}
+    <tr>
+      <td class="mono"><a href="/approvals/{{ a.approval_id }}">{{ a.approval_id }}</a></td>
+      <td>{{ a.approver_id }}</td>
+      <td><span class="badge {{ a.status }}">{{ a.status }}</span></td>
+      <td>{{ a.decision or "—" }}</td>
+      <td>{{ a.decided_by or "—" }}</td>
+      <td>{{ a.comments or "—" }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="note">No approvals required or recorded.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>6. Exceptions applied</h2>
+<p class="mono">{{ dossier.exceptions_applied | join(", ") or "none" }}</p>
+
+<h2>7. Audit events ({{ dossier.audit_events | length }})</h2>
+<table>
+  <thead><tr><th>Event</th><th>Type</th><th>Actor</th><th>Action</th><th>Hash</th><th>Prev hash</th></tr></thead>
+  <tbody>
+    {% for e in dossier.audit_events %}
+    <tr>
+      <td class="mono"><a href="/audit/{{ e.event_id }}">{{ e.event_id }}</a></td>
+      <td>{{ e.event_type }}</td>
+      <td>{{ e.actor_id }}</td>
+      <td>{{ e.action }}</td>
+      <td class="mono">{{ e.event_hash[:16] }}…</td>
+      <td class="mono">{{ e.previous_event_hash[:16] }}…</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>8. Lineage</h2>
+<table>
+  <thead><tr><th>Parent</th><th>Child</th><th>Change type</th><th>Decision ref</th><th>Rollback ref</th></tr></thead>
+  <tbody>
+    {% for l in dossier.lineage %}
+    <tr>
+      <td class="mono">{{ l.parent_id }}</td>
+      <td class="mono">{{ l.child_id }}</td>
+      <td>{{ l.change_type }}</td>
+      <td class="mono">{{ l.decision_ref or "—" }}</td>
+      <td class="mono">{{ l.rollback_plan_ref or "—" }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="note">No lineage recorded for this decision.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Login — {{ app_name }}{% endblock %}
+{% block content %}
+<section class="card narrow">
+  <h2>Governance Console — Sign in</h2>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <form method="post" action="/login">
+    <label>Username <input type="text" name="username" required></label>
+    <label>Password <input type="password" name="password" required></label>
+    <button type="submit">Sign in</button>
+  </form>
+  <p class="note">Demo users: alice (auditor/operator), bob (viewer), carol (approver), dave (admin).</p>
+</section>
+{% endblock %}

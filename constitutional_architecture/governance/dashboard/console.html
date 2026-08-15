@@ -1,0 +1,2082 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Constitutional Governance Console</title>
+<style>
+  :root { --ink:#1c2733; --muted:#5c6b7a; --line:#d7dee5; --bg:#f5f7f9; --card:#fff;
+          --allow:#e6f4ea; --allow-ink:#1e7e34; --deny:#fdecea; --deny-ink:#b3261e;
+          --approval:#fff4e5; --approval-ink:#b26a00; --evidence:#eef2ff; --evidence-ink:#3d5afe; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Segoe UI", system-ui, sans-serif; color:var(--ink); background:var(--bg); }
+  header { background:#14202b; color:#e8eef4; padding:14px 22px; }
+  header h1 { margin:0; font-size:18px; letter-spacing:.4px; }
+  header p { margin:2px 0 0; color:#93a5b5; font-size:12px; }
+  nav { display:flex; gap:2px; background:#0f1922; padding:0 14px; }
+  nav button { background:none; border:none; color:#b7c4d0; padding:10px 14px; cursor:pointer;
+               font-size:13px; border-bottom:2px solid transparent; }
+  nav button.active { color:#fff; border-bottom-color:#4c9aff; }
+  main { padding:18px 22px; max-width:1400px; }
+  section.tab { display:none; }
+  section.tab.active { display:block; }
+  h2 { font-size:15px; margin:0 0 10px; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:10px; margin-bottom:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:6px; padding:12px; }
+  .card .label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; }
+  .card .value { font-size:22px; font-weight:600; margin-top:4px; }
+  table { border-collapse:collapse; width:100%; background:var(--card); font-size:12.5px; }
+  th, td { border:1px solid var(--line); padding:6px 9px; text-align:left; vertical-align:top; }
+  th { background:#eef2f5; font-size:11.5px; text-transform:uppercase; letter-spacing:.4px; color:#42505d; }
+  code, pre, .mono { font-family:Consolas, "Cascadia Mono", monospace; font-size:12px; }
+  pre { background:#0f1922; color:#d7e3ee; padding:12px; border-radius:6px; overflow:auto; max-height:480px; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:600; }
+  .b-ALLOW, .b-APPROVED { background:var(--allow); color:var(--allow-ink); }
+  .b-DENY, .b-REJECTED { background:var(--deny); color:var(--deny-ink); }
+  .b-REQUIRE_APPROVAL, .b-PENDING, .b-EXPIRED { background:var(--approval); color:var(--approval-ink); }
+  .b-REQUIRE_EVIDENCE { background:var(--evidence); color:var(--evidence-ink); }
+  .b-ACTIVE, .b-VALID { background:var(--allow); color:var(--allow-ink); }
+  .b-REVOKED, .b-BROKEN { background:var(--deny); color:var(--deny-ink); }
+  .filters { margin-bottom:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .filters input, .filters select { padding:5px 8px; border:1px solid var(--line); border-radius:4px; font-size:12.5px; }
+  .filters label { font-size:12px; color:var(--muted); }
+  button.action { background:#14202b; color:#fff; border:none; border-radius:4px; padding:6px 12px; cursor:pointer; font-size:12.5px; }
+  .note { color:var(--muted); font-size:12px; }
+  .muted { color:var(--muted); }
+  td.decision_id { font-family:Consolas, monospace; font-size:11.5px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Constitutional Governance Console</h1>
+  <p>Read-mostly, audit-oriented operations view over the Governance Kernel (Phase 28). Generated from kernel state; all mutations happen through kernel APIs and are audited.</p>
+</header>
+<nav id="tabs"></nav>
+<main id="main"></main>
+
+<script>
+/* {
+  "generated_at": "2026-08-01T16:12:48.490403+00:00",
+  "health": {
+    "total_evaluations": 2,
+    "by_decision": {
+      "ALLOW": 2
+    },
+    "pending_approvals": 0,
+    "expired_approvals": 0,
+    "active_exceptions": 1,
+    "expiring_exceptions_24h": 1,
+    "audit_chain": {
+      "status": "VALID",
+      "events": 4
+    }
+  },
+  "constitutions": [
+    {
+      "id": "constitution_06d763b2e0",
+      "version": "0.1.0",
+      "name": "Platform Constitution",
+      "description": "Root constitutional governance.",
+      "status": "ACTIVE",
+      "parent_id": null,
+      "parent_version": null,
+      "invariants": [],
+      "policy_domains": [
+        "isr_integrity",
+        "autonomy_bounds",
+        "safety_verification",
+        "reversibility",
+        "auditability"
+      ],
+      "approval_requirements": [],
+      "exception_policy": {
+        "allow_exceptions": true,
+        "max_duration": "P30D",
+        "requires_justification": true
+      },
+      "effective_at": "2026-08-01 16:12:48.488731+00:00",
+      "created_at": "2026-08-01 16:12:48.488564+00:00",
+      "created_by": "governance_kernel",
+      "content_hash": "741d6ef5f62ecf8774f2c6315c33f45128099fdc45ed565f416bde305e458a69",
+      "signature": null
+    }
+  ],
+  "active_constitutions": [
+    {
+      "id": "constitution_06d763b2e0",
+      "version": "0.1.0",
+      "name": "Platform Constitution",
+      "description": "Root constitutional governance.",
+      "status": "ACTIVE",
+      "parent_id": null,
+      "parent_version": null,
+      "invariants": [],
+      "policy_domains": [
+        "isr_integrity",
+        "autonomy_bounds",
+        "safety_verification",
+        "reversibility",
+        "auditability"
+      ],
+      "approval_requirements": [],
+      "exception_policy": {
+        "allow_exceptions": true,
+        "max_duration": "P30D",
+        "requires_justification": true
+      },
+      "effective_at": "2026-08-01 16:12:48.488731+00:00",
+      "created_at": "2026-08-01 16:12:48.488564+00:00",
+      "created_by": "governance_kernel",
+      "content_hash": "741d6ef5f62ecf8774f2c6315c33f45128099fdc45ed565f416bde305e458a69",
+      "signature": null
+    }
+  ],
+  "policy_sets": [
+    {
+      "id": "policy_set_3389ff800e",
+      "version": "0.1.0",
+      "name": "pack_006_approvals",
+      "constitution_id": "constitution_06d763b2e0",
+      "constitution_version": "0.1.0",
+      "status": "ACTIVE",
+      "policy_rules": [
+        {
+          "id": "high_impact_change_requires_architecture_review",
+          "name": "High-impact change requires architecture review",
+          "description": "",
+          "effect": "REQUIRE_APPROVAL",
+          "priority": 100,
+          "subject_types": [
+            "EVOLUTION_PROPOSAL",
+            "COMPILER_BACKEND",
+            "PRODUCT_RELEASE"
+          ],
+          "actions": [
+            "PROMOTE",
+            "DEPLOY",
+            "LAUNCH"
+          ],
+          "conditions": [],
+          "required_evidence": [],
+          "required_approvals": [
+            {
+              "approver_type": "ROLE",
+              "approver_id": "architecture_reviewer",
+              "required": true,
+              "timeout_policy": "DENY_ON_TIMEOUT",
+              "timeout_duration": null
+            }
+          ],
+          "constraints": [],
+          "failure_mode": "DENY"
+        }
+      ],
+      "applies_to": [],
+      "created_at": "2026-08-01 16:12:48.489396+00:00",
+      "created_by": "governance_kernel",
+      "content_hash": "1fd1b631dd1bf3e7432d4c4e0031a7e49a9178efa54e37c3220d503bd5665b8c"
+    },
+    {
+      "id": "policy_set_379d5bc5cb",
+      "version": "0.1.0",
+      "name": "pack_002_reversibility",
+      "constitution_id": "constitution_06d763b2e0",
+      "constitution_version": "0.1.0",
+      "status": "ACTIVE",
+      "policy_rules": [
+        {
+          "id": "promotion_requires_rollback_plan",
+          "name": "Promotion requires rollback plan",
+          "description": "No promoted change may occur without a rollback plan.",
+          "effect": "DENY",
+          "priority": 100,
+          "subject_types": [
+            "ISR_REVISION",
+            "EVOLUTION_PROPOSAL",
+            "DEPLOYMENT",
+            "PRODUCT_RELEASE"
+          ],
+          "actions": [
+            "PROMOTE",
+            "DEPLOY",
+            "LAUNCH"
+          ],
+          "conditions": [
+            {
+              "field": "context.has_rollback_plan",
+              "operator": "EQUALS",
+              "value": false
+            }
+          ],
+          "required_evidence": [],
+          "required_approvals": [],
+          "constraints": [],
+          "failure_mode": "DENY"
+        },
+        {
+          "id": "isr_promotion_requires_rollback_plan",
+          "name": "ISR promotion requires rollback plan",
+          "description": "",
+          "effect": "DENY",
+          "priority": 100,
+          "subject_types": [
+            "ISR_REVISION"
+          ],
+          "actions": [
+            "PROMOTE_ISR_REVISION"
+          ],
+          "conditions": [
+            {
+              "field": "context.has_rollback_plan",
+              "operator": "EQUALS",
+              "value": false
+            }
+          ],
+          "required_evidence": [],
+          "required_approvals": [],
+          "constraints": [],
+          "failure_mode": "DENY"
+        }
+      ],
+      "applies_to": [],
+      "created_at": "2026-08-01 16:12:48.489004+00:00",
+      "created_by": "governance_kernel",
+      "content_hash": "d2f0709f3c81fe535ede03dc2b9277fd0a8297dc943b81c83ce02ceb56546e93"
+    },
+    {
+      "id": "policy_set_3ce30d00d8",
+      "version": "0.1.0",
+      "name": "pack_004_autonomous_authority",
+      "constitution_id": "constitution_06d763b2e0",
+      "constitution_version": "0.1.0",
+      "status": "ACTIVE",
+      "policy_rules": [
+        {
+          "id": "no_self_authority_expansion",
+          "name": "No self authority expansion",
+          "description": "Autonomous agents may not grant themselves new authority.",
+          "effect": "DENY",
+          "priority": 100,
+          "subject_types": [
+            "AGENT_PERMISSION"
+          ],
+          "actions": [
+            "GRANT_AUTHORITY"
+          ],
+          "conditions": [
+            {
+              "field": "actor.actor_id",
+              "operator": "EQUALS",
+              "value": "context.target_agent_id"
+            }
+          ],
+          "required_evidence": [],
+          "required_approvals": [],
+          "constraints": [],
+          "failure_mode": "DENY"
+        }
+      ],
+      "applies_to": [],
+      "created_at": "2026-08-01 16:12:48.489206+00:00",
+      "created_by": "governance_kernel",
+      "content_hash": "80a04711f6ce5641bcc1a5a0075953ec9b93f0e0442327c8ac81aad06e8655ab"
+    },
+    {
+      "id": "policy_set_6f687aece9",
+      "version": "0.1.0",
+      "name": "pack_005_auditability",
+      "constitution_id": "constitution_06d763b2e0",
+      "constitution_version": "0.1.0",
+      "status": "ACTIVE",
+      "policy_rules": [
+        {
+          "id": "action_requires_audit_commitment",
+          "name": "Action requires audit commitment",
+          "description": "",
+          "effect": "DENY",
+          "priority": 100,
+          "subject_types": [
+            "ISR_REVISION",
+            "EVOLUTION_PROPOSAL",
+            "PLUGIN_INSTALLATION",
+            "PRODUCT_RELEASE"
+          ],
+          "actions": [
+            "PROMOTE",
+            "INSTALL",
+            "LAUNCH"
+          ],
+          "conditions": [
+            {
+              "field": "context.audit_commitment",
+              "operator": "EQUALS",
+              "value": false
+            }
+          ],
+          "required_evidence": [],
+          "required_approvals": [],
+          "constraints": [],
+          "failure_mode": "DENY"
+        }
+      ],
+      "applies_to": [],
+      "created_at": "2026-08-01 16:12:48.489307+00:00",
+      "created_by": "governance_kernel",
+      "content_hash": "49917ececd9a9eb3b2d7e7d31cab428c74ba9bc97ec38214f1cadba0ca4e1914"
+    },
+    {
+      "id": "policy_set_8e1a04e310",
+      "version": "0.1.0",
+      "name": "pack_001_isr_integrity",
+      "constitution_id": "constitution_06d763b2e0",
+      "constitution_version": "0.1.0",
+      "status": "ACTIVE",
+      "policy_rules": [
+        {
+          "id": "isr_revision_requires_parent_hash",
+          "name": "ISR revision requires parent hash",
+          "description": "",
+          "effect": "DENY",
+          "priority": 100,
+          "subject_types": [
+            "ISR_REVISION"
+          ],
+          "actions": [
+            "PROMOTE_ISR_REVISION"
+          ],
+          "conditions": [
+            {
+              "field": "context.parent_hash",
+              "operator": "EXISTS",
+              "value": false
+            }
+          ],
+          "required_evidence": [],
+          "required_approvals": [],
+          "constraints": [],
+          "failure_mode": "DENY"
+        },
+        {
+          "id": "isr_revision_requires_content_hash",
+          "name": "ISR revision requires content hash",
+          "description": "",
+          "effect": "DENY",
+          "priority": 100,
+          "subject_types": [
+            "ISR_REVISION"
+          ],
+          "actions": [
+            "PROMOTE_ISR_REVISION"
+          ],
+          "conditions": [
+            {
+              "field": "context.content_hash",
+              "operator": "EXISTS",
+              "value": false
+            }
+          ],
+          "required_evidence": [],
+          "required_approvals": [],
+          "constraints": [],
+          "failure_mode": "DENY"
+        }
+      ],
+      "applies_to": [],
+      "created_at": "2026-08-01 16:12:48.488833+00:00",
+      "created_by": "governance_kernel",
+      "content_hash": "503c6c9df4e5bd2579c79cca92e55f8bfb494092607194d6f9d8a2b44c2cb0be"
+    },
+    {
+      "id": "policy_set_fd49e05c91",
+      "version": "0.1.0",
+      "name": "pack_003_verification",
+      "constitution_id": "constitution_06d763b2e0",
+      "constitution_version": "0.1.0",
+      "status": "ACTIVE",
+      "policy_rules": [
+        {
+          "id": "high_impact_change_requires_verification",
+          "name": "High-impact change requires verification",
+          "description": "",
+          "effect": "REQUIRE_EVIDENCE",
+          "priority": 100,
+          "subject_types": [
+            "EVOLUTION_PROPOSAL",
+            "COMPILER_BACKEND",
+            "PRODUCT_RELEASE"
+          ],
+          "actions": [
+            "PROMOTE",
+            "DEPLOY",
+            "LAUNCH"
+          ],
+          "conditions": [],
+          "required_evidence": [
+            "verification_report",
+            "simulation_report"
+          ],
+          "required_approvals": [],
+          "constraints": [],
+          "failure_mode": "DENY"
+        },
+        {
+          "id": "isr_promotion_requires_verification",
+          "name": "ISR promotion requires verification evidence",
+          "description": "",
+          "effect": "DENY",
+          "priority": 100,
+          "subject_types": [
+            "ISR_REVISION"
+          ],
+          "actions": [
+            "PROMOTE_ISR_REVISION"
+          ],
+          "conditions": [
+            {
+              "field": "context.verification_status",
+              "operator": "NOT_EQUALS",
+              "value": "passed"
+            }
+          ],
+          "required_evidence": [],
+          "required_approvals": [],
+          "constraints": [],
+          "failure_mode": "DENY"
+        }
+      ],
+      "applies_to": [],
+      "created_at": "2026-08-01 16:12:48.489115+00:00",
+      "created_by": "governance_kernel",
+      "content_hash": "70ea2df923665c299f1f1b40701c8853da575d760fb7eda7ee2ffc82ba57e82f"
+    }
+  ],
+  "evaluations": [
+    {
+      "decision_id": "decision_384820baf79434a1",
+      "request": {
+        "subject_type": "EVOLUTION_PROPOSAL",
+        "subject_id": "prop_engine_refactor",
+        "action": "PROMOTE",
+        "actor": {
+          "actor_type": "AUTONOMOUS_AGENT",
+          "actor_id": "evolution_agent_01",
+          "roles": [
+            "evolution_proposer"
+          ],
+          "delegated_authority": [
+            "propose_isr_changes"
+          ]
+        },
+        "context": {
+          "environment": "staging",
+          "has_rollback_plan": true,
+          "verification_status": "passed",
+          "parent_hash": "h_prop_engine_refactor",
+          "content_hash": "h_prop_engine_refactor_content",
+          "audit_commitment": true
+        },
+        "evidence_refs": [
+          "verification_report",
+          "simulation_report"
+        ],
+        "requested_exceptions": []
+      },
+      "decision": {
+        "decision": "REQUIRE_APPROVAL",
+        "reason": "approval required by High-impact change requires architecture review",
+        "evaluated_policies": [
+          {
+            "policy_set_id": "policy_set_6f687aece9",
+            "policy_set_version": "0.1.0",
+            "rule_id": "action_requires_audit_commitment",
+            "rule_name": "Action requires audit commitment",
+            "outcome": "NOT_MATCHED",
+            "explanation": "condition context.audit_commitment not satisfied (True EQUALS False)"
+          },
+          {
+            "policy_set_id": "policy_set_3389ff800e",
+            "policy_set_version": "0.1.0",
+            "rule_id": "high_impact_change_requires_architecture_review",
+            "rule_name": "High-impact change requires architecture review",
+            "outcome": "MATCHED_REQUIRE_APPROVAL",
+            "explanation": "requires approval: High-impact change requires architecture review"
+          },
+          {
+            "policy_set_id": "policy_set_fd49e05c91",
+            "policy_set_version": "0.1.0",
+            "rule_id": "high_impact_change_requires_verification",
+            "rule_name": "High-impact change requires verification",
+            "outcome": "MATCHED_REQUIRE_EVIDENCE",
+            "explanation": "requires evidence: High-impact change requires verification"
+          },
+          {
+            "policy_set_id": "policy_set_379d5bc5cb",
+            "policy_set_version": "0.1.0",
+            "rule_id": "promotion_requires_rollback_plan",
+            "rule_name": "Promotion requires rollback plan",
+            "outcome": "NOT_MATCHED",
+            "explanation": "condition context.has_rollback_plan not satisfied (True EQUALS False)"
+          }
+        ],
+        "required_approvals": [
+          {
+            "approver_type": "ROLE",
+            "approver_id": "architecture_reviewer",
+            "required": true,
+            "timeout_policy": "DENY_ON_TIMEOUT",
+            "timeout_duration": null
+          }
+        ],
+        "required_evidence": [],
+        "constraints": [],
+        "exceptions_applied": [],
+        "decision_hash": "384820baf79434a16a08228fe010d205459582a24eedffe925f6574429343062",
+        "created_at": "2026-08-01 16:12:48.489567+00:00"
+      },
+      "final_decision": "ALLOW",
+      "approval_ids": [
+        "approval_c8e2f736d5"
+      ],
+      "lineage": [
+        {
+          "id": "lineage_02a9669dc8",
+          "parent_artifact_type": "ISR_REVISION",
+          "parent_artifact_id": "isr_rev_100",
+          "parent_artifact_hash": "h_100",
+          "child_artifact_type": "ISR_REVISION",
+          "child_artifact_id": "isr_rev_101",
+          "child_artifact_hash": "h_101",
+          "change_type": "PROMOTION",
+          "cause_ref": null,
+          "decision_ref": "decision_384820baf79434a1",
+          "approval_refs": [],
+          "rollback_plan_ref": null,
+          "created_at": "2026-08-01 16:12:48.489961+00:00"
+        }
+      ],
+      "audit": [
+        {
+          "id": "audit_2d08bea782",
+          "event_type": "POLICY_EVALUATED",
+          "actor": {
+            "actor_type": "AUTONOMOUS_AGENT",
+            "actor_id": "evolution_agent_01",
+            "roles": [
+              "evolution_proposer"
+            ],
+            "delegated_authority": [
+              "propose_isr_changes"
+            ]
+          },
+          "subject_type": "EVOLUTION_PROPOSAL",
+          "subject_id": "prop_engine_refactor",
+          "action": "PROMOTE",
+          "decision_id": "decision_384820baf79434a1",
+          "approval_ids": [],
+          "evidence_refs": [
+            "verification_report",
+            "simulation_report"
+          ],
+          "context": {
+            "decision": "REQUIRE_APPROVAL"
+          },
+          "timestamp": "2026-08-01 16:12:48.489694+00:00",
+          "previous_event_hash": "",
+          "event_hash": "9a41844a20910259c7ad8f53ef6ffb7493be17963af391e7581d0934d7bfd11e"
+        },
+        {
+          "id": "audit_b249c7d3ce",
+          "event_type": "ACTION_FINALIZED",
+          "actor": {
+            "actor_type": "AUTONOMOUS_AGENT",
+            "actor_id": "evolution_agent_01",
+            "roles": [
+              "evolution_proposer"
+            ],
+            "delegated_authority": [
+              "propose_isr_changes"
+            ]
+          },
+          "subject_type": "EVOLUTION_PROPOSAL",
+          "subject_id": "prop_engine_refactor",
+          "action": "PROMOTE",
+          "decision_id": "decision_384820baf79434a1",
+          "approval_ids": [
+            "approval_c8e2f736d5"
+          ],
+          "evidence_refs": [],
+          "context": {
+            "final_decision": "ALLOW"
+          },
+          "timestamp": "2026-08-01 16:12:48.489868+00:00",
+          "previous_event_hash": "9a41844a20910259c7ad8f53ef6ffb7493be17963af391e7581d0934d7bfd11e",
+          "event_hash": "fbca03032364dd84412508e317bd986a6b6621012257df69df842840685072b8"
+        }
+      ]
+    },
+    {
+      "decision_id": "decision_491347b01ecf908b",
+      "request": {
+        "subject_type": "EVOLUTION_PROPOSAL",
+        "subject_id": "prop_backend_migration",
+        "action": "PROMOTE",
+        "actor": {
+          "actor_type": "AUTONOMOUS_AGENT",
+          "actor_id": "evolution_agent_01",
+          "roles": [
+            "evolution_proposer"
+          ],
+          "delegated_authority": [
+            "propose_isr_changes"
+          ]
+        },
+        "context": {
+          "environment": "staging",
+          "has_rollback_plan": false,
+          "verification_status": "passed",
+          "parent_hash": "h_prop_backend_migration",
+          "content_hash": "h_prop_backend_migration_content",
+          "audit_commitment": true
+        },
+        "evidence_refs": [
+          "verification_report",
+          "simulation_report"
+        ],
+        "requested_exceptions": []
+      },
+      "decision": {
+        "decision": "DENY",
+        "reason": "denied by: Promotion requires rollback plan",
+        "evaluated_policies": [
+          {
+            "policy_set_id": "policy_set_6f687aece9",
+            "policy_set_version": "0.1.0",
+            "rule_id": "action_requires_audit_commitment",
+            "rule_name": "Action requires audit commitment",
+            "outcome": "NOT_MATCHED",
+            "explanation": "condition context.audit_commitment not satisfied (True EQUALS False)"
+          },
+          {
+            "policy_set_id": "policy_set_3389ff800e",
+            "policy_set_version": "0.1.0",
+            "rule_id": "high_impact_change_requires_architecture_review",
+            "rule_name": "High-impact change requires architecture review",
+            "outcome": "MATCHED_REQUIRE_APPROVAL",
+            "explanation": "requires approval: High-impact change requires architecture review"
+          },
+          {
+            "policy_set_id": "policy_set_fd49e05c91",
+            "policy_set_version": "0.1.0",
+            "rule_id": "high_impact_change_requires_verification",
+            "rule_name": "High-impact change requires verification",
+            "outcome": "MATCHED_REQUIRE_EVIDENCE",
+            "explanation": "requires evidence: High-impact change requires verification"
+          },
+          {
+            "policy_set_id": "policy_set_379d5bc5cb",
+            "policy_set_version": "0.1.0",
+            "rule_id": "promotion_requires_rollback_plan",
+            "rule_name": "Promotion requires rollback plan",
+            "outcome": "MATCHED_DENY",
+            "explanation": "deny rule Promotion requires rollback plan matched"
+          }
+        ],
+        "required_approvals": [],
+        "required_evidence": [],
+        "constraints": [],
+        "exceptions_applied": [],
+        "decision_hash": "491347b01ecf908ba7e53b970e1ae9743b78221b248650867db65cd13c1407d7",
+        "created_at": "2026-08-01 16:12:48.490040+00:00"
+      },
+      "final_decision": "ALLOW",
+      "approval_ids": [],
+      "lineage": [],
+      "audit": [
+        {
+          "id": "audit_b33e5fc518",
+          "event_type": "POLICY_EVALUATED",
+          "actor": {
+            "actor_type": "AUTONOMOUS_AGENT",
+            "actor_id": "evolution_agent_01",
+            "roles": [
+              "evolution_proposer"
+            ],
+            "delegated_authority": [
+              "propose_isr_changes"
+            ]
+          },
+          "subject_type": "EVOLUTION_PROPOSAL",
+          "subject_id": "prop_backend_migration",
+          "action": "PROMOTE",
+          "decision_id": "decision_491347b01ecf908b",
+          "approval_ids": [],
+          "evidence_refs": [
+            "verification_report",
+            "simulation_report"
+          ],
+          "context": {
+            "decision": "DENY"
+          },
+          "timestamp": "2026-08-01 16:12:48.490134+00:00",
+          "previous_event_hash": "fbca03032364dd84412508e317bd986a6b6621012257df69df842840685072b8",
+          "event_hash": "f136a8c8cc3f9bc86fcf589ace2232685653c515da652eaa500f625607627159"
+        },
+        {
+          "id": "audit_ac220efbc3",
+          "event_type": "ACTION_FINALIZED",
+          "actor": {
+            "actor_type": "AUTONOMOUS_AGENT",
+            "actor_id": "evolution_agent_01",
+            "roles": [
+              "evolution_proposer"
+            ],
+            "delegated_authority": [
+              "propose_isr_changes"
+            ]
+          },
+          "subject_type": "EVOLUTION_PROPOSAL",
+          "subject_id": "prop_backend_migration",
+          "action": "PROMOTE",
+          "decision_id": "decision_491347b01ecf908b",
+          "approval_ids": [],
+          "evidence_refs": [],
+          "context": {
+            "final_decision": "ALLOW"
+          },
+          "timestamp": "2026-08-01 16:12:48.490216+00:00",
+          "previous_event_hash": "f136a8c8cc3f9bc86fcf589ace2232685653c515da652eaa500f625607627159",
+          "event_hash": "546e12030886895d5684acea60b4dd85c682443c1f576adb6e5c59b2e251875c"
+        }
+      ]
+    }
+  ],
+  "approvals": [
+    {
+      "id": "approval_c8e2f736d5",
+      "evaluation_id": "decision_384820baf79434a1",
+      "requirement": {
+        "approver_type": "ROLE",
+        "approver_id": "architecture_reviewer",
+        "required": true,
+        "timeout_policy": "DENY_ON_TIMEOUT",
+        "timeout_duration": null
+      },
+      "approver_type": "ROLE",
+      "approver_id": "architecture_reviewer",
+      "status": "APPROVED",
+      "decision": "APPROVED",
+      "comments": null,
+      "approved_constraints": [],
+      "created_at": "2026-08-01 16:12:48.489789+00:00",
+      "decided_at": "2026-08-01 16:12:48.489825+00:00",
+      "signature": null
+    }
+  ],
+  "exceptions": [
+    {
+      "id": "exc_4d91d545f3",
+      "name": "temp_dev_widget",
+      "justification": "Temporary widget development until the widget module ships.",
+      "scope": {
+        "subject_types": [],
+        "actions": [],
+        "subject_ids": [],
+        "actor_ids": [],
+        "max_uses": null,
+        "environment": null
+      },
+      "granted_by": "alice",
+      "granted_at": "2026-08-01 16:12:48.490329+00:00",
+      "expires_at": "2026-08-01 16:12:48.490308+00:00",
+      "status": "ACTIVE",
+      "constraints": [],
+      "audit_ref": "",
+      "use_count": 0
+    }
+  ],
+  "audit_events": [
+    {
+      "id": "audit_2d08bea782",
+      "event_type": "POLICY_EVALUATED",
+      "actor": {
+        "actor_type": "AUTONOMOUS_AGENT",
+        "actor_id": "evolution_agent_01",
+        "roles": [
+          "evolution_proposer"
+        ],
+        "delegated_authority": [
+          "propose_isr_changes"
+        ]
+      },
+      "subject_type": "EVOLUTION_PROPOSAL",
+      "subject_id": "prop_engine_refactor",
+      "action": "PROMOTE",
+      "decision_id": "decision_384820baf79434a1",
+      "approval_ids": [],
+      "evidence_refs": [
+        "verification_report",
+        "simulation_report"
+      ],
+      "context": {
+        "decision": "REQUIRE_APPROVAL"
+      },
+      "timestamp": "2026-08-01 16:12:48.489694+00:00",
+      "previous_event_hash": "",
+      "event_hash": "9a41844a20910259c7ad8f53ef6ffb7493be17963af391e7581d0934d7bfd11e"
+    },
+    {
+      "id": "audit_b249c7d3ce",
+      "event_type": "ACTION_FINALIZED",
+      "actor": {
+        "actor_type": "AUTONOMOUS_AGENT",
+        "actor_id": "evolution_agent_01",
+        "roles": [
+          "evolution_proposer"
+        ],
+        "delegated_authority": [
+          "propose_isr_changes"
+        ]
+      },
+      "subject_type": "EVOLUTION_PROPOSAL",
+      "subject_id": "prop_engine_refactor",
+      "action": "PROMOTE",
+      "decision_id": "decision_384820baf79434a1",
+      "approval_ids": [
+        "approval_c8e2f736d5"
+      ],
+      "evidence_refs": [],
+      "context": {
+        "final_decision": "ALLOW"
+      },
+      "timestamp": "2026-08-01 16:12:48.489868+00:00",
+      "previous_event_hash": "9a41844a20910259c7ad8f53ef6ffb7493be17963af391e7581d0934d7bfd11e",
+      "event_hash": "fbca03032364dd84412508e317bd986a6b6621012257df69df842840685072b8"
+    },
+    {
+      "id": "audit_b33e5fc518",
+      "event_type": "POLICY_EVALUATED",
+      "actor": {
+        "actor_type": "AUTONOMOUS_AGENT",
+        "actor_id": "evolution_agent_01",
+        "roles": [
+          "evolution_proposer"
+        ],
+        "delegated_authority": [
+          "propose_isr_changes"
+        ]
+      },
+      "subject_type": "EVOLUTION_PROPOSAL",
+      "subject_id": "prop_backend_migration",
+      "action": "PROMOTE",
+      "decision_id": "decision_491347b01ecf908b",
+      "approval_ids": [],
+      "evidence_refs": [
+        "verification_report",
+        "simulation_report"
+      ],
+      "context": {
+        "decision": "DENY"
+      },
+      "timestamp": "2026-08-01 16:12:48.490134+00:00",
+      "previous_event_hash": "fbca03032364dd84412508e317bd986a6b6621012257df69df842840685072b8",
+      "event_hash": "f136a8c8cc3f9bc86fcf589ace2232685653c515da652eaa500f625607627159"
+    },
+    {
+      "id": "audit_ac220efbc3",
+      "event_type": "ACTION_FINALIZED",
+      "actor": {
+        "actor_type": "AUTONOMOUS_AGENT",
+        "actor_id": "evolution_agent_01",
+        "roles": [
+          "evolution_proposer"
+        ],
+        "delegated_authority": [
+          "propose_isr_changes"
+        ]
+      },
+      "subject_type": "EVOLUTION_PROPOSAL",
+      "subject_id": "prop_backend_migration",
+      "action": "PROMOTE",
+      "decision_id": "decision_491347b01ecf908b",
+      "approval_ids": [],
+      "evidence_refs": [],
+      "context": {
+        "final_decision": "ALLOW"
+      },
+      "timestamp": "2026-08-01 16:12:48.490216+00:00",
+      "previous_event_hash": "f136a8c8cc3f9bc86fcf589ace2232685653c515da652eaa500f625607627159",
+      "event_hash": "546e12030886895d5684acea60b4dd85c682443c1f576adb6e5c59b2e251875c"
+    }
+  ],
+  "chain": {
+    "status": "VALID",
+    "events": 4
+  },
+  "lineage": [
+    {
+      "id": "lineage_02a9669dc8",
+      "parent_artifact_type": "ISR_REVISION",
+      "parent_artifact_id": "isr_rev_100",
+      "parent_artifact_hash": "h_100",
+      "child_artifact_type": "ISR_REVISION",
+      "child_artifact_id": "isr_rev_101",
+      "child_artifact_hash": "h_101",
+      "change_type": "PROMOTION",
+      "cause_ref": null,
+      "decision_ref": "decision_384820baf79434a1",
+      "approval_refs": [],
+      "rollback_plan_ref": null,
+      "created_at": "2026-08-01 16:12:48.489961+00:00"
+    }
+  ]
+} is replaced by render_console.py with serialized kernel state. */
+var GOV = {
+  "generated_at": "2026-08-01T16:12:48.490403+00:00",
+  "health": {
+    "total_evaluations": 2,
+    "by_decision": {
+      "ALLOW": 2
+    },
+    "pending_approvals": 0,
+    "expired_approvals": 0,
+    "active_exceptions": 1,
+    "expiring_exceptions_24h": 1,
+    "audit_chain": {
+      "status": "VALID",
+      "events": 4
+    }
+  },
+  "constitutions": [
+    {
+      "id": "constitution_06d763b2e0",
+      "version": "0.1.0",
+      "name": "Platform Constitution",
+      "description": "Root constitutional governance.",
+      "status": "ACTIVE",
+      "parent_id": null,
+      "parent_version": null,
+      "invariants": [],
+      "policy_domains": [
+        "isr_integrity",
+        "autonomy_bounds",
+        "safety_verification",
+        "reversibility",
+        "auditability"
+      ],
+      "approval_requirements": [],
+      "exception_policy": {
+        "allow_exceptions": true,
+        "max_duration": "P30D",
+        "requires_justification": true
+      },
+      "effective_at": "2026-08-01 16:12:48.488731+00:00",
+      "created_at": "2026-08-01 16:12:48.488564+00:00",
+      "created_by": "governance_kernel",
+      "content_hash": "741d6ef5f62ecf8774f2c6315c33f45128099fdc45ed565f416bde305e458a69",
+      "signature": null
+    }
+  ],
+  "active_constitutions": [
+    {
+      "id": "constitution_06d763b2e0",
+      "version": "0.1.0",
+      "name": "Platform Constitution",
+      "description": "Root constitutional governance.",
+      "status": "ACTIVE",
+      "parent_id": null,
+      "parent_version": null,
+      "invariants": [],
+      "policy_domains": [
+        "isr_integrity",
+        "autonomy_bounds",
+        "safety_verification",
+        "reversibility",
+        "auditability"
+      ],
+      "approval_requirements": [],
+      "exception_policy": {
+        "allow_exceptions": true,
+        "max_duration": "P30D",
+        "requires_justification": true
+      },
+      "effective_at": "2026-08-01 16:12:48.488731+00:00",
+      "created_at": "2026-08-01 16:12:48.488564+00:00",
+      "created_by": "governance_kernel",
+      "content_hash": "741d6ef5f62ecf8774f2c6315c33f45128099fdc45ed565f416bde305e458a69",
+      "signature": null
+    }
+  ],
+  "policy_sets": [
+    {
+      "id": "policy_set_3389ff800e",
+      "version": "0.1.0",
+      "name": "pack_006_approvals",
+      "constitution_id": "constitution_06d763b2e0",
+      "constitution_version": "0.1.0",
+      "status": "ACTIVE",
+      "policy_rules": [
+        {
+          "id": "high_impact_change_requires_architecture_review",
+          "name": "High-impact change requires architecture review",
+          "description": "",
+          "effect": "REQUIRE_APPROVAL",
+          "priority": 100,
+          "subject_types": [
+            "EVOLUTION_PROPOSAL",
+            "COMPILER_BACKEND",
+            "PRODUCT_RELEASE"
+          ],
+          "actions": [
+            "PROMOTE",
+            "DEPLOY",
+            "LAUNCH"
+          ],
+          "conditions": [],
+          "required_evidence": [],
+          "required_approvals": [
+            {
+              "approver_type": "ROLE",
+              "approver_id": "architecture_reviewer",
+              "required": true,
+              "timeout_policy": "DENY_ON_TIMEOUT",
+              "timeout_duration": null
+            }
+          ],
+          "constraints": [],
+          "failure_mode": "DENY"
+        }
+      ],
+      "applies_to": [],
+      "created_at": "2026-08-01 16:12:48.489396+00:00",
+      "created_by": "governance_kernel",
+      "content_hash": "1fd1b631dd1bf3e7432d4c4e0031a7e49a9178efa54e37c3220d503bd5665b8c"
+    },
+    {
+      "id": "policy_set_379d5bc5cb",
+      "version": "0.1.0",
+      "name": "pack_002_reversibility",
+      "constitution_id": "constitution_06d763b2e0",
+      "constitution_version": "0.1.0",
+      "status": "ACTIVE",
+      "policy_rules": [
+        {
+          "id": "promotion_requires_rollback_plan",
+          "name": "Promotion requires rollback plan",
+          "description": "No promoted change may occur without a rollback plan.",
+          "effect": "DENY",
+          "priority": 100,
+          "subject_types": [
+            "ISR_REVISION",
+            "EVOLUTION_PROPOSAL",
+            "DEPLOYMENT",
+            "PRODUCT_RELEASE"
+          ],
+          "actions": [
+            "PROMOTE",
+            "DEPLOY",
+            "LAUNCH"
+          ],
+          "conditions": [
+            {
+              "field": "context.has_rollback_plan",
+              "operator": "EQUALS",
+              "value": false
+            }
+          ],
+          "required_evidence": [],
+          "required_approvals": [],
+          "constraints": [],
+          "failure_mode": "DENY"
+        },
+        {
+          "id": "isr_promotion_requires_rollback_plan",
+          "name": "ISR promotion requires rollback plan",
+          "description": "",
+          "effect": "DENY",
+          "priority": 100,
+          "subject_types": [
+            "ISR_REVISION"
+          ],
+          "actions": [
+            "PROMOTE_ISR_REVISION"
+          ],
+          "conditions": [
+            {
+              "field": "context.has_rollback_plan",
+              "operator": "EQUALS",
+              "value": false
+            }
+          ],
+          "required_evidence": [],
+          "required_approvals": [],
+          "constraints": [],
+          "failure_mode": "DENY"
+        }
+      ],
+      "applies_to": [],
+      "created_at": "2026-08-01 16:12:48.489004+00:00",
+      "created_by": "governance_kernel",
+      "content_hash": "d2f0709f3c81fe535ede03dc2b9277fd0a8297dc943b81c83ce02ceb56546e93"
+    },
+    {
+      "id": "policy_set_3ce30d00d8",
+      "version": "0.1.0",
+      "name": "pack_004_autonomous_authority",
+      "constitution_id": "constitution_06d763b2e0",
+      "constitution_version": "0.1.0",
+      "status": "ACTIVE",
+      "policy_rules": [
+        {
+          "id": "no_self_authority_expansion",
+          "name": "No self authority expansion",
+          "description": "Autonomous agents may not grant themselves new authority.",
+          "effect": "DENY",
+          "priority": 100,
+          "subject_types": [
+            "AGENT_PERMISSION"
+          ],
+          "actions": [
+            "GRANT_AUTHORITY"
+          ],
+          "conditions": [
+            {
+              "field": "actor.actor_id",
+              "operator": "EQUALS",
+              "value": "context.target_agent_id"
+            }
+          ],
+          "required_evidence": [],
+          "required_approvals": [],
+          "constraints": [],
+          "failure_mode": "DENY"
+        }
+      ],
+      "applies_to": [],
+      "created_at": "2026-08-01 16:12:48.489206+00:00",
+      "created_by": "governance_kernel",
+      "content_hash": "80a04711f6ce5641bcc1a5a0075953ec9b93f0e0442327c8ac81aad06e8655ab"
+    },
+    {
+      "id": "policy_set_6f687aece9",
+      "version": "0.1.0",
+      "name": "pack_005_auditability",
+      "constitution_id": "constitution_06d763b2e0",
+      "constitution_version": "0.1.0",
+      "status": "ACTIVE",
+      "policy_rules": [
+        {
+          "id": "action_requires_audit_commitment",
+          "name": "Action requires audit commitment",
+          "description": "",
+          "effect": "DENY",
+          "priority": 100,
+          "subject_types": [
+            "ISR_REVISION",
+            "EVOLUTION_PROPOSAL",
+            "PLUGIN_INSTALLATION",
+            "PRODUCT_RELEASE"
+          ],
+          "actions": [
+            "PROMOTE",
+            "INSTALL",
+            "LAUNCH"
+          ],
+          "conditions": [
+            {
+              "field": "context.audit_commitment",
+              "operator": "EQUALS",
+              "value": false
+            }
+          ],
+          "required_evidence": [],
+          "required_approvals": [],
+          "constraints": [],
+          "failure_mode": "DENY"
+        }
+      ],
+      "applies_to": [],
+      "created_at": "2026-08-01 16:12:48.489307+00:00",
+      "created_by": "governance_kernel",
+      "content_hash": "49917ececd9a9eb3b2d7e7d31cab428c74ba9bc97ec38214f1cadba0ca4e1914"
+    },
+    {
+      "id": "policy_set_8e1a04e310",
+      "version": "0.1.0",
+      "name": "pack_001_isr_integrity",
+      "constitution_id": "constitution_06d763b2e0",
+      "constitution_version": "0.1.0",
+      "status": "ACTIVE",
+      "policy_rules": [
+        {
+          "id": "isr_revision_requires_parent_hash",
+          "name": "ISR revision requires parent hash",
+          "description": "",
+          "effect": "DENY",
+          "priority": 100,
+          "subject_types": [
+            "ISR_REVISION"
+          ],
+          "actions": [
+            "PROMOTE_ISR_REVISION"
+          ],
+          "conditions": [
+            {
+              "field": "context.parent_hash",
+              "operator": "EXISTS",
+              "value": false
+            }
+          ],
+          "required_evidence": [],
+          "required_approvals": [],
+          "constraints": [],
+          "failure_mode": "DENY"
+        },
+        {
+          "id": "isr_revision_requires_content_hash",
+          "name": "ISR revision requires content hash",
+          "description": "",
+          "effect": "DENY",
+          "priority": 100,
+          "subject_types": [
+            "ISR_REVISION"
+          ],
+          "actions": [
+            "PROMOTE_ISR_REVISION"
+          ],
+          "conditions": [
+            {
+              "field": "context.content_hash",
+              "operator": "EXISTS",
+              "value": false
+            }
+          ],
+          "required_evidence": [],
+          "required_approvals": [],
+          "constraints": [],
+          "failure_mode": "DENY"
+        }
+      ],
+      "applies_to": [],
+      "created_at": "2026-08-01 16:12:48.488833+00:00",
+      "created_by": "governance_kernel",
+      "content_hash": "503c6c9df4e5bd2579c79cca92e55f8bfb494092607194d6f9d8a2b44c2cb0be"
+    },
+    {
+      "id": "policy_set_fd49e05c91",
+      "version": "0.1.0",
+      "name": "pack_003_verification",
+      "constitution_id": "constitution_06d763b2e0",
+      "constitution_version": "0.1.0",
+      "status": "ACTIVE",
+      "policy_rules": [
+        {
+          "id": "high_impact_change_requires_verification",
+          "name": "High-impact change requires verification",
+          "description": "",
+          "effect": "REQUIRE_EVIDENCE",
+          "priority": 100,
+          "subject_types": [
+            "EVOLUTION_PROPOSAL",
+            "COMPILER_BACKEND",
+            "PRODUCT_RELEASE"
+          ],
+          "actions": [
+            "PROMOTE",
+            "DEPLOY",
+            "LAUNCH"
+          ],
+          "conditions": [],
+          "required_evidence": [
+            "verification_report",
+            "simulation_report"
+          ],
+          "required_approvals": [],
+          "constraints": [],
+          "failure_mode": "DENY"
+        },
+        {
+          "id": "isr_promotion_requires_verification",
+          "name": "ISR promotion requires verification evidence",
+          "description": "",
+          "effect": "DENY",
+          "priority": 100,
+          "subject_types": [
+            "ISR_REVISION"
+          ],
+          "actions": [
+            "PROMOTE_ISR_REVISION"
+          ],
+          "conditions": [
+            {
+              "field": "context.verification_status",
+              "operator": "NOT_EQUALS",
+              "value": "passed"
+            }
+          ],
+          "required_evidence": [],
+          "required_approvals": [],
+          "constraints": [],
+          "failure_mode": "DENY"
+        }
+      ],
+      "applies_to": [],
+      "created_at": "2026-08-01 16:12:48.489115+00:00",
+      "created_by": "governance_kernel",
+      "content_hash": "70ea2df923665c299f1f1b40701c8853da575d760fb7eda7ee2ffc82ba57e82f"
+    }
+  ],
+  "evaluations": [
+    {
+      "decision_id": "decision_384820baf79434a1",
+      "request": {
+        "subject_type": "EVOLUTION_PROPOSAL",
+        "subject_id": "prop_engine_refactor",
+        "action": "PROMOTE",
+        "actor": {
+          "actor_type": "AUTONOMOUS_AGENT",
+          "actor_id": "evolution_agent_01",
+          "roles": [
+            "evolution_proposer"
+          ],
+          "delegated_authority": [
+            "propose_isr_changes"
+          ]
+        },
+        "context": {
+          "environment": "staging",
+          "has_rollback_plan": true,
+          "verification_status": "passed",
+          "parent_hash": "h_prop_engine_refactor",
+          "content_hash": "h_prop_engine_refactor_content",
+          "audit_commitment": true
+        },
+        "evidence_refs": [
+          "verification_report",
+          "simulation_report"
+        ],
+        "requested_exceptions": []
+      },
+      "decision": {
+        "decision": "REQUIRE_APPROVAL",
+        "reason": "approval required by High-impact change requires architecture review",
+        "evaluated_policies": [
+          {
+            "policy_set_id": "policy_set_6f687aece9",
+            "policy_set_version": "0.1.0",
+            "rule_id": "action_requires_audit_commitment",
+            "rule_name": "Action requires audit commitment",
+            "outcome": "NOT_MATCHED",
+            "explanation": "condition context.audit_commitment not satisfied (True EQUALS False)"
+          },
+          {
+            "policy_set_id": "policy_set_3389ff800e",
+            "policy_set_version": "0.1.0",
+            "rule_id": "high_impact_change_requires_architecture_review",
+            "rule_name": "High-impact change requires architecture review",
+            "outcome": "MATCHED_REQUIRE_APPROVAL",
+            "explanation": "requires approval: High-impact change requires architecture review"
+          },
+          {
+            "policy_set_id": "policy_set_fd49e05c91",
+            "policy_set_version": "0.1.0",
+            "rule_id": "high_impact_change_requires_verification",
+            "rule_name": "High-impact change requires verification",
+            "outcome": "MATCHED_REQUIRE_EVIDENCE",
+            "explanation": "requires evidence: High-impact change requires verification"
+          },
+          {
+            "policy_set_id": "policy_set_379d5bc5cb",
+            "policy_set_version": "0.1.0",
+            "rule_id": "promotion_requires_rollback_plan",
+            "rule_name": "Promotion requires rollback plan",
+            "outcome": "NOT_MATCHED",
+            "explanation": "condition context.has_rollback_plan not satisfied (True EQUALS False)"
+          }
+        ],
+        "required_approvals": [
+          {
+            "approver_type": "ROLE",
+            "approver_id": "architecture_reviewer",
+            "required": true,
+            "timeout_policy": "DENY_ON_TIMEOUT",
+            "timeout_duration": null
+          }
+        ],
+        "required_evidence": [],
+        "constraints": [],
+        "exceptions_applied": [],
+        "decision_hash": "384820baf79434a16a08228fe010d205459582a24eedffe925f6574429343062",
+        "created_at": "2026-08-01 16:12:48.489567+00:00"
+      },
+      "final_decision": "ALLOW",
+      "approval_ids": [
+        "approval_c8e2f736d5"
+      ],
+      "lineage": [
+        {
+          "id": "lineage_02a9669dc8",
+          "parent_artifact_type": "ISR_REVISION",
+          "parent_artifact_id": "isr_rev_100",
+          "parent_artifact_hash": "h_100",
+          "child_artifact_type": "ISR_REVISION",
+          "child_artifact_id": "isr_rev_101",
+          "child_artifact_hash": "h_101",
+          "change_type": "PROMOTION",
+          "cause_ref": null,
+          "decision_ref": "decision_384820baf79434a1",
+          "approval_refs": [],
+          "rollback_plan_ref": null,
+          "created_at": "2026-08-01 16:12:48.489961+00:00"
+        }
+      ],
+      "audit": [
+        {
+          "id": "audit_2d08bea782",
+          "event_type": "POLICY_EVALUATED",
+          "actor": {
+            "actor_type": "AUTONOMOUS_AGENT",
+            "actor_id": "evolution_agent_01",
+            "roles": [
+              "evolution_proposer"
+            ],
+            "delegated_authority": [
+              "propose_isr_changes"
+            ]
+          },
+          "subject_type": "EVOLUTION_PROPOSAL",
+          "subject_id": "prop_engine_refactor",
+          "action": "PROMOTE",
+          "decision_id": "decision_384820baf79434a1",
+          "approval_ids": [],
+          "evidence_refs": [
+            "verification_report",
+            "simulation_report"
+          ],
+          "context": {
+            "decision": "REQUIRE_APPROVAL"
+          },
+          "timestamp": "2026-08-01 16:12:48.489694+00:00",
+          "previous_event_hash": "",
+          "event_hash": "9a41844a20910259c7ad8f53ef6ffb7493be17963af391e7581d0934d7bfd11e"
+        },
+        {
+          "id": "audit_b249c7d3ce",
+          "event_type": "ACTION_FINALIZED",
+          "actor": {
+            "actor_type": "AUTONOMOUS_AGENT",
+            "actor_id": "evolution_agent_01",
+            "roles": [
+              "evolution_proposer"
+            ],
+            "delegated_authority": [
+              "propose_isr_changes"
+            ]
+          },
+          "subject_type": "EVOLUTION_PROPOSAL",
+          "subject_id": "prop_engine_refactor",
+          "action": "PROMOTE",
+          "decision_id": "decision_384820baf79434a1",
+          "approval_ids": [
+            "approval_c8e2f736d5"
+          ],
+          "evidence_refs": [],
+          "context": {
+            "final_decision": "ALLOW"
+          },
+          "timestamp": "2026-08-01 16:12:48.489868+00:00",
+          "previous_event_hash": "9a41844a20910259c7ad8f53ef6ffb7493be17963af391e7581d0934d7bfd11e",
+          "event_hash": "fbca03032364dd84412508e317bd986a6b6621012257df69df842840685072b8"
+        }
+      ]
+    },
+    {
+      "decision_id": "decision_491347b01ecf908b",
+      "request": {
+        "subject_type": "EVOLUTION_PROPOSAL",
+        "subject_id": "prop_backend_migration",
+        "action": "PROMOTE",
+        "actor": {
+          "actor_type": "AUTONOMOUS_AGENT",
+          "actor_id": "evolution_agent_01",
+          "roles": [
+            "evolution_proposer"
+          ],
+          "delegated_authority": [
+            "propose_isr_changes"
+          ]
+        },
+        "context": {
+          "environment": "staging",
+          "has_rollback_plan": false,
+          "verification_status": "passed",
+          "parent_hash": "h_prop_backend_migration",
+          "content_hash": "h_prop_backend_migration_content",
+          "audit_commitment": true
+        },
+        "evidence_refs": [
+          "verification_report",
+          "simulation_report"
+        ],
+        "requested_exceptions": []
+      },
+      "decision": {
+        "decision": "DENY",
+        "reason": "denied by: Promotion requires rollback plan",
+        "evaluated_policies": [
+          {
+            "policy_set_id": "policy_set_6f687aece9",
+            "policy_set_version": "0.1.0",
+            "rule_id": "action_requires_audit_commitment",
+            "rule_name": "Action requires audit commitment",
+            "outcome": "NOT_MATCHED",
+            "explanation": "condition context.audit_commitment not satisfied (True EQUALS False)"
+          },
+          {
+            "policy_set_id": "policy_set_3389ff800e",
+            "policy_set_version": "0.1.0",
+            "rule_id": "high_impact_change_requires_architecture_review",
+            "rule_name": "High-impact change requires architecture review",
+            "outcome": "MATCHED_REQUIRE_APPROVAL",
+            "explanation": "requires approval: High-impact change requires architecture review"
+          },
+          {
+            "policy_set_id": "policy_set_fd49e05c91",
+            "policy_set_version": "0.1.0",
+            "rule_id": "high_impact_change_requires_verification",
+            "rule_name": "High-impact change requires verification",
+            "outcome": "MATCHED_REQUIRE_EVIDENCE",
+            "explanation": "requires evidence: High-impact change requires verification"
+          },
+          {
+            "policy_set_id": "policy_set_379d5bc5cb",
+            "policy_set_version": "0.1.0",
+            "rule_id": "promotion_requires_rollback_plan",
+            "rule_name": "Promotion requires rollback plan",
+            "outcome": "MATCHED_DENY",
+            "explanation": "deny rule Promotion requires rollback plan matched"
+          }
+        ],
+        "required_approvals": [],
+        "required_evidence": [],
+        "constraints": [],
+        "exceptions_applied": [],
+        "decision_hash": "491347b01ecf908ba7e53b970e1ae9743b78221b248650867db65cd13c1407d7",
+        "created_at": "2026-08-01 16:12:48.490040+00:00"
+      },
+      "final_decision": "ALLOW",
+      "approval_ids": [],
+      "lineage": [],
+      "audit": [
+        {
+          "id": "audit_b33e5fc518",
+          "event_type": "POLICY_EVALUATED",
+          "actor": {
+            "actor_type": "AUTONOMOUS_AGENT",
+            "actor_id": "evolution_agent_01",
+            "roles": [
+              "evolution_proposer"
+            ],
+            "delegated_authority": [
+              "propose_isr_changes"
+            ]
+          },
+          "subject_type": "EVOLUTION_PROPOSAL",
+          "subject_id": "prop_backend_migration",
+          "action": "PROMOTE",
+          "decision_id": "decision_491347b01ecf908b",
+          "approval_ids": [],
+          "evidence_refs": [
+            "verification_report",
+            "simulation_report"
+          ],
+          "context": {
+            "decision": "DENY"
+          },
+          "timestamp": "2026-08-01 16:12:48.490134+00:00",
+          "previous_event_hash": "fbca03032364dd84412508e317bd986a6b6621012257df69df842840685072b8",
+          "event_hash": "f136a8c8cc3f9bc86fcf589ace2232685653c515da652eaa500f625607627159"
+        },
+        {
+          "id": "audit_ac220efbc3",
+          "event_type": "ACTION_FINALIZED",
+          "actor": {
+            "actor_type": "AUTONOMOUS_AGENT",
+            "actor_id": "evolution_agent_01",
+            "roles": [
+              "evolution_proposer"
+            ],
+            "delegated_authority": [
+              "propose_isr_changes"
+            ]
+          },
+          "subject_type": "EVOLUTION_PROPOSAL",
+          "subject_id": "prop_backend_migration",
+          "action": "PROMOTE",
+          "decision_id": "decision_491347b01ecf908b",
+          "approval_ids": [],
+          "evidence_refs": [],
+          "context": {
+            "final_decision": "ALLOW"
+          },
+          "timestamp": "2026-08-01 16:12:48.490216+00:00",
+          "previous_event_hash": "f136a8c8cc3f9bc86fcf589ace2232685653c515da652eaa500f625607627159",
+          "event_hash": "546e12030886895d5684acea60b4dd85c682443c1f576adb6e5c59b2e251875c"
+        }
+      ]
+    }
+  ],
+  "approvals": [
+    {
+      "id": "approval_c8e2f736d5",
+      "evaluation_id": "decision_384820baf79434a1",
+      "requirement": {
+        "approver_type": "ROLE",
+        "approver_id": "architecture_reviewer",
+        "required": true,
+        "timeout_policy": "DENY_ON_TIMEOUT",
+        "timeout_duration": null
+      },
+      "approver_type": "ROLE",
+      "approver_id": "architecture_reviewer",
+      "status": "APPROVED",
+      "decision": "APPROVED",
+      "comments": null,
+      "approved_constraints": [],
+      "created_at": "2026-08-01 16:12:48.489789+00:00",
+      "decided_at": "2026-08-01 16:12:48.489825+00:00",
+      "signature": null
+    }
+  ],
+  "exceptions": [
+    {
+      "id": "exc_4d91d545f3",
+      "name": "temp_dev_widget",
+      "justification": "Temporary widget development until the widget module ships.",
+      "scope": {
+        "subject_types": [],
+        "actions": [],
+        "subject_ids": [],
+        "actor_ids": [],
+        "max_uses": null,
+        "environment": null
+      },
+      "granted_by": "alice",
+      "granted_at": "2026-08-01 16:12:48.490329+00:00",
+      "expires_at": "2026-08-01 16:12:48.490308+00:00",
+      "status": "ACTIVE",
+      "constraints": [],
+      "audit_ref": "",
+      "use_count": 0
+    }
+  ],
+  "audit_events": [
+    {
+      "id": "audit_2d08bea782",
+      "event_type": "POLICY_EVALUATED",
+      "actor": {
+        "actor_type": "AUTONOMOUS_AGENT",
+        "actor_id": "evolution_agent_01",
+        "roles": [
+          "evolution_proposer"
+        ],
+        "delegated_authority": [
+          "propose_isr_changes"
+        ]
+      },
+      "subject_type": "EVOLUTION_PROPOSAL",
+      "subject_id": "prop_engine_refactor",
+      "action": "PROMOTE",
+      "decision_id": "decision_384820baf79434a1",
+      "approval_ids": [],
+      "evidence_refs": [
+        "verification_report",
+        "simulation_report"
+      ],
+      "context": {
+        "decision": "REQUIRE_APPROVAL"
+      },
+      "timestamp": "2026-08-01 16:12:48.489694+00:00",
+      "previous_event_hash": "",
+      "event_hash": "9a41844a20910259c7ad8f53ef6ffb7493be17963af391e7581d0934d7bfd11e"
+    },
+    {
+      "id": "audit_b249c7d3ce",
+      "event_type": "ACTION_FINALIZED",
+      "actor": {
+        "actor_type": "AUTONOMOUS_AGENT",
+        "actor_id": "evolution_agent_01",
+        "roles": [
+          "evolution_proposer"
+        ],
+        "delegated_authority": [
+          "propose_isr_changes"
+        ]
+      },
+      "subject_type": "EVOLUTION_PROPOSAL",
+      "subject_id": "prop_engine_refactor",
+      "action": "PROMOTE",
+      "decision_id": "decision_384820baf79434a1",
+      "approval_ids": [
+        "approval_c8e2f736d5"
+      ],
+      "evidence_refs": [],
+      "context": {
+        "final_decision": "ALLOW"
+      },
+      "timestamp": "2026-08-01 16:12:48.489868+00:00",
+      "previous_event_hash": "9a41844a20910259c7ad8f53ef6ffb7493be17963af391e7581d0934d7bfd11e",
+      "event_hash": "fbca03032364dd84412508e317bd986a6b6621012257df69df842840685072b8"
+    },
+    {
+      "id": "audit_b33e5fc518",
+      "event_type": "POLICY_EVALUATED",
+      "actor": {
+        "actor_type": "AUTONOMOUS_AGENT",
+        "actor_id": "evolution_agent_01",
+        "roles": [
+          "evolution_proposer"
+        ],
+        "delegated_authority": [
+          "propose_isr_changes"
+        ]
+      },
+      "subject_type": "EVOLUTION_PROPOSAL",
+      "subject_id": "prop_backend_migration",
+      "action": "PROMOTE",
+      "decision_id": "decision_491347b01ecf908b",
+      "approval_ids": [],
+      "evidence_refs": [
+        "verification_report",
+        "simulation_report"
+      ],
+      "context": {
+        "decision": "DENY"
+      },
+      "timestamp": "2026-08-01 16:12:48.490134+00:00",
+      "previous_event_hash": "fbca03032364dd84412508e317bd986a6b6621012257df69df842840685072b8",
+      "event_hash": "f136a8c8cc3f9bc86fcf589ace2232685653c515da652eaa500f625607627159"
+    },
+    {
+      "id": "audit_ac220efbc3",
+      "event_type": "ACTION_FINALIZED",
+      "actor": {
+        "actor_type": "AUTONOMOUS_AGENT",
+        "actor_id": "evolution_agent_01",
+        "roles": [
+          "evolution_proposer"
+        ],
+        "delegated_authority": [
+          "propose_isr_changes"
+        ]
+      },
+      "subject_type": "EVOLUTION_PROPOSAL",
+      "subject_id": "prop_backend_migration",
+      "action": "PROMOTE",
+      "decision_id": "decision_491347b01ecf908b",
+      "approval_ids": [],
+      "evidence_refs": [],
+      "context": {
+        "final_decision": "ALLOW"
+      },
+      "timestamp": "2026-08-01 16:12:48.490216+00:00",
+      "previous_event_hash": "f136a8c8cc3f9bc86fcf589ace2232685653c515da652eaa500f625607627159",
+      "event_hash": "546e12030886895d5684acea60b4dd85c682443c1f576adb6e5c59b2e251875c"
+    }
+  ],
+  "chain": {
+    "status": "VALID",
+    "events": 4
+  },
+  "lineage": [
+    {
+      "id": "lineage_02a9669dc8",
+      "parent_artifact_type": "ISR_REVISION",
+      "parent_artifact_id": "isr_rev_100",
+      "parent_artifact_hash": "h_100",
+      "child_artifact_type": "ISR_REVISION",
+      "child_artifact_id": "isr_rev_101",
+      "child_artifact_hash": "h_101",
+      "change_type": "PROMOTION",
+      "cause_ref": null,
+      "decision_ref": "decision_384820baf79434a1",
+      "approval_refs": [],
+      "rollback_plan_ref": null,
+      "created_at": "2026-08-01 16:12:48.489961+00:00"
+    }
+  ]
+};
+
+function el(tag, cls, text) {
+  var e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined && text !== null) e.textContent = text;
+  return e;
+}
+
+function badge(value) {
+  var b = el("span", "badge b-" + String(value).toUpperCase());
+  b.textContent = value;
+  return b;
+}
+
+function table(headers, rows) {
+  var t = el("table");
+  var thead = el("thead"), tr = el("tr");
+  headers.forEach(function (h) { tr.appendChild(el("th", null, h)); });
+  thead.appendChild(tr); t.appendChild(thead);
+  var tb = el("tbody");
+  rows.forEach(function (r) {
+    var row = el("tr");
+    r.forEach(function (cell) {
+      var td = el("td");
+      if (cell && cell.nodeType === 1) td.appendChild(cell); else td.textContent = cell === undefined ? "" : cell;
+      row.appendChild(td);
+    });
+    tb.appendChild(row);
+  });
+  t.appendChild(tb);
+  return t;
+}
+
+function kvTable(obj) {
+  var rows = Object.keys(obj || {}).map(function (k) { return [k, JSON.stringify(obj[k])]; });
+  return table(["key", "value"], rows);
+}
+
+var TAB_DEFS = [
+  { id: "health", label: "Health Overview" },
+  { id: "policy", label: "Constitution & Policy" },
+  { id: "evaluations", label: "Evaluations" },
+  { id: "dossier", label: "Decision Dossier" },
+  { id: "approvals", label: "Approval Queue" },
+  { id: "exceptions", label: "Exception Registry" },
+  { id: "audit", label: "Audit Log" },
+  { id: "lineage", label: "Lineage Explorer" }
+];
+
+function renderHealth() {
+  var h = GOV.health || {};
+  var wrap = el("div");
+  var cards = el("div", "cards");
+  [["Total evaluations", h.total_evaluations], ["Pending approvals", h.pending_approvals],
+   ["Active exceptions", h.active_exceptions], ["Expiring <24h", h.expiring_exceptions_24h],
+   ["Audit chain", h.audit_chain ? h.audit_chain.status : "?"]].forEach(function (c) {
+    var card = el("div", "card");
+    card.appendChild(el("div", "label", c[0]));
+    card.appendChild(el("div", "value", String(c[1])));
+    cards.appendChild(card);
+  });
+  wrap.appendChild(cards);
+  wrap.appendChild(el("h2", null, "Decisions by outcome"));
+  wrap.appendChild(kvTable(h.by_decision || {}));
+  return wrap;
+}
+
+function renderPolicy() {
+  var wrap = el("div");
+  wrap.appendChild(el("h2", null, "Constitutions"));
+  wrap.appendChild(table(
+    ["id", "name", "version", "status", "effective", "policy domains"],
+    (GOV.constitutions || []).map(function (c) {
+      return [c.id, c.name, c.version, badge(c.status), c.effective_at, (c.policy_domains || []).join(", ")];
+    })
+  ));
+  wrap.appendChild(el("h2", null, "Policy sets (all versions)"));
+  wrap.appendChild(table(
+    ["id", "name", "status", "rules", "constitution"],
+    (GOV.policy_sets || []).map(function (p) {
+      return [p.id, p.name, badge(p.status), p.policy_rules.length, p.constitution_id];
+    })
+  ));
+  return wrap;
+}
+
+function renderEvaluations() {
+  var wrap = el("div");
+  var f = el("div", "filters");
+  f.appendChild(el("label", null, "Subject type"));
+  var st = document.createElement("input"); st.id = "ev_subject";
+  f.appendChild(st);
+  f.appendChild(el("label", null, "Decision"));
+  var dc = document.createElement("select"); dc.id = "ev_decision";
+  ["", "ALLOW", "DENY", "REQUIRE_APPROVAL", "REQUIRE_EVIDENCE"].forEach(function (v) {
+    var o = document.createElement("option"); o.value = v; o.textContent = v || "any"; dc.appendChild(o);
+  });
+  f.appendChild(dc);
+  wrap.appendChild(f);
+  var t = table(
+    ["decision id", "subject", "action", "decision", "final", "approvals"],
+    []
+  );
+  t.id = "ev_table";
+  wrap.appendChild(t);
+  function refresh() {
+    var rows = [];
+    (GOV.evaluations || []).forEach(function (e) {
+      var req = e.request || {};
+      if (st.value && req.subject_type !== st.value) return;
+      var dec = (e.decision && e.decision.decision) || "";
+      if (dc.value && dec !== dc.value) return;
+      rows.push([
+        el("span", "decision_id", e.decision_id),
+        (req.subject_type || "") + " / " + (req.subject_id || ""),
+        req.action || "",
+        badge(dec),
+        e.final_decision ? badge(e.final_decision) : "—",
+        (e.approval_ids || []).join(", ")
+      ]);
+    });
+    while (t.tBodies[0].rows.length) t.tBodies[0].deleteRow(0);
+    rows.forEach(function (r) {
+      var tr = document.createElement("tr");
+      r.forEach(function (c) { var td = document.createElement("td"); if (c.nodeType === 1) td.appendChild(c); else td.textContent = c; tr.appendChild(td); });
+      t.tBodies[0].appendChild(tr);
+    });
+  }
+  st.oninput = refresh; dc.onchange = refresh; refresh();
+  return wrap;
+}
+
+function renderDossier() {
+  var wrap = el("div");
+  var f = el("div", "filters");
+  var input = document.createElement("input"); input.placeholder = "decision_id (e.g. decision_abc123...)"; input.size = 40;
+  var btn = el("button", "action", "Reconstruct");
+  f.appendChild(input); f.appendChild(btn);
+  wrap.appendChild(f);
+  var out = el("div");
+  wrap.appendChild(out);
+  var byId = {};
+  (GOV.evaluations || []).forEach(function (e) { byId[e.decision_id] = e; });
+  btn.onclick = function () {
+    var id = input.value.trim();
+    out.innerHTML = "";
+    var entry = byId[id];
+    if (!entry) { out.appendChild(el("p", "note", "Unknown decision id: " + id)); return; }
+    var req = entry.request || {};
+    out.appendChild(el("h2", null, "Request"));
+    out.appendChild(kvTable({
+      subject_type: req.subject_type, subject_id: req.subject_id, action: req.action,
+      environment: req.environment, actor: (req.actor || {}).actor_id, roles: (req.actor || {}).roles,
+      context: req.context, evidence_refs: req.evidence_refs
+    }));
+    out.appendChild(el("h2", null, "Evaluated policies"));
+    out.appendChild(table(
+      ["policy set", "rule", "outcome", "explanation"],
+      ((entry.decision && entry.decision.evaluated_policies) || []).map(function (p) {
+        return [p.policy_set_id, p.rule_name, badge(p.outcome), p.explanation];
+      })
+    ));
+    out.appendChild(el("h2", null, "Decision"));
+    out.appendChild(el("pre", null, JSON.stringify(entry.decision, null, 2)));
+    out.appendChild(el("h2", null, "Approvals"));
+    var approvalRows = (GOV.approvals || []).filter(function (a) { return (entry.approval_ids || []).indexOf(a.id) !== -1; });
+    out.appendChild(table(
+      ["id", "status", "approver", "decision", "by", "at"],
+      approvalRows.map(function (a) {
+        return [a.id, badge(a.status), (a.requirement || {}).approver_id, a.decision, a.decided_by, a.decided_at];
+      })
+    ));
+    out.appendChild(el("h2", null, "Lineage & audit"));
+    out.appendChild(el("pre", null, JSON.stringify({ lineage: entry.lineage || [], audit: entry.audit || [] }, null, 2)));
+  };
+  if (GOV.health && GOV.health.total_evaluations >= 1) {
+    input.value = (GOV.evaluations[0] || {}).decision_id || "";
+    btn.onclick();
+  }
+  return wrap;
+}
+
+function renderApprovals() {
+  var wrap = el("div");
+  wrap.appendChild(el("p", "note", "Read-only queue view. Approve/reject is performed through the kernel API (DashboardService.approve/reject) and is audited — this console never mutates state directly."));
+  wrap.appendChild(table(
+    ["id", "evaluation", "approver", "required", "status", "timeout", "decision", "comments"],
+    (GOV.approvals || []).map(function (a) {
+      var req = a.requirement || {};
+      return [a.id, a.evaluation_id, req.approver_id, String(req.required),
+              badge(a.status), req.timeout_policy, a.decision || "—", a.comments || ""];
+    })
+  ));
+  return wrap;
+}
+
+function renderExceptions() {
+  var wrap = el("div");
+  wrap.appendChild(table(
+    ["id", "name", "status", "granted_by", "expires", "uses", "scope", "justification"],
+    (GOV.exceptions || []).map(function (e) {
+      var scope = e.scope || {};
+      return [e.id, e.name, badge(e.status), e.granted_by, e.expires_at,
+              (scope.max_uses === null ? "" : scope.use_count + "/" + scope.max_uses),
+              JSON.stringify(scope), e.justification];
+    })
+  ));
+  return wrap;
+}
+
+function renderAudit() {
+  var wrap = el("div");
+  var chain = GOV.chain || {};
+  wrap.appendChild(el("h2", null, "Hash-chain integrity"));
+  var cards = el("div", "cards");
+  var card = el("div", "card");
+  card.appendChild(el("div", "label", "status"));
+  card.appendChild(el("div", "value", chain.status || "?"));
+  if (chain.first_broken_index !== null && chain.first_broken_index !== undefined) {
+    card.appendChild(el("p", "note", "First broken event at index " + chain.first_broken_index));
+  }
+  cards.appendChild(card);
+  wrap.appendChild(cards);
+  wrap.appendChild(el("h2", null, "Events (newest last)"));
+  wrap.appendChild(table(
+    ["id", "type", "actor", "subject", "action", "decision", "time"],
+    (GOV.audit_events || []).map(function (e) {
+      return [e.id, e.event_type, e.actor.actor_id, (e.subject_type + " / " + e.subject_id), e.action,
+              e.decision_id || "", e.timestamp];
+    })
+  ));
+  return wrap;
+}
+
+function renderLineage() {
+  var wrap = el("div");
+  wrap.appendChild(el("h2", null, "All lineage links"));
+  wrap.appendChild(table(
+    ["parent", "child", "change type", "decision ref", "rollback ref"],
+    (GOV.lineage || []).map(function (l) {
+      return [l.parent_artifact_type + " / " + l.parent_artifact_id,
+              l.child_artifact_type + " / " + l.child_artifact_id,
+              l.change_type, l.decision_ref || "", l.rollback_plan_ref || ""];
+    })
+  ));
+  return wrap;
+}
+
+var RENDERERS = {
+  health: renderHealth, policy: renderPolicy, evaluations: renderEvaluations,
+  dossier: renderDossier, approvals: renderApprovals, exceptions: renderExceptions,
+  audit: renderAudit, lineage: renderLineage
+};
+
+function init() {
+  var nav = document.getElementById("tabs");
+  var main = document.getElementById("main");
+  TAB_DEFS.forEach(function (def) {
+    var b = document.createElement("button");
+    b.textContent = def.label;
+    b.onclick = function () {
+      Array.prototype.forEach.call(nav.children, function (c) { c.classList.remove("active"); });
+      b.classList.add("active");
+      main.innerHTML = "";
+      var sec = el("section", "tab active");
+      sec.appendChild(RENDERERS[def.id]());
+      main.appendChild(sec);
+    };
+    nav.appendChild(b);
+  });
+  nav.children[0].click();
+}
+init();
+</script>
+</body>
+</html>

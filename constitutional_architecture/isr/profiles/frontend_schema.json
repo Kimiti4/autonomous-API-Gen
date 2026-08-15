@@ -1,0 +1,273 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tiannara.io/isr/profiles/frontend/v1.0/schema.json",
+  "title": "Tiannara Frontend ISR Profile",
+  "description": "Canonical, technology-agnostic representation of frontend architecture. Extends the platform ISR with frontend-specific entities.",
+  "type": "object",
+  "allOf": [{ "$ref": "https://tiannara.io/isr/core/v1.0/schema.json#/definitions/ISREntity" }],
+  "properties": {
+    "profileType": { "const": "frontend" },
+    "designSystem": { "$ref": "#/$defs/DesignSystem" },
+    "components": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Component" }
+    },
+    "layouts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Layout" }
+    },
+    "pages": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Page" }
+    },
+    "interactions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Interaction" }
+    }
+  },
+  "required": ["profileType", "designSystem", "components", "pages"],
+
+  "$defs": {
+    "GenomeMapping": {
+      "description": "Links this entity to the Evolution Engine chromosomes.",
+      "type": "object",
+      "properties": {
+        "chromosomeFamily": {
+          "enum": ["Presentation", "Structure", "Behavior", "Compliance", "State"]
+        },
+        "geneId": { "type": "string", "format": "uuid" },
+        "mutationRate": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "required": ["chromosomeFamily", "geneId"]
+    },
+
+    "FitnessTarget": {
+      "description": "Declares which automated evaluators must assess this entity.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "evaluatorPlugin": { "type": "string" },
+          "threshold": { "type": "number" },
+          "weight": { "type": "number" }
+        }
+      }
+    },
+
+    "DesignSystem": {
+      "description": "Root container for semantic design tokens.",
+      "allOf": [{ "$ref": "https://tiannara.io/isr/core/v1.0/schema.json#/definitions/ISREntity" }],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "tokens": {
+          "type": "object",
+          "properties": {
+            "color": { "type": "object", "additionalProperties": { "$ref": "#/$defs/TokenDefinition" } },
+            "spacing": { "type": "object", "additionalProperties": { "$ref": "#/$defs/TokenDefinition" } },
+            "typography": { "type": "object", "additionalProperties": { "$ref": "#/$defs/TokenDefinition" } },
+            "elevation": { "type": "object", "additionalProperties": { "$ref": "#/$defs/TokenDefinition" } },
+            "motion": { "type": "object", "additionalProperties": { "$ref": "#/$defs/TokenDefinition" } },
+            "radius": { "type": "object", "additionalProperties": { "$ref": "#/$defs/TokenDefinition" } },
+            "border": { "type": "object", "additionalProperties": { "$ref": "#/$defs/TokenDefinition" } },
+            "shadow": { "type": "object", "additionalProperties": { "$ref": "#/$defs/TokenDefinition" } },
+            "breakpoint": { "type": "object", "additionalProperties": { "$ref": "#/$defs/TokenDefinition" } },
+            "zIndex": { "type": "object", "additionalProperties": { "$ref": "#/$defs/TokenDefinition" } }
+          }
+        },
+        "genome": { "$ref": "#/$defs/GenomeMapping" }
+      },
+      "required": ["id", "name", "tokens"]
+    },
+
+    "TokenDefinition": {
+      "description": "Atomic semantic value. NEVER raw CSS/Hex. Resolves via Compiler Backend.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "semanticRole": { "type": "string" },
+        "category": { "enum": ["color", "spacing", "typography", "elevation", "motion", "radius", "border", "shadow", "breakpoint", "zIndex"] },
+        "baseValue": { "type": ["string", "number", "object"] },
+        "description": { "type": "string" },
+        "variants": {
+          "type": "object",
+          "properties": {
+            "light": {},
+            "dark": {},
+            "highContrast": {},
+            "compact": {}
+          }
+        },
+        "accessibilityConstraints": {
+          "type": "object",
+          "properties": {
+            "minContrastRatio": { "type": "number" },
+            "wcagLevel": { "enum": ["AA", "AAA"] }
+          }
+        }
+      },
+      "required": ["id", "semanticRole", "category", "baseValue"]
+    },
+
+    "Component": {
+      "description": "Reusable UI building block. Defines API, states, and composition rules.",
+      "allOf": [{ "$ref": "https://tiannara.io/isr/core/v1.0/schema.json#/definitions/ISREntity" }],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "purpose": { "type": "string" },
+        "api": {
+          "type": "object",
+          "properties": {
+            "inputs": { "type": "array", "items": { "$ref": "#/$defs/PropertyDefinition" } },
+            "outputs": { "type": "array", "items": { "$ref": "#/$defs/EventDefinition" } }
+          }
+        },
+        "states": {
+          "type": "array",
+          "items": { "enum": ["default", "hover", "focus", "active", "disabled", "loading", "error", "selected", "empty"] }
+        },
+        "variants": { "type": "array", "items": { "type": "string" } },
+        "compositionRules": {
+          "type": "object",
+          "properties": {
+            "allowedChildren": { "type": "array", "items": { "type": "string" } },
+            "allowedParents": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "tokenDependencies": { "type": "array", "items": { "type": "string" } },
+        "accessibilityContract": { "$ref": "#/$defs/AccessibilityContract" },
+        "genome": { "$ref": "#/$defs/GenomeMapping" },
+        "fitnessTargets": { "$ref": "#/$defs/FitnessTarget" }
+      },
+      "required": ["id", "name", "purpose", "api", "states", "accessibilityContract"]
+    },
+
+    "Layout": {
+      "description": "Structural composition rules (grids, shells, regions).",
+      "allOf": [{ "$ref": "https://tiannara.io/isr/core/v1.0/schema.json#/definitions/ISREntity" }],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "gridSystem": { "$ref": "#/$defs/GridSystem" },
+        "responsiveBreakpoints": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "regions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "role": { "enum": ["header", "sidebar", "main", "footer", "modal", "overlay", "aside", "nav"] }
+            }
+          }
+        },
+        "genome": { "$ref": "#/$defs/GenomeMapping" }
+      },
+      "required": ["id", "name"]
+    },
+
+    "Page": {
+      "description": "Route-level orchestration. Links Frontend ISR to Backend ISR data contracts.",
+      "allOf": [{ "$ref": "https://tiannara.io/isr/core/v1.0/schema.json#/definitions/ISREntity" }],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "routePattern": { "type": "string" },
+        "layoutRef": { "type": "string" },
+        "componentTree": { "$ref": "#/$defs/ComponentNode" },
+        "dataRequirements": {
+          "description": "References to Backend ISR APIs, Queries, or Events by ID.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "viewStates": {
+          "type": "object",
+          "properties": {
+            "empty": { "$ref": "#/$defs/ComponentNode" },
+            "loading": { "$ref": "#/$defs/ComponentNode" },
+            "error": { "$ref": "#/$defs/ComponentNode" }
+          }
+        },
+        "genome": { "$ref": "#/$defs/GenomeMapping" },
+        "fitnessTargets": { "$ref": "#/$defs/FitnessTarget" }
+      },
+      "required": ["id", "name", "routePattern", "layoutRef", "componentTree", "dataRequirements"]
+    },
+
+    "Interaction": {
+      "description": "Behavioral definitions (motion, gestures, transitions).",
+      "allOf": [{ "$ref": "https://tiannara.io/isr/core/v1.0/schema.json#/definitions/ISREntity" }],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "trigger": { "type": "string" },
+        "motionTokenRef": { "type": "string" },
+        "stateTransition": {
+          "type": "object",
+          "properties": { "from": { "type": "string" }, "to": { "type": "string" } }
+        },
+        "reducedMotionFallback": { "type": "boolean" }
+      },
+      "required": ["id", "name", "trigger"]
+    },
+
+    "AccessibilityContract": {
+      "description": "WCAG and ARIA requirements for an entity.",
+      "type": "object",
+      "properties": {
+        "ariaRole": { "type": "string" },
+        "keyboardNavigation": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "screenReaderAnnotations": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "focusManagement": { "enum": ["trap", "restore", "sequential", "none"] },
+        "wcagTarget": { "enum": ["AA", "AAA"] }
+      }
+    },
+
+    "ComponentNode": {
+      "description": "Instance of a Component within a Page or Layout tree.",
+      "type": "object",
+      "properties": {
+        "componentRef": { "type": "string" },
+        "props": { "type": "object" },
+        "children": { "type": "array", "items": { "$ref": "#/$defs/ComponentNode" } }
+      }
+    },
+
+    "PropertyDefinition": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "required": { "type": "boolean" },
+        "defaultValue": {}
+      }
+    },
+
+    "EventDefinition": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "payloadType": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+
+    "GridSystem": {
+      "type": "object",
+      "properties": {
+        "columns": { "type": "integer" },
+        "gutterTokenRef": { "type": "string" },
+        "marginTokenRef": { "type": "string" }
+      }
+    }
+  }
+}

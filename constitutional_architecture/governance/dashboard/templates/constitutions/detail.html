@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ constitution.name }} <span class="note">({{ constitution.id }})</span></h1>
+<p class="note">Version {{ constitution.version }} · {{ constitution.status }} · hash <span class="mono">{{ constitution.content_hash }}</span></p>
+
+<h2>Policy domains</h2>
+<ul>
+  {% for d in constitution.policy_domains %}<li>{{ d }}</li>{% endfor %}
+</ul>
+
+<h2>Invariants</h2>
+<table>
+  <thead><tr><th>ID</th><th>Name</th><th>Severity</th><th>Enforceable</th></tr></thead>
+  <tbody>
+    {% for i in constitution.invariants %}
+    <tr><td class="mono">{{ i.id }}</td><td>{{ i.name }}</td><td>{{ i.severity }}</td><td>{{ i.enforceable }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Approval requirements</h2>
+<table>
+  <thead><tr><th>Approver</th><th>Required</th><th>Timeout policy</th></tr></thead>
+  <tbody>
+    {% for a in constitution.approval_requirements %}
+    <tr><td>{{ a.approver_id or a.approver_type }}</td><td>{{ a.required }}</td><td>{{ a.timeout_policy }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Exception policy</h2>
+<pre>{{ constitution.exception_policy }}</pre>
+
+{% if constitution.parent_id %}
+<p class="note">Parent: {{ constitution.parent_id }} ({{ constitution.parent_version }})</p>
+{% endif %}
+{% if constitution.signature %}
+<p class="note">Signed: {{ constitution.signature }}</p>
+{% endif %}
+
+{% endblock %}

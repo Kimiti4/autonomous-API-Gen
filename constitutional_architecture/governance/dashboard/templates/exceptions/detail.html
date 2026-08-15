@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Exception {{ exception.id }}</h1>
+<p class="note">{{ exception.name }} · <span class="badge {{ exception.status }}">{{ exception.status }}</span></p>
+
+<h2>Justification</h2>
+<p>{{ exception.justification }}</p>
+
+<h2>Scope</h2>
+<pre>{{ exception.scope | tojson(indent=2) }}</pre>
+
+<h2>Lifecycle</h2>
+<table>
+  <tbody>
+    <tr><th>Granted by</th><td>{{ exception.granted_by }}</td></tr>
+    <tr><th>Created</th><td>{{ exception.created_at }}</td></tr>
+    <tr><th>Expires</th><td>{{ exception.expires_at }}</td></tr>
+    <tr><th>Used</th><td>{{ exception.use_count }} / {{ exception.max_uses if exception.max_uses is not none else "∞" }}</td></tr>
+    <tr><th>Audit ref</th><td class="mono">{{ exception.audit_ref or "—" }}</td></tr>
+  </tbody>
+</table>
+
+{% if exception.status == "ACTIVE" %}
+<h2>Revocation</h2>
+<form method="post" action="/exceptions/{{ exception.id }}/revoke" onsubmit="return confirm('Revoke exception {{ exception.name }}? This is audited and immediate.');">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <button type="submit" class="danger">Revoke exception</button>
+</form>
+<p class="note">Revocation calls the kernel API, is audited, and immediately prevents future use.</p>
+{% endif %}
+
+{% endblock %}

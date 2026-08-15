@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Evaluation {{ dossier.decision_id }}</h1>
+<p class="note">
+  Decision: <span class="badge {{ dossier.decision.get("decision") }}">{{ dossier.decision.get("decision") }}</span>
+  {% if dossier.final_decision %}&nbsp;→ final <span class="badge {{ dossier.final_decision }}">{{ dossier.final_decision }}</span>{% endif %}
+</p>
+<a class="btn" href="/evaluations/{{ dossier.decision_id }}/reconstruct">Open reconstruction dossier</a>
+
+{% endblock %}

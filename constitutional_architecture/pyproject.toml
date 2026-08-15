@@ -1,0 +1,28 @@
+[project]
+name = "constitutional-architecture"
+version = "0.1.0"
+description = "Evolutionary Software Architecture Platform — ISR Phase 1"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.5.0",
+    "networkx>=3.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "mypy>=1.7",
+    "ruff>=0.1.6",
+]
+
+[tool.mypy]
+strict = true
+python_version = "3.11"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

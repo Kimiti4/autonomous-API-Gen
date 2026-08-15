@@ -1,0 +1,19 @@
+# Local inference topology (deployment configuration).
+# The AIR core never reads this file; the LocalModelProvider adapter does.
+# Transport is the OpenAI-compatible protocol family. The serving runtime is a
+# deployment choice (e.g. Ollama, llama.cpp server, vLLM) and is not named in
+# the AIR core.
+
+topology_version: "0.1.0"
+provider_id: "local-inference"
+provider_class: "local_model"
+transport: "openai_compatible"
+task_kinds:
+  - extraction
+  - synthesis
+endpoint:
+  # Point at your local OpenAI-compatible server. Deployment-specific.
+  base_url: "http://localhost:11434/v1"
+  model_id: "local-model"
+metadata:
+  locality: on_premise

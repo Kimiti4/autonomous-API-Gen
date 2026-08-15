@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Governance kernel unavailable{% endblock %}
+{% block content %}
+<section class="card narrow">
+  <h2>Governance kernel unavailable</h2>
+  <p>No action could be taken: the governance kernel could not be reached. The dashboard fails closed — nothing proceeds while governance is unavailable.</p>
+  <p class="error">{{ message }}</p>
+  <a class="btn" href="/">Retry</a>
+</section>
+{% endblock %}

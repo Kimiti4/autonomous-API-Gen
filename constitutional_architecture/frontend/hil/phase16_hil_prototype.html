@@ -1,0 +1,1257 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ESAP · Phase 16 — Human Interaction Layer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ============ TOKENS ============ */
+:root{
+  --disp:'Chakra Petch',sans-serif; --body:'IBM Plex Sans',sans-serif; --mono:'IBM Plex Mono',monospace;
+  --bg0:#061218; --bg1:#0A1B22; --bg2:#0E242D; --panel:#0D2029; --panel2:#122A34;
+  --line:#1B3944; --line2:#2C5260; --ink:#E9F4F4; --ink2:#B9CDD1; --mut:#7E9AA2; --faint:#54707A;
+  --gridline:rgba(83,214,230,.045);
+  --amber:#FFB454; --jade:#4ED9A0; --cyan:#53D6E6; --olive:#B4D94E; --coral:#FF7A66;
+  --orchid:#D18BF0; --azure:#6FA8FF; --rose:#F0729C;
+  --ok:#4ED9A0; --warn:#FFD166; --err:#FF7A66;
+  --btn-p-bg:#FFB454; --btn-p-ink:#171006;
+  --r-s:4px; --r-m:8px; --r-card:10px;
+  --ease:cubic-bezier(.2,.7,.2,1);
+  --shadow:0 8px 24px rgba(0,0,0,.35);
+}
+[data-theme="light"]{
+  --bg0:#E7EFF0; --bg1:#EEF4F5; --bg2:#FFFFFF; --panel:#FFFFFF; --panel2:#F3F8F8;
+  --line:#D3E1E3; --line2:#A9C4C9; --ink:#0C2129; --ink2:#33505A; --mut:#5C7880; --faint:#8AA2A9;
+  --gridline:rgba(11,118,134,.06);
+  --amber:#9A5B00; --jade:#0B7A52; --cyan:#0B7686; --olive:#5C7607; --coral:#C03A28;
+  --orchid:#7E33B4; --azure:#2B5FC4; --rose:#B02A63;
+  --ok:#0B7A52; --warn:#8A6A00; --err:#C03A28;
+  --btn-p-bg:#9A5B00; --btn-p-ink:#FFF6E8;
+  --shadow:0 8px 24px rgba(20,50,60,.12);
+}
+/* ============ BASE ============ */
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  font-family:var(--body); font-size:13.5px; line-height:1.55; color:var(--ink);
+  background:var(--bg0); overflow:hidden; height:100vh;
+}
+body::before{ /* blueprint grid */
+  content:''; position:fixed; inset:0; z-index:0; pointer-events:none;
+  background-image:linear-gradient(var(--gridline) 1px,transparent 1px),linear-gradient(90deg,var(--gridline) 1px,transparent 1px);
+  background-size:44px 44px;
+}
+body::after{ /* ambient depth */
+  content:''; position:fixed; inset:0; z-index:0; pointer-events:none;
+  background:radial-gradient(900px 500px at 78% -10%, rgba(83,214,230,.07), transparent 60%),
+             radial-gradient(700px 500px at -10% 110%, rgba(255,180,84,.05), transparent 60%);
+}
+#bg{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.55}
+::selection{background:var(--amber);color:#171006}
+button{font-family:inherit;color:inherit;background:none;border:none;cursor:pointer}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px;border-radius:var(--r-s)}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:var(--line);border-radius:9px;border:2px solid var(--bg0)}
+::-webkit-scrollbar-track{background:transparent}
+.kbd{font-family:var(--mono);font-size:10px;padding:2px 5px;border:1px solid var(--line2);border-bottom-width:2px;border-radius:4px;color:var(--mut)}
+/* ============ SHELL ============ */
+.shell{position:relative;z-index:1;display:grid;height:100vh;grid-template-rows:52px 1fr;grid-template-columns:236px 1fr auto}
+/* ---- topbar ---- */
+.topbar{grid-column:1/-1;display:flex;align-items:center;gap:14px;padding:0 14px;background:var(--bg1);border-bottom:1px solid var(--line)}
+.ham{display:none}
+.logo{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.sigil{width:28px;height:28px}
+.brand{font-family:var(--disp);font-weight:700;font-size:14px;letter-spacing:.06em}
+.brand em{font-style:normal;color:var(--amber)}
+.brand small{display:block;font-family:var(--mono);font-weight:400;font-size:9px;letter-spacing:.14em;color:var(--mut);text-transform:uppercase}
+.crumbs{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11.5px;color:var(--mut);min-width:0;overflow:hidden;white-space:nowrap}
+.crumbs b{color:var(--ink);font-weight:500}
+.crumbs .sep{color:var(--faint)}
+.searchbtn{flex:1;max-width:460px;margin:0 auto;display:flex;align-items:center;gap:10px;padding:7px 12px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-m);color:var(--mut);font-size:12.5px;transition:border-color .2s var(--ease),background .2s}
+.searchbtn:hover{border-color:var(--line2);background:var(--panel2)}
+.searchbtn svg{width:14px;height:14px;flex-shrink:0}
+.searchbtn .kbd{margin-left:auto}
+.ticker{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--ink2);padding:6px 11px;border:1px solid var(--line);border-radius:var(--r-m);background:var(--panel);white-space:nowrap}
+.tdot{width:7px;height:7px;border-radius:50%;background:var(--ok);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(78,217,160,.5)}55%{box-shadow:0 0 0 6px rgba(78,217,160,0)}}
+.ticker b{color:var(--amber);font-weight:600}
+.iconbtn{width:32px;height:32px;display:grid;place-items:center;border-radius:var(--r-m);color:var(--mut);border:1px solid transparent;transition:all .18s var(--ease)}
+.iconbtn:hover{color:var(--ink);background:var(--panel2);border-color:var(--line)}
+.iconbtn svg{width:16px;height:16px}
+.avatar{width:30px;height:30px;border-radius:var(--r-m);background:linear-gradient(135deg,var(--cyan),var(--jade));color:#08222a;font-family:var(--disp);font-weight:700;font-size:11px;display:grid;place-items:center;flex-shrink:0}
+/* ---- sidebar ---- */
+.sb{background:var(--bg1);border-right:1px solid var(--line);overflow-y:auto;display:flex;flex-direction:column;padding:10px 8px 8px}
+.sb-label{font-family:var(--disp);font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--faint);padding:14px 10px 6px}
+.sb-item{display:flex;align-items:center;gap:10px;width:100%;padding:7px 10px;border-radius:var(--r-m);color:var(--ink2);font-size:12.5px;text-align:left;position:relative;transition:all .16s var(--ease)}
+.sb-item:hover{background:var(--panel2);color:var(--ink);transform:translateX(2px)}
+.sb-item.on{background:var(--panel2);color:var(--ink);font-weight:500}
+.sb-item.on::before{content:'';position:absolute;left:-8px;top:6px;bottom:6px;width:3px;border-radius:3px;background:var(--amber)}
+.sb-ic{width:15px;height:15px;flex-shrink:0;opacity:.85}
+.sb-badge{margin-left:auto;font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:3px;background:var(--line);color:var(--mut);letter-spacing:.05em}
+.sb-foot{margin-top:auto;padding:12px 10px 4px;font-family:var(--mono);font-size:9.5px;color:var(--faint);letter-spacing:.08em;border-top:1px solid var(--line)}
+
+/* ---- dock ---- */
+.dock{width:318px;background:var(--bg1);border-left:1px solid var(--line);display:flex;flex-direction:column;transition:width .25s var(--ease);overflow:hidden}
+.no-dock .dock{width:0;border-color:transparent}
+.dock-tabs{display:flex;border-bottom:1px solid var(--line);flex-shrink:0}
+.dtab{flex:1;padding:10px 4px;font-family:var(--disp);font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);border-bottom:2px solid transparent;transition:all .18s}
+.dtab:hover{color:var(--ink)}
+.dtab.on{color:var(--amber);border-bottom-color:var(--amber)}
+.dock-body{flex:1;overflow-y:auto;padding:14px}
+.pane{display:none}.pane.on{display:block;animation:fadeUp .3s var(--ease)}
+.insp-title{font-family:var(--disp);font-size:12px;font-weight:600;letter-spacing:.06em;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.insp-pre{font-family:var(--mono);font-size:11px;line-height:1.7;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-m);padding:12px;white-space:pre-wrap;color:var(--ink2)}
+.insp-pre .k{color:var(--cyan)} .insp-pre .v{color:var(--amber)} .insp-pre .c{color:var(--faint)}
+.docs-h{font-family:var(--disp);font-size:12px;font-weight:600;margin-bottom:8px}
+.docs-p{font-size:12.5px;color:var(--ink2);margin-bottom:12px}
+.docs-p b{color:var(--ink)}
+.cmsg{margin-bottom:12px;animation:fadeUp .3s var(--ease)}
+.cmsg .who{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:4px}
+.cmsg .bubble{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-m);padding:9px 11px;font-size:12.5px;color:var(--ink2)}
+.cmsg.me .bubble{background:var(--panel2);border-color:var(--line2);color:var(--ink)}
+.cmsg.ai .bubble{border-left:3px solid var(--cyan)}
+.chat-in{display:flex;gap:8px;margin-top:10px}
+.chat-in input{flex:1}
+/* ---- main ---- */
+.main{overflow-y:auto;padding:22px 26px 60px;position:relative}
+.view{display:none}
+.view.on{display:block;animation:fadeUp .35s var(--ease)}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.vhead{margin-bottom:20px;display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap}
+.vkicker{font-family:var(--disp);font-size:10.5px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--amber);margin-bottom:6px}
+.vkicker::before{content:'// ';color:var(--faint)}
+.vtitle{font-family:var(--disp);font-size:27px;font-weight:700;letter-spacing:.01em;line-height:1.15}
+.vsub{color:var(--mut);font-size:13px;max-width:640px;margin-top:6px}
+.vactions{margin-left:auto;display:flex;gap:8px;align-items:center}
+/* ---- cards / layout ---- */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-card);padding:16px;transition:border-color .2s var(--ease),transform .2s var(--ease),box-shadow .2s var(--ease)}
+.card:hover{border-color:var(--line2)}
+.lift:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+.ct{font-family:var(--disp);font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--mut);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.ct::after{content:'';flex:1;height:1px;background:var(--line)}
+.ct .tag{font-family:var(--mono);font-size:9px;color:var(--cyan);letter-spacing:.05em}
+.row{display:grid;gap:14px;margin-bottom:14px}
+/* ---- controls ---- */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border-radius:6px;font-family:var(--disp);font-size:11.5px;font-weight:600;letter-spacing:.06em;border:1px solid var(--line2);color:var(--ink2);transition:all .16s var(--ease)}
+.btn:hover{transform:translateY(-1px);color:var(--ink);border-color:var(--mut)}
+.btn:active{transform:translateY(0)}
+.btn.p{background:var(--btn-p-bg);border-color:var(--btn-p-bg);color:var(--btn-p-ink)}
+.btn.p:hover{filter:brightness(1.08);color:var(--btn-p-ink)}
+.btn.g{border-color:transparent;color:var(--mut)}
+.btn.g:hover{background:var(--panel2)}
+.btn.d{border-color:var(--err);color:var(--err)}
+.btn.sm{padding:4px 10px;font-size:10.5px}
+.btn svg{width:12px;height:12px}
+input[type=text],input[type=search],.tin{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:7px 11px;color:var(--ink);font-family:var(--body);font-size:12.5px;transition:border-color .18s}
+input:focus{border-color:var(--cyan);outline:none}
+.chip{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:var(--r-s);border:1px solid var(--line);color:var(--ink2);background:var(--bg2);transition:all .15s var(--ease);cursor:default}
+.chip:hover{border-color:var(--c,var(--line2));transform:translateY(-1px)}
+.chip i{width:7px;height:7px;border-radius:2px;background:var(--c,var(--mut))}
+.bdg{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;font-weight:500;padding:3px 9px;border-radius:20px;letter-spacing:.04em}
+.bdg .d{width:6px;height:6px;border-radius:50%;background:currentColor}
+.bdg.ok{color:var(--ok);background:color-mix(in srgb,var(--ok) 12%,transparent)}
+.bdg.warn{color:var(--warn);background:color-mix(in srgb,var(--warn) 12%,transparent)}
+.bdg.err{color:var(--err);background:color-mix(in srgb,var(--err) 12%,transparent)}
+.bdg.info{color:var(--cyan);background:color-mix(in srgb,var(--cyan) 12%,transparent)}
+.bdg.mut{color:var(--mut);background:color-mix(in srgb,var(--mut) 12%,transparent)}
+.bdg .d.pulse{animation:pulse 2s infinite}
+.meter{height:5px;background:var(--bg2);border-radius:5px;overflow:hidden;border:1px solid var(--line)}
+.meter i{display:block;height:100%;background:var(--c,var(--cyan));border-radius:5px;transition:width .8s var(--ease)}
+/* ---- table ---- */
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{font-family:var(--disp);font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);text-align:left;padding:6px 10px;border-bottom:1px solid var(--line)}
+.tbl td{padding:10px;border-bottom:1px solid var(--line);font-size:12.5px;vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tbody tr{transition:background .15s}
+.tbl tbody tr:hover{background:var(--panel2)}
+.tbl .mono{font-family:var(--mono);font-size:11px}
+.tbl .proj{font-weight:600;font-family:var(--disp);letter-spacing:.02em}
+.tbl .proj small{display:block;font-family:var(--mono);font-weight:400;font-size:9.5px;color:var(--faint);letter-spacing:.05em}
+/* ---- reveal ---- */
+.rv{opacity:0;transform:translateY(12px)}
+.rv.in{opacity:1;transform:none;transition:opacity .55s var(--ease),transform .55s var(--ease);transition-delay:var(--d,0s)}
+
+/* ---- dash specific ---- */
+.stat-strip{display:flex;gap:0;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-card);margin-bottom:16px;overflow:hidden}
+.stat{flex:1;padding:13px 18px;border-right:1px solid var(--line);transition:background .2s}
+.stat:last-child{border-right:none}
+.stat:hover{background:var(--panel2)}
+.stat .l{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:5px}
+.stat .v{font-family:var(--disp);font-size:19px;font-weight:700;display:flex;align-items:center;gap:8px}
+.stat .v small{font-family:var(--mono);font-size:10px;font-weight:400;color:var(--ok)}
+.feed-i{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--ink2);align-items:baseline}
+.feed-i:last-child{border:none}
+.feed-i .g{font-family:var(--mono);font-size:9.5px;color:var(--amber);flex-shrink:0;letter-spacing:.05em}
+.feed-i b{color:var(--ink);font-weight:600}
+.rec{border:1px solid var(--line);border-left:3px solid var(--cyan);border-radius:var(--r-m);padding:12px 14px;margin-bottom:10px;background:var(--bg2);transition:all .2s var(--ease)}
+.rec:hover{border-color:var(--line2);border-left-color:var(--cyan);transform:translateX(3px)}
+.rec p{font-size:12.5px;color:var(--ink2);margin-bottom:9px}
+.rec p b{color:var(--ink)}
+.gauges{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.gauge .l{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);display:flex;justify-content:space-between;margin-bottom:6px}
+.gauge .l b{color:var(--ink);font-size:11px}
+/* ---- ISR ---- */
+.isr-grid{display:grid;grid-template-columns:280px 1fr;gap:14px}
+.tree{font-size:12.5px}
+.tnode{user-select:none}
+.trow{display:flex;align-items:center;gap:7px;padding:4px 8px;border-radius:6px;cursor:pointer;color:var(--ink2);transition:all .14s var(--ease)}
+.trow:hover{background:var(--panel2);color:var(--ink)}
+.trow.sel{background:var(--panel2);color:var(--ink);box-shadow:inset 2px 0 0 var(--amber)}
+.trow .car{width:12px;height:12px;transition:transform .2s var(--ease);color:var(--faint);flex-shrink:0}
+.tnode.open>.trow .car{transform:rotate(90deg)}
+.trow .k{font-family:var(--mono);font-size:8.5px;padding:1px 5px;border-radius:3px;letter-spacing:.06em;color:var(--c,var(--mut));border:1px solid color-mix(in srgb,var(--c,var(--mut)) 45%,transparent);flex-shrink:0}
+.trow .hot{width:6px;height:6px;border-radius:50%;background:var(--coral);animation:pulse 2s infinite;margin-left:auto;flex-shrink:0}
+.tkids{display:none;padding-left:18px;border-left:1px solid var(--line);margin-left:13px}
+.tnode.open>.tkids{display:block}
+.mapnode{cursor:pointer}
+.mapnode rect.b{fill:var(--panel2);stroke:var(--line);transition:stroke .18s}
+.mapnode:hover rect.b{stroke:var(--c)}
+.mapnode text{font-family:var(--mono);font-size:11px;fill:var(--ink)}
+.mapnode text.sub{font-size:8.5px;fill:var(--mut);letter-spacing:.08em;text-transform:uppercase}
+.medge{fill:none;stroke:var(--line2);stroke-width:1.3;opacity:.65;transition:all .2s}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px}
+.lg-i{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--mut)}
+.lg-i i{width:9px;height:9px;border-radius:2px}
+/* ---- lab ---- */
+.lab-grid{display:grid;grid-template-columns:1fr 380px;gap:14px}
+.cands{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.cand{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-card);padding:14px;cursor:pointer;transition:all .2s var(--ease);position:relative}
+.cand:hover{border-color:var(--line2);transform:translateY(-2px);box-shadow:var(--shadow)}
+.cand.sel{border-color:var(--amber);box-shadow:0 0 0 1px var(--amber)}
+.cand.sel::after{content:'SELECTED';position:absolute;top:-8px;right:12px;font-family:var(--mono);font-size:8px;letter-spacing:.14em;background:var(--amber);color:#171006;padding:2px 7px;border-radius:3px;font-weight:600}
+.cand-h{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
+.cand-h .nm{font-family:var(--disp);font-weight:700;font-size:13px;letter-spacing:.03em}
+.cand-h .f{margin-left:auto;font-family:var(--disp);font-size:24px;font-weight:700;color:var(--amber)}
+.cand-h .dl{font-family:var(--mono);font-size:10px}
+.cand-h .dl.up{color:var(--ok)} .cand-h .dl.dn{color:var(--err)}
+.cand .chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px}
+.bars{display:grid;gap:6px}
+.bar{display:grid;grid-template-columns:34px 1fr 26px;align-items:center;gap:8px;font-family:var(--mono);font-size:9.5px;color:var(--mut)}
+.bar b{color:var(--ink2);text-align:right;font-weight:500}
+.oplog{font-family:var(--mono);font-size:11px}
+.op-i{padding:7px 0;border-bottom:1px dashed var(--line);color:var(--ink2);display:flex;gap:10px;animation:fadeUp .35s var(--ease)}
+.op-i:last-child{border:none}
+.op-i .t{color:var(--amber);flex-shrink:0}
+.op-i .op{color:var(--cyan)}
+
+/* ---- KG ---- */
+.kgnode{cursor:pointer}
+.kgnode rect{fill:var(--panel2);stroke:var(--line);transition:all .2s}
+.kgnode:hover rect{stroke:var(--c)}
+.kgnode text{font-family:var(--mono);font-size:10.5px;fill:var(--ink)}
+.kgnode.dim{opacity:.18}
+.kedge{fill:none;stroke:var(--line2);stroke-width:1.3;opacity:.6;transition:all .2s}
+.kedge.dim{opacity:.08}
+.kedge.hl{stroke:var(--amber);opacity:1;stroke-width:2}
+/* ---- deploy ---- */
+.pipe{display:flex;gap:0;align-items:stretch}
+.pstep{flex:1;padding:13px 15px;border:1px solid var(--line);border-right:none;background:var(--panel);position:relative;transition:background .2s}
+.pstep:first-child{border-radius:var(--r-card) 0 0 var(--r-card)}
+.pstep:last-child{border-radius:0 var(--r-card) var(--r-card) 0;border-right:1px solid var(--line)}
+.pstep:hover{background:var(--panel2)}
+.pstep .n{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--faint);text-transform:uppercase;margin-bottom:5px}
+.pstep .t{font-family:var(--disp);font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:8px}
+.pstep .st{font-family:var(--mono);font-size:9.5px;margin-top:5px;color:var(--mut)}
+.pstep.done .t::before{content:'✓';color:var(--ok);font-weight:700}
+.pstep.run .t::before{content:'●';color:var(--warn);animation:pulse 1.6s infinite}
+.pstep.queue .t::before{content:'○';color:var(--faint)}
+.logs{font-family:var(--mono);font-size:10.5px;line-height:1.9;background:var(--bg2);border:1px solid var(--line);border-radius:var(--r-m);padding:12px 14px;height:230px;overflow-y:auto}
+.log-i{white-space:nowrap;animation:fadeUp .3s var(--ease)}
+.log-i .ts{color:var(--faint)}
+.log-i.ok .m{color:var(--ok)} .log-i.warn .m{color:var(--warn)} .log-i .m{color:var(--ink2)}
+/* ---- spec ---- */
+.spec-sec{margin-bottom:34px}
+.spec-h{font-family:var(--disp);font-size:16px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:12px}
+.spec-h .num{font-family:var(--mono);font-size:10px;color:var(--amber);letter-spacing:.1em}
+.spec-sub{color:var(--mut);font-size:12.5px;margin-bottom:16px;max-width:680px}
+.sw-row{display:flex;gap:10px;flex-wrap:wrap}
+.swatch{width:108px;border:1px solid var(--line);border-radius:var(--r-m);overflow:hidden;transition:transform .18s var(--ease)}
+.swatch:hover{transform:translateY(-3px)}
+.swatch .c{height:52px}
+.swatch .m{padding:7px 9px;font-family:var(--mono);font-size:9px;color:var(--mut);background:var(--panel)}
+.swatch .m b{display:block;color:var(--ink);font-size:9.5px;letter-spacing:.04em}
+.typo-row{display:grid;grid-template-columns:150px 1fr;gap:16px;align-items:baseline;padding:14px 0;border-bottom:1px solid var(--line)}
+.typo-row:last-child{border:none}
+.typo-row .meta{font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:.06em}
+.sp-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.sp-i{text-align:center;font-family:var(--mono);font-size:9px;color:var(--faint)}
+.sp-i i{display:block;background:color-mix(in srgb,var(--cyan) 30%,transparent);border:1px solid var(--cyan);border-radius:3px;margin-bottom:6px}
+.ic-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:8px}
+.ic-i{display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 6px;border:1px solid var(--line);border-radius:var(--r-m);color:var(--ink2);transition:all .18s var(--ease)}
+.ic-i:hover{border-color:var(--cyan);color:var(--cyan);transform:translateY(-2px)}
+.ic-i svg{width:18px;height:18px}
+.ic-i span{font-family:var(--mono);font-size:9px;letter-spacing:.05em}
+.cmp-block{border:1px solid var(--line);border-radius:var(--r-card);padding:16px;background:var(--panel);margin-bottom:10px}
+.cmp-l{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:12px}
+.cmp-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.tgl{width:36px;height:20px;border-radius:20px;background:var(--line);position:relative;transition:background .2s;cursor:pointer;border:none}
+.tgl::after{content:'';position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:var(--ink2);transition:all .2s var(--ease)}
+.tgl.on{background:var(--jade)}
+.tgl.on::after{left:19px;background:#06231a}
+.mtile{border:1px solid var(--line);border-radius:var(--r-m);padding:16px;background:var(--panel);text-align:center;cursor:pointer;transition:border-color .2s}
+.mtile:hover{border-color:var(--line2)}
+.mtile .demo{height:34px;display:grid;place-items:center;margin-bottom:10px}
+.mtile .demo i{width:26px;height:26px;border-radius:6px;background:var(--cyan);display:block}
+.mtile:hover .d-pulse i{animation:pulse 1.2s infinite}
+.mtile:hover .d-rise i{animation:rise .9s var(--ease) infinite}
+.mtile:hover .d-slide i{animation:slide 1s var(--ease) infinite}
+.mtile:hover .d-grow i{animation:grow 1s var(--ease) infinite}
+@keyframes rise{0%,100%{transform:translateY(6px);opacity:.4}50%{transform:translateY(-6px);opacity:1}}
+@keyframes slide{0%{transform:translateX(-14px);opacity:.3}50%{transform:none;opacity:1}100%{transform:translateX(14px);opacity:.3}}
+@keyframes grow{0%,100%{transform:scale(.6)}50%{transform:scale(1.15)}}
+.mtile .n{font-family:var(--disp);font-size:11px;font-weight:600}
+.mtile .e{font-family:var(--mono);font-size:9px;color:var(--faint);margin-top:3px}
+.acc-list{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.acc-i{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-m);font-size:12px;color:var(--ink2);transition:border-color .18s}
+.acc-i:hover{border-color:var(--jade)}
+.acc-i::before{content:'✓';color:var(--jade);font-weight:700;flex-shrink:0}
+.adr{border:1px solid var(--line);border-radius:var(--r-card);background:var(--panel);margin-bottom:10px;overflow:hidden}
+.adr-h{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:baseline;background:var(--panel2)}
+.adr-h .id{font-family:var(--mono);font-size:10px;color:var(--amber);letter-spacing:.08em}
+.adr-h .t{font-family:var(--disp);font-size:13px;font-weight:600}
+.adr-b{padding:12px 16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.adr-b div{font-size:12px;color:var(--ink2)}
+.adr-b b{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:5px}
+.fd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:20px 0}
+.fd-box{border:1px solid var(--line2);border-radius:var(--r-m);padding:12px 16px;background:var(--panel2);text-align:center;transition:all .2s var(--ease)}
+.fd-box:hover{border-color:var(--amber);transform:translateY(-2px)}
+.fd-box .t{font-family:var(--disp);font-size:12px;font-weight:600}
+.fd-box .s{font-family:var(--mono);font-size:9px;color:var(--mut);margin-top:3px;letter-spacing:.05em}
+.fd-box.core{border-color:var(--amber);box-shadow:0 0 0 1px var(--amber)}
+.fd-a{color:var(--faint);font-family:var(--mono);font-size:14px}
+.prin{display:flex;gap:0;border:1px solid var(--line);border-radius:var(--r-card);overflow:hidden}
+.prin-i{flex:1;padding:16px;border-right:1px solid var(--line);transition:background .2s;position:relative}
+.prin-i:last-child{border:none}
+.prin-i:hover{background:var(--panel2)}
+.prin-i .n{font-family:var(--mono);font-size:9px;color:var(--amber);letter-spacing:.14em}
+.prin-i .t{font-family:var(--disp);font-size:13px;font-weight:600;margin:6px 0 5px}
+.prin-i p{font-size:11.5px;color:var(--mut)}
+
+/* ---- palette ---- */
+.pal{position:fixed;inset:0;z-index:60;background:rgba(4,12,16,.6);display:none;align-items:flex-start;justify-content:center;padding-top:12vh}
+.pal.on{display:flex;animation:fadeUp .18s var(--ease)}
+.pal-box{width:min(560px,92vw);background:var(--bg1);border:1px solid var(--line2);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+.pal-top{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line)}
+.pal-top svg{width:15px;height:15px;color:var(--mut)}
+.pal-top input{border:none;background:none;flex:1;font-size:14px;padding:0}
+.pal-list{max-height:330px;overflow-y:auto;padding:6px}
+.pal-g{font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);padding:9px 12px 4px}
+.pal-i{display:flex;align-items:center;gap:10px;width:100%;padding:9px 12px;border-radius:var(--r-m);font-size:13px;color:var(--ink2);text-align:left;transition:background .12s}
+.pal-i svg{width:14px;height:14px;color:var(--mut)}
+.pal-i .kbd{margin-left:auto}
+.pal-i.sel,.pal-i:hover{background:var(--panel2);color:var(--ink)}
+.pal-foot{padding:9px 16px;border-top:1px solid var(--line);font-family:var(--mono);font-size:9.5px;color:var(--faint);display:flex;gap:16px}
+/* ---- toasts ---- */
+.toasts{position:fixed;bottom:20px;right:20px;z-index:70;display:flex;flex-direction:column;gap:10px;max-width:340px}
+.toast{background:var(--bg1);border:1px solid var(--line2);border-left:3px solid var(--cyan);border-radius:var(--r-m);padding:12px 15px;box-shadow:var(--shadow);animation:toastIn .3s var(--ease)}
+.toast.ok{border-left-color:var(--ok)} .toast.warn{border-left-color:var(--warn)}
+.toast .t{font-family:var(--disp);font-size:12px;font-weight:600;margin-bottom:3px}
+.toast .m{font-size:11.5px;color:var(--mut)}
+@keyframes toastIn{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:none}}
+.toast.out{opacity:0;transform:translateX(30px);transition:all .3s var(--ease)}
+.scrim{position:fixed;inset:0;background:rgba(4,12,16,.55);z-index:40;display:none}
+/* ---- responsive ---- */
+@media (max-width:1240px){ .dock{width:280px} }
+@media (max-width:1080px){
+  .shell{grid-template-columns:236px 1fr}
+  .dock{position:fixed;right:0;top:52px;bottom:0;z-index:45;width:300px;transform:translateX(100%);transition:transform .25s var(--ease)}
+  .shell:not(.no-dock) .dock{transform:none}
+  .isr-grid,.lab-grid{grid-template-columns:1fr}
+  .acc-list,.adr-b{grid-template-columns:1fr}
+}
+@media (max-width:900px){
+  .shell{grid-template-columns:1fr}
+  .sb{position:fixed;left:0;top:52px;bottom:0;z-index:45;width:240px;transform:translateX(-100%);transition:transform .25s var(--ease)}
+  .sb-open .sb{transform:none}
+  .sb-open .scrim{display:block}
+  .ham{display:grid}
+  .crumbs,.ticker{display:none}
+  .cands{grid-template-columns:1fr}
+  .stat-strip{flex-wrap:wrap} .stat{min-width:45%}
+  .prin{flex-direction:column} .prin-i{border-right:none;border-bottom:1px solid var(--line)}
+  .pipe{flex-direction:column} .pstep{border-right:1px solid var(--line);border-bottom:none;border-radius:0!important}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+  #bg{display:none}
+}
+</style>
+</head>
+<body>
+<canvas id="bg" aria-hidden="true"></canvas>
+
+<div class="shell no-dock" id="shell">
+  <!-- ══════════ COMMAND BAR ══════════ -->
+  <header class="topbar" role="banner">
+    <button class="iconbtn ham" id="hamBtn" aria-label="Toggle navigation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    <div class="logo">
+      <svg class="sigil" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <circle cx="6" cy="16" r="3" fill="var(--amber)"/>
+        <path d="M9 16c6 0 6-8 12-8" stroke="var(--cyan)" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M9 16h12" stroke="var(--jade)" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M9 16c6 0 6 8 12 8" stroke="var(--orchid)" stroke-width="1.8" stroke-linecap="round"/>
+        <circle cx="24" cy="8" r="2.6" fill="var(--cyan)"/><circle cx="24" cy="16" r="2.6" fill="var(--jade)"/><circle cx="24" cy="24" r="2.6" fill="var(--orchid)"/>
+      </svg>
+      <div class="brand">ESAP<em>.</em><small>Evolutionary SWA Platform</small></div>
+    </div>
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <span>Helios Workspace</span><span class="sep">▸</span><span>PRJ · Helios</span><span class="sep">▸</span><b id="crumbView">Dashboard</b>
+    </nav>
+    <button class="searchbtn" id="searchBtn" aria-label="Open command palette">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      Search ISR, projects, actions…
+      <span class="kbd">⌘K</span>
+    </button>
+    <div class="ticker" title="Evolution engine status">
+      <span class="tdot" aria-hidden="true"></span>
+      ENGINE&nbsp;· GEN <b id="tickerGen">047</b> · BEST <b id="tickerFit">0.87</b>
+    </div>
+    <button class="iconbtn" id="themeBtn" aria-label="Toggle theme"><svg id="themeIc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 14A8 8 0 1 1 10 4a7 7 0 0 0 10 10z"/></svg></button>
+    <button class="iconbtn" id="dockBtn" aria-label="Toggle inspector dock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
+    <div class="avatar" aria-label="User: Principal Architect">PA</div>
+  </header>
+
+  <!-- ══════════ SIDEBAR ══════════ -->
+  <nav class="sb" id="sb" aria-label="Platform modules"></nav>
+  <div class="scrim" id="scrim"></div>
+
+
+  <!-- ══════════ MAIN ══════════ -->
+  <main class="main" id="main">
+
+    <!-- ─── DASHBOARD ─── -->
+    <section class="view on" id="view-dash" data-view="dash">
+      <div class="vhead rv">
+        <div>
+          <div class="vkicker">Workspace · Helios</div>
+          <h1 class="vtitle">Executive Dashboard</h1>
+          <p class="vsub">Cross-project evolution state, system health, and evidence-based recommendations. Everything below streams from the ISR and production telemetry.</p>
+        </div>
+        <div class="vactions">
+          <button class="btn g sm" data-goto="kg">Traceability</button>
+          <button class="btn p sm" data-goto="lab">Open Evolution Lab</button>
+        </div>
+      </div>
+
+      <div class="stat-strip rv" style="--d:.05s">
+        <div class="stat"><div class="l">Engine</div><div class="v"><span class="tdot"></span>RUNNING <small>3.2 gen/min</small></div></div>
+        <div class="stat"><div class="l">Generation</div><div class="v" id="statGen">047 <small>▲ prog <span id="statProg">64</span>%</small></div></div>
+        <div class="stat"><div class="l">Pareto candidates</div><div class="v" id="statCand">6 <small>frontier 3</small></div></div>
+        <div class="stat"><div class="l">System health</div><div class="v">98.2% <small>▲ 0.4</small></div></div>
+        <div class="stat"><div class="l">Backends online</div><div class="v">8/8 <small>all compilers</small></div></div>
+      </div>
+
+      <div class="row rv" style="grid-template-columns:1.5fr 1fr;--d:.1s">
+        <div class="card lift">
+          <div class="ct">Active Projects <span class="tag">isr-sync: live</span></div>
+          <table class="tbl">
+            <thead><tr><th>Project</th><th>Stage</th><th>Gen</th><th>Fitness · 12 gen</th><th>Status</th></tr></thead>
+            <tbody id="projBody"></tbody>
+          </table>
+        </div>
+        <div class="card lift">
+          <div class="ct">System Health <span class="tag">telemetry bus</span></div>
+          <div class="gauges" id="gauges"></div>
+        </div>
+      </div>
+
+      <div class="row rv" style="grid-template-columns:1fr 1.5fr;--d:.15s">
+        <div class="card lift">
+          <div class="ct">Recent Discoveries</div>
+          <div id="feedList"></div>
+        </div>
+        <div class="card lift">
+          <div class="ct">AI Recommendations <span class="tag">evidence-based</span></div>
+          <div id="recList"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── ISR EXPLORER ─── -->
+    <section class="view" id="view-isr" data-view="isr">
+      <div class="vhead rv">
+        <div>
+          <div class="vkicker">Project · Helios</div>
+          <h1 class="vtitle">ISR Explorer</h1>
+          <p class="vsub">The canonical representation of the system. Every diagram, metric and generated artifact on this platform is a projection of this structure — requirements never generate code directly.</p>
+        </div>
+        <div class="vactions"><span class="bdg ok"><span class="d pulse"></span>ISR SYNCED · 1.2s AGO</span></div>
+      </div>
+      <div class="isr-grid rv" style="--d:.08s">
+        <div class="card">
+          <div class="ct">Canonical Tree <span class="tag">source of truth</span></div>
+          <div class="tree" id="isrTree"></div>
+        </div>
+        <div class="card">
+          <div class="ct">Architecture Projection <span class="tag">services · events · data</span></div>
+          <svg id="isrMap" viewBox="0 0 960 430" width="100%" role="img" aria-label="ISR architecture projection diagram"></svg>
+          <div class="legend" id="mapLegend"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── EVOLUTION LAB ─── -->
+    <section class="view" id="view-lab" data-view="lab">
+      <div class="vhead rv">
+        <div>
+          <div class="vkicker">Project · Helios</div>
+          <h1 class="vtitle">Evolution Laboratory</h1>
+          <p class="vsub">Competing architectures evaluated on a Pareto frontier across measurable fitness objectives. No single aggregate score — dominance decides.</p>
+        </div>
+        <div class="vactions">
+          <button class="btn sm" id="btnMutate">Mutate</button>
+          <button class="btn sm" id="btnCross">Crossover</button>
+          <button class="btn p sm" id="btnRun">▶ Run Generation</button>
+        </div>
+      </div>
+      <div class="lab-grid">
+        <div>
+          <div class="cands rv" id="candGrid" style="--d:.05s"></div>
+          <div class="card rv" style="margin-top:14px;--d:.1s">
+            <div class="ct">Operator Log <span class="tag">generation <span class="genLabel">047</span></span></div>
+            <div class="oplog" id="opLog"></div>
+          </div>
+        </div>
+        <div>
+          <div class="card rv" style="--d:.08s">
+            <div class="ct">Pareto Frontier <span class="tag">cost × performance</span></div>
+            <svg id="pareto" viewBox="0 0 360 240" width="100%" role="img" aria-label="Pareto frontier scatter chart"></svg>
+          </div>
+          <div class="card rv" style="margin-top:14px;--d:.12s">
+            <div class="ct">Best Fitness · Timeline</div>
+            <svg id="genCurve" viewBox="0 0 360 110" width="100%" role="img" aria-label="Fitness over generations"></svg>
+            <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:9.5px;color:var(--faint);margin-top:6px">
+              <span>G<span id="curveFrom">41</span></span><span>G<span class="genLabel">047</span> · σ = 0.03</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ─── KNOWLEDGE GRAPH ─── -->
+    <section class="view" id="view-kg" data-view="kg">
+      <div class="vhead rv">
+        <div>
+          <div class="vkicker">Platform</div>
+          <h1 class="vtitle">Knowledge Graph</h1>
+          <p class="vsub">Requirement-to-deployment traceability. Hover any node to trace its full lineage; click to inspect the evidence chain.</p>
+        </div>
+        <div class="vactions"><span class="bdg info"><span class="d"></span>HOVER TO TRACE LINEAGE</span></div>
+      </div>
+      <div class="card rv" style="--d:.06s">
+        <div class="ct">Lineage · REQ-104 Payment Resilience <span class="tag">requirement → production</span></div>
+        <svg id="kgSvg" viewBox="0 0 960 380" width="100%" role="img" aria-label="Traceability knowledge graph"></svg>
+        <div class="legend" id="kgLegend"></div>
+      </div>
+    </section>
+
+    <!-- ─── DEPLOYMENT ─── -->
+    <section class="view" id="view-dep" data-view="dep">
+      <div class="vhead rv">
+        <div>
+          <div class="vkicker">Project · Helios</div>
+          <h1 class="vtitle">Deployment Center</h1>
+          <p class="vsub">Compiled artifacts in flight. Pipelines, environments and live telemetry — operational feedback flows back into genome refinement.</p>
+        </div>
+        <div class="vactions"><span class="bdg ok"><span class="d pulse"></span>CANARY 12% · HEALTHY</span></div>
+      </div>
+      <div class="rv" style="--d:.05s;margin-bottom:14px">
+        <div class="pipe">
+          <div class="pstep done"><div class="n">Stage 01</div><div class="t">ISR Compile</div><div class="st">2.4s · genome g47</div></div>
+          <div class="pstep done"><div class="n">Stage 02</div><div class="t">Backend Emit</div><div class="st">fastapi · terraform · k8s</div></div>
+          <div class="pstep run"><div class="n">Stage 03</div><div class="t">Verification</div><div class="st">62% · 214 unit · 38 integ</div></div>
+          <div class="pstep queue"><div class="n">Stage 04</div><div class="t">Ship</div><div class="st">canary policy 12 → 50 → 100</div></div>
+        </div>
+      </div>
+      <div class="row rv" style="grid-template-columns:1.4fr 1fr;--d:.1s">
+        <div class="card">
+          <div class="ct">Runtime Environments</div>
+          <table class="tbl">
+            <thead><tr><th>Environment</th><th>Artifact</th><th>Region</th><th>p95</th><th>Health</th></tr></thead>
+            <tbody id="envBody"></tbody>
+          </table>
+        </div>
+        <div class="card">
+          <div class="ct">Live Stream <span class="tag">structured logs</span></div>
+          <div class="logs" id="logBox" aria-live="off"></div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ─── DESIGN SYSTEM / SPEC ─── -->
+    <section class="view" id="view-spec" data-view="spec">
+      <div class="vhead rv">
+        <div>
+          <div class="vkicker">Platform · Phase 16</div>
+          <h1 class="vtitle">Human Interaction Layer — Specification</h1>
+          <p class="vsub">Design system, navigation architecture, component library, accessibility and motion standards, and the frontend architecture that keeps every screen an ISR projection.</p>
+        </div>
+      </div>
+
+      <div class="spec-sec rv">
+        <div class="spec-h"><span class="num">16.0</span>Design Principles</div>
+        <p class="spec-sub">Five principles govern every screen. They are direct UI translations of the platform Constitution.</p>
+        <div class="prin">
+          <div class="prin-i"><div class="n">P-01</div><div class="t">ISR-first</div><p>Every workflow maps back to the Intermediate Software Representation. Screens never own architectural truth.</p></div>
+          <div class="prin-i"><div class="n">P-02</div><div class="t">Context-aware</div><p>Navigation shows only tools relevant to the current engineering task and project depth.</p></div>
+          <div class="prin-i"><div class="n">P-03</div><div class="t">Progressive disclosure</div><p>Advanced capability surfaces as users drill deeper — beginners safe, experts unhindered.</p></div>
+          <div class="prin-i"><div class="n">P-04</div><div class="t">Workspace-centric</div><p>Users inhabit projects, not isolated pages. State, breadcrumbs and panels persist per workspace.</p></div>
+          <div class="prin-i"><div class="n">P-05</div><div class="t">Live architecture</div><p>Diagrams, code, metrics and evolution stay synchronized through one telemetry bus.</p></div>
+        </div>
+      </div>
+
+      <div class="spec-sec rv">
+        <div class="spec-h"><span class="num">16.1</span>Color — Chromosome-Derived Tokens</div>
+        <p class="spec-sub">Hue encodes <b>chromosome family semantics</b>, never decoration. Surfaces stay neutral so signal colors carry meaning across every view. Each hue ships a light-theme variant audited at ≥ 4.5:1 against its surface.</p>
+        <div class="cmp-l">Surfaces</div>
+        <div class="sw-row" style="margin-bottom:14px">
+          <div class="swatch"><div class="c" style="background:var(--bg0)"></div><div class="m"><b>bg / 0</b>canvas</div></div>
+          <div class="swatch"><div class="c" style="background:var(--bg1)"></div><div class="m"><b>bg / 1</b>shell</div></div>
+          <div class="swatch"><div class="c" style="background:var(--panel)"></div><div class="m"><b>panel</b>cards</div></div>
+          <div class="swatch"><div class="c" style="background:var(--panel2)"></div><div class="m"><b>panel / 2</b>hover · inset</div></div>
+          <div class="swatch"><div class="c" style="background:var(--line2)"></div><div class="m"><b>line / 2</b>borders</div></div>
+        </div>
+        <div class="cmp-l">Chromosome families (semantic signal)</div>
+        <div class="sw-row">
+          <div class="swatch"><div class="c" style="background:var(--amber)"></div><div class="m"><b>amber</b>architecture</div></div>
+          <div class="swatch"><div class="c" style="background:var(--jade)"></div><div class="m"><b>jade</b>backend</div></div>
+          <div class="swatch"><div class="c" style="background:var(--cyan)"></div><div class="m"><b>cyan</b>persistence</div></div>
+          <div class="swatch"><div class="c" style="background:var(--olive)"></div><div class="m"><b>olive</b>infrastructure</div></div>
+          <div class="swatch"><div class="c" style="background:var(--coral)"></div><div class="m"><b>coral</b>security</div></div>
+          <div class="swatch"><div class="c" style="background:var(--orchid)"></div><div class="m"><b>orchid</b>messaging</div></div>
+          <div class="swatch"><div class="c" style="background:var(--azure)"></div><div class="m"><b>azure</b>observability</div></div>
+          <div class="swatch"><div class="c" style="background:var(--rose)"></div><div class="m"><b>rose</b>ai</div></div>
+        </div>
+      </div>
+
+      <div class="spec-sec rv">
+        <div class="spec-h"><span class="num">16.2</span>Typography</div>
+        <p class="spec-sub">A distinctive display face for architectural identity, a readable workhorse for prose, and a precise mono for ISR, metrics and telemetry. Three families, strict roles.</p>
+        <div class="card">
+          <div class="typo-row"><div class="meta">DISPLAY / 27 / 700<br>Chakra Petch</div><div style="font-family:var(--disp);font-size:27px;font-weight:700">Evolve architectures, not code.</div></div>
+          <div class="typo-row"><div class="meta">SECTION / 16 / 700<br>Chakra Petch</div><div style="font-family:var(--disp);font-size:16px;font-weight:700">Pareto frontier · generation 047</div></div>
+          <div class="typo-row"><div class="meta">LABEL / 11 / 600<br>Chakra Petch · +16% tracking</div><div style="font-family:var(--disp);font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--mut)">Evolution engine · running</div></div>
+          <div class="typo-row"><div class="meta">BODY / 13.5 / 400<br>IBM Plex Sans</div><div style="font-size:13.5px;color:var(--ink2)">Requirements never generate source code directly. All work flows through the ISR, where the evolution engine operates exclusively on architectural decisions.</div></div>
+          <div class="typo-row"><div class="meta">MONO / 11.5 / 400<br>IBM Plex Mono</div><div style="font-family:var(--mono);font-size:11.5px;color:var(--cyan)">genome: candidate-A · fitness 0.87 · chromosomes[architecture: hexagonal+cqrs]</div></div>
+        </div>
+      </div>
+
+      <div class="spec-sec rv">
+        <div class="spec-h"><span class="num">16.3</span>Spacing · Radius · Icons</div>
+        <p class="spec-sub">A 4px base scale; mixed radii (4 / 8 / 10) instead of one blanket roundness; a 24-grid stroke icon set at 1.8 weight.</p>
+        <div class="row" style="grid-template-columns:1fr 1.6fr">
+          <div class="card">
+            <div class="cmp-l">Spacing scale (4px base)</div>
+            <div class="sp-row">
+              <div class="sp-i"><i style="width:4px;height:4px"></i>4</div>
+              <div class="sp-i"><i style="width:8px;height:8px"></i>8</div>
+              <div class="sp-i"><i style="width:12px;height:12px"></i>12</div>
+              <div class="sp-i"><i style="width:16px;height:16px"></i>16</div>
+              <div class="sp-i"><i style="width:24px;height:24px"></i>24</div>
+              <div class="sp-i"><i style="width:32px;height:32px"></i>32</div>
+              <div class="sp-i"><i style="width:48px;height:48px"></i>48</div>
+            </div>
+            <div class="cmp-l" style="margin-top:18px">Radii</div>
+            <div class="cmp-row">
+              <span class="chip">4px · chips</span><span class="chip">6px · buttons</span><span class="chip">8px · controls</span><span class="chip">10px · cards</span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="cmp-l">Icon set (stroke 1.8 · 24 grid)</div>
+            <div class="ic-grid" id="iconGrid"></div>
+          </div>
+        </div>
+      </div>
+
+
+      <div class="spec-sec rv">
+        <div class="spec-h"><span class="num">16.4</span>Component Library</div>
+        <p class="spec-sub">The working vocabulary of the HIL — every element on this screen is built from these primitives.</p>
+        <div class="row" style="grid-template-columns:1fr 1fr">
+          <div class="cmp-block">
+            <div class="cmp-l">Actions</div>
+            <div class="cmp-row">
+              <button class="btn p">Run Generation</button>
+              <button class="btn">Crossover</button>
+              <button class="btn g">Dismiss</button>
+              <button class="btn d">Terminate</button>
+              <button class="btn p sm">Small</button>
+            </div>
+          </div>
+          <div class="cmp-block">
+            <div class="cmp-l">Chromosome chips &amp; status badges</div>
+            <div class="cmp-row" style="margin-bottom:10px">
+              <span class="chip" style="--c:var(--amber)"><i></i>hexagonal</span>
+              <span class="chip" style="--c:var(--cyan)"><i></i>postgresql</span>
+              <span class="chip" style="--c:var(--orchid)"><i></i>kafka</span>
+              <span class="chip" style="--c:var(--coral)"><i></i>mtls</span>
+            </div>
+            <div class="cmp-row">
+              <span class="bdg ok"><span class="d pulse"></span>EVOLVING</span>
+              <span class="bdg warn"><span class="d"></span>CANARY</span>
+              <span class="bdg err"><span class="d"></span>DEGRADED</span>
+              <span class="bdg mut"><span class="d"></span>QUEUED</span>
+            </div>
+          </div>
+          <div class="cmp-block">
+            <div class="cmp-l">Inputs · toggles · meters</div>
+            <div style="display:grid;gap:12px">
+              <input type="text" placeholder="Filter ISR nodes…" aria-label="Filter ISR nodes">
+              <div class="cmp-row"><button class="tgl on" role="switch" aria-checked="true" aria-label="Live sync"></button><span style="font-size:12px;color:var(--ink2)">Live ISR sync</span></div>
+              <div class="gauge"><div class="l"><span>Reliability</span><b>0.90</b></div><div class="meter"><i style="width:90%;--c:var(--jade)"></i></div></div>
+              <div class="gauge"><div class="l"><span>Cost efficiency</span><b>0.62</b></div><div class="meter"><i style="width:62%;--c:var(--warn)"></i></div></div>
+            </div>
+          </div>
+          <div class="cmp-block">
+            <div class="cmp-l">Feedback — toast &amp; empty state</div>
+            <div class="toast ok" style="position:static;max-width:none;margin-bottom:12px"><div class="t">Candidate promoted</div><div class="m">HEXA-CQRS-KAFKA → staging · pipeline queued</div></div>
+            <div style="border:1px dashed var(--line2);border-radius:var(--r-m);padding:16px;text-align:center;color:var(--faint);font-size:12px">No dominated candidates in this generation.<br><span style="font-family:var(--mono);font-size:10px">run selection to populate</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec-sec rv">
+        <div class="spec-h"><span class="num">16.5</span>Interaction &amp; Motion</div>
+        <p class="spec-sub">Durations 120 / 240 / 400 ms with one standard easing. Entrance = fade + 8–12px rise; hover = 1–2px lift + border brighten; live data pulses at 2s. Nothing decorative exceeds 400ms. Hover the tiles — every demo is live.</p>
+        <div class="row" style="grid-template-columns:repeat(4,1fr)">
+          <div class="mtile"><div class="demo d-pulse"><i></i></div><div class="n">Pulse</div><div class="e">live data · 2000ms</div></div>
+          <div class="mtile"><div class="demo d-rise"><i style="background:var(--amber)"></i></div><div class="n">Rise</div><div class="e">entrance · 400ms</div></div>
+          <div class="mtile"><div class="demo d-slide"><i style="background:var(--orchid)"></i></div><div class="n">Slide</div><div class="e">view switch · 240ms</div></div>
+          <div class="mtile"><div class="demo d-grow"><i style="background:var(--jade)"></i></div><div class="n">Grow</div><div class="e">emphasis · 240ms</div></div>
+        </div>
+      </div>
+
+      <div class="spec-sec rv">
+        <div class="spec-h"><span class="num">16.6</span>Accessibility Standards</div>
+        <p class="spec-sub">WCAG 2.2 AA is the floor, not the goal. Telemetry is dense — accessibility keeps it legible for everyone.</p>
+        <div class="acc-list">
+          <div class="acc-i">Contrast ≥ 4.5:1 for body text in both themes; signal hues carry dark-variant pairs.</div>
+          <div class="acc-i">Full keyboard operability — palette, tree, graph and dock reachable without a pointer.</div>
+          <div class="acc-i"><code>prefers-reduced-motion</code> disables the ambient canvas and long animations.</div>
+          <div class="acc-i">Every visualization ships a semantic alternative: tables for charts, ARIA labels for graphs.</div>
+          <div class="acc-i">Focus-visible rings everywhere; never removed for aesthetics.</div>
+          <div class="acc-i">Telemetry regions use polite live-regions; high-frequency streams are announced off.</div>
+        </div>
+      </div>
+
+
+      <div class="spec-sec rv">
+        <div class="spec-h"><span class="num">16.7</span>Frontend Architecture — UI as ISR Projection</div>
+        <p class="spec-sub">The renderer itself obeys the Constitution: React, Svelte or a terminal UI are all just <b>compiler backends</b> over the same ISR view-model. Components contain no architectural logic.</p>
+        <div class="card" style="margin-bottom:14px">
+          <div class="fd">
+            <div class="fd-box core"><div class="t">ISR Store</div><div class="s">normalized cache · single truth</div></div>
+            <div class="fd-a">──▶</div>
+            <div class="fd-box"><div class="t">Projection Layer</div><div class="s">pure selectors · views = f(isr, telemetry)</div></div>
+            <div class="fd-a">──▶</div>
+            <div class="fd-box"><div class="t">Renderer Backend</div><div class="s">react · svelte · tui (swappable)</div></div>
+          </div>
+          <div class="fd">
+            <div class="fd-box"><div class="t">Telemetry Bus</div><div class="s">websocket / sse · fitness · logs</div></div>
+            <div class="fd-a">──▶</div>
+            <div class="fd-box core"><div class="t">ISR Store</div><div class="s">operational feedback loop</div></div>
+            <div class="fd-a">──▶</div>
+            <div class="fd-box"><div class="t">Command Bus</div><div class="s">palette = human + agent actions</div></div>
+            <div class="fd-a">──▶</div>
+            <div class="fd-box"><div class="t">Panel Plugin Registry</div><div class="s">dockable extension points</div></div>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:14px">
+          <div class="ct">Binding rules</div>
+          <div style="display:grid;gap:8px;font-size:12.5px;color:var(--ink2)">
+            <div>▸ <b style="color:var(--ink)">One ISR subscription per workspace.</b> Views never fetch architectural state independently.</div>
+            <div>▸ <b style="color:var(--ink)">Views are pure projections.</b> Mutations only via registered commands — the same commands agents issue.</div>
+            <div>▸ <b style="color:var(--ink)">Dock panels are plugins.</b> Inspector, Docs and Copilot register through the panel API; Phase 17+ plugins reuse it.</div>
+            <div>▸ <b style="color:var(--ink)">Tokens are the theming contract.</b> Per-workspace overrides touch tokens only, never component code.</div>
+            <div>▸ <b style="color:var(--ink)">Renderer is a backend.</b> Swapping React for another renderer must require zero evolution-engine changes.</div>
+          </div>
+        </div>
+        <div class="ct" style="margin-bottom:10px">Architectural Decision Records</div>
+        <div class="adr">
+          <div class="adr-h"><span class="id">ADR-016-1</span><span class="t">UI as ISR projection, not screen-local state</span></div>
+          <div class="adr-b">
+            <div><b>Context</b>Every screen must stay synchronized with an architecture that evolves autonomously in the background.</div>
+            <div><b>Decision</b>Views are pure functions of ISR + telemetry streams; all mutations flow through the command bus.</div>
+            <div><b>Trade-offs</b>Requires a robust event bus and normalized cache before renderer work; gains zero state drift and renderer swappability.</div>
+          </div>
+        </div>
+        <div class="adr">
+          <div class="adr-h"><span class="id">ADR-016-2</span><span class="t">Workspace-centric navigation over a flat sitemap</span></div>
+          <div class="adr-b">
+            <div><b>Context</b>The platform spans 15 phases of capability; a flat menu would overwhelm beginners and slow experts.</div>
+            <div><b>Decision</b>Navigation is projected from context (workspace → project → depth), compensated by breadcrumbs and a global palette.</div>
+            <div><b>Trade-offs</b>Discoverability depends on search quality; gains progressive disclosure without hiding capability.</div>
+          </div>
+        </div>
+        <div class="adr">
+          <div class="adr-h"><span class="id">ADR-016-3</span><span class="t">Color tokens derived from chromosome families</span></div>
+          <div class="adr-b">
+            <div><b>Context</b>Users must read architectural semantics at a glance across diagrams, chips, graphs and logs.</div>
+            <div><b>Decision</b>Each chromosome family owns one hue, consistent across every module; surfaces remain neutral.</div>
+            <div><b>Trade-offs</b>Discipline required — no ad-hoc colors; gains instant cross-view literacy and a built-in legend language.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ══════════ DOCK ══════════ -->
+  <aside class="dock" id="dock" aria-label="Inspector dock">
+    <div class="dock-tabs" role="tablist">
+      <button class="dtab on" data-tab="insp" role="tab" aria-selected="true">Inspector</button>
+      <button class="dtab" data-tab="docs" role="tab" aria-selected="false">Docs</button>
+      <button class="dtab" data-tab="chat" role="tab" aria-selected="false">Copilot</button>
+    </div>
+    <div class="dock-body">
+      <div class="pane on" id="pane-insp">
+        <div class="insp-title"><span style="color:var(--amber)">◈</span><span id="inspTitle">Nothing selected</span></div>
+        <pre class="insp-pre" id="inspPre">Select any node, candidate or environment to inspect its ISR fragment.
+
+The Inspector always shows the canonical representation — never a view-local copy.
+
+hint: click a service in the ISR map, or a candidate in the Evolution Lab.</pre>
+      </div>
+      <div class="pane" id="pane-docs">
+        <div class="docs-h" id="docsTitle">Executive Dashboard</div>
+        <div id="docsBody"></div>
+      </div>
+      <div class="pane" id="pane-chat">
+        <div id="chatLog">
+          <div class="cmsg ai"><div class="who">Evolution Copilot</div><div class="bubble">Context loaded: PRJ Helios · genome g47 · 4 candidates on the frontier. Ask me about fitness evidence, traceability, or chromosome trade-offs.</div></div>
+        </div>
+        <div class="chat-in">
+          <input type="text" id="chatIn" placeholder="Ask about fitness evidence…" aria-label="Message copilot">
+          <button class="btn p sm" id="chatSend" aria-label="Send">▶</button>
+        </div>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<!-- ══════════ COMMAND PALETTE ══════════ -->
+<div class="pal" id="pal" role="dialog" aria-modal="true" aria-label="Command palette">
+  <div class="pal-box">
+    <div class="pal-top">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M13 2L4 14h6l-1 8 9-12h-6z"/></svg>
+      <input type="search" id="palIn" placeholder="Type a command or search…" aria-label="Command search">
+      <span class="kbd">ESC</span>
+    </div>
+    <div class="pal-list" id="palList" role="listbox"></div>
+    <div class="pal-foot"><span>↑↓ navigate</span><span>↵ execute</span><span>keys 1–6 jump views</span></div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+
+<script>
+/* ═══════════════ HELPERS ═══════════════ */
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const svgNS='http://www.w3.org/2000/svg';
+const el=(t,a={},p)=>{const n=document.createElementNS(svgNS,t);for(const k in a)n.setAttribute(k,a[k]);if(p)p.appendChild(n);return n};
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const pad=n=>String(n).padStart(3,'0');
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ═══════════════ ICONS ═══════════════ */
+const I={
+grid:'<path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"/>',
+folder:'<path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+list:'<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>',
+share:'<circle cx="5" cy="12" r="2.2"/><circle cx="19" cy="5" r="2.2"/><circle cx="19" cy="19" r="2.2"/><path d="M7 11l9.5-5M7 13l9.5 5"/>',
+layers:'<path d="M12 3l9 5-9 5-9-5 9-5zM3 13.5l9 5 9-5"/>',
+dna:'<path d="M7 3c0 5 10 5 10 10s-10 5-10 10M17 3c0 5-10 5-10 10s10 5 10 10M8.5 7.5h7M8.5 16.5h7"/>',
+code:'<path d="M8 6l-5 6 5 6M16 6l5 6-5 6"/>',
+shield:'<path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/>',
+ship:'<path d="M12 16V4M6 10l6-6 6 6M4 20h16"/>',
+activity:'<path d="M3 12h4l3-8 4 16 3-8h4"/>',
+spark:'<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
+graph:'<circle cx="6" cy="6" r="2.4"/><circle cx="18" cy="8" r="2.4"/><circle cx="9" cy="18" r="2.4"/><path d="M8.2 7l7.6.7M7 8.2l1.2 7.6M16.6 10.2l-6 6"/>',
+flask:'<path d="M9 3h6M10 3v6l-5.5 9A2 2 0 0 0 6.2 21h11.6a2 2 0 0 0 1.7-3L14 9V3"/>',
+puzzle:'<path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM16.5 13v7M13 16.5h7"/>',
+gear:'<circle cx="12" cy="12" r="3.4"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5 5l2.1 2.1M16.9 16.9L19 19M19 5l-2.1 2.1M7.1 16.9L5 19"/>',
+palette:'<path d="M12 3a9 9 0 1 0 0 18c1.4 0 2-.9 1.5-1.9s0-2.1 1.5-2.1h2a4 4 0 0 0 4-4c0-5.5-4-10-9-10z"/><circle cx="8" cy="10" r="1"/><circle cx="12" cy="7.5" r="1"/><circle cx="16" cy="10" r="1"/>',
+eye:'<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.4"/>',
+bolt:'<path d="M13 2L4 14h6l-1 8 9-12h-6z"/>',
+sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M19.4 4.6l-1.8 1.8M6.4 17.6l-1.8 1.8"/>'
+};
+const icon=(n,c='')=>`<svg class="${c}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[n]}</svg>`;
+
+/* ═══════════════ NAV ═══════════════ */
+const NAV=[
+{l:'Workspace',items:[{t:'Dashboard',ic:'grid',v:'dash'},{t:'Projects',ic:'folder'}]},
+{l:'Project · Helios',items:[{t:'Requirements',ic:'list'},{t:'ISR Explorer',ic:'share',v:'isr'},{t:'Architecture',ic:'layers'},{t:'Evolution Lab',ic:'dna',v:'lab'},{t:'Code Generation',ic:'code'},{t:'Verification',ic:'shield'},{t:'Deployment',ic:'ship',v:'dep'},{t:'Monitoring',ic:'activity'}]},
+{l:'Platform',items:[{t:'AI Assistant',ic:'spark'},{t:'Knowledge Graph',ic:'graph',v:'kg'},{t:'Research Lab',ic:'flask'},{t:'Plugin Marketplace',ic:'puzzle'},{t:'Design System',ic:'palette',v:'spec'},{t:'Settings',ic:'gear'}]}
+];
+const sb=$('#sb');
+NAV.forEach(sec=>{
+  const h=document.createElement('div');h.className='sb-label';h.textContent=sec.l;sb.appendChild(h);
+  sec.items.forEach(it=>{
+    const b=document.createElement('button');
+    b.className='sb-item'+(it.v?'':' soon');
+    b.innerHTML=icon(it.ic,'sb-ic')+`<span>${it.t}</span>`+(it.v?'':'<span class="sb-badge">16.2</span>');
+    b.addEventListener('click',()=>{
+      if(it.v){switchView(it.v);document.body.classList.remove('sb-open')}
+      else toast('Phase stub',`${it.t} lands in Phase 16.2 — navigation slot reserved.`,'warn');
+    });
+    if(it.v)b.dataset.v=it.v;
+    sb.appendChild(b);
+  });
+});
+const f=document.createElement('div');f.className='sb-foot';f.innerHTML='ESAP HIL 16.0 · build 0.47<br>ISR SCHEMA v3.2 · CONSTITUTION ✓';sb.appendChild(f);
+
+/* ═══════════════ VIEW META ═══════════════ */
+const META={
+dash:{c:'Dashboard',docs:[['What this view is','A cross-project projection of evolution state and production health. No data here is editable directly — every action routes through the command bus.'],['Why recommendations appear','The Evolution Coordinator emits evidence-based proposals with measured deltas. Accepting one enqueues a genome mutation; nothing changes silently.']]},
+isr:{c:'ISR Explorer',docs:[['Constitutional rule','The ISR is the canonical representation of every software system. Requirements never generate source code directly — all work flows through this structure.'],['What you are seeing','The tree is the canonical document; the diagram is one projection of it. Compiler backends consume this same ISR and must never redefine architecture.']]},
+lab:{c:'Evolution Lab',docs:[['Selection model','Candidates are evaluated on multiple measurable objectives and compared by Pareto dominance — the platform deliberately avoids a single aggregate fitness score.'],['Genes vs implementation','The genome encodes architectural decisions (chromosome families), not code. Mutation and crossover operate on decisions; backends re-compile the winner.']]},
+kg:{c:'Knowledge Graph',docs:[['Traceability','Every production artifact links back through components, services, capabilities and requirements. This graph is derived from ISR edges — it cannot drift from the architecture.'],['Uses','Impact analysis before mutation, audit evidence for security findings, and onboarding context for new engineers.']]},
+dep:{c:'Deployment Center',docs:[['Feedback loop','Production metrics → telemetry → fitness update → genome refinement → next generation. Deployment is the start of the loop, not the end.'],['Artifacts','Every deployed image is a compiled artifact of an evolved ISR generation — the version tag carries its genome id.']]},
+spec:{c:'Design System',docs:[['This specification','Tokens, components, motion and accessibility standards for the entire platform, plus the frontend architecture that keeps the UI an ISR projection.'],['Governance','New modules consume these tokens and components; deviations require an ADR. Chromosome hues are constitutional — semantics, never decoration.']]}
+};
+
+/* ═══════════════ VIEW SWITCH ═══════════════ */
+function switchView(v){
+  $$('.view').forEach(x=>x.classList.toggle('on',x.dataset.view===v));
+  $$('.sb-item').forEach(x=>x.classList.toggle('on',x.dataset.v===v));
+  $('#crumbView').textContent=META[v].c;
+  $('#docsTitle').textContent=META[v].c;
+  $('#docsBody').innerHTML=META[v].docs.map(d=>`<p class="docs-p"><b>${d[0]}.</b> ${d[1]}</p>`).join('');
+  $('#main').scrollTop=0;
+  requestAnimationFrame(observeAll);
+}
+$$('[data-goto]').forEach(b=>b.addEventListener('click',()=>switchView(b.dataset.goto)));
+
+/* ═══════════════ SCROLL REVEAL ═══════════════ */
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.08});
+function observeAll(){$$('.view.on .rv:not(.in)').forEach(n=>io.observe(n))}
+observeAll();
+
+
+/* ═══════════════ DASHBOARD DATA ═══════════════ */
+const PROJ=[
+{n:'Helios',d:'order management',stage:'Evolution Lab',gen:47,f:.87,spark:[.71,.74,.78,.8,.83,.85,.87],st:'ok',sl:'EVOLVING'},
+{n:'Aurora',d:'fraud detection',stage:'Code Generation',gen:31,f:.79,spark:[.6,.63,.68,.7,.74,.77,.79],st:'info',sl:'COMPILING'},
+{n:'Nimbus',d:'iot telemetry',stage:'Verification',gen:58,f:.91,spark:[.8,.82,.84,.86,.88,.9,.91],st:'warn',sl:'VERIFYING'},
+{n:'Zephyr',d:'customer portal',stage:'Deployment',gen:22,f:.74,spark:[.55,.58,.62,.66,.69,.72,.74],st:'mut',sl:'CANARY 12%'}
+];
+function spark(data,color){
+  const w=96,h=22,mn=Math.min(...data),mx=Math.max(...data),r=mx-mn||1;
+  const pts=data.map((v,i)=>`${(i/(data.length-1))*w},${h-3-((v-mn)/r)*(h-6)}`).join(' ');
+  return `<svg width="${w}" height="${h}" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round"/><circle cx="${w}" cy="${h-3-((data[data.length-1]-mn)/r)*(h-6)}" r="2.4" fill="${color}"/></svg>`;
+}
+function renderProj(){
+  $('#projBody').innerHTML=PROJ.map((p,i)=>`<tr>
+    <td><div class="proj">${p.n}<small>${p.d} · genome g${p.gen}</small></div></td>
+    <td style="color:var(--ink2)">${p.stage}</td>
+    <td class="mono">${pad(p.gen)}</td>
+    <td><div style="display:flex;align-items:center;gap:10px">${spark(p.spark,'var(--cyan)')}<span class="mono" style="color:var(--amber)">${p.f.toFixed(2)}</span></div></td>
+    <td><span class="bdg ${p.st}"><span class="d ${p.st==='ok'?'pulse':''}"></span>${p.sl}</span></td>
+  </tr>`).join('');
+}
+renderProj();
+const GAUGES=[['Engine throughput','3.2 gen/min',82,'var(--cyan)'],['Telemetry lag','1.2 s',88,'var(--jade)'],['Queue depth','14 jobs',35,'var(--warn)'],['Backend pool','8 / 8 online',100,'var(--jade)']];
+$('#gauges').innerHTML=GAUGES.map(g=>`<div class="gauge"><div class="l"><span>${g[0]}</span><b>${g[1]}</b></div><div class="meter"><i style="width:${g[2]}%;--c:${g[3]}"></i></div></div>`).join('');
+const FEED=[['G47','CQRS split on <b>Orders</b> raised throughput <b>+12%</b> at +4% cost.'],['G46','<b>CockroachDB</b> gene rescued p95 under failover — reliability +9%.'],['G45','<b>mTLS</b> on payments edge closed audit finding SEC-31.'],['G44','Property-based tests exposed a retry-storm edge case in <b>RetryWorker</b>.']];
+$('#feedList').innerHTML=FEED.map(f=>`<div class="feed-i"><span class="g">${f[0]}</span><span>${f[1]}</span></div>`).join('');
+const RECS=[
+{t:'Promote <b>C-A HEXA-CQRS-KAFKA</b> to staging — dominates on reliability (+9%) at +4% cost. Frontier evidence: generations 44–47.',a:'Promote',fn:()=>toast('Candidate promoted','HEXA-CQRS-KAFKA → staging · pipeline queued.','ok')},
+{t:'Security gene gap: <b>mTLS missing</b> on the notifications edge path. Queue a targeted mutation on the Security chromosome?',a:'Apply mutation',fn:()=>toast('Mutation queued','security: mtls → notifications edge · next generation.','ok')},
+{t:'p95 drift on <b>orders-api</b> since G45 correlates with the observability chromosome change. Investigate before next promotion?',a:'Investigate',fn:()=>switchView('dep')}
+];
+function renderRecs(){
+  $('#recList').innerHTML=RECS.map((r,i)=>r.done?`<div class="rec" style="opacity:.45;border-left-color:var(--ok)"><p>${r.t}</p><span class="bdg ok"><span class="d"></span>HANDLED</span></div>`
+  :`<div class="rec"><p>${r.t}</p><button class="btn sm p" data-r="${i}">${r.a}</button> <button class="btn sm g" data-d="${i}">Dismiss</button></div>`).join('');
+  $$('#recList [data-r]').forEach(b=>b.onclick=()=>{RECS[+b.dataset.r].done=1;RECS[+b.dataset.r].fn();renderRecs()});
+  $$('#recList [data-d]').forEach(b=>b.onclick=()=>{RECS[+b.dataset.d].done=1;renderRecs();toast('Dismissed','Recommendation archived with rationale.','warn')});
+}
+renderRecs();
+
+
+/* ═══════════════ ISR TREE ═══════════════ */
+const FAMC={arch:'var(--amber)',be:'var(--jade)',per:'var(--cyan)',inf:'var(--olive)',sec:'var(--coral)',msg:'var(--orchid)',obs:'var(--azure)',ai:'var(--rose)'};
+const TREE=[
+{t:'Requirements',k:'REQ',c:FAMC.sec,items:[{t:'REQ-101 · Order capture',f:'req101'},{t:'REQ-104 · Payment resilience',f:'req104',hot:1}]},
+{t:'Capabilities',k:'CAP',c:FAMC.arch,items:[{t:'Order Fulfilment',f:'cap1'},{t:'Payment Retry',f:'cap2'}]},
+{t:'Domains',k:'DOM',c:FAMC.arch,open:1,items:[
+  {t:'orders',open:1,items:[
+    {t:'OrderService',k:'SVC',c:FAMC.be,hot:1,f:'ordersvc',items:[
+      {t:'POST /orders',k:'API',c:FAMC.obs,f:'api_orders'},
+      {t:'OrderPlaced',k:'EVT',c:FAMC.msg,f:'evt_op'},
+      {t:'Order · aggregate',k:'DATA',c:FAMC.per,f:'data_order'}]},
+    {t:'InventoryService',k:'SVC',c:FAMC.be,f:'invsvc'}]},
+  {t:'payments',items:[
+    {t:'PaymentService',k:'SVC',c:FAMC.be,f:'paysvc'},
+    {t:'RetryWorker',k:'SVC',c:FAMC.be,f:'retry'}]}]},
+{t:'Security',k:'SEC',c:FAMC.sec,items:[{t:'OAuth2 edge policy',f:'sec1'},{t:'mTLS · payments mesh',f:'sec2'}]},
+{t:'Infrastructure',k:'INF',c:FAMC.inf,items:[{t:'kubernetes · us-east-1',f:'inf1'},{t:'postgres 16 · ha',f:'inf2'}]},
+{t:'Observability',k:'OBS',c:FAMC.obs,items:[{t:'otel traces · 100% sampling',f:'obs1'}]}
+];
+const FRAGS={
+req104:`kind: Requirement\nid: REQ-104\ntitle: Payment resilience\nacceptance:\n  - retry failed charges ≤ 3× with backoff\n  - no duplicate ledger entries\ntraces_to: [cap.payment-retry]\nfitness_weight: { reliability: 0.4, security: 0.3 }`,
+req101:`kind: Requirement\nid: REQ-101\ntitle: Order capture\nacceptance:\n  - p95 < 200ms at 1.2k rps\ntraces_to: [cap.order-fulfilment]`,
+cap1:`kind: Capability\nid: cap.order-fulfilment\ndomains: [orders, inventory]\nsla: p95 200ms`,
+cap2:`kind: Capability\nid: cap.payment-retry\ndomains: [payments]\nsla: eventual · ≤ 5 min`,
+ordersvc:`kind: Service\nid: svc.orders\ndomain: orders\nports:\n  api: [POST /orders, GET /orders/{id}]\n  emits: [OrderPlaced]\n  consumes: [PaymentFailed]\npersistence: pg.orders-db\nchromosomes:\n  architecture: hexagonal\n  messaging: kafka\n  observability: otel\nfitness: { perf: .88, rel: .90, sec: .84 }`,
+invsvc:`kind: Service\nid: svc.inventory\ndomain: orders\nports:\n  consumes: [OrderPlaced]\n  emits: [StockReserved]\npersistence: pg.inventory-db`,
+paysvc:`kind: Service\nid: svc.payments\ndomain: payments\nports:\n  api: [POST /payments]\n  emits: [PaymentFailed, PaymentCaptured]\npersistence: pg.ledger-db\nsecurity: mtls + oauth2`,
+retry:`kind: Worker\nid: wrk.payment-retry\nconsumes: [PaymentFailed]\npolicy: exp-backoff · max 3\ndead_letter: payments.dlq`,
+api_orders:`kind: API\nroute: POST /orders\nauth: oauth2 · scope orders:write\nvalidation: json-schema v47\nrate_limit: 1200 rps`,
+evt_op:`kind: Event\nname: OrderPlaced\nschema: avro v12\nconsumers: [svc.inventory, svc.notify]\nretention: 7d · kafka`,
+data_order:`kind: Aggregate\nname: Order\ninvariants:\n  - total == Σ(line_items)\n  - status transitions monotonic\nstore: pg.orders-db`,
+sec1:`kind: SecurityPolicy\nedge: public-api\nmechanism: oauth2 + oidc\nleast_privilege: scope-per-route`,
+sec2:`kind: SecurityPolicy\nmesh: payments\nmechanism: mtls\naudit: full handshake logging`,
+inf1:`kind: InfraTarget\nplatform: kubernetes\nregion: us-east-1\nreplicas: 3 · hpa 3-12`,
+inf2:`kind: Datastore\nengine: postgresql 16\ntopology: ha · 2 replicas\nbackup: pitr · 5min rpo`,
+obs1:`kind: ObservabilityPolicy\ntraces: otel · 100%\nmetrics: prometheus · 15s\nlogs: structured json · loki`
+};
+function buildTree(nodes,host){
+  nodes.forEach(n=>{
+    const w=document.createElement('div');w.className='tnode'+(n.open?' open':'');
+    const row=document.createElement('div');row.className='trow';row.tabIndex=0;
+    const hasKids=n.items&&n.items.length;
+    row.innerHTML=(hasKids?icon('bolt','car').replace('bolt','<path d="M9 6l6 6-6 6"/>'):'<span style="width:12px"></span>')
+      +(n.k?`<span class="k" style="--c:${n.c}">${n.k}</span>`:'')
+      +`<span>${n.t}</span>`+(n.hot?'<span class="hot" title="active evolution hotspot"></span>':'');
+    const act=()=>{ if(hasKids)w.classList.toggle('open'); if(n.f)selectFrag(n.t,n.f,row); };
+    row.addEventListener('click',act);
+    row.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();act()}});
+    w.appendChild(row);
+    if(hasKids){const k=document.createElement('div');k.className='tkids';buildTree(n.items,k);w.appendChild(k)}
+    host.appendChild(w);
+  });
+}
+buildTree(TREE,$('#isrTree'));
+function selectFrag(title,frag,row){
+  $$('.trow').forEach(r=>r.classList.remove('sel'));row.classList.add('sel');
+  $('#inspTitle').textContent=title;
+  $('#inspPre').textContent=FRAGS[frag]||'kind: Node\nstatus: canonical';
+  openDock('insp');
+}
+
+
+/* ═══════════════ ISR MAP ═══════════════ */
+const MAPN=[
+{x:20,y:80,t:'POST /orders',s:'api',c:FAMC.obs},{x:20,y:200,t:'POST /payments',s:'api',c:FAMC.obs},
+{x:230,y:40,t:'OrderService',s:'service',c:FAMC.arch},{x:230,y:150,t:'PaymentService',s:'service',c:FAMC.arch},
+{x:230,y:260,t:'InventoryService',s:'service',c:FAMC.arch},{x:230,y:360,t:'NotificationSvc',s:'service',c:FAMC.arch},
+{x:470,y:95,t:'OrderPlaced',s:'event',c:FAMC.msg},{x:470,y:205,t:'PaymentFailed',s:'event',c:FAMC.msg},{x:470,y:315,t:'StockReserved',s:'event',c:FAMC.msg},
+{x:680,y:55,t:'orders-db',s:'data',c:FAMC.per},{x:680,y:165,t:'ledger-db',s:'data',c:FAMC.per},{x:680,y:275,t:'cache',s:'data',c:FAMC.per},
+{x:850,y:185,t:'k8s · us-east-1',s:'infra',c:FAMC.inf}
+];
+const MAPE=[[0,2],[1,3],[2,6],[3,7],[2,8],[6,4],[7,3],[8,5],[2,9],[3,10],[2,11],[4,11],[5,11],[12,12]];
+function buildMap(){
+  const svg=$('#isrMap'),W=170,H=44;
+  MAPE.forEach(([a,b])=>{
+    const A=MAPN[a],B=MAPN[b];if(a===b)return;
+    const x1=A.x+W,y1=A.y+H/2,x2=B.x,y2=B.y+H/2;
+    el('path',{d:`M${x1},${y1} C ${x1+55},${y1} ${x2-55},${y2} ${x2},${y2}`,class:'medge'},svg);
+  });
+  MAPN.forEach(n=>{
+    const g=el('g',{class:'mapnode',transform:`translate(${n.x},${n.y})`},svg);
+    g.style.setProperty('--c',n.c);
+    el('rect',{class:'b',width:W,height:H,rx:7},g);
+    el('rect',{width:4,height:H,rx:2,fill:n.c},g);
+    el('text',{x:14,y:19},g).textContent=n.t;
+    el('text',{x:14,y:33,class:'sub'},g).textContent=n.s;
+    g.addEventListener('click',()=>{
+      const key={OrderService:'ordersvc',PaymentService:'paysvc',InventoryService:'invsvc',NotificationSvc:'invsvc','POST /orders':'api_orders','POST /payments':'paysvc',OrderPlaced:'evt_op',PaymentFailed:'retry',StockReserved:'evt_op','orders-db':'inf2','ledger-db':'inf2',cache:'inf2','k8s · us-east-1':'inf1'}[n.t];
+      $('#inspTitle').textContent=n.t;$('#inspPre').textContent=FRAGS[key]||'kind: '+n.s;openDock('insp');
+    });
+  });
+  $('#mapLegend').innerHTML=[['service',FAMC.arch],['event',FAMC.msg],['data',FAMC.per],['api',FAMC.obs],['infra',FAMC.inf]].map(l=>`<span class="lg-i"><i style="background:${l[1]}"></i>${l[0]}</span>`).join('');
+}
+buildMap();
+
+/* ═══════════════ KNOWLEDGE GRAPH ═══════════════ */
+const KGN=[
+{x:20,y:160,t:'REQ-104',s:'requirement',c:'var(--coral)'},
+{x:170,y:160,t:'Payment Retry',s:'capability',c:'var(--amber)'},
+{x:320,y:160,t:'payments',s:'domain',c:'var(--olive)'},
+{x:470,y:105,t:'PaymentService',s:'service',c:'var(--jade)'},
+{x:630,y:45,t:'RetryWorker',s:'component',c:'var(--cyan)'},
+{x:790,y:45,t:'StripeAdapter',s:'component',c:'var(--cyan)'},
+{x:630,y:185,t:'PaymentFailed',s:'event',c:'var(--orchid)'},
+{x:790,y:185,t:'payments-api',s:'deployment',c:'var(--azure)'},
+{x:630,y:300,t:'otel · loki',s:'observability',c:'var(--rose)'}
+];
+const KGE=[[0,1],[1,2],[2,3],[3,4],[4,5],[3,6],[3,7],[5,7],[6,8],[7,8]];
+function buildKG(){
+  const svg=$('#kgSvg'),W=132,H=42,edges=[];
+  KGE.forEach(([a,b])=>{
+    const A=KGN[a],B=KGN[b],x1=A.x+W,y1=A.y+H/2,x2=B.x,y2=B.y+H/2;
+    edges.push({a,b,n:el('path',{d:`M${x1},${y1} C ${x1+45},${y1} ${x2-45},${y2} ${x2},${y2}`,class:'kedge'},svg)});
+  });
+  const nodes=KGN.map((n,i)=>{
+    const g=el('g',{class:'kgnode',transform:`translate(${n.x},${n.y})`},svg);
+    g.style.setProperty('--c',n.c);
+    el('rect',{width:W,height:H,rx:7},g);
+    el('rect',{width:4,height:H,rx:2,fill:n.c},g);
+    el('text',{x:13,y:18},g).textContent=n.t;
+    el('text',{x:13,y:32,style:'font-size:8px;fill:var(--mut);letter-spacing:.1em;text-transform:uppercase'},g).textContent=n.s;
+    return g;
+  });
+  const lineage=i=>{
+    const set=new Set([i]),q=[i];
+    while(q.length){const c=q.shift();KGE.forEach(([a,b],ei)=>{
+      if(a===c&&!set.has(b)){set.add(b);q.push(b)}
+      if(b===c&&!set.has(a)){set.add(a);q.push(a)}
+    })}return set;
+  };
+  nodes.forEach((g,i)=>{
+    g.addEventListener('mouseenter',()=>{
+      const L=lineage(i);
+      nodes.forEach((n,j)=>n.classList.toggle('dim',!L.has(j)));
+      edges.forEach(e=>{const on=L.has(e.a)&&L.has(e.b);e.n.classList.toggle('hl',on);e.n.classList.toggle('dim',!on)});
+    });
+    g.addEventListener('mouseleave',()=>{nodes.forEach(n=>n.classList.remove('dim'));edges.forEach(e=>{e.n.classList.remove('hl','dim')})});
+    g.addEventListener('click',()=>{
+      $('#inspTitle').textContent='Lineage · '+KGN[i].t;
+      $('#inspPre').textContent=`traceability chain\n─────────────────\nREQ-104  payment resilience\n  → cap.payment-retry\n    → domain: payments\n      → svc.payments\n        → wrk.payment-retry\n          → StripeAdapter\n            → deploy: payments-api (prod)\n              → obs: otel · loki\n\ncoverage: 100% · mtls present since G45\nevidence: isr edges v47 · audit SEC-31 closed`;
+      openDock('insp');
+    });
+  });
+  $('#kgLegend').innerHTML=KGN.map(n=>`<span class="lg-i"><i style="background:${n.c}"></i>${n.s}</span>`).filter((v,i,a)=>a.indexOf(v)===i).join('');
+}
+buildKG();
+
+
+/* ═══════════════ EVOLUTION LAB ═══════════════ */
+const CANDS=[
+{id:'C-A',nm:'HEXA-CQRS-KAFKA',f:.87,d:+.02,chips:[['hexagonal+cqrs',FAMC.arch],['python·fastapi',FAMC.be],['postgresql',FAMC.per],['kafka',FAMC.msg],['kubernetes',FAMC.inf],['oauth2+mtls',FAMC.sec],['otel',FAMC.obs]],bars:[['PRF',88],['REL',90],['SEC',84],['MNT',81],['CST',62]]},
+{id:'C-B',nm:'MODULAR-MONO',f:.79,d:-.01,chips:[['modular-monolith',FAMC.arch],['java·spring-boot',FAMC.be],['postgresql',FAMC.per],['redis-streams',FAMC.msg],['compose',FAMC.inf],['oidc',FAMC.sec],['prometheus',FAMC.obs]],bars:[['PRF',74],['REL',82],['SEC',80],['MNT',88],['CST',85]]},
+{id:'C-C',nm:'EVENT-MESH-NATS',f:.83,d:+.03,chips:[['event-driven',FAMC.arch],['go·fiber',FAMC.be],['cockroachdb',FAMC.per],['nats',FAMC.msg],['nomad',FAMC.inf],['mtls',FAMC.sec],['otel',FAMC.obs]],bars:[['PRF',86],['REL',85],['SEC',78],['MNT',76],['CST',70]]},
+{id:'C-D',nm:'SERVERLESS-SAGA',f:.74,d:+.01,chips:[['saga',FAMC.arch],['ts·nestjs',FAMC.be],['mongodb',FAMC.per],['sqs',FAMC.msg],['functions',FAMC.inf],['jwt',FAMC.sec],['otel',FAMC.obs]],bars:[['PRF',70],['REL',72],['SEC',75],['MNT',69],['CST',90]]}
+];
+let selCand=0;
+const BARC=['var(--cyan)','var(--jade)','var(--coral)','var(--amber)','var(--warn)'];
+function renderCands(){
+  $('#candGrid').innerHTML=CANDS.map((c,i)=>`<div class="cand ${i===selCand?'sel':''}" data-c="${i}" role="button" tabindex="0" aria-label="Candidate ${c.nm}, fitness ${c.f}">
+    <div class="cand-h"><span class="nm">${c.id} · ${c.nm}</span><span class="dl ${c.d>=0?'up':'dn'}">${c.d>=0?'▲':'▼'}${Math.abs(c.d).toFixed(2)}</span><span class="f">${c.f.toFixed(2)}</span></div>
+    <div class="chips">${c.chips.map(ch=>`<span class="chip" style="--c:${ch[1]}"><i></i>${ch[0]}</span>`).join('')}</div>
+    <div class="bars">${c.bars.map((b,j)=>`<div class="bar"><span>${b[0]}</span><div class="meter"><i style="width:${b[1]}%;--c:${BARC[j]}"></i></div><b>${b[1]}</b></div>`).join('')}</div>
+  </div>`).join('');
+  $$('.cand').forEach(cd=>{
+    const sel=()=>{selCand=+cd.dataset.c;renderCands();inspectCand(CANDS[selCand])};
+    cd.addEventListener('click',sel);
+    cd.addEventListener('keydown',e=>{if(e.key==='Enter')sel()});
+  });
+}
+function inspectCand(c){
+  $('#inspTitle').textContent=c.id+' · '+c.nm;
+  $('#inspPre').textContent=`genome: ${c.id} "${c.nm}"\nchromosomes:\n  architecture  : ${c.chips[0][0]}\n  backend       : ${c.chips[1][0]}\n  persistence   : ${c.chips[2][0]}\n  messaging     : ${c.chips[3][0]}\n  infrastructure: ${c.chips[4][0]}\n  security      : ${c.chips[5][0]}\n  observability : ${c.chips[6][0]}\nfitness:\n  performance ${c.bars[0][1]/100} · reliability ${c.bars[1][1]/100}\n  security    ${c.bars[2][1]/100} · maintainability ${c.bars[3][1]/100}\n  cost        ${c.bars[4][1]/100}\nstatus: generation ${GEN} · ${c.f>=.85?'frontier':'candidate'}`;
+  openDock('insp');
+}
+renderCands();inspectCand(CANDS[0]);
+
+/* Pareto */
+let PTS=[{x:34,y:62,id:'B'},{x:41,y:74,id:'C'},{x:55,y:88,id:'A'},{x:28,y:55,id:'D'},{x:47,y:79,id:'C'},{x:62,y:90,id:'A'},{x:38,y:60,id:'B'},{x:70,y:92,id:'A'}];
+const PC={'A':'var(--amber)','B':'var(--jade)','C':'var(--cyan)','D':'var(--orchid)','·':'var(--mut)'};
+function frontier(pts){
+  return pts.map((p,i)=>({...p,dom:pts.some(q=>q!==p&&q.x<=p.x&&q.y>=p.y&&(q.x<p.x||q.y>p.y))}));
+}
+function renderPareto(){
+  const svg=$('#pareto');svg.innerHTML='';
+  el('path',{d:'M30,20 V210 H345',stroke:'var(--line2)','stroke-width':1.2,fill:'none'},svg);
+  el('text',{x:330,y:228,style:'font:9px var(--mono);fill:var(--faint)'},svg).textContent='cost →';
+  el('text',{x:8,y:26,style:'font:9px var(--mono);fill:var(--faint)'},svg).textContent='perf ↑';
+  [0.25,0.5,0.75].forEach(g=>{
+    el('line',{x1:30+g*315,y1:210,x2:30+g*315,y2:20,stroke:'var(--line)','stroke-dasharray':'2,4'},svg);
+    el('line',{x1:30,y1:210-g*190,x2:345,y2:210-g*190,stroke:'var(--line)','stroke-dasharray':'2,4'},svg);
+  });
+  const P=frontier(PTS);
+  const fx=P.filter(p=>!p.dom).map(p=>[30+p.x/100*315,210-p.y/100*190]);
+  if(fx.length>1){
+    fx.sort((a,b)=>a[0]-b[0]);
+    el('path',{d:'M'+fx.map(p=>p.join(',')).join(' L '),stroke:'var(--amber)','stroke-width':1.4,fill:'none','stroke-dasharray':'4,4',opacity:.7},svg);
+  }
+  P.forEach(p=>{
+    const cx=30+p.x/100*315,cy=210-p.y/100*190;
+    if(!p.dom)el('circle',{cx,cy,r:8,fill:'none',stroke:'var(--amber)','stroke-width':1.2,opacity:.8},svg);
+    el('circle',{cx,cy,r:4,fill:PC[p.id]||'var(--mut)',opacity:p.dom?.4:1},svg);
+  });
+  const fr=P.filter(p=>!p.dom).length;
+  $('#statCand').innerHTML=`${P.length} <small>frontier ${fr}</small>`;
+}
+renderPareto();
+
+
+/* fitness curve */
+let HIST=[.71,.74,.78,.80,.83,.85,.87];
+function renderCurve(){
+  const svg=$('#genCurve');svg.innerHTML='';
+  const w=360,h=110,mn=.6,mx=1;
+  const pts=HIST.map((v,i)=>[10+i/(HIST.length-1)*(w-20),h-12-((v-mn)/(mx-mn))*(h-28)]);
+  el('path',{d:'M'+pts.map(p=>p.join(',')).join(' L ')+` L${pts[pts.length-1][0]},${h-8} L${pts[0][0]},${h-8} Z`,fill:'color-mix(in srgb,var(--cyan) 12%,transparent)'},svg);
+  el('path',{d:'M'+pts.map(p=>p.join(',')).join(' L '),stroke:'var(--cyan)','stroke-width':1.8,fill:'none'},svg);
+  const L=pts[pts.length-1];
+  el('circle',{cx:L[0],cy:L[1],r:3.5,fill:'var(--amber)'},svg);
+  el('circle',{cx:L[0],cy:L[1],r:7,fill:'none',stroke:'var(--amber)',opacity:.5},svg);
+  $('#curveFrom').textContent=GEN-HIST.length+1;
+}
+renderCurve();
+
+/* operator log */
+let OPS=[['G47','selection','4 of 9 candidates retained'],['G47','mutation','D: mongodb → cockroachdb (offspring)'],['G46','crossover','A × C → offspring E']];
+function renderOps(){$('#opLog').innerHTML=OPS.slice(0,7).map(o=>`<div class="op-i"><span class="t">${o[0]}</span><span class="op">${o[1]}</span><span>— ${o[2]}</span></div>`).join('')}
+renderOps();
+
+/* ═══════════════ SIMULATION ═══════════════ */
+let GEN=47,PROG=64;
+function rollover(){
+  GEN++;PROG=0;
+  CANDS.forEach(c=>{c.f=clamp(c.f+rnd(-.012,.02),.5,.99);c.d=+(rnd(-.02,.03)).toFixed(2)});
+  const lead=CANDS.reduce((a,b)=>a.f>b.f?a:b);
+  HIST.push(lead.f);if(HIST.length>12)HIST.shift();
+  const fr=frontier(PTS).filter(p=>!p.dom);
+  const base=fr[Math.floor(Math.random()*fr.length)]||{x:50,y:80};
+  PTS.push({x:clamp(base.x+rnd(-6,8),10,95),y:clamp(base.y+rnd(-2,6),40,98),id:'·'});
+  if(PTS.length>26)PTS.shift();
+  const ops=[['mutation',`${['persistence','messaging','security','observability'][Math.floor(rnd(0,4))]}: ${['postgresql→cockroachdb','kafka→nats','jwt→mtls','prometheus→otel'][Math.floor(rnd(0,4))]}`],['crossover',`${CANDS[Math.floor(rnd(0,4))].id} × ${CANDS[Math.floor(rnd(0,4))].id} → offspring`],['selection',`${Math.floor(rnd(3,6))} of 9 candidates retained`]];
+  const o=ops[Math.floor(rnd(0,ops.length))];
+  OPS.unshift(['G'+GEN,o[0],o[1]]);
+  PROJ[0].gen=GEN;PROJ[0].f=lead.f;PROJ[0].spark.push(lead.f);PROJ[0].spark.shift();
+  $('#tickerGen').textContent=pad(GEN);
+  $('#tickerFit').textContent=lead.f.toFixed(2);
+  $('#statGen').innerHTML=`${pad(GEN)} <small>▲ prog <span id="statProg">0</span>%</small>`;
+  $$('.genLabel').forEach(n=>n.textContent=pad(GEN));
+  renderCands();renderPareto();renderCurve();renderOps();renderProj();
+  if(GEN%3===0)toast('Generation '+pad(GEN)+' complete',o[0]+' · '+o[1],'ok');
+}
+setInterval(()=>{
+  PROG+=rnd(3,9);
+  if(PROG>=100){rollover();return}
+  const sp=$('#statProg');if(sp)sp.textContent=Math.floor(PROG);
+},1800);
+$('#btnRun').addEventListener('click',()=>{PROG=100;rollover();toast('Generation forced','Evolution engine advanced one generation.','ok')});
+$('#btnMutate').addEventListener('click',()=>{OPS.unshift(['G'+GEN,'mutation','targeted: security chromosome']);renderOps();toast('Mutation queued','Security chromosome · next generation.','ok')});
+$('#btnCross').addEventListener('click',()=>{OPS.unshift(['G'+GEN,'crossover','C-A × C-C → offspring F']);renderOps();toast('Crossover queued','HEXA-CQRS × EVENT-MESH lineage.','ok')});
+
+/* ═══════════════ DEPLOYMENT ═══════════════ */
+const ENVS=[['production','gen-046 · sha 9f3c','us-east-1','138ms','ok','HEALTHY'],['staging','gen-047 · sha a11f','eu-west-1','151ms','warn','CANARY 12%'],['development','gen-047 · building','local','—','mut','BUILDING']];
+$('#envBody').innerHTML=ENVS.map(e=>`<tr><td class="mono">${e[0]}</td><td class="mono" style="color:var(--ink2)">${e[1]}</td><td class="mono">${e[2]}</td><td class="mono" style="color:var(--cyan)">${e[3]}</td><td><span class="bdg ${e[4]}"><span class="d ${e[4]==='ok'?'pulse':''}"></span>${e[5]}</span></td></tr>`).join('');
+const LOGT=[['ok','compile isr → python/fastapi backend … ok (2.4s)'],['ok','verify: 214 unit · 38 integration · 6 e2e passed'],['','emit: orders-api image sha256:9f3c… pushed'],['','canary 12% → p95 141ms · err 0.02%'],['','otel: trace budget nominal · 100% sampling'],['warn','fitness variance σ=0.03 — approaching convergence'],['','genome refinement queued ← production telemetry'],['ok','mTLS handshake audit: 0 findings on payments mesh']];
+let logI=0;
+function pushLog(){
+  const box=$('#logBox');if(!box)return;
+  const L=LOGT[logI%LOGT.length];logI++;
+  const d=new Date(),ts=`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+  const div=document.createElement('div');div.className='log-i '+L[0];
+  div.innerHTML=`<span class="ts">${ts}</span> <span class="m">${L[1]}</span>`;
+  box.appendChild(div);
+  while(box.children.length>30)box.removeChild(box.firstChild);
+  box.scrollTop=box.scrollHeight;
+}
+for(let i=0;i<6;i++)pushLog();
+setInterval(pushLog,2200);
+
+</script>
+</body>
+</html>
+

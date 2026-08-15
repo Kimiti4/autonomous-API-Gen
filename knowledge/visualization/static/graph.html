@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Knowledge Graph Visualization</title>
+  <style>
+    body {
+      font-family: monospace;
+      margin: 24px;
+      background: #0b1020;
+      color: #e5e7eb;
+    }
+
+    h1, h2 {
+      color: #93c5fd;
+    }
+
+    input, select, button {
+      padding: 8px;
+      margin: 4px;
+      border-radius: 6px;
+      border: 1px solid #4b5563;
+      background: #111827;
+      color: #e5e7eb;
+    }
+
+    button {
+      cursor: pointer;
+      background: #2563eb;
+      border: none;
+      color: white;
+    }
+
+    button:hover {
+      background: #1d4ed8;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 12px;
+      font-size: 13px;
+    }
+
+    th, td {
+      border: 1px solid #374151;
+      padding: 6px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #111827;
+      color: #93c5fd;
+    }
+
+    pre {
+      background: #020617;
+      border: 1px solid #1f2937;
+      padding: 12px;
+      overflow: auto;
+      white-space: pre-wrap;
+    }
+
+    .section {
+      margin-top: 28px;
+    }
+
+    .metadata {
+      color: #a7f3d0;
+    }
+
+    .error {
+      color: #f87171;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Knowledge Graph Visualization</h1>
+
+  <p>
+    Read-only graph export and inspection.
+    This UI does not mutate the Knowledge Graph.
+  </p>
+
+  <div>
+    <label for="root_entity_id">Root Entity ID</label><br />
+    <input id="root_entity_id" type="text" size="80" placeholder="entity_..." />
+  </div>
+
+  <div>
+    <label for="depth">Depth</label><br />
+    <input id="depth" type="number" min="1" max="5" value="2" />
+  </div>
+
+  <div>
+    <label for="direction">Direction</label><br />
+    <select id="direction">
+      <option value="both" selected>both</option>
+      <option value="forward">forward</option>
+      <option value="backward">backward</option>
+    </select>
+  </div>
+
+  <div>
+    <label for="format">Format</label><br />
+    <select id="format">
+      <option value="json" selected>json</option>
+      <option value="mermaid">mermaid</option>
+      <option value="dot">dot</option>
+    </select>
+  </div>
+
+  <div>
+    <label for="include_provenance">Include Provenance</label>
+    <input id="include_provenance" type="checkbox" />
+  </div>
+
+  <div>
+    <label for="redact_sensitive">Redact Sensitive</label>
+    <input id="redact_sensitive" type="checkbox" checked />
+  </div>
+
+  <div>
+    <button onclick="runExport()">Export</button>
+  </div>
+
+  <div id="error" class="error section"></div>
+
+  <div id="metadata" class="section metadata"></div>
+
+  <div class="section">
+    <h2>Nodes</h2>
+    <table id="nodes-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Label</th>
+          <th>Type</th>
+          <th>Namespace</th>
+          <th>Status</th>
+          <th>Sensitivity</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Edges</h2>
+    <table id="edges-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Relation</th>
+          <th>Source</th>
+          <th>Target</th>
+          <th>Derived</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Content</h2>
+    <pre id="content"></pre>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const rootFromUrl = params.get("root_entity_id");
+
+    if (rootFromUrl) {
+      document.getElementById("root_entity_id").value = rootFromUrl;
+    }
+
+    async function runExport() {
+      const root_entity_id = document.getElementById("root_entity_id").value.trim();
+      const depth = Number(document.getElementById("depth").value || "2");
+      const direction = document.getElementById("direction").value;
+      const format = document.getElementById("format").value;
+      const include_provenance = document.getElementById("include_provenance").checked;
+      const redact_sensitive = document.getElementById("redact_sensitive").checked;
+
+      const errorElement = document.getElementById("error");
+      const metadataElement = document.getElementById("metadata");
+      const nodesTable = document.querySelector("#nodes-table tbody");
+      const edgesTable = document.querySelector("#edges-table tbody");
+      const contentElement = document.getElementById("content");
+
+      errorElement.textContent = "";
+      metadataElement.textContent = "";
+      nodesTable.innerHTML = "";
+      edgesTable.innerHTML = "";
+      contentElement.textContent = "";
+
+      if (!root_entity_id) {
+        errorElement.textContent = "Root entity ID is required.";
+        return;
+      }
+
+      const payload = {
+        root_entity_id,
+        depth,
+        direction,
+        format,
+        include_provenance,
+        redact_sensitive,
+        relation_types: [],
+        entity_types: []
+      };
+
+      try {
+        const response = await fetch("/v1/knowledge/visualize/export", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          throw new Error(body.detail || body.message || "Export failed");
+        }
+
+        const body = await response.json();
+
+        metadataElement.textContent = JSON.stringify(body.metadata, null, 2);
+
+        for (const node of body.nodes || []) {
+          const row = document.createElement("tr");
+
+          row.innerHTML = `
+            <td>${node.id}</td>
+            <td>${node.label}</td>
+            <td>${node.entity_type}</td>
+            <td>${node.namespace}</td>
+            <td>${node.status}</td>
+            <td>${node.sensitivity}</td>
+          `;
+
+          nodesTable.appendChild(row);
+        }
+
+        for (const edge of body.edges || []) {
+          const row = document.createElement("tr");
+
+          row.innerHTML = `
+            <td>${edge.id}</td>
+            <td>${edge.relation_type}</td>
+            <td>${edge.source}</td>
+            <td>${edge.target}</td>
+            <td>${edge.derived}</td>
+            <td>${edge.status}</td>
+          `;
+
+          edgesTable.appendChild(row);
+        }
+
+        if (body.content) {
+          contentElement.textContent = body.content;
+        } else {
+          contentElement.textContent = JSON.stringify(body, null, 2);
+        }
+      } catch (err) {
+        errorElement.textContent = err.message;
+      }
+    }
+  </script>
+</body>
+</html>

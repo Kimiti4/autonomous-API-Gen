@@ -1,0 +1,20 @@
+from __future__ import annotations
+
+from abc import abstractmethod
+from typing import Any, Dict
+
+from constitutional_architecture.core.contracts.compiler import CompilerBackend
+from constitutional_architecture.core.models.bundle import CompilationBundle
+from constitutional_architecture.core.models.genome import ArchitectureGenome
+from constitutional_architecture.core.models.isr import UniversalISR
+
+
+class InfrastructureCompiler(CompilerBackend):
+    @abstractmethod
+    def compile(
+        self,
+        isr: UniversalISR,
+        genome: ArchitectureGenome,
+        context: Dict[str, Any],
+    ) -> CompilationBundle:
+        pass

@@ -1,0 +1,76 @@
+<h1>Governance Health Overview</h1>
+
+<div class="cards">
+  <div class="card">
+    <div class="label">Audit chain</div>
+    <div class="value {{ 'ok' if health.audit_chain_status == 'VALID' else 'bad' }}">{{ health.audit_chain_status }} · {{ health.audit_chain_events }} events</div>
+  </div>
+  <div class="card">
+    <div class="label">Pending approvals</div>
+    <div class="value">{{ health.pending_approvals }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Active exceptions</div>
+    <div class="value">{{ health.active_exceptions }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Expiring &lt;24h</div>
+    <div class="value">{{ health.expiring_exceptions }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Denials</div>
+    <div class="value">{{ health.recent_denials }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Policy errors</div>
+    <div class="value">{{ health.policy_error_count }}</div>
+  </div>
+</div>
+
+<h2>Active constitution</h2>
+{% if health.active_constitution %}
+<table>
+  <thead><tr><th>ID</th><th>Name</th><th>Version</th><th>Effective</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><a href="/constitutions/{{ health.active_constitution.id }}">{{ health.active_constitution.id }}</a></td>
+      <td>{{ health.active_constitution.name }}</td>
+      <td>{{ health.active_constitution.version }}</td>
+      <td>{{ health.active_constitution.effective_at }}</td>
+    </tr>
+  </tbody>
+</table>
+{% else %}<p class="note">No active constitution.</p>{% endif %}
+
+<h2>Active policy sets ({{ health.active_policy_sets | length }})</h2>
+<table>
+  <thead><tr><th>ID</th><th>Name</th><th>Version</th><th>Hash</th></tr></thead>
+  <tbody>
+    {% for p in health.active_policy_sets %}
+    <tr>
+      <td><a href="/policy-sets/{{ p.id }}">{{ p.id }}</a></td>
+      <td>{{ p.name }}</td>
+      <td>{{ p.version }}</td>
+      <td class="mono">{{ p.content_hash[:16] }}…</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Recent evaluations</h2>
+<table>
+  <thead><tr><th>Decision ID</th><th>Subject</th><th>Action</th><th>Decision</th><th>Reason</th></tr></thead>
+  <tbody>
+    {% for e in health.recent_evaluations %}
+    <tr>
+      <td class="mono"><a href="/evaluations/{{ e.decision_id }}/reconstruct">{{ e.decision_id }}</a></td>
+      <td>{{ e.subject_type }} / {{ e.subject_id }}</td>
+      <td>{{ e.action }}</td>
+      <td><span class="badge {{ e.decision }}">{{ e.decision }}</span></td>
+      <td>{{ e.reason }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="note">No evaluations yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>

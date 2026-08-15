@@ -1,0 +1,421 @@
+openapi: 3.0.3
+info:
+  title: Governance Kernel API
+  version: 0.1.0
+  description: >
+    Phase 28 Constitutional Governance — Policy Decision Point contract.
+    Every significant action in the platform is evaluated here before
+    execution. Fail-closed by default.
+servers:
+  - url: /v1
+paths:
+  /constitutions:
+    post:
+      summary: Create constitution
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConstitutionCreate'
+      responses:
+        '201':
+          description: Constitution created (DRAFT)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstitutionISR'
+  /constitutions/{id}:
+    get:
+      summary: Get constitution
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Constitution
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstitutionISR'
+  /constitutions/{id}/activate:
+    post:
+      summary: Activate constitution
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Constitution activated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstitutionISR'
+  /policy-sets:
+    post:
+      summary: Create policy set (bound to a constitution)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicySetCreate'
+      responses:
+        '201':
+          description: Policy set created (DRAFT)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicySetISR'
+  /policy-sets/{id}:
+    get:
+      summary: Get policy set
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Policy set
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicySetISR'
+  /policy-sets/{id}/activate:
+    post:
+      summary: Activate policy set (immutable thereafter)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Policy set activated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicySetISR'
+  /governance/evaluate:
+    post:
+      summary: Evaluate an action against active policies
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GovernanceEvaluationRequest'
+      responses:
+        '200':
+          description: Policy decision with explanation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GovernanceDecision'
+  /approvals:
+    post:
+      summary: Create approval requests for a decision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [evaluation_id]
+              properties:
+                evaluation_id: { type: string }
+      responses:
+        '201':
+          description: Approval records created
+  /approvals/{id}/decision:
+    post:
+      summary: Submit an approval decision
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision:
+                  type: string
+                  enum: [APPROVED, REJECTED, ABSTAINED]
+                comments: { type: string, nullable: true }
+                approved_constraints:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Constraint'
+      responses:
+        '200':
+          description: Approval recorded
+  /audit/events:
+    post:
+      summary: Record an audit event (append-only, hash-chained)
+      responses:
+        '201':
+          description: Event recorded
+    get:
+      summary: Query audit events
+      parameters:
+        - name: subject_id
+          in: query
+          schema: { type: string }
+        - name: actor_id
+          in: query
+          schema: { type: string }
+        - name: action
+          in: query
+          schema: { type: string }
+        - name: event_type
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Matching events in chain order
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditEvent'
+  /audit/reconstruct/{decision_id}:
+    get:
+      summary: Reconstruct a governance decision
+      parameters:
+        - name: decision_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: >
+            Original request, policies evaluated, approvals, evidence,
+            exceptions, final decision, related lineage.
+components:
+  schemas:
+    ConstitutionCreate:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        invariants:
+          type: array
+          items: { $ref: '#/components/schemas/Invariant' }
+        policy_domains:
+          type: array
+          items: { type: string }
+    ConstitutionISR:
+      type: object
+      properties:
+        id: { type: string }
+        version: { type: string }
+        name: { type: string }
+        description: { type: string }
+        status:
+          type: string
+          enum: [DRAFT, UNDER_REVIEW, ACTIVE, DEPRECATED, REVOKED]
+        parent_id: { type: string, nullable: true }
+        invariants:
+          type: array
+          items: { $ref: '#/components/schemas/Invariant' }
+        policy_domains:
+          type: array
+          items: { type: string }
+        content_hash: { type: string }
+    Invariant:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        severity:
+          type: string
+          enum: [BLOCKING, CRITICAL, MAJOR, ADVISORY]
+        enforceable: { type: boolean }
+        rule_ref: { type: string, nullable: true }
+    PolicySetCreate:
+      type: object
+      required: [name, constitution_id, constitution_version, rule_definitions]
+      properties:
+        name: { type: string }
+        constitution_id: { type: string }
+        constitution_version: { type: string }
+        rule_definitions:
+          type: array
+          items: { $ref: '#/components/schemas/PolicyRule' }
+    PolicySetISR:
+      type: object
+      properties:
+        id: { type: string }
+        version: { type: string }
+        name: { type: string }
+        constitution_id: { type: string }
+        constitution_version: { type: string }
+        status:
+          type: string
+          enum: [DRAFT, ACTIVE, DEPRECATED, REVOKED]
+        policy_rules:
+          type: array
+          items: { $ref: '#/components/schemas/PolicyRule' }
+        content_hash: { type: string }
+    PolicyRule:
+      type: object
+      required: [id, effect, subject_types, actions]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        effect:
+          type: string
+          enum: [ALLOW, DENY, REQUIRE_APPROVAL, REQUIRE_EVIDENCE, ALLOW_WITH_CONSTRAINTS]
+        priority: { type: integer }
+        subject_types:
+          type: array
+          items: { type: string }
+        actions:
+          type: array
+          items: { type: string }
+        conditions:
+          type: array
+          items: { $ref: '#/components/schemas/Condition' }
+        required_evidence:
+          type: array
+          items: { type: string }
+        required_approvals:
+          type: array
+          items: { $ref: '#/components/schemas/ApprovalRequirement' }
+        constraints:
+          type: array
+          items: { $ref: '#/components/schemas/Constraint' }
+    Condition:
+      type: object
+      required: [field, operator]
+      properties:
+        field: { type: string }
+        operator:
+          type: string
+          enum:
+            - EQUALS
+            - NOT_EQUALS
+            - IN
+            - NOT_IN
+            - EXISTS
+            - NOT_EXISTS
+            - GREATER_THAN
+            - LESS_THAN
+            - MATCHES
+        value: { nullable: true }
+    ApprovalRequirement:
+      type: object
+      properties:
+        approver_type:
+          type: string
+          enum: [HUMAN, ROLE, ORGANIZATION, AUTONOMOUS_AGENT, FEDERATION_COUNCIL]
+        approver_id: { type: string, nullable: true }
+        required: { type: boolean, default: true }
+        timeout_policy:
+          type: string
+          enum: [DENY_ON_TIMEOUT, ESCALATE_ON_TIMEOUT, ALLOW_ON_TIMEOUT]
+          default: DENY_ON_TIMEOUT
+        timeout_duration: { type: string, nullable: true }
+    Constraint:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        enforced: { type: boolean, default: true }
+        value: { nullable: true }
+    GovernanceEvaluationRequest:
+      type: object
+      required: [subject_type, subject_id, action, actor]
+      properties:
+        subject_type: { type: string }
+        subject_id: { type: string }
+        action: { type: string }
+        actor: { $ref: '#/components/schemas/Actor' }
+        context: { type: object }
+        evidence_refs:
+          type: array
+          items: { type: string }
+        requested_exceptions:
+          type: array
+          items: { type: string }
+    Actor:
+      type: object
+      required: [actor_id]
+      properties:
+        actor_type:
+          type: string
+          enum: [HUMAN, SERVICE, AUTONOMOUS_AGENT, ORGANIZATION, PLUGIN, EXTERNAL_SYSTEM]
+        actor_id: { type: string }
+        roles:
+          type: array
+          items: { type: string }
+        delegated_authority:
+          type: array
+          items: { type: string }
+    GovernanceDecision:
+      type: object
+      properties:
+        decision:
+          type: string
+          enum: [ALLOW, DENY, REQUIRE_APPROVAL, REQUIRE_EVIDENCE, ALLOW_WITH_CONSTRAINTS]
+        reason: { type: string }
+        evaluated_policies:
+          type: array
+          items: { $ref: '#/components/schemas/PolicyEvaluation' }
+        required_approvals:
+          type: array
+          items: { $ref: '#/components/schemas/ApprovalRequirement' }
+        required_evidence:
+          type: array
+          items: { type: string }
+        constraints:
+          type: array
+          items: { $ref: '#/components/schemas/Constraint' }
+        exceptions_applied:
+          type: array
+          items: { type: string }
+        decision_hash: { type: string }
+    PolicyEvaluation:
+      type: object
+      properties:
+        policy_set_id: { type: string }
+        policy_set_version: { type: string }
+        rule_id: { type: string }
+        rule_name: { type: string }
+        outcome:
+          type: string
+          enum: [MATCHED_ALLOW, MATCHED_DENY, MATCHED_REQUIRE_APPROVAL, MATCHED_REQUIRE_EVIDENCE, NOT_MATCHED, ERROR]
+        explanation: { type: string }
+    AuditEvent:
+      type: object
+      properties:
+        id: { type: string }
+        event_type: { type: string }
+        actor: { $ref: '#/components/schemas/Actor' }
+        subject_type: { type: string }
+        subject_id: { type: string }
+        action: { type: string }
+        decision_id: { type: string, nullable: true }
+        approval_ids:
+          type: array
+          items: { type: string }
+        evidence_refs:
+          type: array
+          items: { type: string }
+        timestamp: { type: string, format: date-time }
+        previous_event_hash: { type: string }
+        event_hash: { type: string }

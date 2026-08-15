@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Policy Set {{ policy_set.id }}</h1>
+<p class="note">Version {{ policy_set.version }} · {{ policy_set.status }} · constitution <span class="mono">{{ policy_set.constitution_id }}</span></p>
+
+<h2>Rules ({{ policy_set.rules | length }})</h2>
+{% for rule in policy_set.rules %}
+<details class="rule">
+  <summary><strong>{{ rule.name }}</strong>
+    <span class="badge {{ rule.effect }}">{{ rule.effect }}</span>
+    <span class="muted">priority {{ rule.priority }}</span>
+  </summary>
+  <table>
+    <tbody>
+      <tr><th>ID</th><td class="mono">{{ rule.id }}</td></tr>
+      <tr><th>Subject types</th><td>{{ rule.subject_types | join(", ") }}</td></tr>
+      <tr><th>Actions</th><td>{{ rule.actions | join(", ") }}</td></tr>
+      <tr><th>Conditions</th><td><pre>{{ rule.conditions | tojson }}</pre></td></tr>
+      <tr><th>Required evidence</th><td>{{ rule.required_evidence | join(", ") or "—" }}</td></tr>
+      <tr><th>Required approvals</th><td><pre>{{ rule.required_approvals | tojson }}</pre></td></tr>
+      <tr><th>Constraints</th><td><pre>{{ rule.constraints | tojson }}</pre></td></tr>
+    </tbody>
+  </table>
+</details>
+{% else %}
+<p class="note">No rules.</p>
+{% endfor %}
+
+{% endblock %}

@@ -1,0 +1,46 @@
+# Persona pool v0.1 -- authored stakeholder voices for statement rendering.
+# Personas shape HOW requirements are expressed, not WHAT the system is.
+# All directives keep the statement in the problem domain (no technology
+# prescription) so the fidelity loop measures requirement extraction.
+
+version: "0.1.0"
+personas:
+  - id: vague_executive
+    name: Vague Executive
+    description: Senior sponsor focused on outcomes, light on specifics.
+    style_directives:
+      - Speak in high-level business outcomes and value.
+      - Avoid operational detail; stay strategic.
+      - Use confident, forward-looking language.
+
+  - id: terse_ops_lead
+    name: Terse Operations Lead
+    description: Pragmatic operator who values reliability and brevity.
+    style_directives:
+      - Use short, imperative sentences.
+      - Emphasise reliability, uptime, and day-to-day operations.
+      - Avoid embellishment and marketing language.
+
+  - id: contradictory_committee
+    name: Contradictory Committee
+    description: Multiple stakeholders whose stated desires conflict.
+    style_directives:
+      - Present several voices or priorities in one statement.
+      - Allow stated desires to tension or conflict with each other.
+      - Sound like a transcript of a disagreement.
+
+  - id: non_technical_founder
+    name: Non-Technical Founder
+    description: Visionary founder using analogies, avoiding jargon.
+    style_directives:
+      - Use analogies and plain language.
+      - Avoid any technical terminology.
+      - Convey enthusiasm and a broad vision.
+
+  - id: detail_heavy_analyst
+    name: Detail-Heavy Analyst
+    description: Exhaustive analyst who enumerates many requirements.
+    style_directives:
+      - Enumerate requirements thoroughly and precisely.
+      - Use structured, clause-heavy sentences.
+      - Cover edge cases and constraints explicitly.

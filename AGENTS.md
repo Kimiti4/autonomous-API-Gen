@@ -1,0 +1,90 @@
+# AGENTS.md
+
+Local engineering guidance for the **Cognitive Architecture** workspace
+(`C:\Users\user\New folder (2)`).
+
+## Project at a glance
+
+This workspace is a multi-phase cognitive-architecture build. The canonical
+Python project is configured in `pyproject.toml` ("Phase 23 Enterprise Knowledge
+Graph runtime"). Its **unit-test suite lives under `tests/`**.
+
+Notable top-level packages (all importable from the workspace root):
+`compiler`, `knowledge`, `civilization`, `evolution`, `product_factory`,
+`learning`, `constitutional_architecture`.
+
+## Running the tests
+
+Canonical command:
+
+```bash
+python -m pytest
+```
+
+What this does (configured in `pyproject.toml` under `[tool.pytest.ini_options]`):
+
+- `testpaths = ["tests"]` — runs the project unit suite only.
+- `addopts = "--import-mode=importlib"` — avoids the
+  `ModuleNotFoundError: No module named 'tests.test_*'` collection collisions
+  caused by the multiple `*/tests/` packages across `autonomous-api/`,
+  `constitutional_architecture/`, and `generated/`.
+- `pythonpath = ["."]` — puts the workspace root on `sys.path` so root-level
+  packages (`compiler`, `knowledge`, `learning`, …) import cleanly when pytest
+  is invoked directly.
+
+Expected result on a clean checkout: **1058 passed** (includes the Phase 26
+Continuous Learning Infrastructure suite, the Phase 28 Cryptographic Evidence
+Signing + Durable Version Repository suites, and the Phase 31 Stratified
+Calibration Harness — `tiannara/` — suite).
+
+### Integration / out-of-suite tests
+
+The following are **not** part of the canonical run and require extra
+infrastructure — do not treat their absence as a unit-suite regression:
+
+- `autonomous-api/**/*.py` tests (e.g. `autonomous-api/test_production.py`,
+  `autonomous-api/test_system.py`) — exercise a live FastAPI service on
+  `localhost:8000` and depend on the `autonomous-api/.venv` virtual environment.
+  Start the API (`uvicorn app.main:app`) inside that venv first.
+- `generated/testshop` and `generated/monolithshop` tests — `async def`
+  in-process FastAPI tests marked `@pytest.mark.asyncio`; they require
+  `pytest-asyncio` (or the asyncio fallback in
+  `autonomous-api/tests/conftest.py`) and the `generated/*` packages to be
+  importable.
+- `constitutional_architecture/tests/test_end_to_end.py` — imports a symbol
+  (`Dependency`) that does not exist in `constitutional_architecture.isr.model`.
+
+## Adding/editing files
+
+- Prefer editing existing files over creating new ones.
+- Follow existing code conventions (see neighboring modules).
+- The `learning/` package (Phase 26) converts telemetry into governed
+  evolutionary feedback; it must **not** mutate the ISR directly — output flows
+  through governance and the Evolution Engine.
+
+## Notes
+
+- The stray `C:\Users\user\New folder (2)\(2)` directory is a partial duplicate
+  of `constitutional_architecture/` and is intentionally ignored (it is not in
+  `testpaths`).
+- Phase 28 (Governance Kernel) is wired and covered by the unit suite:
+  - **Cryptographic evidence signing** — `GovernedKernel`'s evidence path is
+    config-gated via `new_evidence_recorder()` (`AUDIT_EVIDENCE_SIGNING_KEY`
+    env var). When set, each `AuditEvidenceISR` is HMAC-SHA256 signed over its
+    chain-linked content (including `chain_link`); when unset, records are
+    unsigned and an observable warning is emitted. `EvidenceSigner` is a
+    Protocol seam — an asymmetric (e.g. Ed25519) signer can be dropped in
+    later for true non-repudiation.
+  - **Durable version repository** — `FileBackedConstitutionVersionRepository`
+    (atomic writes + `fsync`) is a drop-in swap for the in-memory reference
+    adapter; `test_governance_versioning_durable.py` proves the ratified
+    constitutional version chain survives instance restarts.
+- **Phase 31 — Stratified Calibration Harness (`tiannara/`).** Implements the
+  certification harness from `folder/31.md`: a dependency-inverted
+  Intent→ISR→Evolution→Compile→Verify→Gate→Evidence-Ledger→Publish pipeline
+  with local reference adapters (JSONL SHA-256 hash-chain evidence ledger, local
+  execution environment, minimal compiler backend, stub intent compiler,
+  baseline evolution engine, local/git-over-HTTPS repository publisher,
+  env-based settings, CLI composition root). GitHub/Docker/workflow-engine are
+  plug-in ports; see `folder/31.md` Closure Record.
+- Python: 3.14.0 is the interpreter on PATH for `python -m pytest`.

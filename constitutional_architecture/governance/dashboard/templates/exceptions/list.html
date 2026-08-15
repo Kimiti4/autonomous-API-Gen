@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Exception Registry</h1>
+<form method="get" class="filters">
+  <label>Status
+    <select name="status">
+      <option value="">any</option>
+      {% for s in ["ACTIVE", "EXPIRED", "REVOKED"] %}
+      <option value="{{ s }}" {{ "selected" if status_filter == s }}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <button type="submit">Filter</button>
+</form>
+
+<table>
+  <thead><tr><th>ID</th><th>Name</th><th>Status</th><th>Granted by</th><th>Expires</th><th>Uses</th><th>Max uses</th></tr></thead>
+  <tbody>
+    {% for e in exceptions %}
+    <tr>
+      <td class="mono"><a href="/exceptions/{{ e.id }}">{{ e.id }}</a></td>
+      <td>{{ e.name }}</td>
+      <td><span class="badge {{ e.status }}">{{ e.status }}</span></td>
+      <td>{{ e.granted_by }}</td>
+      <td>{{ e.expires_at }}</td>
+      <td>{{ e.use_count }}</td>
+      <td>{{ e.max_uses if e.max_uses is not none else "∞" }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="note">No exceptions.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% endblock %}

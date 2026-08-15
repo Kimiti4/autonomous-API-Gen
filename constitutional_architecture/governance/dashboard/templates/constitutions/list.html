@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Constitutions</h1>
+<table>
+  <thead><tr><th>ID</th><th>Name</th><th>Version</th><th>Status</th><th>Created</th><th>By</th><th>Hash</th></tr></thead>
+  <tbody>
+    {% for c in constitutions %}
+    <tr>
+      <td class="mono"><a href="/constitutions/{{ c.id }}">{{ c.id }}</a></td>
+      <td>{{ c.name }}</td>
+      <td>{{ c.version }}</td>
+      <td><span class="badge {{ c.status }}">{{ c.status }}</span></td>
+      <td>{{ c.created_at }}</td>
+      <td>{{ c.created_by }}</td>
+      <td class="mono">{{ c.content_hash[:16] }}…</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="note">No constitutions.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% endblock %}

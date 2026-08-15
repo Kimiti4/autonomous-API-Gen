@@ -1,0 +1,118 @@
+{
+  "patterns": [
+    {
+      "id": "pat-001",
+      "name": "Enterprise Data Dashboard",
+      "category": "Layout",
+      "description": "High-density information display optimized for data analysis and monitoring. Prioritizes information density over whitespace.",
+      "applicability": ["dashboard", "enterprise", "b2b", "analytics", "data-dense"],
+      "conflictsWith": ["pat-002"],
+      "genomeModifiers": [
+        {"targetChromosome": "Presentation", "targetGene": "typography-modular-scale", "operation": "set", "value": 1.125},
+        {"targetChromosome": "Structure", "targetGene": "spacing-base-unit", "operation": "set", "value": 4},
+        {"targetChromosome": "Presentation", "targetGene": "typography-base-size", "operation": "set", "value": 13},
+        {"targetChromosome": "Structure", "targetGene": "density-profile", "operation": "set", "value": 0.8},
+        {"targetChromosome": "Composition", "targetGene": "visual-weight", "operation": "set", "value": {"contrast_distribution": 0.7, "size_hierarchy_ratio": 1.25, "whitespace_allocation": 0.3}}
+      ]
+    },
+    {
+      "id": "pat-002",
+      "name": "Consumer Marketing Landing",
+      "category": "Layout",
+      "description": "Visually driven, spacious layout optimized for conversion and brand storytelling.",
+      "applicability": ["landing", "consumer", "marketing", "b2c", "content"],
+      "conflictsWith": ["pat-001"],
+      "genomeModifiers": [
+        {"targetChromosome": "Presentation", "targetGene": "typography-modular-scale", "operation": "set", "value": 1.333},
+        {"targetChromosome": "Structure", "targetGene": "spacing-base-unit", "operation": "set", "value": 8},
+        {"targetChromosome": "Presentation", "targetGene": "typography-base-size", "operation": "set", "value": 18},
+        {"targetChromosome": "Structure", "targetGene": "density-profile", "operation": "set", "value": 0.2},
+        {"targetChromosome": "Presentation", "targetGene": "elevation-ambient-ratio", "operation": "set", "value": 0.4}
+      ]
+    },
+    {
+      "id": "pat-003",
+      "name": "Auth & Onboarding Flow",
+      "category": "Interaction",
+      "description": "Minimal, focused layout for authentication and user onboarding. Reduces cognitive load by limiting choices.",
+      "applicability": ["auth", "login", "signup", "onboarding", "wizard"],
+      "conflictsWith": [],
+      "genomeModifiers": [
+        {"targetChromosome": "Presentation", "targetGene": "typography-base-size", "operation": "set", "value": 16},
+        {"targetChromosome": "Structure", "targetGene": "density-profile", "operation": "set", "value": 0.5},
+        {"targetChromosome": "Presentation", "targetGene": "morphology", "operation": "set", "value": {"corner_radius_strategy": "rounded", "border_weight_scale": [0.5, 1, 2, 4], "glassmorphism_intensity": 0.05, "neumorphism_intensity": 0}},
+        {"targetChromosome": "Behavior", "targetGene": "interaction-feedback", "operation": "set", "value": {"hover_intensity": 0.6, "active_compression": 0.3, "focus_ring_thickness": 2, "focus_ring_offset": 2}}
+      ]
+    },
+    {
+      "id": "pat-004",
+      "name": "E-Commerce Checkout",
+      "category": "Composition",
+      "description": "Optimized for conversion with clear visual hierarchy, progress indication, and reduced distraction.",
+      "applicability": ["ecommerce", "checkout", "cart", "payment", "shop"],
+      "conflictsWith": ["pat-005"],
+      "genomeModifiers": [
+        {"targetChromosome": "Structure", "targetGene": "grid-system", "operation": "set", "value": {"column_counts": [12, 8], "gutter_to_margin_ratio": 0.6, "max_width": 960}},
+        {"targetChromosome": "Composition", "targetGene": "visual-weight", "operation": "set", "value": {"contrast_distribution": 0.6, "size_hierarchy_ratio": 1.5, "whitespace_allocation": 0.6}},
+        {"targetChromosome": "Structure", "targetGene": "breakpoint-strategy", "operation": "set", "value": {"thresholds": [480, 768, 960], "adaptive_density_shift": 0.3}}
+      ]
+    },
+    {
+      "id": "pat-005",
+      "name": "High-Density Data Table",
+      "category": "Composition",
+      "description": "Maximizes data density for tabular data with compact spacing and clear visual hierarchy.",
+      "applicability": ["table", "data-grid", "spreadsheet", "reporting", "analytics"],
+      "conflictsWith": ["pat-002", "pat-004"],
+      "genomeModifiers": [
+        {"targetChromosome": "Structure", "targetGene": "spacing-base-unit", "operation": "set", "value": 2},
+        {"targetChromosome": "Structure", "targetGene": "density-profile", "operation": "set", "value": 0.9},
+        {"targetChromosome": "Presentation", "targetGene": "typography-base-size", "operation": "set", "value": 12},
+        {"targetChromosome": "Presentation", "targetGene": "typography-modular-scale", "operation": "set", "value": 1.125},
+        {"targetChromosome": "Composition", "targetGene": "visual-weight", "operation": "set", "value": {"contrast_distribution": 0.8, "size_hierarchy_ratio": 1.1, "whitespace_allocation": 0.1}}
+      ]
+    },
+    {
+      "id": "pat-006",
+      "name": "Rich Content / Blog",
+      "category": "Typography",
+      "description": "Optimized for long-form reading with generous line height, comfortable measure, and clear typographic hierarchy.",
+      "applicability": ["blog", "article", "content", "reading", "documentation"],
+      "conflictsWith": ["pat-005"],
+      "genomeModifiers": [
+        {"targetChromosome": "Presentation", "targetGene": "typography-modular-scale", "operation": "set", "value": 1.25},
+        {"targetChromosome": "Presentation", "targetGene": "typography-base-size", "operation": "set", "value": 18},
+        {"targetChromosome": "Structure", "targetGene": "spacing-base-unit", "operation": "set", "value": 8},
+        {"targetChromosome": "Structure", "targetGene": "density-profile", "operation": "set", "value": 0.3},
+        {"targetChromosome": "Composition", "targetGene": "visual-weight", "operation": "set", "value": {"contrast_distribution": 0.3, "size_hierarchy_ratio": 1.75, "whitespace_allocation": 0.8}}
+      ]
+    },
+    {
+      "id": "pat-007",
+      "name": "Dark Mode / Low-Light",
+      "category": "Color",
+      "description": "Optimized for low-light environments with reduced blue light, lower contrast, and desaturated backgrounds.",
+      "applicability": ["dark-mode", "night", "low-light", "accessibility"],
+      "conflictsWith": [],
+      "genomeModifiers": [
+        {"targetChromosome": "Presentation", "targetGene": "color-system", "operation": "set", "value": {"base_hue": 220, "saturation": 0.4, "lightness_steps": [0.05, 0.1, 0.15, 0.25, 0.4, 0.55, 0.7], "semantic_shift": {"success": 130, "warning": 50, "danger": 5, "info": 205}}},
+        {"targetChromosome": "Presentation", "targetGene": "elevation-ambient-ratio", "operation": "set", "value": 0.2},
+        {"targetChromosome": "Presentation", "targetGene": "typography-base-size", "operation": "set", "value": 16}
+      ]
+    },
+    {
+      "id": "pat-008",
+      "name": "Mobile-First / Responsive",
+      "category": "Layout",
+      "description": "Prioritizes mobile viewports with stacked layouts and progressively enhanced desktop views.",
+      "applicability": ["mobile-first", "responsive", "pwa", "app"],
+      "conflictsWith": [],
+      "genomeModifiers": [
+        {"targetChromosome": "Structure", "targetGene": "breakpoint-strategy", "operation": "set", "value": {"thresholds": [375, 640, 1024, 1280], "adaptive_density_shift": 0.4}},
+        {"targetChromosome": "Structure", "targetGene": "grid-system", "operation": "set", "value": {"column_counts": [4, 8, 12], "gutter_to_margin_ratio": 0.4, "max_width": 1440}},
+        {"targetChromosome": "Structure", "targetGene": "spacing-base-unit", "operation": "set", "value": 4},
+        {"targetChromosome": "Presentation", "targetGene": "typography-modular-scale", "operation": "set", "value": 1.2}
+      ]
+    }
+  ]
+}

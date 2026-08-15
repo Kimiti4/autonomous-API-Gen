@@ -1,0 +1,35 @@
+projects:
+  - id: cal-001-health-svc
+    intent: "A minimal health-reporting service"
+    domain: infrastructure
+    complexity_tier: simple
+    target_backend: minimal-container
+    constraints:
+      capabilities: "health,metrics"
+      architecture: "modular-monolith"
+  - id: cal-002-audit-svc
+    intent: "An audit event ingestion service"
+    domain: compliance
+    complexity_tier: medium
+    target_backend: minimal-container
+    constraints:
+      capabilities: "ingest,query"
+      persistence: "postgresql"
+  - id: cal-003-iot-telemetry
+    intent: "An IoT telemetry collector"
+    domain: iot
+    complexity_tier: complex
+    target_backend: minimal-container
+    constraints:
+      capabilities: "ingest,store"
+      architecture: "event-driven"
+  - id: cal-004-ml-feature-store
+    intent: "A feature store for ML training data"
+    domain: ai-ml
+    complexity_tier: complex
+    target_backend: minimal-container
+    constraints:
+      persistence: "feature_store"
+      architecture: "data-heavy"
+# Stratified seed (domain x complexity x architecture). Extend to ~100 entries:
+# 20 CRUD, 20 Event-Driven, 20 Data-Heavy, 20 AI/ML, 20 IoT/Edge.

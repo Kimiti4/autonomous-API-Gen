@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ESAP-HIL-ARCH-001 · Human Interaction Layer — Architecture Decision Record</title>
+<style>
+:root{
+  --bg:#0b0e13;--bg1:#11151c;--bg2:#161b24;--ink:#e6ecf3;--ink2:#9aa7b8;--mut:#5d6b7d;
+  --line:#232b38;--line2:#2f3949;--cyan:#5ad1e6;--amber:#ffc65c;--jade:#7ee2a8;--coral:#ff8b7d;
+  --orchid:#c49bff;--olive:#a8c87e;--azure:#7db8ff;--rose:#ff9ec7;--warn:#ffb454;--ok:#7ee2a8;
+  --mono:"JetBrains Mono","Fira Code",Consolas,monospace;--sans:"Inter","Segoe UI",system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.65 var(--sans);padding:48px 24px 96px}
+.wrap{max-width:960px;margin:0 auto}
+a{color:var(--cyan)}
+/* masthead */
+.mast{border:1px solid var(--line);border-radius:12px;background:linear-gradient(160deg,var(--bg1),var(--bg2));padding:28px 32px;margin-bottom:32px}
+.mast .k{display:inline-block;font:11px var(--mono);letter-spacing:.14em;color:var(--amber);border:1px solid color-mix(in srgb,var(--amber) 35%,transparent);border-radius:99px;padding:3px 10px;margin-bottom:14px;text-transform:uppercase}
+.mast h1{font-size:26px;font-weight:700;letter-spacing:-.01em}
+.mast .sub{color:var(--ink2);margin-top:8px;font-size:14px}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.meta span{font:11px var(--mono);color:var(--mut);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:4px 9px}
+.meta b{color:var(--ink2);font-weight:500}
+/* decision */
+.d{border:1px solid var(--line);border-radius:12px;background:var(--bg1);margin-bottom:18px;overflow:hidden}
+.d>h2{display:flex;align-items:center;gap:12px;padding:16px 22px;font-size:15px;border-bottom:1px solid var(--line);cursor:pointer;user-select:none}
+.d>h2 .n{font:12px var(--mono);color:var(--cyan);border:1px solid var(--line2);border-radius:6px;padding:2px 8px}
+.d>h2 .st{margin-left:auto;font:10px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--jade);border:1px solid color-mix(in srgb,var(--jade) 40%,transparent);border-radius:99px;padding:3px 9px}
+.d .body{padding:18px 22px 22px;display:grid;gap:16px}
+.d h3{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin-bottom:6px;font-family:var(--mono)}
+.d p{color:var(--ink2)}
+.d p b,.d li b{color:var(--ink)}
+.d ul{list-style:none;display:grid;gap:6px}
+.d li{color:var(--ink2);padding-left:18px;position:relative}
+.d li:before{content:"▸";position:absolute;left:0;color:var(--amber);font-size:12px;top:1px}
+pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;font:12.5px/1.7 var(--mono);overflow-x:auto;color:#c3d0e0}
+pre .c{color:var(--mut)}
+code{font-family:var(--mono);font-size:.92em;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:1px 5px;color:var(--cyan)}
+/* status block */
+.status{border:1px dashed var(--line2);border-radius:10px;background:var(--bg);padding:16px 20px}
+.status h4{font:11px var(--mono);letter-spacing:.14em;color:var(--warn);text-transform:uppercase;margin-bottom:8px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:760px){.grid2{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);color:var(--ink2)}
+th{font:10.5px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--mut)}
+td:first-child{font-family:var(--mono);color:var(--ink);white-space:nowrap}
+.refs{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;font-size:13px}
+@media(max-width:760px){.refs{grid-template-columns:1fr}}
+.foot{margin-top:36px;color:var(--mut);font:12px var(--mono);text-align:center;letter-spacing:.08em}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="mast">
+  <span class="k">Architecture Decision Record</span>
+  <h1>ESAP-HIL-ARCH-001 — Human Interaction Layer Projection Engine</h1>
+  <p class="sub">Four ratified architecture decisions for the Phase 16 Human Interaction Layer (HIL): capability-based navigation projection, immutable ISR snapshots, constitutional arbitration, and a renderer-agnostic UI Projection Model.</p>
+  <div class="meta">
+    <span>status <b>RATIFIED</b></span>
+    <span>phase <b>16</b></span>
+    <span>authority <b>architecture board</b></span>
+    <span>doctrine <b>ISR sole source of truth</b></span>
+  </div>
+</div>
+
+<div class="d">
+  <h2><span class="n">D-1</span>Capability-based navigation projection<span class="st">ratified</span></h2>
+  <div class="body">
+    <p>The navigation tree and every interactive affordance are a <b>projection of the capability ledger</b> — never hand-authored screen state. Projection is <b>deny-by-default</b>: a surface is shown only when the principal holds the governing capability, and every denial is explainable.</p>
+    <h3>Binding rules</h3>
+    <ul>
+      <li>Ledger lives in the <b>ISR Governance chromosome</b> (CKB-owned); projection consumes it, never mutates it.</li>
+      <li>Deny-by-default; a missing capability yields <code>denial(cap, principal, reason)</code> with reason = <code>requires &lt;cap&gt;</code>.</li>
+      <li>Capability changes are additive migrations: <code>deprecate(old) + introduce(new)</code> with a compatibility window during which both claims are emitted.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="d">
+  <h2><span class="n">D-2</span>Immutable ISR snapshots<span class="st">ratified</span></h2>
+  <div class="body">
+    <p>The UI renders from a <b>live working ISR</b>; every phase-commit publishes an <b>immutable, content-addressed snapshot</b>. Diffing is <b>semantic</b> — per chromosome family over the ISR graph — never textual.</p>
+    <h3>Snapshot contents</h3>
+    <ul>
+      <li>ISR graph (nodes + typed edges), genome state, fitness vector, telemetry reference.</li>
+      <li>Addressed by content hash: <code>snapshot_id = hash(isr_graph, genome, fitness, telemetry_ref)</code>.</li>
+      <li>Diff deltas are per-family: <code>arch / be / per / msg / inf / sec / obs</code>.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="d">
+  <h2><span class="n">D-3</span>Constitutional arbitration<span class="st">ratified</span></h2>
+  <div class="body">
+    <p>Conflicts between humans, coordinator, and agents resolve through a <b>total-order priority stack</b>, not consensus votes.</p>
+    <pre><span class="c"># priority stack (highest first)</span>
+Constitution &gt; safety guards &gt; humans &gt; coordinator &gt; agents</pre>
+    <ul>
+      <li>Every arbitration is <b>machine-checkable</b>: a predicate over inputs, constitution rules, and safety guards.</li>
+      <li>Arbitration records are <b>append-only and hash-chained</b>; each record is re-derivable from inputs + predicates (deterministic replay).</li>
+      <li>Human-absent escalation: standing policies ratified once as arbitration records (priority-3 equivalent), bounded timebox, park at last checkpoint on timeout.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="d">
+  <h2><span class="n">D-4</span>Renderer-agnostic UI Projection Model<span class="st">ratified</span></h2>
+  <div class="body">
+    <p>The UIPM is a <b>versioned, renderer-independent intermediate representation</b> compiled to concrete renderers. React is the first compiler backend (P0); Terminal (P1), Desktop/Mobile (P2), AR/VR (P3) follow.</p>
+    <h3>UIPM v1 surfaces</h3>
+    <ul>
+      <li><b>navigation</b> · capability-keyed tree &nbsp;<b>layout</b> · panels, docks, maps &nbsp;<b>components</b> · cards, tables, gauges &nbsp;<b>commands</b> · promote, mutate, run &nbsp;<b>events</b> · telemetry, log, arbitration notices</li>
+      <li>Latency budgets: navigation &le; 16ms, layout &le; 100ms.</li>
+      <li><b>Renderer equivalence is a test property</b>: identical capability + command surfaces across backends.</li>
+      <li>UIPM is a <b>derived projection, never stored</b>: <code>projection_ref = hash(isr_snapshot, principal, capability_schema_ver, uipm_ver)</code>; replay re-derives. Renderer ephemeral state (scroll, focus) is explicitly excluded.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="d">
+  <h2><span class="n">R</span>Resolutions &amp; ownership<span class="st">bound</span></h2>
+  <div class="body">
+    <h3>Governance chromosome</h3>
+    <p>CKB owns the capability schema. Renames are <code>deprecate(old)+introduce(new)</code> (additive, compatibility window, both claims emitted) — precedent: compiler <code>VERSION</code>/<code>consumed_genes</code> scoping. <i>Note: <code>core/models/genome.py</code> currently carries 14 categorical + 7 continuous genes with no governance family — to be added.</i></p>
+    <h3>Merge semantics</h3>
+    <p>Semantic three-way merge over the ISR graph with LCA base: non-overlapping families auto-merge; same-family conflicts resolve by <b>empirical fitness dominance</b> (Phase 18 calculator) with a mandatory arbitration record. Lineage is a DAG: result has <code>parents: [branch, working]</code>.</p>
+    <div class="status">
+      <h4>Escalation timebox</h4>
+      <p style="font-size:13.5px">Convergence required within the bounded timebox, else Phase 18 convergence criteria reuse (8h); on timeout the system parks at the last checkpoint. Gate re-used: <code>MutationDirective.max_severity</code>.</p>
+    </div>
+  </div>
+</div>
+
+<div class="d">
+  <h2><span class="n">S</span>Compliance references<span class="st">phase 16.1</span></h2>
+  <div class="body">
+    <h3>Required artifacts (in repo)</h3>
+    <table>
+      <tr><th>Artifact</th><th>Location</th></tr>
+      <tr><td>HIL interactive prototype</td><td>frontend/hil/phase16_hil_prototype.html</td></tr>
+      <tr><td>Capability schema + registry</td><td>core/hil/capabilities.py</td></tr>
+      <tr><td>Policy engine (deny-by-default projection)</td><td>core/hil/policy_engine.py</td></tr>
+      <tr><td>UIPM serializer v1</td><td>core/hil/uipm.py</td></tr>
+      <tr><td>Property tests</td><td>tests/test_hil_projection.py</td></tr>
+    </table>
+    <h3>Grounding references</h3>
+    <div class="refs">
+      <span>· <code>Frontend Constitution/constitution.md</code> — FEE v1.0, renderer-as-compiler-backend doctrine, WCAG AA gates</span>
+      <span>· <code>core/models/intent.py:187</code> — <code>authorization_model</code> (rbac|abac|pbac|acl|none)</span>
+      <span>· <code>core/versioning/version.py</code> — schema versioning precedent</span>
+      <span>· <code>core/learning/empirical_fitness.py</code> — merge dominance calculator</span>
+      <span>· <code>core/ckb/heuristics.py</code> — CKB ownership of capability schema</span>
+      <span>· <code>core/kernels/engineering/uem.py</code> — append-only event ledger (projection_ref)</span>
+    </div>
+  </div>
+</div>
+
+<p class="foot">ESAP-HIL-ARCH-001 · Phase 16 Human Interaction Layer · UI is a compiled view, never screen-local truth</p>
+
+</div>
+</body>
+</html>

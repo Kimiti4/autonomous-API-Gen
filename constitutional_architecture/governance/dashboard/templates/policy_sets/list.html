@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Policy Sets</h1>
+<table>
+  <thead><tr><th>ID</th><th>Name</th><th>Version</th><th>Status</th><th>Constitution</th><th>Hash</th></tr></thead>
+  <tbody>
+    {% for p in policy_sets %}
+    <tr>
+      <td class="mono"><a href="/policy-sets/{{ p.id }}">{{ p.id }}</a></td>
+      <td>{{ p.name }}</td>
+      <td>{{ p.version }}</td>
+      <td><span class="badge {{ p.status }}">{{ p.status }}</span></td>
+      <td class="mono">{{ p.constitution_id }}</td>
+      <td class="mono">{{ p.content_hash[:16] }}…</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="note">No policy sets.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% endblock %}

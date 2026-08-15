@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Audit Integrity Verification</h1>
+
+<div class="cards">
+  <div class="card">
+    <div class="label">Chain status</div>
+    <div class="value {{ 'ok' if integrity.status == 'VALID' else 'bad' }}">{{ integrity.status }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Verified events</div>
+    <div class="value">{{ integrity.verified_events }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Latest event hash</div>
+    <div class="value mono small">{{ integrity.latest_event_hash or "—" }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Last verified</div>
+    <div class="value small">{{ integrity.last_verified_at }}</div>
+  </div>
+</div>
+
+{% if integrity.first_invalid_event %}
+<h2>First invalid event</h2>
+<pre>{{ integrity.first_invalid_event | tojson(indent=2) }}</pre>
+{% else %}
+<p class="note">No invalid events found.</p>
+{% endif %}
+
+<form method="post" action="/audit/integrity/verify">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <button type="submit">Re-verify chain</button>
+</form>
+
+{% endblock %}

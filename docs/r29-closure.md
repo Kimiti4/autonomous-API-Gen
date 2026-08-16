@@ -233,12 +233,78 @@ model on the per-gene addressing proven here.
 
 ---
 
+## 8b. R2.10.2 — ISR primitive design & dependency ordering (contract suite)
+
+**Status:** EXECUTED · design-and-contract slice (no schema changes — primitives land in R2.10.3+)
+**ADR:** `docs/adr/adr-r2-10-2-primitive-contract.md`
+**Contract content hash:** `f7b8901b…` (chain-anchored as `PRIMITIVE_CONTRACT` ledger event)
+**Full hermetic suite:** 1784 passed, 2 skipped, 7 Docker-gated deselected (189.87s)
+**New tests:** 23 (`tests/test_r29_10_2_primitive_contract.py`)
+
+Five artifacts, all attested:
+
+**1. Primitive specification** — all ten MISSING capabilities fully specified
+(meaning / ownership / dependencies / constraints / mutation / validation /
+compiler projection / evidence projection / lineage requirements / type
+signature) in `tiannara/application/evolution/primitive_contract.py`.
+
+**2. Dependency graph — derived mechanically** (structural / mutation /
+validation / projection edges), asserted acyclic, topologically sorted:
+
+```
+behavior_temporal_semantics → business_capabilities → data_migrations
+  → reliability_resilience → architecture_boundaries
+  → requirements_acceptance_traceability → deployment_rollout_rollback
+  → testing_anchoring → documentation → evolution_objectives_protected_regions
+```
+
+The derived graph **refutes** the sketch's "requirements first": capability
+declarations precede traceability (trace links target capabilities);
+requirement nodes arrive with R2.10.4's top half. Objectives/protected regions
+correctly sort last (they protect genes that must first exist).
+
+**3. ISR extension contract** — six rules: projection (Option A), probe rule
+(new gene ⇒ new audit probe + `gene_index` entries), locality rule (EXPRESSED
+⇒ R2.10.1 mutation-locality proof), tech-agnostic rule (lint gate), 
+compatibility rule, readiness rule.
+
+**4. Compatibility contract — proven.** Old ISR ⇒ same semantic hash ⇒ same
+artifact (`async_resolution_module` byte-identical) ⇒ same evolution behavior
+(invariants unchanged); Phase-28 gates 13/13 green.
+
+**5. Evolution-readiness matrix** — every primitive declares completion
+criteria for all eight stages; `EXPRESSED` is gated on mutation locality.
+
+### Option A migration (executed with before/after gates)
+
+`canonical_form` now omits empty carriers (None / "" / [] / () / {}) — the
+projection rule every future primitive inherits. Empty optional primitives are
+identity-neutral; non-empty ones are hash-sensitive (change-detection
+preserved). R2.10.1 matrix re-attested post-migration: same 2/18/0/10 split,
+new matrix hash `317b62a8…`. Booleans/zero/non-empty strings remain meaningful.
+
+### Technology-agnostic lint (mechanical, not by review)
+
+`assert_technology_agnostic` gates every primitive specification against
+`TECHNOLOGY_COUPLING_TERMS` (frameworks, datastores, messaging,
+infrastructure, security mechanisms, observability vendors). `rollout_rollback`
+and `data_migrations` express *semantics* — Kubernetes/Alembic realization
+stays in compiler backends.
+
+### R2.10.3 entry
+
+Primitives implement in the derived order, each gated by the extension
+contract + readiness targets, with the audit matrix re-attested after every
+landing; the 18 PARTIAL capabilities remain R2.10.3/4 gene-level work.
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
 
 ```
-R2.10.1  ISR capability/expressivity audit        ← executed (this record)
+R2.10.1  ISR capability/expressivity audit        ← executed
 R2.10.2  Missing ISR primitives (the 10 MISSING rows above)
 R2.10.3  Gene-level mutation model (per-gene addressing proven in R2.10.1)
 R2.10.4  Architectural subgraph mutation — includes the Requirement Graph

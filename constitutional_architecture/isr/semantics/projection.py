@@ -27,11 +27,30 @@ class CanonicalizationError(TypeError):
     """No canonical form for a value. Deliberate: no default=str fallback."""
 
 
+def _is_empty(value: Any) -> bool:
+    """R2.10.2 (Option A): empty carriers are identity-neutral.
+
+    None, the empty string, and empty containers carry no architecture, so
+    they are omitted from the canonical projection. This makes adding an
+    *optional* primitive to the ISR schema hash-stable: an ISR whose new
+    primitive is empty hashes identically to an ISR without the field.
+    Booleans, zero, and non-empty strings remain meaningful and are kept.
+    """
+    if value is None or value == "":
+        return True
+    if isinstance(value, (list, tuple, dict, set, frozenset)):
+        return not value
+    return False
+
+
 def canonical_form(value: Any) -> Any:
     """Recursively convert a value to a canonical, JSON-serializable form.
 
-    Raises CanonicalizationError on unhandled types instead of str()-ing them,
-    so hidden representation differences surface as failures, not silent drift.
+    Empty carriers (None, "", [], (), {}, empty sets) are omitted inside
+    containers (R2.10.2 Option A) so optional schema extensions are
+    hash-neutral. Raises CanonicalizationError on unhandled types instead of
+    str()-ing them, so hidden representation differences surface as failures,
+    not silent drift.
     """
     if value is None or isinstance(value, (bool, int, str)):
         return value
@@ -42,9 +61,19 @@ def canonical_form(value: Any) -> Any:
     if isinstance(value, datetime):
         return {"__datetime__": value.isoformat()}
     if isinstance(value, dict):
-        return {str(k): canonical_form(v) for k, v in value.items()}
+        out: dict[str, Any] = {}
+        for k, v in value.items():
+            canonical = canonical_form(v)
+            if not _is_empty(canonical):
+                out[str(k)] = canonical
+        return out
     if isinstance(value, (list, tuple)):
-        return [canonical_form(v) for v in value]
+        out = []
+        for v in value:
+            canonical = canonical_form(v)
+            if not _is_empty(canonical):
+                out.append(canonical)
+        return out
     if isinstance(value, (set, frozenset)):
         return [json.loads(f) for f in sorted(canonicalize(v) for v in value)]
     if is_dataclass(value) and not isinstance(value, type):

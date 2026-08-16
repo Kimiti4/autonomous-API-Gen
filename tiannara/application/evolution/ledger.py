@@ -116,6 +116,7 @@ class EventType(str, enum.Enum):
     GENERATION_COMPLETED = "generation_completed"  # R2.9.3: one generation of the search
     SCHEDULER_DECISION = "scheduler_decision"  # R2.9.5: search-budget allocation + evidence snapshot
     ISR_CAPABILITY_AUDIT = "isr_capability_audit"  # R2.10.1: signed capability/expressivity matrix
+    PRIMITIVE_CONTRACT = "primitive_contract"  # R2.10.2: signed primitive/extension/compatibility contract
 
 
 class EvolutionEvent(BaseModel):

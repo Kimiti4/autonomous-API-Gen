@@ -503,6 +503,7 @@ class MigrationPrimitiveHarness:
             "behavior_transitions", "behavior_await_surface",
             "behavior_temporal_semantics", "business_capabilities",
             "data_migrations",
+            "reliability_resilience",  # R2.10.3-D
         }
         post_partial = {
             "behavior_guards_actions", "behavior_state_semantics",
@@ -517,7 +518,7 @@ class MigrationPrimitiveHarness:
         }
         post_missing = {
             "architecture_boundaries", "deployment_rollout_rollback",
-            "requirements_acceptance_traceability", "reliability_resilience",
+            "requirements_acceptance_traceability",
             "documentation", "testing_anchoring",
             "evolution_objectives_protected_regions",
         }
@@ -768,15 +769,16 @@ def test_audit_moves_exactly_one_row(mig_harness):
     by_id = {c.capability_id: c.status for c in result.capabilities}
     expressed = {cid for cid, s in by_id.items() if s is CapabilityStatus.EXPRESSED}
     missing = {cid for cid, s in by_id.items() if s is CapabilityStatus.MISSING}
-    # Pre-landing (R2.10.3-B) matrix: 4/18/0/8.
+    # Pre-landing (R2.10.3-C) matrix: 5/18/0/7.
     pre_expressed = {
         "behavior_transitions", "behavior_await_surface",
         "behavior_temporal_semantics", "business_capabilities",
+        "data_migrations",
     }
     pre_missing = {
         "architecture_boundaries", "deployment_rollout_rollback",
-        "data_migrations", "requirements_acceptance_traceability",
-        "reliability_resilience", "documentation", "testing_anchoring",
+        "requirements_acceptance_traceability", "reliability_resilience",
+        "documentation", "testing_anchoring",
         "evolution_objectives_protected_regions",
     }
     moved_rows = {}
@@ -785,5 +787,5 @@ def test_audit_moves_exactly_one_row(mig_harness):
         after = "EXPRESSED" if cid in expressed else "MISSING"
         if before != after:
             moved_rows[cid] = (before, after)
-    assert moved_rows == {"data_migrations": ("MISSING", "EXPRESSED")}
-    assert (len(expressed), 18, 0, len(missing)) == (5, 18, 0, 7)  # NOT 4/18/0/8
+    assert moved_rows == {"reliability_resilience": ("MISSING", "EXPRESSED")}
+    assert (len(expressed), 18, 0, len(missing)) == (6, 18, 0, 6)  # NOT 5/18/0/7

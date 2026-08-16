@@ -20,6 +20,9 @@ from constitutional_architecture.isr.semantics.migration import (
     validate_module_migration_constraints,
 )
 from constitutional_architecture.isr.semantics.projection import semantic_content_hash
+from constitutional_architecture.isr.semantics.reliability import (
+    validate_system_reliability_constraints,
+)
 from constitutional_architecture.isr.semantics.temporal import (
     validate_module_temporal_constraints,
 )
@@ -95,5 +98,7 @@ class ISR:
             if validate_module_migration_constraints(module):
                 return False
         if validate_system_capability_constraints(self.system):
+            return False
+        if validate_system_reliability_constraints(self.system):
             return False
         return True

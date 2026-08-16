@@ -651,13 +651,21 @@ DEFAULT_PROBES: tuple[StaticCapabilityProbe, ...] = (
     StaticCapabilityProbe(
         capability_id="reliability_resilience",
         name="Reliability: resilience",
-        description="Retries, timeouts, fallbacks, circuit breakers.",
-        carrier="(none)",
-        gene_paths=(),
+        description="Required system behavior under failure: what must survive, what degradation is acceptable, what recovery is required.",
+        carrier="System.reliability_requirements (ReliabilityRequirement)",
+        gene_paths=("system.reliability_requirements[*]",),
         constitutional_ids=("infrastructure",),
-        represented=False,
+        represented=True,
+        independently_mutatable=True,
+        independently_validatable=True,
+        compilable=True,
+        observable=True,
+        lineage_tracked=True,
         evidence=(
-            "NOT represented: no resilience carrier (retry/timeout/fallback/circuit-break)",
+            "represented: ReliabilityRequirement(failure_modes, recovery_objectives, degradation_policy, preservation_invariants, dependency_constraints)",
+            "mutatable: ReliabilityOperator (add/remove/set_policy/add_recovery_objective/generate) with MEASUREMENT lineage",
+            "validatable: validate_system_reliability_constraints (dangling targets, undeclared/contradictory recovery objectives)",
+            "compilable: project_reliability_requirements lowers the gene; no mechanism leakage (RELIABILITY_MECHANISM_TERMS lint)",
         ),
     ),
     StaticCapabilityProbe(
@@ -836,6 +844,8 @@ def gene_index(isr: ISR) -> dict[str, str]:
         idx["system.deployment.secrets"] = _gene_hash(deployment.secrets)
     for ci, capability in enumerate(system.business_capabilities):
         idx[f"system.business_capabilities[{ci}]"] = _gene_hash(capability)
+    for ri, requirement in enumerate(system.reliability_requirements):
+        idx[f"system.reliability_requirements[{ri}]"] = _gene_hash(requirement)
     for mi, module in enumerate(system.modules):
         base = f"system.modules[{mi}]"
         idx[base] = _gene_hash((module.id, module.name, module.description, module.metadata))

@@ -38,6 +38,12 @@ from constitutional_architecture.isr.semantics.migration import (
     assert_migration_technology_agnostic, migration_mechanism_hits,
     project_data_migrations, validate_module_migration_constraints,
 )
+from constitutional_architecture.isr.semantics.reliability import (
+    DegradationPolicy, FailureMode, RecoveryBehavior, RecoveryObjective,
+    ReliabilityRequirement, ReliabilityValidationError,
+    assert_reliability_technology_agnostic, project_reliability_requirements,
+    reliability_mechanism_hits, validate_system_reliability_constraints,
+)
 from constitutional_architecture.isr.completeness import CompletenessLevel
 
 __all__ = [
@@ -63,5 +69,9 @@ __all__ = [
     "CompatibilityPolicy", "DataMigrationIntent", "MigrationValidationError",
     "assert_migration_technology_agnostic", "migration_mechanism_hits",
     "project_data_migrations", "validate_module_migration_constraints",
+    "DegradationPolicy", "FailureMode", "RecoveryBehavior", "RecoveryObjective",
+    "ReliabilityRequirement", "ReliabilityValidationError",
+    "assert_reliability_technology_agnostic", "project_reliability_requirements",
+    "reliability_mechanism_hits", "validate_system_reliability_constraints",
     "CompletenessLevel",
 ]

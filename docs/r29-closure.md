@@ -478,6 +478,109 @@ foundation R2.10.3-D (`reliability_resilience`) and R2.10.3-E
 
 ---
 
+## 8f. R2.10.3-D — reliability_resilience (required behavior under failure)
+
+The strictest boundary yet. Reliability is the primitive most prone to
+silently becoming an infrastructure specification, because resilience is
+culturally expressed as patterns (retry, circuit breaker, supervisor)
+rather than as required behavior. The primitive says **what must remain
+true when the system encounters failure** — and is STRUCTURALLY incapable
+of saying **how a technology achieves it**. The ISR declares the contract;
+a backend earns the right to choose the mechanism.
+
+**Construct.** `constitutional_architecture/isr/semantics/reliability.py`:
+`ReliabilityRequirement(requirement_id, target_refs, failure_modes,
+recovery_objectives, degradation_policy, preservation_invariants,
+dependency_constraints)` with `FailureMode` (WHAT fails, never how it is
+handled: TRANSIENT/PERMANENT_DEPENDENCY_FAILURE, RESOURCE_EXHAUSTION,
+PARTIAL_CAPACITY_LOSS, DATA_INTEGRITY_VIOLATION, CASCADE_FAILURE),
+`RecoveryBehavior` (WHAT must happen: EVENTUAL_RECOVERY, IMMEDIATE_FAILOVER,
+GRACEFUL_DEGRADATION, CONTROLLED_SHUTDOWN), `DegradationPolicy` (acceptable
+service STATE: NO_DEGRADATION, PARTIAL_SERVICE, READ_ONLY_SERVICE,
+DEGRADED_THROUGHPUT), `RecoveryObjective` (behavior + semantic deadline +
+data-loss tolerance). Carrier `System.reliability_requirements` —
+system-level, because a requirement can protect identities spanning
+modules. Targets resolve against business capabilities (R2.10.3-B),
+modules, and services — explicit ISR identities, never inferred modules.
+
+**The core distinction, made structural — two guards.** (1) A field-name
+test over the dataclass: no `retry`/`backoff`/`replica`/`restart`/`probe`/
+`queue`/`circuit` field can exist — the construct has NOWHERE to put a
+mechanism. (2) `RELIABILITY_MECHANISM_TERMS` lint (kubernetes, k8s, docker,
+systemd, supervisor, restart_policy, retry_count, max_retries, backoff,
+exponential_backoff, circuit_breaker, bulkhead, replica_count,
+replication_config, failover_config, liveness_probe, readiness_probe,
+queue_name, database_replica) gates the canonical semantic form. The terms
+are chosen to collide with *mechanisms*, never with *semantic behaviors* —
+the asymmetry is the point and is itself a test: `IMMEDIATE_FAILOVER` (a
+behavior) passes the lint while `failover_config` (a mechanism) fails it;
+`EVENTUAL_RECOVERY` passes while `retry_count` fails.
+
+**Compatibility-as-intent precedent, sharpened.** `retry_count = 3` is
+implementation drift; the semantic form is `failure_mode =
+TRANSIENT_DEPENDENCY_FAILURE`, `required_behavior = EVENTUAL_RECOVERY`,
+`recovery_objective = max_recovery_duration_ms(5000)`. A backend may then
+realize EVENTUAL_RECOVERY via retry, queue replay, supervisor restart, or
+replica failover — **provided the declared semantic contract is satisfied**.
+The mechanism is the backend's choice; the contract is the ISR's.
+
+**Temporal composition — disjoint genes, shared duration semantics.** The
+recovery deadline uses the same semantic-duration representation as
+temporal's `duration_ms`; adding a requirement with a 5000ms deadline
+leaves the temporal genes byte-identical (asserted by gene hash). Neither
+primitive carries timer machinery; the full failure → degraded → recovery
+deadline → restored sequence remains expressible via temporal
+EVENT_ORDERING when it is needed.
+
+**Structural validation (pre-execution).** Rejects: empty identifiers,
+dangling target refs, recovery objectives addressing failure modes the
+requirement never declared, contradictory recovery (the same failure mode
+demanding two different required behaviors), duplicate requirement ids.
+Recovery deadlines must be non-negative at construction.
+
+**Gates (all green).** Eleven-gate protocol reused (representation /
+canonicalization — empty carrier identity-neutral, recipe `isr_hash`
+unchanged `317b62a8…` / semantic identity — add→hash moves,
+degradation-change→hash moves, remove→hash restores / validation /
+locality — adding a requirement touches no behavior/capability/migration/
+temporal/entity gene; changing a recovery objective moves only the
+reliability gene / projection — `project_reliability_requirements`,
+semantics only, zero coupling terms, zero mechanism terms / compilation —
+`async_resolution_module` byte-identical / evidence / lineage —
+MEASUREMENT attribution with before/after hashes / reproducibility /
+audit).
+
+**Non-inference proven both directions.** Different resilience declarations
+over identical implementations → different reliability genes (CASCADE_FAILURE
+vs TRANSIENT_DEPENDENCY_FAILURE over the same protected targets); equivalent
+declarations over differently structured implementations → the same
+reliability gene. Failure-mode identity: distinct modes never collapse into
+the same canonical form. The reliability gene is a declared contract, never
+an implementation fingerprint.
+
+**Audit gate — exactly one row moved** (pre-landing matrix 5/18/0/7, after
+R2.10.3-C): `reliability_resilience`: MISSING → EXPRESSED, asserted
+mechanically as `moved_rows == {"reliability_resilience": ("MISSING",
+"EXPRESSED")}`. Re-attested matrix: **6 EXPRESSED / 18 PARTIAL /
+0 PROJECTED / 6 MISSING**, matrix content hash
+`8e31b0164421c5c41bd15a156d0fadef…` (recipe isr_hash unchanged — Option A,
+fourth use).
+
+**The architectural warning, enforced as a gate.** If `max_retries`,
+`backoff_strategy`, `replica_count`, `restart_policy`, `kubernetes_probe`,
+`queue_name`, or `database_replica` ever appears in the reliability gene,
+stop and move those concerns to a compiler/backend projection. The ISR says
+what must remain true under failure; a backend earns the right to choose
+how. Once green, the semantic contract it establishes — required behavior
+under failure — becomes a first-class input the Evolution Engine can select
+on: evolving *reliable* architecture rather than merely generating it.
+
+The remaining MISSING (6): architecture_boundaries, deployment_rollout_rollback,
+requirements_acceptance_traceability, documentation, testing_anchoring,
+evolution_objectives_protected_regions.
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -485,7 +588,7 @@ foundation R2.10.3-D (`reliability_resilience`) and R2.10.3-E
 ```
 R2.10.1  ISR capability/expressivity audit        ← executed
 R2.10.2  Missing ISR primitives (the 10 MISSING rows above)  ← contract suite + Option A migration
-R2.10.3  Primitive roots, in derived order         ← A behavior_temporal_semantics (3/18/0/9) + B business_capabilities (4/18/0/8) + C data_migrations (5/18/0/7) landed; D reliability_resilience, E architecture_boundaries next
+R2.10.3  Primitive roots, in derived order         ← A behavior_temporal_semantics (3/18/0/9) + B business_capabilities (4/18/0/8) + C data_migrations (5/18/0/7) + D reliability_resilience (6/18/0/6) landed; E architecture_boundaries next
 R2.10.4  Architectural subgraph mutation — includes the Requirement Graph
          → ISR construction (the unbuilt top half), explicitly sequenced, not deferred
 R2.10.5  Safe structural crossover (chromosome families/genes: Architecture,

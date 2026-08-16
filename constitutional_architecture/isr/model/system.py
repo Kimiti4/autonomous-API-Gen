@@ -10,6 +10,7 @@ from typing import Optional
 from constitutional_architecture.isr.model.deployment import Deployment
 from constitutional_architecture.isr.model.module import Module
 from constitutional_architecture.isr.semantics.capability import BusinessCapability
+from constitutional_architecture.isr.semantics.reliability import ReliabilityRequirement
 
 
 @dataclass(frozen=True)
@@ -32,6 +33,7 @@ class System:
     global_policies: tuple[str, ...] = ()
     constraints: tuple = ()
     business_capabilities: tuple[BusinessCapability, ...] = ()
+    reliability_requirements: tuple[ReliabilityRequirement, ...] = ()
 
     def get_module(self, module_id: str) -> Optional[Module]:
         for m in self.modules:

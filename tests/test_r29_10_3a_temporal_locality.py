@@ -408,7 +408,8 @@ class TemporalPrimitiveHarness:
         partial = {cid for cid, status in by_id.items() if status is CapabilityStatus.PARTIAL}
         missing = {cid for cid, status in by_id.items() if status is CapabilityStatus.MISSING}
         expected_expressed = {
-            "behavior_transitions", "behavior_await_surface", "behavior_temporal_semantics",
+            "behavior_transitions", "behavior_await_surface",
+            "behavior_temporal_semantics", "business_capabilities",  # R2.10.3-B
         }
         expected_partial = {
             "behavior_guards_actions", "behavior_state_semantics",
@@ -425,7 +426,7 @@ class TemporalPrimitiveHarness:
             "architecture_boundaries", "deployment_rollout_rollback",
             "data_migrations", "requirements_acceptance_traceability",
             "reliability_resilience", "documentation", "testing_anchoring",
-            "business_capabilities", "evolution_objectives_protected_regions",
+            "evolution_objectives_protected_regions",
         }
         one_row_only = (
             expressed == expected_expressed

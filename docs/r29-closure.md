@@ -347,6 +347,61 @@ it in the backend.
 
 ---
 
+## 8d. R2.10.3-B — business_capabilities (first-class semantic genes)
+
+The primitive that matters most for the behavioral → architectural
+transition. The design hinges on **reference-by-identity**: a capability
+references implementation by identity, never by content — so its identity
+does not change when a referenced workflow evolves, and it can anchor
+architectural replacement ("can I replace the architecture implementing
+this capability?" ≠ "can I mutate this workflow?").
+
+**Construct.** `constitutional_architecture/isr/semantics/capability.py`:
+`BusinessCapability(capability_id, intent, behavior_refs, interface_refs,
+constraint_refs, requirement_refs)`. First-class, system-level carrier
+`System.business_capabilities` (capabilities are cross-cutting: they may
+reference genes spanning modules). Explicitly NOT an alias for
+Workflow/Module — the dependency is `BusinessCapability → references
+behaviors/interfaces/constraints → implementation projection`.
+`requirement_refs` is reserved and carried empty until
+requirements_acceptance_traceability lands (derived order: capabilities
+precede traceability); its reference integrity is NOT checked yet.
+
+**Gates (all green).** Eleven-gate protocol reused via the same
+parameterized harness (representation / canonicalization — empty carrier
+identity-neutral, recipe `isr_hash` unchanged `317b62a8…` / semantic
+identity — add→hash moves, intent-change→hash moves, remove→hash restores /
+validation — empty id/intent rejected at construction, duplicate ids and
+dangling behavior/interface/constraint references rejected pre-execution /
+locality / projection (`project_business_capabilities` — intent + reference
+identities, no coupling terms) / compilation — `async_resolution_module`
+byte-identical / evidence / lineage — MEASUREMENT attribution with
+before/after hashes / reproducibility / audit).
+
+**Capability-specific proofs (the substance of the landing):**
+* **Non-inference** — identical workflows with different declared
+  capabilities produce different capability genes (identity is declared,
+  not derived from structure); equivalent declarations over differently
+  structured implementations keep the same capability gene (identity is
+  semantic, not implementation-derived).
+* **Mutation locality** — adding a capability leaves every pre-existing
+  gene byte-identical; respecifying intent moves only the capability gene.
+* **Reference-by-identity stability** — the referenced behavior gene can
+  evolve (content changes) while the capability definition stays
+  byte-identical. This is the proof that the platform now has a semantic
+  unit it can re-architect around.
+* **Reference integrity** — dangling references die pre-execution.
+
+**Audit gate — exactly one row moved.** `business_capabilities`:
+MISSING → EXPRESSED; the other 29 rows untouched (asserted as a mechanical
+delta vs the 3/18/0/9 pre-landing matrix). Re-attested matrix:
+**4 EXPRESSED / 18 PARTIAL / 0 PROJECTED / 8 MISSING**, matrix content hash
+`28646fcdb57eee25e6f3dbd2e5bbce3a…` (recipe isr_hash unchanged — Option A).
+If any gate had failed — especially locality or non-inference — the row
+would have stayed PARTIAL rather than weakening the classification.
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -354,7 +409,7 @@ it in the backend.
 ```
 R2.10.1  ISR capability/expressivity audit        ← executed
 R2.10.2  Missing ISR primitives (the 10 MISSING rows above)  ← contract suite + Option A migration
-R2.10.3  Primitive roots, in derived order         ← R2.10.3-A behavior_temporal_semantics landed (3/18/0/9); B business_capabilities, C data_migrations, D reliability_resilience next
+R2.10.3  Primitive roots, in derived order         ← A behavior_temporal_semantics (3/18/0/9) + B business_capabilities (4/18/0/8) landed; C data_migrations, D reliability_resilience next
 R2.10.4  Architectural subgraph mutation — includes the Requirement Graph
          → ISR construction (the unbuilt top half), explicitly sequenced, not deferred
 R2.10.5  Safe structural crossover (chromosome families/genes: Architecture,

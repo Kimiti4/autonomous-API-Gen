@@ -13,6 +13,9 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from constitutional_architecture.isr.model.system import System
+from constitutional_architecture.isr.semantics.capability import (
+    validate_system_capability_constraints,
+)
 from constitutional_architecture.isr.semantics.projection import semantic_content_hash
 from constitutional_architecture.isr.semantics.temporal import (
     validate_module_temporal_constraints,
@@ -86,4 +89,6 @@ class ISR:
             module_ids.add(module.id)
             if validate_module_temporal_constraints(module):
                 return False
+        if validate_system_capability_constraints(self.system):
+            return False
         return True

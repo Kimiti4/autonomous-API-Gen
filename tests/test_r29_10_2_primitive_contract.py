@@ -255,9 +255,10 @@ def test_migration_r2_10_1_matrix_re_attested() -> None:
     result = ISRCapabilityAudit().run(RECIPE)
     assert result.integrity is True
     assert result.isr_hash == RECIPE.content_hash
-    # R2.10.3-A landed: behavior_temporal_semantics MISSING -> EXPRESSED
-    assert result.summary()["expressed"] == 3
-    assert result.summary()["missing"] == 9
+    # R2.10.3-A landed (behavior_temporal_semantics) + R2.10.3-B landed
+    # (business_capabilities): MISSING -> EXPRESSED
+    assert result.summary()["expressed"] == 4
+    assert result.summary()["missing"] == 8
 
 
 # -- 7. compatibility contract (old ISR unchanged) ---------------------------------------

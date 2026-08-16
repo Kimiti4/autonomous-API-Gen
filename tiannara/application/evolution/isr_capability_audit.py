@@ -732,14 +732,24 @@ DEFAULT_PROBES: tuple[StaticCapabilityProbe, ...] = (
     StaticCapabilityProbe(
         capability_id="business_capabilities",
         name="Business capabilities",
-        description="Business capability declarations.",
-        carrier="(none)",
-        gene_paths=(),
+        description="First-class capability declarations: WHAT the system can do, referencing behaviors/interfaces/constraints by identity.",
+        carrier="System.business_capabilities (BusinessCapability)",
+        gene_paths=("system.business_capabilities[*]",),
         constitutional_ids=("business_capabilities",),
-        represented=False,
+        represented=True,
+        independently_mutatable=True,
+        independently_validatable=True,
+        compilable=True,
+        observable=True,
+        lineage_tracked=True,
         evidence=(
-            "NOT represented: no business capability carrier in the constitutional ISR",
-            "BusinessCapability exists only in tiannara's SystemModel",
+            "represented: BusinessCapability(capability_id, intent, behavior_refs, interface_refs, constraint_refs, requirement_refs) — R2.10.3-B",
+            "first-class: capabilities are DECLARED, never inferred from workflows/modules; references are by identity, never by content",
+            "mutatable: CapabilityOperator adds/removes/respecifies intents/membership without touching behavior/interface/constraint genes",
+            "validatable: CapabilityValidationError at construction; ISR.validate_structure() rejects duplicate ids and dangling references pre-execution",
+            "compilable: project_business_capabilities projects intent + reference identities (backend-independent); async_resolution_module byte-identical",
+            "observable: declared capabilities observable in the semantic projection; mutations attributed in MEASUREMENT events",
+            "lineage: capability mutations are operator-attributed MEASUREMENT events, chain-anchored in the ledger",
         ),
     ),
     # -- evolution machinery ----------------------------------------------------
@@ -793,9 +803,9 @@ def gene_index(isr: ISR) -> dict[str, str]:
 
     Node-level granularity: each dataclass instance (module, entity, service,
     workflow, state, transition, policy, interface, endpoint, event, constraint,
-    temporal constraint, deployment sub-config) is one gene. ``canonicalize``
-    is the shared single source of truth, so gene hashes compose with the
-    ISR's content hash.
+    temporal constraint, business capability, deployment sub-config) is one
+    gene. ``canonicalize`` is the shared single source of truth, so gene
+    hashes compose with the ISR's content hash.
     """
     idx: dict[str, str] = {}
     system = isr.system
@@ -812,6 +822,8 @@ def gene_index(isr: ISR) -> dict[str, str]:
         idx["system.deployment.monitoring"] = _gene_hash(deployment.monitoring)
         idx["system.deployment.storage"] = _gene_hash(deployment.storage)
         idx["system.deployment.secrets"] = _gene_hash(deployment.secrets)
+    for ci, capability in enumerate(system.business_capabilities):
+        idx[f"system.business_capabilities[{ci}]"] = _gene_hash(capability)
     for mi, module in enumerate(system.modules):
         base = f"system.modules[{mi}]"
         idx[base] = _gene_hash((module.id, module.name, module.description, module.metadata))

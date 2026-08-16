@@ -29,6 +29,10 @@ from constitutional_architecture.isr.semantics.temporal import (
     project_temporal_evidence, project_temporal_semantics,
     validate_module_temporal_constraints,
 )
+from constitutional_architecture.isr.semantics.capability import (
+    BusinessCapability, CapabilityValidationError,
+    project_business_capabilities, validate_system_capability_constraints,
+)
 from constitutional_architecture.isr.completeness import CompletenessLevel
 
 __all__ = [
@@ -49,5 +53,7 @@ __all__ = [
     "TemporalConstraint", "TemporalConstraintKind", "TemporalValidationError",
     "project_temporal_evidence", "project_temporal_semantics",
     "validate_module_temporal_constraints",
+    "BusinessCapability", "CapabilityValidationError",
+    "project_business_capabilities", "validate_system_capability_constraints",
     "CompletenessLevel",
 ]

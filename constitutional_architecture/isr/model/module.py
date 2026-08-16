@@ -14,6 +14,7 @@ from constitutional_architecture.isr.model.interface import Interface
 from constitutional_architecture.isr.model.policy import Policy
 from constitutional_architecture.isr.model.service import Service
 from constitutional_architecture.isr.model.workflow import Workflow
+from constitutional_architecture.isr.semantics.migration import DataMigrationIntent
 from constitutional_architecture.isr.semantics.temporal import TemporalConstraint
 
 
@@ -31,6 +32,7 @@ class Module:
     dependencies: tuple[str, ...] = ()
     metadata: dict[str, str] = field(default_factory=dict)
     temporal_constraints: tuple[TemporalConstraint, ...] = ()
+    data_migrations: tuple[DataMigrationIntent, ...] = ()
 
     def get_entity(self, entity_id: str) -> Optional[Entity]:
         for e in self.entities:

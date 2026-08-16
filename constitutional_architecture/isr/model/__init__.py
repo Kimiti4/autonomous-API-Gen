@@ -33,6 +33,11 @@ from constitutional_architecture.isr.semantics.capability import (
     BusinessCapability, CapabilityValidationError,
     project_business_capabilities, validate_system_capability_constraints,
 )
+from constitutional_architecture.isr.semantics.migration import (
+    CompatibilityPolicy, DataMigrationIntent, MigrationValidationError,
+    assert_migration_technology_agnostic, migration_mechanism_hits,
+    project_data_migrations, validate_module_migration_constraints,
+)
 from constitutional_architecture.isr.completeness import CompletenessLevel
 
 __all__ = [
@@ -55,5 +60,8 @@ __all__ = [
     "validate_module_temporal_constraints",
     "BusinessCapability", "CapabilityValidationError",
     "project_business_capabilities", "validate_system_capability_constraints",
+    "CompatibilityPolicy", "DataMigrationIntent", "MigrationValidationError",
+    "assert_migration_technology_agnostic", "migration_mechanism_hits",
+    "project_data_migrations", "validate_module_migration_constraints",
     "CompletenessLevel",
 ]

@@ -551,13 +551,25 @@ DEFAULT_PROBES: tuple[StaticCapabilityProbe, ...] = (
     StaticCapabilityProbe(
         capability_id="data_migrations",
         name="Data: migrations",
-        description="Schema migration / versioning semantics.",
-        carrier="(none)",
-        gene_paths=(),
+        description="Semantic data-evolution intent: schema evolution, compatibility, preservation, ordering, rollback semantics.",
+        carrier="Module.data_migrations (DataMigrationIntent)",
+        gene_paths=("system.modules[*].data_migrations[*]",),
         constitutional_ids=("data_models",),
-        represented=False,
+        represented=True,
+        independently_mutatable=True,
+        independently_validatable=True,
+        compilable=True,
+        observable=True,
+        lineage_tracked=True,
         evidence=(
-            "NOT represented: no migration carrier anywhere in the ISR",
+            "represented: DataMigrationIntent(migration_id, source/target_schema_ref, compatibility_policy, preservation_refs, depends_on, rollback_required, rollback_target_ref, rollback_invariants, postconditions) — R2.10.3-C",
+            "intent only: compatibility is declared (never policy), rollback is invariants (never a command), ordering is an explicit acyclic depends_on graph",
+            "no mechanism: the construct has no field for SQL/ORM/framework commands; MIGRATION_MECHANISM_TERMS lint gates the semantic form",
+            "mutatable: MigrationOperator adds/removes/respecifies intents without touching entity/behavior/capability/temporal genes",
+            "validatable: MigrationValidationError at construction; ISR.validate_structure() rejects dangling schema/preservation/dependency refs and circular depends_on pre-execution",
+            "compilable: project_data_migrations projects compatibility/preservation/ordering/rollback semantics (backend-independent); async_resolution_module byte-identical",
+            "observable: declared intents observable in the semantic projection; mutations attributed in MEASUREMENT events",
+            "lineage: migration mutations are operator-attributed MEASUREMENT events, chain-anchored in the ledger",
         ),
     ),
     # -- security --------------------------------------------------------------
@@ -803,9 +815,9 @@ def gene_index(isr: ISR) -> dict[str, str]:
 
     Node-level granularity: each dataclass instance (module, entity, service,
     workflow, state, transition, policy, interface, endpoint, event, constraint,
-    temporal constraint, business capability, deployment sub-config) is one
-    gene. ``canonicalize`` is the shared single source of truth, so gene
-    hashes compose with the ISR's content hash.
+    temporal constraint, business capability, data migration, deployment
+    sub-config) is one gene. ``canonicalize`` is the shared single source of
+    truth, so gene hashes compose with the ISR's content hash.
     """
     idx: dict[str, str] = {}
     system = isr.system
@@ -849,6 +861,8 @@ def gene_index(isr: ISR) -> dict[str, str]:
             idx[f"{base}.events[{evi}]"] = _gene_hash(event)
         for tci, constraint in enumerate(module.temporal_constraints):
             idx[f"{base}.temporal_constraints[{tci}]"] = _gene_hash(constraint)
+        for mi_i, migration in enumerate(module.data_migrations):
+            idx[f"{base}.data_migrations[{mi_i}]"] = _gene_hash(migration)
     return idx
 
 

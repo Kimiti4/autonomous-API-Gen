@@ -402,6 +402,82 @@ would have stayed PARTIAL rather than weakening the classification.
 
 ---
 
+## 8e. R2.10.3-C — data_migrations (semantic intent, never mechanism)
+
+The highest-risk primitive: migrations are the easiest place for the
+semantic layer to accidentally become a database compiler. The boundary
+held: **the ISR declares data-evolution intent and invariants; physical
+realization is a compiler-backend concern.**
+
+**Construct.** `constitutional_architecture/isr/semantics/migration.py`:
+`DataMigrationIntent(migration_id, source_schema_ref, target_schema_ref,
+compatibility_policy, preservation_refs, depends_on, rollback_required,
+rollback_target_ref, rollback_invariants, postconditions)`. Carrier
+`Module.data_migrations` (co-located with the entities it evolves).
+Semantic dimensions:
+* **Schema identity** — source/target refs resolve to `Module.entities`
+  (the data-model genes); no SQL, no ORM, no engine. A dedicated schema
+  construct is a noted follow-up if entity-level granularity ever
+  suffices no longer.
+* **Compatibility INTENT** — `CompatibilityPolicy` (BACKWARD / FORWARD /
+  BIDIRECTIONAL / BREAKING / CUSTOM) declares the goal; the enum is never
+  the policy. The satisfaction-checker is deliberately NOT built in —
+  that is future evaluation, and wiring it in now would couple the
+  primitive to an implementation of compatibility checking. CUSTOM
+  requires declared postconditions.
+* **Preservation** — reference-based (`preservation_refs` = entity ids),
+  never implementation-derived.
+* **Ordering** — `depends_on` is an explicit dependency graph; dangling
+  dependencies and CIRCULAR graphs are rejected pre-execution (a cycle
+  makes ordering meaningless) — the R2.10.2 graph discipline applied
+  inside a primitive.
+* **Rollback** — `rollback_required` / `rollback_target_ref` /
+  `rollback_invariants` and NO command field, structurally: there is
+  nowhere to put a rollback command. `rollback_target_ref` must be the
+  source schema.
+* **Validation** — `postconditions` declare what success requires
+  (target schema valid, preserved entities, compatibility satisfied,
+  rollback available) — future Evolution Engine evaluation inputs.
+
+**The dangerous boundary — two guards.** (1) A field-name test over the
+dataclass: no `command`/`script`/`sql`/`statement` field can exist.
+(2) `MIGRATION_MECHANISM_TERMS` lint (`alembic`, `ecto`, `prisma`,
+`flyway`, `liquibase`, `migration_command`, `rollback_command`,
+`orm_model`, `ddl`, `dml`, …) gates the canonical semantic form —
+`assert_migration_technology_agnostic` fails the primitive if mechanism
+leaks in. No migration primitive may cause the ISR to acquire an
+implementation-specific execution mechanism.
+
+**Gates (all green).** Eleven-gate protocol reused (representation /
+canonicalization — empty carrier identity-neutral, recipe `isr_hash`
+unchanged `317b62a8…` / semantic identity — add→hash moves,
+policy-change→hash moves, remove→hash restores / validation /
+locality — adding a migration touches no behavior/capability/temporal/
+entity gene; policy change moves only the migration gene / projection —
+`project_data_migrations`, semantics only / compilation —
+`async_resolution_module` byte-identical / evidence / lineage —
+MEASUREMENT attribution with before/after hashes / reproducibility /
+audit).
+
+**Non-inference proven both directions.** Different declared policies over
+identical data models → different migration genes; equivalent declarations
+over differently structured data models → the same migration gene. The
+migration primitive is not an implementation fingerprint.
+
+**Audit gate — exactly one row moved** (with the corrected pre-landing
+matrix 4/18/0/8, per the R2.10.3-B delta correction): `data_migrations`:
+MISSING → EXPRESSED, asserted mechanically as `moved_rows ==
+{"data_migrations": ("MISSING", "EXPRESSED")}`. Re-attested matrix:
+**5 EXPRESSED / 18 PARTIAL / 0 PROJECTED / 7 MISSING**, matrix content
+hash `e6fbdd1f2792584314bb2b2063cf03d2…` (recipe isr_hash unchanged —
+Option A, third use).
+
+The compatibility/preservation/ordering/rollback semantics are the
+foundation R2.10.3-D (`reliability_resilience`) and R2.10.3-E
+(`architecture_boundaries`) build on.
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -409,7 +485,7 @@ would have stayed PARTIAL rather than weakening the classification.
 ```
 R2.10.1  ISR capability/expressivity audit        ← executed
 R2.10.2  Missing ISR primitives (the 10 MISSING rows above)  ← contract suite + Option A migration
-R2.10.3  Primitive roots, in derived order         ← A behavior_temporal_semantics (3/18/0/9) + B business_capabilities (4/18/0/8) landed; C data_migrations, D reliability_resilience next
+R2.10.3  Primitive roots, in derived order         ← A behavior_temporal_semantics (3/18/0/9) + B business_capabilities (4/18/0/8) + C data_migrations (5/18/0/7) landed; D reliability_resilience, E architecture_boundaries next
 R2.10.4  Architectural subgraph mutation — includes the Requirement Graph
          → ISR construction (the unbuilt top half), explicitly sequenced, not deferred
 R2.10.5  Safe structural crossover (chromosome families/genes: Architecture,

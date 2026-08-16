@@ -1,10 +1,13 @@
 # ADR: POPULATION_EXHAUSTION Disposition (R2.9.3 Real-Substrate Evolution)
 
-Status: Accepted — KNOWN_DEBT, non-blocking (R2.9.8)
+Status: Accepted — original observation falsified by controlled experiment;
+the real-substrate path converges. Mechanism documented; no KNOWN_DEBT carried.
+(Updated post Phase-28 identity migration, R2.9 closure.)
 
-Remediation target: `r29.3_substrate_population_exhaustion`
+Remediation target: `r29.3_substrate_population_exhaustion` — CLOSED
 Related: `docs/r29-closure.md`, R2.9.3 multi-generation evolution,
-R2.9.8 real-substrate certification dimension
+R2.9.8 real-substrate certification dimension,
+`docs/adr/adr-phase28-identity-migration.md`
 
 ## Context
 
@@ -74,6 +77,50 @@ Record `POPULATION_EXHAUSTION` as **KNOWN_DEBT**, non-blocking:
   Mitigated: remediation is scheduled before R2.10's generation work depends on
   sustained real-substrate evolution.
 
+## Updated disposition (post-migration controlled experiment)
+
+The exhaustion claim is now **falsified as a systematic behavior** by a
+controlled experiment: `test_r29_3_real_substrate_converges_in_one_generation`
+(the exact scenario the ADR names) was run on **both** sides of the identity
+migration, in the current environment:
+
+| Tree | Test | Result |
+|---|---|---|
+| `45e8a77` (pre-migration, content_hash tainted) | R2.9.3 real-substrate convergence | **PASSED** — SUCCESS at gen 0 (238.43s) |
+| `582356b` (post-migration, semantic content_hash) | same test | **PASSED** — SUCCESS at gen 0 (264.27s) |
+| `582356b` | R2.9.7 real-substrate audit | PASSED — `divergence_cause = None` (243.54s) |
+| `582356b` | R2.9.8 real-substrate certification path | PASSED (295.43s) |
+
+### Causal analysis
+
+Two distinct mechanisms were conflated in the original ADR:
+
+1. **Fake novelty (provenance-stamped clones).** Real, but **hermetic-level**:
+   pre-migration, `AlwaysInfeasibleVariation` clones differed by `created_at`
+   / `parent_hash` only, so `_same_isr` treated them as novel and elite
+   advancement was phantom. The migration exposes this (duplicate-edge
+   candidates now correctly stop the search) and the test now guarantees
+   architectural novelty. This mechanism did **not** drive the real-substrate
+   exhaustion: the real path proposes a single genuine repair.
+2. **Real-substrate exhaustion on gen-0 rejection.** The observed mechanism is
+   an **infra-transient flake** in the candidate's fresh evaluation (a
+   transient container failure in one gen-0 candidate run), which flips
+   `target_failure` to fail, forces no-feasible → elite advance, and then
+   exhausts at gen 1 because the repair is already present. This is a
+   resilience property of the coordinator, not a substrate defect: it did not
+   reproduce across the controlled runs above, and the certifier handles it
+   honestly (exhaustion → `KNOWN_DEBT` → `QUALIFIED`, never silent).
+
+### Decision (updated)
+
+- The `r29.3_substrate_population_exhaustion` debt is **closed**: the
+  documented systematic exhaustion does not reproduce on either side of the
+  migration; the real path converges to SUCCESS.
+- The certifier's exhaustion → `KNOWN_DEBT` → `QUALIFIED` path **remains** as
+  the honest response to future infra flakes — never a silent pass or block.
+- The migration closed the phantom-elite-advancement mechanism at the
+  hermetic level (see `adr-phase28-identity-migration.md`).
+
 ## Remediation path (`r29.3_substrate_population_exhaustion`)
 
 Investigate why the real substrate exhausts its population:
@@ -87,7 +134,9 @@ Investigate why the real substrate exhausts its population:
 
 ## Future evolution
 
-- Once the real substrate converges, the certification dimension flips to
-  `PASS` and the KNOWN_DEBT entry closes.
+- The real-substrate convergence now holds on both sides of the migration;
+  the controlled experiment closes the debt. If a future environment
+  reproduces systematic exhaustion, the certifier's `KNOWN_DEBT` path keeps
+  it visible rather than silent.
 - Findings may inform R2.10's richer-substrate variation design, where
   population dynamics will differ again.

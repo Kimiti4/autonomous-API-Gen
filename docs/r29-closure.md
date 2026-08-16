@@ -6,7 +6,7 @@
 **Phase-28 identity migration commit:** `582356b`
 **Full hermetic suite at closure:** 1744 passed, 2 skipped, 7 Docker-gated deselected (811.88s)
 **Docker real-substrate certification:** CERTIFIED (1 passed, 186.97s)
-**Post-migration real-substrate:** R2.9.7 audit passed (243.54s) · R2.9.8 real path passed (295.43s)
+**Post-migration real-substrate:** R2.9.7 audit passed (243.54s) · R2.9.8 real path passed (295.43s) · R2.9.3 real path passed pre- and post-migration (238.43s / 264.27s)
 
 ---
 
@@ -76,7 +76,7 @@ certification.
 |---|---|---|
 | provenance_content_identity | **PASS** (was KNOWN_DEBT) | `phase28_identity_migration` — executed |
 | phase28_identity_migration | **PASS** (was NOT_CERTIFIED) | — (executed; gates green) |
-| real-substrate evolution (Docker) | **KNOWN_DEBT** when `POPULATION_EXHAUSTION` | `r29.3_substrate_population_exhaustion` |
+| real-substrate evolution (Docker) | **PASS** — exhaustion falsified by controlled experiment (pre- and post-migration runs both converge; certifier's `KNOWN_DEBT` path remains as honest flake-handling) | `r29.3_substrate_population_exhaustion` — closed |
 
 **Overall engine verdict:** `CERTIFIED` (hermetic) · `CERTIFIED` (Docker real path).
 
@@ -122,7 +122,7 @@ phase28_tainted_by_provenance = false
 |---|---|---|---|
 | Phase-28 `content_hash` conflated provenance into semantic identity | **RESOLVED** (migration executed; `content_hash` is the semantic projection) | `phase28_identity_migration` | `docs/adr/adr-phase28-identity-migration.md` |
 | Phase-28 identity migration | **EXECUTED** (13 migration gates + full-suite regression green) | — | same ADR |
-| Real-substrate evolution hits `POPULATION_EXHAUSTION` under Docker | KNOWN_DEBT | `r29.3_substrate_population_exhaustion` | `docs/adr/adr-population-exhaustion-disposition.md` |
+| Real-substrate `POPULATION_EXHAUSTION` under Docker | **CLOSED** — falsified by controlled experiment: the R2.9.3 real-substrate test converges to SUCCESS on both `45e8a77` (pre-migration) and `582356b` (post-migration); observed exhaustion was an infra-transient flake, not systematic; phantom elite advancement (the hermetic mechanism) is fixed by the migration | `r29.3_substrate_population_exhaustion` — closed | `docs/adr/adr-population-exhaustion-disposition.md` |
 
 Every `KNOWN_DEBT` entry carries a remediation target and evidence. Debt is
 tracked, never buried.

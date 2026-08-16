@@ -3,7 +3,7 @@
 **Status:** CLOSED · CERTIFIED
 **R2.9.8 certification commit:** `19499b8`
 **R2.9.7 checkpoint commit:** `7ce559c`
-**Phase-28 identity migration commit:** (migration commit)
+**Phase-28 identity migration commit:** `582356b`
 **Full hermetic suite at closure:** 1744 passed, 2 skipped, 7 Docker-gated deselected (811.88s)
 **Docker real-substrate certification:** CERTIFIED (1 passed, 186.97s)
 **Post-migration real-substrate:** R2.9.7 audit passed (243.54s) · R2.9.8 real path passed (295.43s)

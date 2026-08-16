@@ -299,14 +299,62 @@ landing; the 18 PARTIAL capabilities remain R2.10.3/4 gene-level work.
 
 ---
 
+## 8c. R2.10.3-A — behavior_temporal_semantics (first primitive landing)
+
+The proving run: the protocol's first use on a gene surface already
+EXPRESSED. The primitive landed end-to-end through the eleven-gate protocol
+(`PRIMITIVE_GATE` in `tiannara/application/evolution/primitive_gate.py`),
+mechanized as a single parameterized harness every future primitive reuses.
+
+**Construct.** `constitutional_architecture/isr/semantics/temporal.py`:
+`TemporalConstraint(constraint_id, kind, target_ref, duration_ms,
+reference_ref)` with `TemporalConstraintKind` (TRANSITION_DEADLINE /
+STATE_MIN_DURATION / EVENT_ORDERING). Timing INTENT on behavior — duration,
+ordering, deadline; never timer mechanism (no asyncio.sleep / scheduler /
+liveness probe). Carrier: `Module.temporal_constraints` — constraints
+REFERENCE behavior genes by id and never alter them, so a transition can be
+awaited AND carry a deadline, and mutating the deadline leaves the
+await-surface and transition genes byte-identical (locality proven).
+
+**Boundary with behavior_await_surface.** `behavior_await_surface` is the
+structural async surface (which transitions await); `behavior_temporal_semantics`
+is timing intent (deadlines, minimum durations, ordering windows). They
+compose; the temporal constraint never changes await structure.
+
+**Gates (all green).** Representation / canonicalization (empty carrier
+identity-neutral — recipe `isr_hash` unchanged `317b62a8…`) / semantic
+identity (add→hash moves, edit→hash moves, remove→hash restores) / validation
+(negative duration and missing ordering reference rejected at construction;
+dangling targets and references rejected pre-execution by
+`ISR.validate_structure()`) / locality (MutationLocalityProbe: only the
+temporal gene changes) / projection (`project_temporal_semantics` —
+backend-independent semantic artifact, deterministic, no coupling terms) /
+compilation (`async_resolution_module` byte-identical with the temporal gene
+present) / evidence (`project_temporal_evidence`) / lineage (MEASUREMENT
+events attribute each mutation with before/after hashes, chain-anchored) /
+reproducibility (same ISR + seed ⇒ same candidates) / audit.
+
+**Audit gate — exactly one row moved.** `behavior_temporal_semantics`:
+MISSING → EXPRESSED; the other 29 rows untouched. Re-attested matrix:
+**3 EXPRESSED / 18 PARTIAL / 0 PROJECTED / 9 MISSING**, matrix content hash
+`d2aa03e7119d510d293adcd38b7198ab…` (recipe isr_hash unchanged — Option A).
+
+**Compile surface discipline.** The temporal gene compiles into the semantic
+projection artifact; no backend lowers it yet, and no backend may INFER
+timing the ISR did not declare. If a backend later needs timing it cannot
+derive from the ISR, that is an ISR capability gap, not permission to invent
+it in the backend.
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
 
 ```
 R2.10.1  ISR capability/expressivity audit        ← executed
-R2.10.2  Missing ISR primitives (the 10 MISSING rows above)
-R2.10.3  Gene-level mutation model (per-gene addressing proven in R2.10.1)
+R2.10.2  Missing ISR primitives (the 10 MISSING rows above)  ← contract suite + Option A migration
+R2.10.3  Primitive roots, in derived order         ← R2.10.3-A behavior_temporal_semantics landed (3/18/0/9); B business_capabilities, C data_migrations, D reliability_resilience next
 R2.10.4  Architectural subgraph mutation — includes the Requirement Graph
          → ISR construction (the unbuilt top half), explicitly sequenced, not deferred
 R2.10.5  Safe structural crossover (chromosome families/genes: Architecture,

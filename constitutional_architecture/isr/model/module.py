@@ -14,6 +14,7 @@ from constitutional_architecture.isr.model.interface import Interface
 from constitutional_architecture.isr.model.policy import Policy
 from constitutional_architecture.isr.model.service import Service
 from constitutional_architecture.isr.model.workflow import Workflow
+from constitutional_architecture.isr.semantics.temporal import TemporalConstraint
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,7 @@ class Module:
     events: tuple[Event, ...] = ()
     dependencies: tuple[str, ...] = ()
     metadata: dict[str, str] = field(default_factory=dict)
+    temporal_constraints: tuple[TemporalConstraint, ...] = ()
 
     def get_entity(self, entity_id: str) -> Optional[Entity]:
         for e in self.entities:

@@ -364,15 +364,24 @@ DEFAULT_PROBES: tuple[StaticCapabilityProbe, ...] = (
     StaticCapabilityProbe(
         capability_id="behavior_temporal_semantics",
         name="Behavior: temporal semantics",
-        description="Retry / timeout / backoff semantics for operations.",
-        carrier="(none)",
-        gene_paths=(),
+        description="Timing intent on behavior: transition deadlines, state minimum durations, event ordering windows.",
+        carrier="Module.temporal_constraints (TemporalConstraint)",
+        gene_paths=("system.modules[*].temporal_constraints[*]",),
         constitutional_ids=("services",),
         machinery=True,
-        represented=False,
+        represented=True,
+        independently_mutatable=True,
+        independently_validatable=True,
+        compilable=True,
+        observable=True,
+        lineage_tracked=True,
         evidence=(
-            "NOT represented: no carrier for retry counts, timeouts, or backoff policies",
-            "exploration trigger names ('retry', 'timeout') are free-form strings, not semantics",
+            "represented: TemporalConstraint(constraint_id, kind, target_ref, duration_ms, reference_ref) — R2.10.3-A",
+            "mutatable: TemporalConstraintOperator adds/edits/removes constraints without touching transition/state/await genes",
+            "validatable: TemporalValidationError at construction; ISR.validate_structure() rejects dangling targets and missing ordering references pre-execution",
+            "compilable: project_temporal_semantics lowers timing intent into the backend-independent semantic artifact; async_resolution_module byte-identical",
+            "observable: project_temporal_evidence exposes each constraint's intent deterministically",
+            "lineage: temporal mutations are operator-attributed MEASUREMENT events, chain-anchored in the ledger",
         ),
     ),
     # -- architecture ----------------------------------------------------------
@@ -784,8 +793,9 @@ def gene_index(isr: ISR) -> dict[str, str]:
 
     Node-level granularity: each dataclass instance (module, entity, service,
     workflow, state, transition, policy, interface, endpoint, event, constraint,
-    deployment sub-config) is one gene. ``canonicalize`` is the shared single
-    source of truth, so gene hashes compose with the ISR's content hash.
+    temporal constraint, deployment sub-config) is one gene. ``canonicalize``
+    is the shared single source of truth, so gene hashes compose with the
+    ISR's content hash.
     """
     idx: dict[str, str] = {}
     system = isr.system
@@ -825,6 +835,8 @@ def gene_index(isr: ISR) -> dict[str, str]:
                 idx[f"{base}.interfaces[{ii}].endpoints[{ei}]"] = _gene_hash(endpoint)
         for evi, event in enumerate(module.events):
             idx[f"{base}.events[{evi}]"] = _gene_hash(event)
+        for tci, constraint in enumerate(module.temporal_constraints):
+            idx[f"{base}.temporal_constraints[{tci}]"] = _gene_hash(constraint)
     return idx
 
 

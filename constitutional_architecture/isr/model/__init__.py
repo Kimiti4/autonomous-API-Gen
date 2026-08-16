@@ -24,6 +24,11 @@ from constitutional_architecture.isr.model.deployment import (
 from constitutional_architecture.isr.model.module import Module
 from constitutional_architecture.isr.model.system import System, SystemMetadata
 from constitutional_architecture.isr.model.isr import ISR, ISRProvenance
+from constitutional_architecture.isr.semantics.temporal import (
+    TemporalConstraint, TemporalConstraintKind, TemporalValidationError,
+    project_temporal_evidence, project_temporal_semantics,
+    validate_module_temporal_constraints,
+)
 from constitutional_architecture.isr.completeness import CompletenessLevel
 
 __all__ = [
@@ -41,5 +46,8 @@ __all__ = [
     "Deployment", "ScalingConfig", "ScalingStrategy", "EnvironmentTier",
     "NetworkingConfig", "MonitoringConfig", "StorageConfig", "SecretsConfig",
     "Module", "System", "SystemMetadata", "ISR", "ISRProvenance",
+    "TemporalConstraint", "TemporalConstraintKind", "TemporalValidationError",
+    "project_temporal_evidence", "project_temporal_semantics",
+    "validate_module_temporal_constraints",
     "CompletenessLevel",
 ]

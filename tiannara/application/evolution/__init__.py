@@ -134,6 +134,22 @@ from tiannara.application.evolution.reproducibility_audit import (
     IdentitySeparationReport,
     ReproducibilityAuditor,
 )
+from tiannara.application.evolution.evolution_certification import (
+    CertificationStatus,
+    DimensionResult,
+    DimensionVerifier,
+    EngineVerdict,
+    EvolutionCertificationArtifact,
+    EvolutionCertifier,
+)
+from tiannara.application.evolution.evolution_certification_dimensions import (
+    BEHAVIORAL_DIMENSIONS,
+    CertificationHarness,
+    DEBT_DIMENSIONS,
+    build_all_dimension_verifiers,
+    build_debt_dimension_verifiers,
+    build_dimension_verifiers,
+)
 
 __all__ = [
     "CandidateSandbox",
@@ -232,4 +248,16 @@ __all__ = [
     "CrossRunReport",
     "IdentitySeparationReport",
     "ReproducibilityAuditor",
+    "CertificationStatus",
+    "DimensionResult",
+    "DimensionVerifier",
+    "EngineVerdict",
+    "EvolutionCertificationArtifact",
+    "EvolutionCertifier",
+    "BEHAVIORAL_DIMENSIONS",
+    "CertificationHarness",
+    "DEBT_DIMENSIONS",
+    "build_all_dimension_verifiers",
+    "build_debt_dimension_verifiers",
+    "build_dimension_verifiers",
 ]

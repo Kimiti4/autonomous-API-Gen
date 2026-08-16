@@ -159,12 +159,100 @@ This is the trust foundation R2.10 (production software generation) stands on.
 
 ---
 
-## 8. Next phase boundary
+## 8. R2.10.1 — ISR capability / expressivity audit (signed matrix)
 
-**R2.10 — Production software generation.** Transitions from *evolving an
-existing artifact* to *generating from requirements*: exercises the
-Requirement Graph → ISR pipeline, expands the ISR beyond the FSM substrate
-into Component/Requirement graphs, and introduces structural crossover. R2.10
-inherits the three-identity model with `content_hash` already semantic
+**Status:** executed · diagnostic-only (no new ISR primitives — that is R2.10.2)
+**Suite:** 17 new tests green (`tests/test_r29_10_1_capability_audit.py`, criteria A–H)
+**Full hermetic suite at R2.10.1:** 1761 passed, 2 skipped, 7 Docker-gated deselected (197.29s)
+
+The audit answers the question R2.10 stands on: *which constitutional
+capabilities does the ISR represent, and which can the evolution machinery
+evolve end-to-end (mutate → validate pre-execution → compile → observe →
+lineage)?* It is a measuring instrument, not a feature phase.
+
+### 8.1 Machinery
+
+- `tiannara/application/evolution/isr_capability_audit.py` — `CapabilityStatus`
+  (EXPRESSED / PARTIAL / PROJECTED / MISSING), six-dimension
+  `CapabilityAssessment` (represented, independently_mutatable,
+  independently_validatable, compilable, observable, lineage_tracked +
+  `projected_via`), `derive_status` (**the only** status rule — status is
+  derived, never asserted), `ISRCapability`, `ISRCapabilityAuditResult`
+  (integrity / unclassified / by_status / content_hash), `CapabilityProbe`
+  protocol + 30-probe default matrix, `MutationLocalityProbe` /
+  `LocalityResult` (per-gene hashing), `ISRCapabilityAudit` runner.
+- **Per-gene semantic identity** is the enabling mechanism: every gene is
+  addressed by a path into the semantic projection and hashed with the same
+  `canonicalize` as `content_hash` — gene hashes compose with ISR identity.
+- The signed matrix is anchored as an **`ISR_CAPABILITY_AUDIT`** ledger event
+  (content-hashed, chain-anchored — the R2.8.14 certification pattern), so
+  R2.10.2 starts from an attested baseline.
+- Compile surface measured against the real backend: only
+  `WorkflowState.metadata['awaits']` + `WorkflowTransition.trigger` are
+  lowered (`async_resolution_module`); the `SystemModel` stub ignores all
+  other genes.
+
+### 8.2 Attested matrix (full-carrier recipe ISR)
+
+`isr_hash 07d774f1…` · matrix content hash `8cfb4c90…` · integrity `true`
+
+| Status | Count | Capabilities |
+|---|---|---|
+| **EXPRESSED** | 2 | `behavior_transitions`, `behavior_await_surface` |
+| **PARTIAL** | 18 | `architecture_components`, `architecture_dependencies`, `architecture_interfaces_apis`, `architecture_modules`, `behavior_error_states`, `behavior_events_triggers`, `behavior_guards_actions`, `behavior_state_semantics`, `data_entities_schema`, `data_persistence_consistency`, `deployment_topology`, `evolution_lineage_provenance`, `observability`, `operational_policies`, `performance_scalability`, `requirements_constraints`, `security_authentication_trust`, `security_authorization` |
+| **PROJECTED** | 0 | — (no capability is sufficiently carried by an existing projection today — recorded honestly, not forced) |
+| **MISSING** | 10 | `architecture_boundaries`, `behavior_temporal_semantics`, `business_capabilities`, `data_migrations`, `deployment_rollout_rollback`, `documentation`, `evolution_objectives_protected_regions`, `reliability_resilience`, `requirements_acceptance_traceability`, `testing_anchoring` |
+
+### 8.3 Findings
+
+- The **FSM substrate is the only end-to-end evolvable surface** — the two
+  EXPRESSED rows are exactly the transition/await genes the R2.4–R2.9
+  machinery mutates, gates, compiles, observes, and tracks.
+- The 18 PARTIAL rows are overwhelmingly "represented but not evolvable":
+  no mutation operator exists for entities/services/interfaces/policies/
+  events/deployment, and the compiler backend does not lower them. Guards
+  and actions are mutatable (`GuardRelaxationOperator`,
+  `ActionInjectionOperator`) but never compiled/observed.
+- The 10 MISSING rows are the **R2.10.2 primitive backlog** (dependency
+  direction/boundaries, temporal semantics, migrations, rollout/rollback,
+  acceptance/traceability, resilience, objectives/protected regions,
+  documentation, testing anchoring, business capabilities). None has a
+  carrier today; `PROJECTED` stays empty because free-form `Constraint`
+  strings are not sufficient projections (no enforced semantics).
+- Acceptance criteria A–H proven: coverage/integrity, per-EXPRESSED-class
+  mutation locality (target gene changes, zero unintended gene changes),
+  compile→artifact→project round-trip, pre-execution rejection of invalid
+  mutations (`validate_structure`, `AwaitingSurfaceIntactInvariant`),
+  evidence per assessment, tamper-evident ledger anchoring, and
+  determinism (same ISR + mutation + seed → same semantic candidate).
+
+### 8.4 Next
+
+R2.10.2 adds the MISSING primitives; R2.10.3 builds the gene-level mutation
+model on the per-gene addressing proven here.
+
+---
+
+## 9. Next phase boundary
+
+**R2.10 — Production software generation**, sequenced (order is mandatory):
+
+```
+R2.10.1  ISR capability/expressivity audit        ← executed (this record)
+R2.10.2  Missing ISR primitives (the 10 MISSING rows above)
+R2.10.3  Gene-level mutation model (per-gene addressing proven in R2.10.1)
+R2.10.4  Architectural subgraph mutation — includes the Requirement Graph
+         → ISR construction (the unbuilt top half), explicitly sequenced, not deferred
+R2.10.5  Safe structural crossover (chromosome families/genes: Architecture,
+         Persistence, Infrastructure, Security, Messaging, Observability,
+         Testing, Deployment, Governance, Performance, Reliability)
+R2.10.6  Multi-objective architectural evolution
+R2.10.7  Architecture candidate competition
+R2.10.8  Architectural certification
+```
+
+R2.10 inherits the three-identity model with `content_hash` already semantic
 (Phase-28 identity migration executed), so cross-run reproducibility is
-structural, not patched.
+structural, not patched. Every recombinant must preserve dependency
+acyclicity, interface compatibility, and boundary integrity, and traverse the
+R2.8 anti-gaming boundary.

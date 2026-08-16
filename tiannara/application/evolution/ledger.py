@@ -115,6 +115,7 @@ class EventType(str, enum.Enum):
     CERTIFICATION = "certification"  # R2.8.14: chain-anchored certification artifact
     GENERATION_COMPLETED = "generation_completed"  # R2.9.3: one generation of the search
     SCHEDULER_DECISION = "scheduler_decision"  # R2.9.5: search-budget allocation + evidence snapshot
+    ISR_CAPABILITY_AUDIT = "isr_capability_audit"  # R2.10.1: signed capability/expressivity matrix
 
 
 class EvolutionEvent(BaseModel):

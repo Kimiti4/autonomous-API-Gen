@@ -6,29 +6,29 @@ Constitutional separation of ISR identity into three concerns:
     provenance_identity    = lineage (parent, mutation source, evolution, created_at)
     runtime_execution_id   = execution-instance identity
 
-The audit is EVIDENCE-based, not asserted: it demonstrates that the Phase-28
-``content_hash`` (which folds ``provenance.created_at`` stamped by
-``ISR.with_system`` into the hash) diverges across runs while the semantic
-trajectory reproduces exactly, and names the divergence cause
-(``provenance_volatility``).
+The audit is EVIDENCE-based, not asserted: it demonstrates identity separation
+by comparing the semantic hash with ``ISR.content_hash`` directly.
 
-Semantic projection is INCLUSION-based (``FSMSemanticProjector``: workflows,
-states, transitions, modules, constraints -- the architectural schema of this
-substrate). A negative test is load-bearing: an architectural change MUST move
-the semantic hash, so the projection can never be vacuous. The canonical
-serializer has no ``default=str`` fallback -- unhandled types raise
-``CanonicalizationError``.
+POST-MIGRATION (Phase-28 identity migration, ADR adr-phase28-identity-migration):
+``ISR.content_hash`` IS the semantic projection, so cross-run ``content_hash``
+now reproduces exactly -- ``content_reproducible`` is true, the
+``provenance_volatility`` divergence cause is structurally eliminated, and the
+audit's taint signal (previously a provenance-presence heuristic) is purely
+evidence-based: tainted iff the two hashes diverge. The former conflation tests
+now certify the migration's result.
 
-No Phase-28 model file is touched: the extractor, projector, and runtime tag
-are purely additive, reading the ISR only.
+Semantic projection is INCLUSION-based, delegating to the single source of
+truth in ``constitutional_architecture.isr.semantics.projection`` (the full
+System/Module architectural tree). A negative test is load-bearing: an
+architectural change MUST move the semantic hash, so the projection can never
+be vacuous. The canonical serializer has no ``default=str`` fallback --
+unhandled types raise ``CanonicalizationError``.
 
 Trajectory reconstruction: ``EvolutionState``/``MultiDefectRunResult`` are
 constitutional hash-only (they never carry ISRs), so the harness reconstructs
 each trajectory deterministically from the same variation/seed the coordinator
 used, then BINDS every step to the coordinator's own reported hashes
-(``parent_isr_hash``, ``selected_candidate_id``). The harness base ISRs carry
-run-time provenance deliberately, so cross-run ``content_hash`` diverges while
-semantic stays stable -- that divergence is the demonstrated defect.
+(``parent_isr_hash``, ``selected_candidate_id``).
 
 The long-horizon staging trick: ``LongHorizonVariation`` repairs defect
 ``seed % n`` each generation; because the coordinator passes ``seed + index``
@@ -404,9 +404,10 @@ class ReproHarness:
         * every generation: the cumulative resolution profile is bound exactly
           -- the deterministic, volatile-free record of WHAT was selected.
 
-        From generation 2 on, ``parent_isr_hash`` embeds volatile
-        ``parent_hash`` links and is compared only semantically -- this is
-        precisely the conflation the audit names ``provenance_volatility``.
+        From generation 2 on, ``parent_isr_hash`` embeds ``parent_hash``
+        links; post-migration (identity migration executed) these are the
+        stable semantic hashes, so every generation's binding reproduces
+        exactly across runs.
         """
         n = generations or 3
         defective, defect_set, result = self._run_multi_defect(n, seed)
@@ -500,7 +501,8 @@ def test_same_architecture_different_created_at_same_semantic_hash(repro_harness
     b = repro_harness.isr_with_created_at("2025-06-15T12:34:56")
     assert semantic_equivalent(a, b, repro_harness.extractor)
     assert repro_harness.extractor.semantic_hash(a) == repro_harness.extractor.semantic_hash(b)
-    assert a.content_hash != b.content_hash   # Phase-28 hash IS volatile
+    # post-migration: created_at no longer taints the content hash either
+    assert a.content_hash == b.content_hash
 
 
 def test_same_architecture_different_parent_lineage_same_semantic_hash(repro_harness):
@@ -508,7 +510,8 @@ def test_same_architecture_different_parent_lineage_same_semantic_hash(repro_har
     derived = repro_harness.isr_with_parent(root)
     assert semantic_equivalent(root, derived, repro_harness.extractor)
     assert derived.provenance.parent_hash == root.content_hash
-    assert derived.content_hash != root.content_hash
+    # post-migration: parent lineage is stamped in provenance only
+    assert derived.content_hash == root.content_hash
 
 
 def test_same_architecture_different_runtime_id_same_semantic_hash(repro_harness):
@@ -563,8 +566,8 @@ def test_provenance_identity_recoverable(repro_harness):
     assert isinstance(identity.provenance, ProvenanceIdentity)
     assert identity.provenance.parent_hash == derived.provenance.parent_hash
     assert identity.provenance.created_at is not None
-    # the semantic identity is a different hash from the volatile content hash
-    assert identity.semantic_hash != derived.content_hash
+    # the semantic identity IS the content hash post-migration (one identity)
+    assert identity.semantic_hash == derived.content_hash
 
 
 def test_three_identities_are_distinct(repro_harness):
@@ -592,29 +595,27 @@ def test_extractor_does_not_mutate_isr(repro_harness):
     assert first.semantic_hash == repro_harness.extractor.semantic_hash(isr)
 
 
-# -- 6. Phase-28 conflation is demonstrated by evidence ---------------------------------
+# -- 6. Phase-28 conflation is resolved by evidence (migration executed) ----------
 
-def test_audit_demonstrates_phase28_content_hash_conflation(repro_harness):
+def test_audit_confirms_content_hash_is_semantic_post_migration(repro_harness):
     derived = repro_harness.derived_isr()
     report = repro_harness.auditor.audit_identity_separation(derived)
     assert isinstance(report, IdentitySeparationReport)
     assert report.semantic_is_stable_identity
-    assert report.phase28_tainted_by_provenance
-    assert report.semantic_hash != report.phase28_content_hash
-    assert report.taint_fields
-    assert "created_at" in report.taint_fields
-    assert "parent_hash" in report.taint_fields
+    assert report.phase28_tainted_by_provenance is False
+    assert report.semantic_hash == report.phase28_content_hash
+    assert report.taint_fields == ()
 
 
-def test_audit_phase28_taint_names_volatile_fields(repro_harness):
+def test_audit_taint_signal_is_evidence_based(repro_harness):
     report = repro_harness.auditor.audit_identity_separation(repro_harness.defective_isr())
-    assert report.phase28_tainted_by_provenance
-    assert set(report.taint_fields) == set(ReproducibilityAuditor.VOLATILE_TAINT_FIELDS)
+    assert report.phase28_tainted_by_provenance is False
+    assert report.taint_fields == ()
 
 
-# -- 7. Cross-run reproducibility: semantic yes, Phase-28 content no --------------------
+# -- 7. Cross-run reproducibility: semantic AND content reproduce ------------------
 
-def test_cross_run_semantic_reproducible_content_diverges(repro_harness):
+def test_cross_run_semantic_and_content_reproducible(repro_harness):
     traj_a = repro_harness.run_evolution(0)
     traj_b = repro_harness.run_evolution(0)
     assert len(traj_a) == len(traj_b) == 4          # n + 1 nodes for n = 3
@@ -622,8 +623,8 @@ def test_cross_run_semantic_reproducible_content_diverges(repro_harness):
     assert isinstance(report, CrossRunReport)
     assert report.generations_compared == 4
     assert report.semantic_reproducible
-    assert not report.content_reproducible
-    assert report.divergence_cause == "provenance_volatility"
+    assert report.content_reproducible
+    assert report.divergence_cause is None
 
 
 def test_long_horizon_semantic_trajectory_reproducible(repro_harness):
@@ -633,8 +634,8 @@ def test_long_horizon_semantic_trajectory_reproducible(repro_harness):
     report = repro_harness.auditor.audit_cross_run(traj_a, traj_b)
     assert report.generations_compared == 13
     assert report.semantic_reproducible
-    assert not report.content_reproducible
-    assert report.divergence_cause == "provenance_volatility"
+    assert report.content_reproducible
+    assert report.divergence_cause is None
 
 
 # -- 8. The semantic trajectory is architecturally grounded ------------------------------
@@ -666,4 +667,5 @@ def test_semantic_reproducibility_under_real_execution(repro_harness, tmp_path):
     hermetic_trajectory = repro_harness.run_evolution(0, generations=1)
     report = repro_harness.auditor.audit_cross_run(real_trajectory, hermetic_trajectory)
     assert report.semantic_reproducible
-    assert report.divergence_cause == "provenance_volatility"
+    assert report.content_reproducible
+    assert report.divergence_cause is None

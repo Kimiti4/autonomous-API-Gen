@@ -1,8 +1,14 @@
-"""R2.9.7 -- Reproducibility audit.
+"""R2.9.7 -- Reproducibility audit (MIGRATED).
 
-Evidence-based: demonstrates the Phase-28 conflation rather than asserting it,
-by showing the semantic hash is stable across runs while the Phase-28
-``content_hash`` diverges, and naming the divergence cause.
+Evidence-based: demonstrates identity separation by comparing the semantic
+hash with ``ISR.content_hash`` directly, rather than asserting it.
+
+Post-migration (Phase-28 identity migration): ``ISR.content_hash`` IS the
+semantic projection, so cross-run content reproducibility holds and the
+provenance_volatility divergence cause is gone by construction. The audit's
+taint signal is now purely evidence-based: the Phase-28 content hash is
+"tainted" iff it diverges from the semantic hash -- never a heuristic over
+provenance presence.
 """
 from __future__ import annotations
 
@@ -53,27 +59,32 @@ class ReproducibilityAuditor:
     def audit_identity_separation(self, isr) -> IdentitySeparationReport:
         identity = self._extractor.extract(isr)
         phase28 = getattr(isr, "content_hash", None)
-        # Conflation is demonstrated (not asserted): the Phase-28 content hash
-        # includes provenance/runtime fields, so it differs from the semantic
-        # projection whenever those fields are present.
-        tainted = phase28 is not None and bool(
-            self._extractor._provenance(isr).parent_hash
-            or self._extractor._provenance(isr).created_at
-        )
+        # Evidence-based (post-migration): the Phase-28 content hash is tainted
+        # iff it diverges from the semantic projection. Provenance presence is
+        # never used as a proxy -- the two hashes are compared directly.
+        semantic = identity.semantic_hash
+        tainted = phase28 is not None and phase28 != semantic
+        prov = self._extractor._provenance(isr)
+        taint_fields = tuple(
+            sorted(
+                name for name in self.VOLATILE_TAINT_FIELDS
+                if getattr(prov, name, None) is not None
+            )
+        ) if tainted else ()
         return IdentitySeparationReport(
-            semantic_hash=identity.semantic_hash,
+            semantic_hash=semantic,
             phase28_content_hash=phase28,
             semantic_is_stable_identity=True,
             phase28_tainted_by_provenance=tainted,
-            taint_fields=tuple(sorted(self.VOLATILE_TAINT_FIELDS)) if tainted else (),
+            taint_fields=taint_fields,
         )
 
     def audit_cross_run(self, trajectory_a: Sequence, trajectory_b: Sequence) -> CrossRunReport:
         """Compare two runs' ISR trajectories at semantic and content level.
 
-        The semantic trajectory must reproduce; the Phase-28 content trajectory
-        need not. If semantic matches but content does not, the divergence is
-        named ``provenance_volatility`` -- the exact chronic defect.
+        Post-migration both trajectories must reproduce: ``content_hash`` is
+        the semantic projection, so ``content_reproducible`` is true and the
+        ``provenance_volatility`` divergence cause is structurally eliminated.
         """
         n = min(len(trajectory_a), len(trajectory_b))
         if n == 0:

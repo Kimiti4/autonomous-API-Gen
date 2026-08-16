@@ -8,13 +8,12 @@ an existing ISR in place.
 
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
 
 from constitutional_architecture.isr.model.system import System
+from constitutional_architecture.isr.semantics.projection import semantic_content_hash
 
 
 @dataclass(frozen=True)
@@ -48,11 +47,17 @@ class ISR:
 
     @property
     def content_hash(self) -> str:
+        """Semantic content hash (Phase-28 identity migration).
+
+        Projects only the architectural payload (``system``), excluding
+        version, provenance, and the hash cache — stable across runs while
+        preserving governance change-detection over the full System/Module
+        tree. Does NOT route through ISRSerializer (avoids its default=str
+        anti-pattern).
+        """
         if self._content_hash is not None:
             return self._content_hash
-        from constitutional_architecture.isr.serialization.serializer import ISRSerializer
-        canonical = ISRSerializer.to_canonical_json(self)
-        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        return semantic_content_hash(self)
 
     @property
     def id(self) -> str:

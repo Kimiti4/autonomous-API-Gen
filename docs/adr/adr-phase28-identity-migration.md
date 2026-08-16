@@ -1,9 +1,11 @@
 # ADR: Phase-28 Identity Migration (Semantic / Provenance / Runtime Separation)
 
-Status: Accepted — migration deferred, separately gated (R2.9.7)
+Status: EXECUTED — migration applied and compatibility-gated (R2.9.8 closure)
 
 Related: `docs/r29-closure.md`, `tiannara/application/evolution/identity.py`,
-`tiannara/application/evolution/reproducibility_audit.py`
+`tiannara/application/evolution/reproducibility_audit.py`,
+`constitutional_architecture/isr/semantics/projection.py`,
+`tests/test_phase28_migration_gates.py`
 
 ## Context
 
@@ -28,7 +30,7 @@ provenance fields (`created_at`, `parent_hash`). Consequently:
   `content_hash` trajectories from generation 1 onward.
 - The "source of truth" is unstable, violating the foundational principle.
 
-R2.9.7's audit demonstrates this:
+R2.9.7's audit demonstrated this:
 ```
 semantic_reproducible = true
 content_reproducible  = false
@@ -38,7 +40,8 @@ divergence_cause      = provenance_volatility   (compounds at gen ≥ 1)
 ## Decision
 
 Adopt a **three-identity model** and migrate Phase-28's `content_hash` to be
-semantic-only. The migration is **deferred and separately gated** from R2.9.
+semantic-only. The migration is **executed** and gated by dedicated
+compatibility evidence (see Migration record below).
 
 The three identities, which must never be conflated:
 
@@ -86,24 +89,58 @@ runtime_execution_id   = execution-instance identity
   Mitigated: R2.9.7's negative test (an architectural change must change
   `semantic_hash`) guards against this.
 
-## Migration plan (when executed)
+## Migration plan (executed)
 
 1. **Audit proves the defect** — DONE (R2.9.7).
-2. **Recompute `ISR.content_hash` via the semantic projection**, excluding
-   provenance/runtime.
-3. **Move `created_at` and `parent_hash` into the `provenance` structure.**
-4. **Update consumers** that compare `content_hash` for reproducibility to use
-   the semantic identity; consumers needing lineage use `provenance` explicitly.
-5. **Gate on before/after compatibility evidence:**
-   - lineage chain remains valid,
-   - causal integrity preserved (`CausalGate.fresh` recompile equivalence),
-   - `content_reproducible` flips to `true` under the R2.9.7 audit,
-   - no R2.8/R2.9.x regression.
+2. **`ISR.content_hash` recomputed via the semantic projection** — DONE. The
+   projection lives in `constitutional_architecture/isr/semantics/projection.py`
+   (the constitutional single source of truth): a full recursive canonicalization
+   of the architectural tree (`System` and everything nested), with
+   `version` / `provenance` / `_content_hash` structurally excluded. It is NOT
+   routed through `ISRSerializer` (no `default=str` fallback); unhandled types
+   raise `CanonicalizationError`.
+3. **`created_at` / `parent_hash` remain in `provenance`** — unchanged; they
+   feed lineage only, never the semantic hash.
+4. **Consumers updated** — `identity.FSMSemanticProjector` delegates to the
+   projection; `stable_isr_hash` collapses onto `semantic_content_hash`;
+   `ReproducibilityAuditor` taint is evidence-based (`tainted = phase28 is not
+   None and phase28 != semantic`), never a provenance-presence heuristic.
+5. **Gated on before/after compatibility evidence** — all gates green
+   (`tests/test_phase28_migration_gates.py`, 13 passed):
+   - architectural change detection intact (entity / deployment / policy-only
+     changes move the hash),
+   - `created_at` and `version` isolated,
+   - `content_hash == semantic_hash == stable_isr_hash` on every substrate,
+   - `content_reproducible` flips to `true` (audit + cross-run + long horizon),
+   - gen ≥ 1 parent binding is stable across runs,
+   - lineage chain valid and causal integrity preserved
+     (`CausalGate.fresh` recompile equivalence),
+   - no R2.8/R2.9.x regression (hermetic R2.9.6/7/8 subprocess gate).
+
+## Migration record (verification evidence)
+
+- Migration gates: **13 passed** in 253s.
+- Hermetic R2.9.x regression (R2.9.6/7/8, Docker tests deselected): **41 passed, 2 deselected**.
+- R2.9.7 real-substrate (Docker) audit: **passed** (243.54s) —
+  `divergence_cause = None`, `content_reproducible = true` under real execution.
+- R2.9.8 real-substrate certification path: **passed** (295.43s).
+- Full hermetic suite (`python -m pytest`, 7 Docker-gated tests deselected):
+  **1744 passed, 2 skipped, 7 deselected** (811.88s).
+- Post-migration invariant on every substrate:
+  `content_hash == semantic_hash == stable_isr_hash`; R2.9.7's audit now reports
+  `phase28_tainted_by_provenance = false`, `taint_fields = ()`, and the R2.9.8
+  `provenance_content_identity` / `phase28_identity_migration` dimensions are
+  closed as PASS (see `docs/r29-closure.md`).
+- Test adjustments reflecting the corrected semantics: R2.9.7's conflation
+  demonstrations flipped to equality assertions; R2.9.3's
+  `AlwaysInfeasibleVariation` now guarantees architectural novelty per
+  generation (seed-unique trigger) so elite advancement is real, not
+  provenance-fabricated.
 
 ## Future evolution
 
 - R2.10 introduces Component/Requirement graphs → a new `SemanticProjector`
   implementation, injected into `IdentityExtractor`, not a change to the model.
-- Once migrated, the `provenance_content_identity` KNOWN_DEBT and
-  `phase28_identity_migration` NOT_CERTIFIED entries in the R2.9.8
-  certification can be re-evaluated and closed.
+- The `provenance_content_identity` KNOWN_DEBT and `phase28_identity_migration`
+  NOT_CERTIFIED entries in the R2.9.8 certification are **closed as PASS**
+  (non-mandatory dimensions, both PASS post-migration).

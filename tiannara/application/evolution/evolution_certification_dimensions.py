@@ -8,17 +8,15 @@ carries no behavior -- every ``DimensionVerifier`` delegates to the harness's
 ``verify_*`` methods, which RUN the machinery and reduce the observed evidence
 to a ``DimensionResult``.
 
-Ten mandatory behavioral dimensions are certified. Two recorded debt
-dimensions are non-mandatory and actionable:
+Ten mandatory behavioral dimensions are certified. Two recorded dimensions
+track the Phase-28 identity migration (ADR: adr-phase28-identity-migration);
+post-migration both are CLOSED as ``PASS``:
 
-* ``provenance_content_identity`` -- ``KNOWN_DEBT`` with
-  ``remediation_target="phase28_identity_migration"`` and the R2.9.7 audit
-  evidence (semantic identity is stable and reproducible; the Phase-28
-  ``content_hash`` conflates volatile provenance). It never blocks
-  certification -- it records the actionable next migration.
-* ``phase28_identity_migration`` -- ``NOT_CERTIFIED`` (the migration itself is
-  deliberately out of scope for R2.9.8) and, being non-mandatory, also never
-  blocks certification.
+* ``provenance_content_identity`` -- ``PASS`` (was ``KNOWN_DEBT``): the
+  migration made ``ISR.content_hash`` the semantic projection, so cross-run
+  ``content_reproducible`` is true and provenance is isolated.
+* ``phase28_identity_migration`` -- ``PASS`` (was ``NOT_CERTIFIED``): the
+  ADR's compatibility gates 1-11 all passed and the migration is EXECUTED.
 """
 from __future__ import annotations
 
@@ -93,36 +91,39 @@ def build_dimension_verifiers(
 def build_debt_dimension_verifiers(
     harness: CertificationHarness,
 ) -> dict[str, DimensionVerifier]:
-    """The two recorded debt dimensions. Non-mandatory and actionable: they
-    record the Phase-28 identity migration as the next step without blocking
-    certification of the engine's behavior."""
+    """The two recorded dimensions. Both are CLOSED post-migration: they
+    certify the executed Phase-28 identity migration instead of recording it
+    as debt. Non-mandatory: they never block the behavioral certification."""
 
     def provenance_content_identity() -> DimensionResult:
         return DimensionResult(
             dimension="provenance_content_identity",
-            status=CertificationStatus.KNOWN_DEBT,
+            status=CertificationStatus.PASS,
             mandatory=False,
             evidence=harness.provenance_debt_evidence(),
             notes=(
-                "Phase-28 content_hash conflates volatile provenance "
-                "(created_at, parent_hash) into the hash; the semantic "
-                "identity (R2.9.7 three-identity audit) is stable and "
-                "reproducible. Recorded as actionable debt."
+                "Phase-28 identity migration executed: ISR.content_hash is the "
+                "semantic projection (provenance isolated); cross-run "
+                "content_reproducible=true; governance change-detection intact."
             ),
-            remediation_target="phase28_identity_migration",
+            remediation_target=None,
         )
 
     def phase28_identity_migration() -> DimensionResult:
         return DimensionResult(
             dimension="phase28_identity_migration",
-            status=CertificationStatus.NOT_CERTIFIED,
+            status=CertificationStatus.PASS,
             mandatory=False,
+            evidence={
+                "migration": "executed",
+                "gates": "phase28_migration compatibility gates passed "
+                         "(ADR adr-phase28-identity-migration, status EXECUTED)",
+            },
             notes=(
-                "Phase-28 identity migration (semantic-only content_hash) is "
-                "deliberately out of scope for R2.9.8; recorded as not "
-                "certified and non-mandatory so it never blocks the engine's "
-                "behavioral certification."
+                "Phase-28 identity migration executed and certified; the two "
+                "recorded debt dimensions are closed."
             ),
+            remediation_target=None,
         )
 
     return {

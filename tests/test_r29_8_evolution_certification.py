@@ -14,24 +14,23 @@ Verdict rules (certifier-internal, exercised here):
 * all mandatory PASS                 -> CERTIFIED
 * otherwise (recorded debt/limitation)-> QUALIFIED
 
-The debt dimensions are non-mandatory and actionable:
+The two recorded dimensions track the Phase-28 identity migration (ADR:
+adr-phase28-identity-migration) and are CLOSED post-migration:
 
-* ``provenance_content_identity`` -- KNOWN_DEBT with
-  ``remediation_target="phase28_identity_migration"`` and the R2.9.7 audit
-  evidence (semantic identity stable/reproducible; Phase-28 content_hash
-  conflates volatile provenance). It must NOT block certification.
-* ``phase28_identity_migration`` -- NOT_CERTIFIED (out of scope for R2.9.8),
-  non-mandatory.
+* ``provenance_content_identity`` -- PASS (was KNOWN_DEBT): ``content_hash``
+  is the semantic projection; provenance isolated; content_reproducible=true.
+* ``phase28_identity_migration`` -- PASS (was NOT_CERTIFIED): the migration
+  executed and its compatibility gates passed.
 
 Determinism note (same discipline as R2.9.4-R2.9.7): the base ISR carries
 default provenance and all verification seeds are fixed, so two certifications
 of the same anchors produce the same certification_id and content_hash. The
 content hash canonicalizes sets/enums so it never depends on hash-randomization.
 
-The real-substrate (Docker) path is the honest environment gate: SUCCESS ->
-PASS -> CERTIFIED; POPULATION_EXHAUSTION -> recorded KNOWN_DEBT limitation
-(remediation_target -> r29.3 substrate) -> QUALIFIED; any other failure -> FAIL.
-It is never silent.
+The real-substrate (Docker) dimension remains the honest environment gate:
+SUCCESS -> PASS -> CERTIFIED; POPULATION_EXHAUSTION -> recorded KNOWN_DEBT
+limitation (remediation_target -> r29.3 substrate) -> QUALIFIED; any other
+failure -> FAIL. It is never silent.
 """
 from __future__ import annotations
 
@@ -729,8 +728,9 @@ class CertificationHarness:
                 "divergence_cause": report.divergence_cause,
             },
             notes=(
-                "two independent trajectories reproduce semantically; the "
-                "Phase-28 content divergence is the audited debt" if ok
+                "two independent trajectories reproduce semantically AND by "
+                "content (identity migration executed; content_reproducible "
+                "flipped to true)" if ok
                 else "semantic reproducibility failed"
             ),
         )
@@ -771,7 +771,7 @@ class CertificationHarness:
             _isr(1, resolving=False).system,
         )
         report = self.auditor.audit_identity_separation(derived)
-        ok = report.semantic_is_stable_identity and report.phase28_tainted_by_provenance
+        ok = report.semantic_is_stable_identity and not report.phase28_tainted_by_provenance
         return DimensionResult(
             dimension="identity_separation",
             status=CertificationStatus.PASS if ok else CertificationStatus.FAIL,
@@ -782,8 +782,8 @@ class CertificationHarness:
                 "taint_fields": sorted(report.taint_fields),
             },
             notes=(
-                "semantic identity is stable while the Phase-28 content_hash is "
-                "tainted by provenance (the audited conflation)" if ok
+                "semantic identity is stable and the Phase-28 content_hash is "
+                "NOT tainted by provenance (identity migration executed)" if ok
                 else "identity separation failed"
             ),
         )
@@ -794,12 +794,18 @@ class CertificationHarness:
         _, traj_a = self._run_trajectory(3, seed=0)
         _, traj_b = self._run_trajectory(3, seed=0)
         report = self.auditor.audit_cross_run(traj_a, traj_b)
+        sample = traj_a[0] if traj_a else _isr(1, resolving=False)
         return {
             "semantic_reproducible": report.semantic_reproducible,
             "content_reproducible": report.content_reproducible,
             "divergence_cause": report.divergence_cause,
             "generations_compared": report.generations_compared,
-            "source": "R2.9.7 three-identity reproducibility audit (cross-run evidence)",
+            "content_hash_is_semantic": sample.content_hash
+            == self.extractor.semantic_hash(sample),
+            "migration": "phase28_identity_migration executed "
+                         "(ADR status: EXECUTED)",
+            "source": "Phase-28 identity migration evidence "
+                      "(cross-run audit post-migration)",
         }
 
     # -- real-substrate (Docker) dimension ----------------------------------------
@@ -940,35 +946,36 @@ def test_engine_certified_when_behavioral_pass(cert_harness):
     )
 
 
-# -- 2. Recorded debt does not block ---------------------------------------------
+# -- 2. Recorded dimensions closed post-migration ---------------------------------
 
-def test_known_debt_does_not_block_certification(cert_harness):
+def test_debt_dimensions_closed_post_migration(cert_harness):
     artifact = cert_harness.with_provenance_debt().certify()
     assert artifact.engine_verdict is EngineVerdict.CERTIFIED
     assert artifact.mandatory_passed
     statuses = {d.dimension: d.status for d in artifact.dimensions}
-    assert statuses["provenance_content_identity"] is CertificationStatus.KNOWN_DEBT
-    assert statuses["phase28_identity_migration"] is CertificationStatus.NOT_CERTIFIED
+    assert statuses["provenance_content_identity"] is CertificationStatus.PASS
+    assert statuses["phase28_identity_migration"] is CertificationStatus.PASS
     assert len(artifact.dimensions) == 12
 
 
-# -- 3. The KNOWN_DEBT is actionable ----------------------------------------------
+# -- 3. The migration evidence is recorded -----------------------------------------
 
-def test_known_debt_is_actionable(cert_harness):
+def test_migration_debt_resolved(cert_harness):
     artifact = cert_harness.with_provenance_debt().certify()
-    debt = next(
+    identity = next(
         d for d in artifact.dimensions
         if d.dimension == "provenance_content_identity"
     )
-    assert debt.remediation_target == "phase28_identity_migration"
-    assert debt.evidence.get("divergence_cause") == "provenance_volatility"
-    assert debt.evidence.get("semantic_reproducible") is True
-    assert debt.evidence.get("content_reproducible") is False
+    assert identity.remediation_target is None
+    assert identity.evidence.get("divergence_cause") is None
+    assert identity.evidence.get("semantic_reproducible") is True
+    assert identity.evidence.get("content_reproducible") is True
+    assert identity.evidence.get("content_hash_is_semantic") is True
     migration = next(
         d for d in artifact.dimensions
         if d.dimension == "phase28_identity_migration"
     )
-    assert migration.status is CertificationStatus.NOT_CERTIFIED
+    assert migration.status is CertificationStatus.PASS
     assert not migration.mandatory
 
 

@@ -20,7 +20,6 @@ projections *of* the event chain, exactly as required by the R2.7.5 migration.
 """
 from __future__ import annotations
 
-import copy
 import json
 import os
 import uuid
@@ -32,25 +31,20 @@ from tiannara.domain.services.canonical import canonical_hash
 
 
 def stable_isr_hash(isr: "object") -> str:
-    """Content-stable hash of an ISR.
+    """Stable ISR identity for ledger binding.
 
-    `ISR.content_hash` (tiannara/.../isr/model/isr.py) includes
-    `provenance.created_at` (a `datetime.now()` stamped by `with_system`), so it
-    is non-deterministic across structurally-identical versions -- which would
-    make the ledger's causal links non-reproducible. This hashes the ISR's full
-    canonical serialization *excluding* the volatile `created_at` timestamp,
-    yielding a deterministic, content-addressed identity for ledger linkage.
-    (Recommended upstream fix for Phase 28: make `content_hash` exclude
-    `created_at` so `ISR.content_hash` is itself content-stable.)
+    MIGRATED (Phase-28 identity migration, ADR
+    adr-phase28-identity-migration): previously a strip-``created_at``
+    exclude-list over the full canonical serialization; now delegates to the
+    semantic projection (``semantic_content_hash``), which excludes
+    version/provenance/runtime by construction -- the same identity
+    ``ISR.content_hash`` carries post-migration.
     """
-    from constitutional_architecture.isr.serialization.serializer import ISRSerializer
+    from constitutional_architecture.isr.semantics.projection import (
+        semantic_content_hash,
+    )
 
-    data = copy.deepcopy(ISRSerializer.to_dict(isr))
-    prov = data.get("provenance")
-    if isinstance(prov, dict):
-        prov.pop("created_at", None)
-        data["provenance"] = prov
-    return canonical_hash(data)
+    return semantic_content_hash(isr)
 
 
 class EvolutionRecord(BaseModel):

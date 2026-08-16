@@ -3,8 +3,10 @@
 **Status:** CLOSED · CERTIFIED
 **R2.9.8 certification commit:** `19499b8`
 **R2.9.7 checkpoint commit:** `7ce559c`
-**Full hermetic suite at closure:** 1732 passed, 2 skipped, 6 deselected (299s)
+**Phase-28 identity migration commit:** (migration commit)
+**Full hermetic suite at closure:** 1744 passed, 2 skipped, 7 Docker-gated deselected (811.88s)
 **Docker real-substrate certification:** CERTIFIED (1 passed, 186.97s)
+**Post-migration real-substrate:** R2.9.7 audit passed (243.54s) · R2.9.8 real path passed (295.43s)
 
 ---
 
@@ -25,8 +27,10 @@ R2.4  deterministic repair
 ```
 
 R2.9 does **not** include:
-- The Phase-28 `content_hash` migration (separately gated — see ADR).
 - Generation from requirements / richer ISR / structural crossover (R2.10).
+- The Phase-28 `content_hash` migration was separately gated from R2.9 and is
+  **now executed** (see ADR `adr-phase28-identity-migration.md`, Status:
+  EXECUTED).
 
 ---
 
@@ -66,12 +70,12 @@ certification.
 | evidence_integrity | PASS | R2.8.9/10 — ledger/environment bindings valid; tampering fails |
 | identity_separation | PASS | R2.9.7 — semantic identity independent of provenance/runtime |
 
-### Recorded debt dimensions (non-blocking)
+### Recorded debt dimensions (non-blocking) — CLOSED post-migration
 
 | Dimension | Status | Remediation target |
 |---|---|---|
-| provenance_content_identity | **KNOWN_DEBT** | `phase28_identity_migration` |
-| phase28_identity_migration | **NOT_CERTIFIED** | — (pending, separately gated) |
+| provenance_content_identity | **PASS** (was KNOWN_DEBT) | `phase28_identity_migration` — executed |
+| phase28_identity_migration | **PASS** (was NOT_CERTIFIED) | — (executed; gates green) |
 | real-substrate evolution (Docker) | **KNOWN_DEBT** when `POPULATION_EXHAUSTION` | `r29.3_substrate_population_exhaustion` |
 
 **Overall engine verdict:** `CERTIFIED` (hermetic) · `CERTIFIED` (Docker real path).
@@ -92,17 +96,22 @@ runtime_execution_id   = execution-instance identity            — ephemeral
 
 - `semantic_hash` is the **canonical reproducibility identity**, computed by an
   **inclusion-based projection** (the projector defines what architecture *is*,
-  not "everything except volatile fields").
+  not "everything except volatile fields"). POST-MIGRATION the projection lives
+  in `constitutional_architecture/isr/semantics/projection.py` and **is**
+  `ISR.content_hash` — `content_hash == semantic_hash == stable_isr_hash` on
+  every substrate.
 - Canonical serialization has **no `default=str` fallback** — unhandled types
   raise, forcing explicit canonicalization.
-- The Phase-28 `content_hash` is **known to be tainted by provenance** and is
-  recorded as `KNOWN_DEBT`; it is **not** the reproducibility identity.
+- The Phase-28 `content_hash` provenance taint is **eliminated** by the
+  executed migration; provenance (`created_at`, `parent_hash`) feeds lineage
+  only, never the semantic hash.
 
-Reproducibility contract proven:
+Reproducibility contract proven (post-migration):
 ```
 semantic_reproducible = true
-content_reproducible  = false
-divergence_cause      = provenance_volatility   (compounds at gen ≥ 1)
+content_reproducible  = true
+divergence_cause      = None        (was provenance_volatility)
+phase28_tainted_by_provenance = false
 ```
 
 ---
@@ -111,8 +120,8 @@ divergence_cause      = provenance_volatility   (compounds at gen ≥ 1)
 
 | Debt | Status | Remediation target | ADR |
 |---|---|---|---|
-| Phase-28 `content_hash` conflates provenance into semantic identity | KNOWN_DEBT | `phase28_identity_migration` | `docs/adr/adr-phase28-identity-migration.md` |
-| Phase-28 identity migration not yet executed | NOT_CERTIFIED | — | same ADR |
+| Phase-28 `content_hash` conflated provenance into semantic identity | **RESOLVED** (migration executed; `content_hash` is the semantic projection) | `phase28_identity_migration` | `docs/adr/adr-phase28-identity-migration.md` |
+| Phase-28 identity migration | **EXECUTED** (13 migration gates + full-suite regression green) | — | same ADR |
 | Real-substrate evolution hits `POPULATION_EXHAUSTION` under Docker | KNOWN_DEBT | `r29.3_substrate_population_exhaustion` | `docs/adr/adr-population-exhaustion-disposition.md` |
 
 Every `KNOWN_DEBT` entry carries a remediation target and evidence. Debt is
@@ -130,7 +139,7 @@ tracked, never buried.
 | Each evolution stage independently replaceable | Protocols for variation, crossover, scheduling, diversity policy, semantic projection |
 | Security by design / anti-gaming | Every candidate traverses the R2.8 boundary; scheduler cannot escalate authority |
 | Architectural reasoning transparent | Every decision recorded in the `EvolutionLedger`; `KNOWN_DEBT` recorded with remediation targets |
-| ADRs for significant decisions | Two ADRs committed with this closure |
+| ADRs for significant decisions | Three ADRs committed with this closure |
 | Documentation evolves with implementation | This closure record |
 
 ---
@@ -156,5 +165,6 @@ This is the trust foundation R2.10 (production software generation) stands on.
 existing artifact* to *generating from requirements*: exercises the
 Requirement Graph → ISR pipeline, expands the ISR beyond the FSM substrate
 into Component/Requirement graphs, and introduces structural crossover. R2.10
-inherits the three-identity model and must resolve the Phase-28 identity
-migration before relying on `content_hash` for reproducibility.
+inherits the three-identity model with `content_hash` already semantic
+(Phase-28 identity migration executed), so cross-run reproducibility is
+structural, not patched.

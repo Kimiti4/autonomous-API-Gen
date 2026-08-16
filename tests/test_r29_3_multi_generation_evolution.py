@@ -271,11 +271,18 @@ class IdentityVariation:
 
 class AlwaysInfeasibleVariation:
     """Proposes structurally different but causally-inert candidates every
-    generation -- evaluated, always infeasible, elite always advances."""
+    generation -- evaluated, always infeasible, elite always advances.
+
+    Post Phase-28 identity migration, elite advancement must be ARCHITECTURAL:
+    a seed-unique trigger guarantees the proposed edge is semantically new in
+    every generation (provenance stamping can no longer fabricate novelty).
+    """
 
     def generate(self, defective_isr, observation, population_size, seed):
-        exploration = RandomFSMExploration(max_candidates=3)
-        return exploration.generate(defective_isr, observation, 3, seed)
+        exploration = RandomFSMExploration(
+            trigger_pool=(f"explore-{seed}",), max_candidates=1,
+        )
+        return exploration.generate(defective_isr, observation, 1, seed)
 
 
 class LineageForgingVariation:

@@ -5,6 +5,15 @@ In R2.9.3 this is observe-only: the metrics are recorded in ``EvolutionState``
 but never influence Pareto or selection. Collapsing to entropy 0 is a
 diagnosis, not yet a selection signal -- R2.9.4 decides whether to act, and
 only with evidence.
+
+R2.9.4 evidence correction: ``genotype_entropy`` is Shannon entropy over the
+ISR-hash distribution of the population. The initial definition (entropy over
+the mutation-operator distribution) false-positived on every single-operator
+generation even when every ISR was unique -- the R2.9.4 evidence run showed
+exploration-only generations at H=0.0 / duplicate_rate=0.0 (healthy genotype
+diversity, narrow operator mix). Operator-mix narrowness is an R2.9.5
+proactive-scheduling concern; monoculture is genotype collapse. The operator
+distribution remains recorded as evidence for that work.
 """
 from __future__ import annotations
 
@@ -35,13 +44,14 @@ class DiversityObserver:
         unique_isrs = {stable_isr_hash(c.candidate_isr) for c in candidates}
         unique_deltas = {self._delta_canonical_hash(c) for c in candidates}
         op_dist = dict(Counter(c.operator_id for c in candidates))
+        isr_dist = dict(Counter(stable_isr_hash(c.candidate_isr) for c in candidates))
 
         return DiversityMetrics(
             population_size=population_size,
             unique_isr_count=len(unique_isrs),
             unique_delta_count=len(unique_deltas),
             mutation_operator_distribution=op_dist,
-            genotype_entropy=self._shannon_entropy(op_dist),
+            genotype_entropy=self._shannon_entropy(isr_dist),
             phenotype_diversity=self._phenotype_diversity(scored),
             duplicate_rate=1.0 - (len(unique_isrs) / population_size),
         )
@@ -75,3 +85,30 @@ class DiversityObserver:
             for s in scored
         }
         return round(len(signatures) / len(scored), 6)
+
+    def observe_genotype(self, candidates: Sequence) -> DiversityMetrics:
+        """Genotype-level diversity, computable BEFORE evaluation (R2.9.4).
+
+        The pre-evaluation monoculture check runs before the population is
+        scored; phenotype diversity is therefore 0.0 (not yet known).
+        """
+        population_size = len(candidates)
+        if population_size == 0:
+            return DiversityMetrics(
+                population_size=0, unique_isr_count=0, unique_delta_count=0,
+                mutation_operator_distribution={}, genotype_entropy=0.0,
+                phenotype_diversity=0.0, duplicate_rate=0.0,
+            )
+        unique_isrs = {stable_isr_hash(c.candidate_isr) for c in candidates}
+        unique_deltas = {self._delta_canonical_hash(c) for c in candidates}
+        op_dist = dict(Counter(c.operator_id for c in candidates))
+        isr_dist = dict(Counter(stable_isr_hash(c.candidate_isr) for c in candidates))
+        return DiversityMetrics(
+            population_size=population_size,
+            unique_isr_count=len(unique_isrs),
+            unique_delta_count=len(unique_deltas),
+            mutation_operator_distribution=op_dist,
+            genotype_entropy=self._shannon_entropy(isr_dist),
+            phenotype_diversity=0.0,
+            duplicate_rate=1.0 - (len(unique_isrs) / population_size),
+        )

@@ -308,6 +308,15 @@ class FSMRepairVariation:
         )
         self._exploration_operator = exploration_operator or RandomFSMExploration()
 
+    @property
+    def operator_ids(self) -> tuple[str, ...]:
+        """All operator ids this ensemble can produce (R2.9.5: the scheduler
+        pre-seeds zero-attempt statistics for every known operator, so the
+        exploration floor can reach operators with no history yet)."""
+        return tuple(o.operator_id for o in self._targeted_operators) + (
+            self._exploration_operator.operator_id,
+        )
+
     def generate(
         self,
         defective_isr: ISR,
@@ -326,6 +335,49 @@ class FSMRepairVariation:
             seen.setdefault(candidate.candidate_id, candidate)
         ordered = sorted(seen.values(), key=lambda c: c.candidate_id)
         return tuple(ordered[:population_size])
+
+    def generate_scheduled(
+        self,
+        defective_isr: ISR,
+        observation: FailureObservation,
+        allocation: "BudgetAllocation",
+        seed: int,
+    ) -> Sequence[MutationCandidate]:
+        """R2.9.5: honor a ``BudgetAllocation`` -- which operators get how much
+        search budget. The allocation is a budget, materialization is
+        best-effort (targeted operators are single-shot deterministic
+        proposers on this substrate; exploration is bounded and seeded), and
+        candidates are de-duplicated exactly as in ``generate``.
+
+        Cold start (empty allocation) defers the whole budget to exploration.
+        """
+        from tiannara.application.evolution.operator_scheduling import BudgetAllocation
+
+        seen: dict[str, MutationCandidate] = {}
+        if not allocation.allocations:
+            for candidate in self._exploration_operator.generate(
+                defective_isr, observation, allocation.exploration_reserved, seed
+            ):
+                seen.setdefault(candidate.candidate_id, candidate)
+            return tuple(sorted(seen.values(), key=lambda c: c.candidate_id))
+        by_id = {o.operator_id: o for o in self._targeted_operators}
+        for op_id in sorted(allocation.allocations):
+            count = allocation.allocations[op_id]
+            if op_id == self._exploration_operator.operator_id:
+                for candidate in self._exploration_operator.generate(
+                    defective_isr, observation, count, seed
+                ):
+                    seen.setdefault(candidate.candidate_id, candidate)
+                continue
+            op = by_id.get(op_id)
+            if op is None:
+                continue
+            for _ in range(count):
+                proposed = op.propose(defective_isr, observation)
+                if proposed is not None:
+                    seen.setdefault(proposed.candidate_id, proposed)
+        ordered = sorted(seen.values(), key=lambda c: c.candidate_id)
+        return tuple(ordered)
 
 
 @dataclass(frozen=True)

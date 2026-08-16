@@ -221,13 +221,47 @@ def _strip_awaits(isr: ISR, desc: dict) -> ISR:
     return isr.with_system(dataclasses.replace(isr.system, modules=tuple(new_modules)))
 
 
+def _rewire_transitions(isr: ISR, desc: dict) -> ISR:
+    """R2.9.6 -- replace one workflow's transition set with a single edge.
+
+    A workflow that resolves one defect by re-pointing every transition at the
+    other defect's resolution: fixes the targeted coroutine while silently
+    dropping previously-restored resolutions. Structurally valid (every
+    awaiting surface intact), so the R2.8 invariant layer passes it; the
+    regression tracking of the R2.9.6 coordinator must catch the un-resolved
+    defect through execution.
+    """
+    workflow_id = desc["workflow_id"]
+    from_state_id = desc["from_state_id"]
+    to_state_id = desc["to_state_id"]
+    trigger = desc["trigger"]
+    transition = WorkflowTransition(
+        id=f"resolve-{trigger}",
+        name=f"resolve {trigger}",
+        from_state_id=from_state_id,
+        to_state_id=to_state_id,
+        trigger=trigger,
+    )
+    new_modules = []
+    for module in isr.system.modules:
+        new_wfs = []
+        for wf in module.workflows:
+            if wf.id != workflow_id:
+                new_wfs.append(wf)
+                continue
+            new_wfs.append(dataclasses.replace(wf, transitions=(transition,)))
+        new_modules.append(dataclasses.replace(module, workflows=tuple(new_wfs)))
+    return isr.with_system(dataclasses.replace(isr.system, modules=tuple(new_modules)))
+
+
 def apply_restoration(isr: ISR, diff: tuple[str, ...]) -> ISR:
     """Apply an ISR delta. Entries are R2.3 JSON descriptors; an optional
     ``op`` key dispatches to the R2.9.2 constructive variation primitives
-    (``relax_guard``, ``inject_action``, ``explore``, ``strip_awaits``). The
-    default (no ``op``) is the R2.4.0b transition restoration. Closure is
-    verified by the CausalGate against this exact function, so every new op
-    keeps the same tamper-evident causality guarantee."""
+    (``relax_guard``, ``inject_action``, ``explore``, ``strip_awaits``) and the
+    R2.9.6 ``rewire``. The default (no ``op``) is the R2.4.0b transition
+    restoration. Closure is verified by the CausalGate against this exact
+    function, so every new op keeps the same tamper-evident causality
+    guarantee."""
     current = isr
     for entry in diff:
         desc = json.loads(entry)
@@ -248,6 +282,8 @@ def apply_restoration(isr: ISR, diff: tuple[str, ...]) -> ISR:
             current = _add_exploratory_edge(current, desc)
         elif op == "strip_awaits":
             current = _strip_awaits(current, desc)
+        elif op == "rewire":
+            current = _rewire_transitions(current, desc)
         else:
             raise ValueError(f"unknown variation op {op!r}")
     return current

@@ -88,8 +88,51 @@ from tiannara.application.evolution.evolution_state import (
     derive_generation_id,
 )
 from tiannara.application.evolution.diversity import DiversityObserver
+from tiannara.application.evolution.anti_monoculture import (
+    DeterministicDiversityInjection,
+    DiversityDiagnostics,
+    DiversityPreservationPolicy,
+    MonocultureDetector,
+    MonocultureDiagnostic,
+    MonocultureThresholds,
+)
 from tiannara.application.evolution.multi_generation_evolution import (
     MultiGenerationEvolutionCoordinator,
+)
+from tiannara.application.evolution.operator_scheduling import (
+    BudgetAllocation,
+    EvidenceBasedScheduler,
+    OperatorScheduler,
+    OperatorStatistics,
+)
+from tiannara.application.evolution.multi_defect import (
+    CumulativeResolutionTracker,
+    DefectResolutionProfile,
+    DefectSet,
+    MultiDefectEvaluator,
+    MultiDefectGeneration,
+    MultiDefectRunResult,
+    MultiDefectScore,
+    MultiDefectSelector,
+    MultiDefectVariation,
+    ObservationBoundarySandbox,
+)
+from tiannara.application.evolution.identity import (
+    CanonicalizationError,
+    FSMSemanticProjector,
+    ISRIdentity,
+    IdentityExtractor,
+    ProvenanceIdentity,
+    RuntimeTagged,
+    SemanticProjector,
+    canonicalize,
+    semantic_equivalent,
+    tag_runtime,
+)
+from tiannara.application.evolution.reproducibility_audit import (
+    CrossRunReport,
+    IdentitySeparationReport,
+    ReproducibilityAuditor,
 )
 
 __all__ = [
@@ -149,11 +192,44 @@ __all__ = [
     "AutonomousRepairResult",
     "DiversityMetrics",
     "DiversityObserver",
+    "DeterministicDiversityInjection",
+    "DiversityDiagnostics",
+    "DiversityPreservationPolicy",
+    "MonocultureDetector",
+    "MonocultureDiagnostic",
+    "MonocultureThresholds",
     "EvolutionState",
     "GenerationState",
     "PopulationSnapshot",
     "TerminationReason",
     "MultiGenerationEvolutionCoordinator",
+    "BudgetAllocation",
+    "EvidenceBasedScheduler",
+    "OperatorScheduler",
+    "OperatorStatistics",
     "derive_evolution_id",
     "derive_generation_id",
+    "CumulativeResolutionTracker",
+    "DefectResolutionProfile",
+    "DefectSet",
+    "MultiDefectEvaluator",
+    "MultiDefectGeneration",
+    "MultiDefectRunResult",
+    "MultiDefectScore",
+    "MultiDefectSelector",
+    "MultiDefectVariation",
+    "ObservationBoundarySandbox",
+    "CanonicalizationError",
+    "FSMSemanticProjector",
+    "ISRIdentity",
+    "IdentityExtractor",
+    "ProvenanceIdentity",
+    "RuntimeTagged",
+    "SemanticProjector",
+    "canonicalize",
+    "semantic_equivalent",
+    "tag_runtime",
+    "CrossRunReport",
+    "IdentitySeparationReport",
+    "ReproducibilityAuditor",
 ]

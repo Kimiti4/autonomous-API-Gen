@@ -120,6 +120,7 @@ class EventType(str, enum.Enum):
     FEEDBACK = "feedback"
     CERTIFICATION = "certification"  # R2.8.14: chain-anchored certification artifact
     GENERATION_COMPLETED = "generation_completed"  # R2.9.3: one generation of the search
+    SCHEDULER_DECISION = "scheduler_decision"  # R2.9.5: search-budget allocation + evidence snapshot
 
 
 class EvolutionEvent(BaseModel):

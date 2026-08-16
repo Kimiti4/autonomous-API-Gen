@@ -31,8 +31,12 @@ class DiversityMetrics:
     """Observed-only diversity for one generation (R2.9.4's empirical basis).
 
     Recorded in ``EvolutionState``; NEVER used as a selection objective in
-    R2.9.3. ``genotype_entropy`` is Shannon entropy over the mutation-operator
-    distribution -- 0.0 is the monoculture diagnostic.
+    R2.9.3/R2.9.4. ``genotype_entropy`` is Shannon entropy over the ISR-hash
+    distribution of the population -- 0.0 is the monoculture diagnostic
+    (identical ISRs dominate). The R2.9.4 evidence run corrected the initial
+    operator-distribution definition, which false-positived on healthy
+    single-operator generations; the operator mix stays recorded via
+    ``mutation_operator_distribution`` for R2.9.5's proactive scheduling.
     """
 
     population_size: int

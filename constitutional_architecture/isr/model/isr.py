@@ -13,6 +13,9 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from constitutional_architecture.isr.model.system import System
+from constitutional_architecture.isr.semantics.boundary import (
+    validate_system_boundary_constraints,
+)
 from constitutional_architecture.isr.semantics.capability import (
     validate_system_capability_constraints,
 )
@@ -100,5 +103,7 @@ class ISR:
         if validate_system_capability_constraints(self.system):
             return False
         if validate_system_reliability_constraints(self.system):
+            return False
+        if validate_system_boundary_constraints(self.system):
             return False
         return True

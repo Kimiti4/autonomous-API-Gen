@@ -466,15 +466,24 @@ DEFAULT_PROBES: tuple[StaticCapabilityProbe, ...] = (
     StaticCapabilityProbe(
         capability_id="architecture_boundaries",
         name="Architecture: boundaries",
-        description="Dependency direction, layering, and coupling limits.",
-        carrier="(none)",
-        gene_paths=(),
+        description="Semantic constraints on relationships between genes: what may or may not cross a boundary.",
+        carrier="System.architectural_boundaries (ArchitecturalBoundary)",
+        gene_paths=("system.architectural_boundaries[*]",),
         constitutional_ids=("components",),
         machinery=True,
-        represented=False,
+        represented=True,
+        independently_mutatable=True,
+        independently_validatable=True,
+        compilable=True,
+        observable=True,
+        lineage_tracked=True,
         evidence=(
-            "NOT represented: dependencies are directionless id strings; no layering/direction carrier",
-            "Constraint(rule_type/parameters) is free-form text, not enforceable direction semantics",
+            "represented: ArchitecturalBoundary(member_refs, forbidden_dependency_refs, protected, crossing_invariants) — R2.10.3-E",
+            "mutatable: BoundaryOperator (add/remove/set_forbidden_refs/generate) with MEASUREMENT lineage; protected-boundary removal rejected as ConstitutionalViolation",
+            "validatable: BoundaryValidationError at construction; validate_system_boundary_constraints rejects dangling member/forbidden refs and duplicate ids pre-execution",
+            "compilable: project_architectural_boundaries lowers the constraint; no realization leakage (BOUNDARY_MECHANISM_TERMS lint)",
+            "observable: boundary gene stays byte-identical while its members' implementations evolve (reference-by-identity)",
+            "lineage: boundary mutations are operator-attributed MEASUREMENT events, chain-anchored in the ledger",
         ),
     ),
     # -- deployment ------------------------------------------------------------
@@ -846,6 +855,8 @@ def gene_index(isr: ISR) -> dict[str, str]:
         idx[f"system.business_capabilities[{ci}]"] = _gene_hash(capability)
     for ri, requirement in enumerate(system.reliability_requirements):
         idx[f"system.reliability_requirements[{ri}]"] = _gene_hash(requirement)
+    for bi, boundary in enumerate(system.architectural_boundaries):
+        idx[f"system.architectural_boundaries[{bi}]"] = _gene_hash(boundary)
     for mi, module in enumerate(system.modules):
         base = f"system.modules[{mi}]"
         idx[base] = _gene_hash((module.id, module.name, module.description, module.metadata))

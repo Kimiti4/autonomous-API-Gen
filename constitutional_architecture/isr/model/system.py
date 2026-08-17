@@ -9,6 +9,7 @@ from typing import Optional
 
 from constitutional_architecture.isr.model.deployment import Deployment
 from constitutional_architecture.isr.model.module import Module
+from constitutional_architecture.isr.semantics.boundary import ArchitecturalBoundary
 from constitutional_architecture.isr.semantics.capability import BusinessCapability
 from constitutional_architecture.isr.semantics.reliability import ReliabilityRequirement
 
@@ -34,6 +35,7 @@ class System:
     constraints: tuple = ()
     business_capabilities: tuple[BusinessCapability, ...] = ()
     reliability_requirements: tuple[ReliabilityRequirement, ...] = ()
+    architectural_boundaries: tuple[ArchitecturalBoundary, ...] = ()
 
     def get_module(self, module_id: str) -> Optional[Module]:
         for m in self.modules:

@@ -44,6 +44,11 @@ from constitutional_architecture.isr.semantics.reliability import (
     assert_reliability_technology_agnostic, project_reliability_requirements,
     reliability_mechanism_hits, validate_system_reliability_constraints,
 )
+from constitutional_architecture.isr.semantics.boundary import (
+    ArchitecturalBoundary, BoundaryValidationError,
+    assert_boundary_technology_agnostic, boundary_mechanism_hits,
+    project_architectural_boundaries, validate_system_boundary_constraints,
+)
 from constitutional_architecture.isr.completeness import CompletenessLevel
 
 __all__ = [
@@ -73,5 +78,8 @@ __all__ = [
     "ReliabilityRequirement", "ReliabilityValidationError",
     "assert_reliability_technology_agnostic", "project_reliability_requirements",
     "reliability_mechanism_hits", "validate_system_reliability_constraints",
+    "ArchitecturalBoundary", "BoundaryValidationError",
+    "assert_boundary_technology_agnostic", "boundary_mechanism_hits",
+    "project_architectural_boundaries", "validate_system_boundary_constraints",
     "CompletenessLevel",
 ]

@@ -581,6 +581,96 @@ evolution_objectives_protected_regions.
 
 ---
 
+## 8g. R2.10.3-E — architecture_boundaries (constraint on relationships)
+
+A boundary is a SEMANTIC constraint on relationships between genes — NOT a
+module, a service, or a deployment unit. It declares what may or may not
+cross it. A backend may realize it as a module / package / process /
+service / network boundary / repository / container, but NONE of those
+realizations is part of the primitive.
+
+**Construct.** `constitutional_architecture/isr/semantics/boundary.py`:
+`ArchitecturalBoundary(boundary_id, member_refs, forbidden_dependency_refs,
+protected, crossing_invariants)` — deliberately the MINIMUM carrier R2.8.6
+already proved. `member_refs` + `forbidden_dependency_refs` + `protected` is
+exactly the semantic content the architectural-integrity gate enforced on
+the FSM substrate, now elevated into the constitutional ISR as a
+first-class gene. `allowed_crossings` and richer dependency-direction
+semantics are future extensions, added only when a concrete substrate needs
+them. Carrier `System.architectural_boundaries` — system-level, since
+boundaries span the architecture. References resolve against the R2.9.7
+ArchitecturalSkeleton identity space (modules, services, workflows,
+interfaces, policies, entities) plus business capabilities.
+
+**The migration, explicit.** Architecture protection moves from anti-gaming
+infrastructure into the constitutional ISR:
+
+```
+R2.8.6  architectural invariant enforcement (substrate-specific)
+  → R2.10.3-E  first-class architectural boundary gene (general ISR)
+    → future substrates: component / requirement / service / deployment graphs
+```
+
+Two scope boundaries held: (1) E does NOT wire the R2.8.6 enforcement
+machinery to read from the gene — that is a follow-up integration, and
+doing both in one slice would blur the "gene lands, then enforcement
+consumes it" sequencing; (2) E does NOT add capability→boundary or
+reliability→boundary references — those compositions belong to B and D once
+the boundary gene exists to reference. E only makes the boundary
+referenceable.
+
+**Protected-boundary preservation, elevated into the operator.** Removal of
+a `protected` boundary raises `ConstitutionalViolation` — the R2.8.6
+silent-removal rule, upheld at the mutation boundary by `BoundaryOperator`
+itself. Unprotected removal restores the exact prior content hash.
+
+**Realization-neutrality — the double guard.** (1) Field-name test: no
+`package`/`container`/`process`/`pod`/`network`/`deploy` field can exist —
+nowhere to put a realization. (2) `BOUNDARY_MECHANISM_TERMS` lint (package,
+namespace, container, pod, process_id, service_mesh, network_zone, vpc,
+subnet, region, deployment_unit, kubernetes, docker) gates the canonical
+semantic form. The lint rejects realization TECHNOLOGY terms, never
+references to ISR genes — `member_refs` referencing `Module`/capability
+identities passes (proven by test).
+
+**The substance of the slice — reference-by-identity.** The boundary gene
+stays byte-identical while its members' implementations evolve; a boundary
+mutation moves only the boundary gene. Architecture is therefore an
+independently evolvable dimension — the precondition for the Evolution
+Engine to one day ask "re-architect this boundary" rather than only
+"mutate this workflow".
+
+**Non-inference proven both directions.** Different declared memberships
+over identical module structures → different boundary genes; equivalent
+declarations over differently structured implementations → the same
+boundary gene.
+
+**Gates (all green).** Eleven-gate protocol reused (representation /
+canonicalization — empty carrier identity-neutral, recipe `isr_hash`
+unchanged `317b62a8…` / semantic identity — add→hash moves,
+forbidden-change→hash moves, remove→hash restores / validation /
+locality — adding a boundary touches no behavior/capability/migration/
+temporal/reliability/entity gene / projection —
+`project_architectural_boundaries`, semantics only, zero coupling terms,
+zero realization terms / compilation — `async_resolution_module`
+byte-identical / evidence / lineage — MEASUREMENT attribution with
+before/after hashes / reproducibility — deterministic generation incl.
+single-module fallback to capability-enclosing boundaries / audit).
+
+**Audit gate — exactly one row moved** (pre-landing matrix 6/18/0/6, after
+R2.10.3-D): `architecture_boundaries`: MISSING → EXPRESSED, asserted
+mechanically as `moved_rows == {"architecture_boundaries": ("MISSING",
+"EXPRESSED")}`. Re-attested matrix: **7 EXPRESSED / 18 PARTIAL /
+0 PROJECTED / 5 MISSING**, matrix content hash
+`140f0e41d51409111afdfef340d70d75…` (recipe isr_hash unchanged — Option A,
+fifth use).
+
+Remaining MISSING (5): deployment_rollout_rollback,
+requirements_acceptance_traceability, documentation, testing_anchoring,
+evolution_objectives_protected_regions.
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -588,7 +678,7 @@ evolution_objectives_protected_regions.
 ```
 R2.10.1  ISR capability/expressivity audit        ← executed
 R2.10.2  Missing ISR primitives (the 10 MISSING rows above)  ← contract suite + Option A migration
-R2.10.3  Primitive roots, in derived order         ← A behavior_temporal_semantics (3/18/0/9) + B business_capabilities (4/18/0/8) + C data_migrations (5/18/0/7) + D reliability_resilience (6/18/0/6) landed; E architecture_boundaries next
+R2.10.3  Primitive roots, in derived order         ← A temporal (3/18/0/9) + B capabilities (4/18/0/8) + C migrations (5/18/0/7) + D reliability (6/18/0/6) + E boundaries (7/18/0/5) landed; F requirements_acceptance_traceability next
 R2.10.4  Architectural subgraph mutation — includes the Requirement Graph
          → ISR construction (the unbuilt top half), explicitly sequenced, not deferred
 R2.10.5  Safe structural crossover (chromosome families/genes: Architecture,

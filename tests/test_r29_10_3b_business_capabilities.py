@@ -462,6 +462,7 @@ class CapabilityPrimitiveHarness:
             "behavior_temporal_semantics", "business_capabilities",
             "data_migrations",  # R2.10.3-C
             "reliability_resilience",  # R2.10.3-D
+            "architecture_boundaries",  # R2.10.3-E
         }
         post_partial = {
             "behavior_guards_actions", "behavior_state_semantics",
@@ -475,7 +476,7 @@ class CapabilityPrimitiveHarness:
             "operational_policies", "evolution_lineage_provenance",
         }
         post_missing = {
-            "architecture_boundaries", "deployment_rollout_rollback",
+            "deployment_rollout_rollback",
             "requirements_acceptance_traceability",
             "documentation", "testing_anchoring",
             "evolution_objectives_protected_regions",

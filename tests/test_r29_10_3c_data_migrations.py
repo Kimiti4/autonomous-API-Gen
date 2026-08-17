@@ -504,6 +504,7 @@ class MigrationPrimitiveHarness:
             "behavior_temporal_semantics", "business_capabilities",
             "data_migrations",
             "reliability_resilience",  # R2.10.3-D
+            "architecture_boundaries",  # R2.10.3-E
         }
         post_partial = {
             "behavior_guards_actions", "behavior_state_semantics",
@@ -517,7 +518,7 @@ class MigrationPrimitiveHarness:
             "operational_policies", "evolution_lineage_provenance",
         }
         post_missing = {
-            "architecture_boundaries", "deployment_rollout_rollback",
+            "deployment_rollout_rollback",
             "requirements_acceptance_traceability",
             "documentation", "testing_anchoring",
             "evolution_objectives_protected_regions",
@@ -769,15 +770,15 @@ def test_audit_moves_exactly_one_row(mig_harness):
     by_id = {c.capability_id: c.status for c in result.capabilities}
     expressed = {cid for cid, s in by_id.items() if s is CapabilityStatus.EXPRESSED}
     missing = {cid for cid, s in by_id.items() if s is CapabilityStatus.MISSING}
-    # Pre-landing (R2.10.3-C) matrix: 5/18/0/7.
+    # Pre-landing (R2.10.3-D) matrix: 6/18/0/6.
     pre_expressed = {
         "behavior_transitions", "behavior_await_surface",
         "behavior_temporal_semantics", "business_capabilities",
-        "data_migrations",
+        "data_migrations", "reliability_resilience",
     }
     pre_missing = {
         "architecture_boundaries", "deployment_rollout_rollback",
-        "requirements_acceptance_traceability", "reliability_resilience",
+        "requirements_acceptance_traceability",
         "documentation", "testing_anchoring",
         "evolution_objectives_protected_regions",
     }
@@ -787,5 +788,5 @@ def test_audit_moves_exactly_one_row(mig_harness):
         after = "EXPRESSED" if cid in expressed else "MISSING"
         if before != after:
             moved_rows[cid] = (before, after)
-    assert moved_rows == {"reliability_resilience": ("MISSING", "EXPRESSED")}
-    assert (len(expressed), 18, 0, len(missing)) == (6, 18, 0, 6)  # NOT 5/18/0/7
+    assert moved_rows == {"architecture_boundaries": ("MISSING", "EXPRESSED")}
+    assert (len(expressed), 18, 0, len(missing)) == (7, 18, 0, 5)  # NOT 6/18/0/6

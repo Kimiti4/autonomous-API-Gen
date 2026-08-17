@@ -11,6 +11,7 @@ from constitutional_architecture.isr.model.deployment import Deployment
 from constitutional_architecture.isr.model.module import Module
 from constitutional_architecture.isr.semantics.boundary import ArchitecturalBoundary
 from constitutional_architecture.isr.semantics.capability import BusinessCapability
+from constitutional_architecture.isr.semantics.deployment import DeploymentIntent
 from constitutional_architecture.isr.semantics.reliability import ReliabilityRequirement
 from constitutional_architecture.isr.semantics.requirement import (
     AcceptanceCriterion,
@@ -33,6 +34,12 @@ class System:
     name: str
     description: str = ""
     modules: tuple[Module, ...] = ()
+    # Environment attributes: WHERE the system runs (tier, scaling bounds,
+    # networking, monitoring paths, storage, secrets). Distinct from
+    # deployment_intents (R2.10.3-G), which declares the LIFECYCLE contract:
+    # WHAT a change must accomplish, under what conditions, WHAT must remain
+    # preserved, WHEN rollback is required. Environment vs intent — never
+    # mixed, both empty identity-neutral (Option A).
     deployment: Optional[Deployment] = None
     metadata: SystemMetadata = field(default_factory=SystemMetadata)
     global_policies: tuple[str, ...] = ()
@@ -42,6 +49,7 @@ class System:
     architectural_boundaries: tuple[ArchitecturalBoundary, ...] = ()
     requirements: tuple[Requirement, ...] = ()
     acceptance_criteria: tuple[AcceptanceCriterion, ...] = ()
+    deployment_intents: tuple[DeploymentIntent, ...] = ()
 
     def get_module(self, module_id: str) -> Optional[Module]:
         for m in self.modules:

@@ -752,6 +752,91 @@ testing_anchoring, evolution_objectives_protected_regions.
 
 ---
 
+## 8i. R2.10.3-G — deployment_rollout_rollback (intent and lifecycle guarantees)
+
+Deployment is where the gravity toward infrastructure specification is
+strongest — the entire culture expresses deployment as Kubernetes manifests,
+replica counts, and CI/CD pipelines. G holds TWO distinct boundaries because
+they fail differently:
+
+1. **NO realization technology in the gene.** The construct is STRUCTURALLY
+   incapable of carrying one (field-name test: nowhere to put `replica_count`,
+   `pod_spec`, `container_image`, `manifest`, `pipeline`, `command`,
+   `script`) AND the `DEPLOYMENT_MECHANISM_TERMS` lint gates the canonical
+   semantic form — orchestration platforms (kubernetes, k8s, docker, ecs,
+   ec2, lambda, nomad, mesos), IaC tooling (terraform, pulumi,
+   cloudformation, ansible, helm, kubectl), cloud providers (aws, gcp,
+   azure), realization mechanics (replica_count, pod_spec, container_image,
+   deployment_manifest, ingress, load_balancer_config, service_mesh), CI/CD
+   tooling (jenkins, github_actions, gitlab_ci, circleci, argo). The lint
+   asymmetry is proven: CANARY / BLUE_GREEN are SEMANTIC strategies and
+   PASS; kubernetes and replica_count FAIL.
+
+2. **NO backward leak into architecture.** Deployment references
+   architecture (targets = capabilities/modules) by identity; a deployment
+   mutation must never propagate into the boundary genes it references. The
+   G-specific proof: changing the rollout strategy CANARY → BLUE_GREEN moves
+   only the deployment gene — every boundary gene stays byte-identical.
+
+**Construct.** `constitutional_architecture/isr/semantics/deployment.py`:
+`DeploymentIntent(deployment_id, target_refs, rollout_strategy,
+rollout_constraints, health_requirements, rollback_required,
+rollback_target_ref, rollback_invariants, preservation_requirements)` with
+`RolloutStrategy` (IMMEDIATE, CANARY, BLUE_GREEN, PROGRESSIVE) — semantic
+rollout behaviors, WHAT the rollout accomplishes, never HOW. A backend may
+realize CANARY via K8s, ECS, or manual traffic shifting, provided the
+declared semantic holds.
+
+**CARRIER DECISION (documented, not ambiguous).** `System.deployment_intents`
+is a NEW carrier alongside the pre-existing `System.deployment` environment
+placeholder — two DIFFERENT semantic layers: `System.deployment` describes
+the ENVIRONMENT (tier, scaling bounds, networking, monitoring paths,
+storage, secrets — static attributes of where the system runs);
+`System.deployment_intents` declares the LIFECYCLE contract (WHAT a change
+must accomplish, under what conditions, WHAT must remain preserved, WHEN
+rollback is required). Folding intent into the environment placeholder
+would mix "what the environment is" with "how a change must proceed". Both
+carriers are empty identity-neutral (Option A).
+
+**Rollback reuses C's rollback-as-invariant pattern.** Rollback is a
+contract about what must be restored, never a command: no `rollback_command`,
+no scripts, no kubectl. `rollback_target_ref` must name one of the intent's
+OWN targets (C's rule: rollback restores a member of the operation's own
+refs) — validated pre-execution, along with duplicate ids and dangling
+target refs (resolving against capabilities + modules, E's member-ref
+identity space).
+
+**The substance of the slice — deployment as an independently evolvable
+lifecycle dimension.** Forward: a deployed target's implementation evolves
+while the deployment gene stays byte-identical. Backward: a deployment
+policy change moves only the deployment gene, never the boundary genes it
+references. Together they prove deployment composes with architecture by
+reference only — a lifecycle concern over architecture, never a trojan
+horse for re-encoding it.
+
+**Gates (all green).** Eleven-gate protocol reused (representation /
+canonicalization — empty carrier identity-neutral, recipe `isr_hash`
+unchanged `317b62a8…` — seventh Option A use / semantic identity —
+add→hash moves, strategy-change→hash moves, remove→hash restores /
+validation / locality — adding an intent touches no behavior/capability/
+migration/temporal/reliability/boundary/requirement/entity gene /
+projection — `project_deployment_intents`, semantics only, zero coupling
+terms, zero realization terms / compilation — `async_resolution_module`
+byte-identical / evidence / lineage — MEASUREMENT attribution with
+before/after hashes / reproducibility / audit).
+
+**Audit gate — exactly one row moved** (pre-landing matrix 8/18/0/4, after
+R2.10.3-F): `deployment_rollout_rollback`: MISSING → EXPRESSED, asserted
+mechanically as `moved_rows == {"deployment_rollout_rollback": ("MISSING",
+"EXPRESSED")}`. Re-attested matrix: **9 EXPRESSED / 18 PARTIAL /
+0 PROJECTED / 3 MISSING**, recipe isr_hash unchanged `317b62a8…` — Option
+A, seventh use.
+
+Remaining MISSING (3): documentation, testing_anchoring,
+evolution_objectives_protected_regions.
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -759,7 +844,7 @@ testing_anchoring, evolution_objectives_protected_regions.
 ```
 R2.10.1  ISR capability/expressivity audit        ← executed
 R2.10.2  Missing ISR primitives (the 10 MISSING rows above)  ← contract suite + Option A migration
-R2.10.3  Primitive roots, in derived order         ← A temporal (3/18/0/9) + B capabilities (4/18/0/8) + C migrations (5/18/0/7) + D reliability (6/18/0/6) + E boundaries (7/18/0/5) + F requirements (8/18/0/4) landed; G deployment_rollout_rollback next
+R2.10.3  Primitive roots, in derived order         ← A temporal (3/18/0/9) + B capabilities (4/18/0/8) + C migrations (5/18/0/7) + D reliability (6/18/0/6) + E boundaries (7/18/0/5) + F requirements (8/18/0/4) + G deployment (9/18/0/3) landed; H testing_anchoring next
 R2.10.4  Architectural subgraph mutation — includes the Requirement Graph
          → ISR construction (the unbuilt top half), explicitly sequenced, not deferred
 R2.10.5  Safe structural crossover (chromosome families/genes: Architecture,

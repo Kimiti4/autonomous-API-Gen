@@ -408,7 +408,7 @@ def test_a_integrity_and_coverage() -> None:
         )
     assert result.isr_hash == RECIPE.content_hash
     assert result.summary()["expressed"] >= 2
-    assert result.summary()["missing"] >= 4
+    assert result.summary()["missing"] >= 3
 
 
 def test_a_expected_matrix() -> None:
@@ -423,6 +423,7 @@ def test_a_expected_matrix() -> None:
     assert by_id["reliability_resilience"] is CapabilityStatus.EXPRESSED  # R2.10.3-D
     assert by_id["architecture_boundaries"] is CapabilityStatus.EXPRESSED  # R2.10.3-E
     assert by_id["requirements_acceptance_traceability"] is CapabilityStatus.EXPRESSED  # R2.10.3-F
+    assert by_id["deployment_rollout_rollback"] is CapabilityStatus.EXPRESSED  # R2.10.3-G
     for partial_id in (
         "behavior_guards_actions", "behavior_state_semantics",
         "behavior_events_triggers", "behavior_error_states",
@@ -436,7 +437,6 @@ def test_a_expected_matrix() -> None:
     ):
         assert by_id[partial_id] is CapabilityStatus.PARTIAL, partial_id
     for missing_id in (
-        "deployment_rollout_rollback",
         "documentation", "testing_anchoring",
         "evolution_objectives_protected_regions",
     ):
@@ -606,7 +606,7 @@ def test_g_audit_record_is_chain_anchored(tmp_path: Path) -> None:
     assert event.subject_id == result.content_hash()[:32]
     assert event.payload["audit_content_hash"] == result.content_hash()
     assert event.payload["integrity"] is True
-    assert event.payload["summary"]["expressed"] == 8  # R2.10.3-A..F landed
+    assert event.payload["summary"]["expressed"] == 9  # R2.10.3-A..G landed
 
     # tamper-evidence: editing any assessment field breaks the chain
     tampered = event.model_copy(update={"payload": {**event.payload, "summary": {"expressed": 99}}})

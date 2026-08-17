@@ -49,6 +49,11 @@ from constitutional_architecture.isr.semantics.boundary import (
     assert_boundary_technology_agnostic, boundary_mechanism_hits,
     project_architectural_boundaries, validate_system_boundary_constraints,
 )
+from constitutional_architecture.isr.semantics.deployment import (
+    DeploymentIntent, DeploymentValidationError, RolloutStrategy,
+    assert_deployment_technology_agnostic, deployment_mechanism_hits,
+    project_deployment_intents, validate_system_deployment_constraints,
+)
 from constitutional_architecture.isr.semantics.requirement import (
     AcceptanceCriterion, ObligationKind, Requirement, RequirementValidationError,
     assert_requirement_technology_agnostic, project_acceptance_criteria,
@@ -87,6 +92,9 @@ __all__ = [
     "ArchitecturalBoundary", "BoundaryValidationError",
     "assert_boundary_technology_agnostic", "boundary_mechanism_hits",
     "project_architectural_boundaries", "validate_system_boundary_constraints",
+    "DeploymentIntent", "DeploymentValidationError", "RolloutStrategy",
+    "assert_deployment_technology_agnostic", "deployment_mechanism_hits",
+    "project_deployment_intents", "validate_system_deployment_constraints",
     "AcceptanceCriterion", "ObligationKind", "Requirement",
     "RequirementValidationError",
     "assert_requirement_technology_agnostic", "project_acceptance_criteria",

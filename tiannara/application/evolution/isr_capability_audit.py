@@ -510,12 +510,25 @@ DEFAULT_PROBES: tuple[StaticCapabilityProbe, ...] = (
         capability_id="deployment_rollout_rollback",
         name="Deployment: rollout / rollback",
         description="Rollout strategies, rollback plans, and canary/staged promotion.",
-        carrier="(none)",
-        gene_paths=(),
+        carrier="System.deployment_intents (DeploymentIntent)",
+        gene_paths=("system.deployment_intents[*]",),
         constitutional_ids=("deployment",),
-        represented=False,
+        represented=True,
+        independently_mutatable=True,
+        independently_validatable=True,
+        compilable=True,
+        observable=True,
+        lineage_tracked=True,
         evidence=(
-            "NOT represented: no rollout/rollback carrier in Deployment",
+            "represented: DeploymentIntent(target_refs, rollout_strategy, rollout_constraints, health_requirements)",
+            "represented: rollback contract — rollback_required + rollback_target_ref + rollback_invariants (C's pattern, never a command)",
+            "mutatable: DeploymentOperator (add/remove/set_rollout_strategy/set_health_requirements/generate)",
+            "validatable: validate_system_deployment_constraints — duplicate ids, dangling target refs, rollback target must be an own target",
+            "compilable: deployment intent is lifecycle semantics, never a manifest or pipeline",
+            "observable: project_deployment_intents projection",
+            "lineage: MEASUREMENT events per mutation with before/after hashes",
+            "CARRIER DECISION: System.deployment (environment attributes) vs System.deployment_intents (lifecycle intent) — distinct layers, both Option A",
+            "rollout strategies CANARY/BLUE_GREEN are semantic and pass the lint; kubernetes/replica_count fail",
         ),
     ),
     # -- data ------------------------------------------------------------------
@@ -846,8 +859,9 @@ def gene_index(isr: ISR) -> dict[str, str]:
     workflow, state, transition, policy, interface, endpoint, event, constraint,
     temporal constraint, business capability, data migration, deployment
     sub-config, reliability requirement, architectural boundary, requirement,
-    acceptance criterion) is one gene. ``canonicalize`` is the shared single
-    source of truth, so gene hashes compose with the ISR's content hash.
+    acceptance criterion, deployment intent) is one gene. ``canonicalize`` is
+    the shared single source of truth, so gene hashes compose with the ISR's
+    content hash.
     """
     idx: dict[str, str] = {}
     system = isr.system
@@ -874,6 +888,8 @@ def gene_index(isr: ISR) -> dict[str, str]:
         idx[f"system.requirements[{ri}]"] = _gene_hash(requirement)
     for ci, criterion in enumerate(system.acceptance_criteria):
         idx[f"system.acceptance_criteria[{ci}]"] = _gene_hash(criterion)
+    for di, intent in enumerate(system.deployment_intents):
+        idx[f"system.deployment_intents[{di}]"] = _gene_hash(intent)
     for mi, module in enumerate(system.modules):
         base = f"system.modules[{mi}]"
         idx[base] = _gene_hash((module.id, module.name, module.description, module.metadata))

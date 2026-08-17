@@ -12,6 +12,10 @@ from constitutional_architecture.isr.model.module import Module
 from constitutional_architecture.isr.semantics.boundary import ArchitecturalBoundary
 from constitutional_architecture.isr.semantics.capability import BusinessCapability
 from constitutional_architecture.isr.semantics.reliability import ReliabilityRequirement
+from constitutional_architecture.isr.semantics.requirement import (
+    AcceptanceCriterion,
+    Requirement,
+)
 
 
 @dataclass(frozen=True)
@@ -36,6 +40,8 @@ class System:
     business_capabilities: tuple[BusinessCapability, ...] = ()
     reliability_requirements: tuple[ReliabilityRequirement, ...] = ()
     architectural_boundaries: tuple[ArchitecturalBoundary, ...] = ()
+    requirements: tuple[Requirement, ...] = ()
+    acceptance_criteria: tuple[AcceptanceCriterion, ...] = ()
 
     def get_module(self, module_id: str) -> Optional[Module]:
         for m in self.modules:

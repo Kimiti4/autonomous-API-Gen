@@ -556,7 +556,7 @@ class BoundaryPrimitiveHarness:
             "behavior_transitions", "behavior_await_surface",
             "behavior_temporal_semantics", "business_capabilities",
             "data_migrations", "reliability_resilience",
-            "architecture_boundaries",
+            "architecture_boundaries", "requirements_acceptance_traceability",
         }
         post_partial = {
             "behavior_guards_actions", "behavior_state_semantics",
@@ -571,7 +571,6 @@ class BoundaryPrimitiveHarness:
         }
         post_missing = {
             "deployment_rollout_rollback",
-            "requirements_acceptance_traceability",
             "documentation", "testing_anchoring",
             "evolution_objectives_protected_regions",
         }
@@ -592,9 +591,9 @@ class BoundaryPrimitiveHarness:
         return _result(
             "audit",
             matrix_ok and one_row_only,
-            f"summary: {result.summary()}; expected 7/18/0/5 with exactly "
-            f"architecture_boundaries: MISSING -> EXPRESSED and the other 29 "
-            f"rows untouched",
+            f"summary: {result.summary()}; expected 8/18/0/4 with exactly "
+            f"requirements_acceptance_traceability: MISSING -> EXPRESSED "
+            f"vs the pre-landing (R2.10.3-E) 7/18/0/5",
         )
 
 
@@ -832,15 +831,16 @@ def test_audit_moves_exactly_one_row(bd_harness):
     by_id = {c.capability_id: c.status for c in result.capabilities}
     expressed = {cid for cid, s in by_id.items() if s is CapabilityStatus.EXPRESSED}
     missing = {cid for cid, s in by_id.items() if s is CapabilityStatus.MISSING}
-    # Pre-landing (R2.10.3-D) matrix: 6/18/0/6.
+    # Pre-landing (R2.10.3-E) matrix: 7/18/0/5.
     pre_expressed = {
         "behavior_transitions", "behavior_await_surface",
         "behavior_temporal_semantics", "business_capabilities",
         "data_migrations", "reliability_resilience",
+        "architecture_boundaries",
     }
     pre_missing = {
-        "architecture_boundaries", "deployment_rollout_rollback",
         "requirements_acceptance_traceability",
+        "deployment_rollout_rollback",
         "documentation", "testing_anchoring",
         "evolution_objectives_protected_regions",
     }
@@ -850,5 +850,7 @@ def test_audit_moves_exactly_one_row(bd_harness):
         after = "EXPRESSED" if cid in expressed else "MISSING"
         if before != after:
             moved_rows[cid] = (before, after)
-    assert moved_rows == {"architecture_boundaries": ("MISSING", "EXPRESSED")}
-    assert (len(expressed), 18, 0, len(missing)) == (7, 18, 0, 5)  # NOT 6/18/0/6
+    assert moved_rows == {
+        "requirements_acceptance_traceability": ("MISSING", "EXPRESSED")
+    }
+    assert (len(expressed), 18, 0, len(missing)) == (8, 18, 0, 4)  # NOT 7/18/0/5

@@ -671,6 +671,87 @@ evolution_objectives_protected_regions.
 
 ---
 
+## 8h. R2.10.3-F — requirements_acceptance_traceability (obligations, not tasks)
+
+The ISR declares what the system must accomplish (`Requirement`) and what
+must be demonstrably true for acceptance (`AcceptanceCriterion`). The
+acceptance criterion is the deliberately calibrated MIDDLE LAYER between
+"too weak to evaluate" (`statement = "system is reliable"` — nothing
+mechanically determinable) and "too coupled to a testing technology"
+(`pytest_test = "test_reliability.py"` — the ISR becomes a test manifest).
+It carries an obligation + a semantic KIND + subjects: enough for an
+evaluation substrate to dispatch on, no mechanism for how.
+
+**Construct.** `constitutional_architecture/isr/semantics/requirement.py`:
+`Requirement(requirement_id, statement, target_refs, acceptance_refs,
+constraint_refs)` — `target_refs` (BusinessCapability ids) is REQUIRED: an
+obligation must bind to something explicit. `AcceptanceCriterion(criterion_id,
+obligation, kind, subject_refs)` with `ObligationKind` (ORDERING, PRESENCE,
+ABSENCE, INVARIANT, THRESHOLD). NO `is_satisfied()`, no verdict, no score,
+no test-reference field exists anywhere in the primitive (structural tests
+pin that). The criterion is the thing evidence will later be bound TO (the
+testing/anchoring primitive H), never the thing that evaluates. Two
+carriers: `System.requirements` + `System.acceptance_criteria`, both empty
+identity-neutral (Option A).
+
+**The reservation ACTIVATED, without touching B.** Since R2.10.3-B,
+`BusinessCapability.requirement_refs` was carried empty and unvalidated.
+F introduces `Requirement` and makes those refs resolvable against
+`System.requirements` — `validate_system_capability_constraints` and the
+new `validate_system_requirement_constraints` both enforce it, with the
+`BusinessCapability` construct itself untouched. The R2.10.2 derived
+dependency graph held: a capability with empty `requirement_refs` is
+byte-identical before and after activation (proven by test).
+
+**The substance of the slice — reference-by-identity asymmetry.** Changing
+a requirement's statement/criteria moves the REQUIREMENT gene but NOT the
+capability that references it by id; adding a `requirement_ref` to a
+capability is an EXPLICITLY DECLARED cross-reference and DOES move the
+capability gene. Both directions proven mechanically. Requirements are
+declared, never inferred from behavior or implementation structure.
+
+**Acceptance neutrality — the double guard.** (1) Field-name test: no
+`test`/`assert`/`runner`/`file`/`suite`/`verdict`/`satisfied`/`score`
+field can exist — nowhere to put a verdict. (2) `REQUIREMENT_MECHANISM_TERMS`
+lint (pytest, junit, cypress, selenium, jest, mocha, testng, test_file,
+test_name, test_case, assertion_library, http_request, sql_query,
+browser_action, grpc_call) gates the canonical semantic form: the lint
+rejects test-mechanism terms, never semantic obligations —
+"Order cancellation must become effective before settlement" passes,
+"run test_cancel_order.py via pytest" fails (proven by test).
+
+**Operator.** `tiannara/application/evolution/requirement_mutation.py`
+(`RequirementOperator`, operator_id `requirement`, evolution_id
+`r2.10.3-f`): add/remove_requirement, set_statement (the identity
+asymmetry op), add_criterion, assign_criterion, link_capability (the
+declared cross-reference), deterministic generate. Every mutation is
+attributed as a ledger MEASUREMENT with before/after hashes.
+
+**Gates (all green).** Eleven-gate protocol reused (representation /
+canonicalization — empty carriers identity-neutral, recipe `isr_hash`
+unchanged `317b62a8…` — sixth Option A use / semantic identity — add→hash
+moves, respecify→hash moves, remove→hash restores / validation — dangling
+target/acceptance/constraint/subject refs + duplicate ids rejected
+pre-execution, capability `requirement_refs` resolve / locality — adding a
+requirement touches no behavior/capability/migration/temporal/reliability/
+boundary/entity gene / projection — `project_requirements` +
+`project_acceptance_criteria`, semantics only, zero coupling terms, zero
+mechanism terms / compilation — `async_resolution_module` byte-identical /
+evidence / lineage — MEASUREMENT attribution with before/after hashes /
+reproducibility / audit).
+
+**Audit gate — exactly one row moved** (pre-landing matrix 7/18/0/5, after
+R2.10.3-E): `requirements_acceptance_traceability`: MISSING → EXPRESSED,
+asserted mechanically as `moved_rows == {"requirements_acceptance_traceability":
+("MISSING", "EXPRESSED")}`. Re-attested matrix: **8 EXPRESSED / 18 PARTIAL /
+0 PROJECTED / 4 MISSING**, recipe isr_hash unchanged `317b62a8…` — Option A,
+sixth use.
+
+Remaining MISSING (4): deployment_rollout_rollback, documentation,
+testing_anchoring, evolution_objectives_protected_regions.
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -678,7 +759,7 @@ evolution_objectives_protected_regions.
 ```
 R2.10.1  ISR capability/expressivity audit        ← executed
 R2.10.2  Missing ISR primitives (the 10 MISSING rows above)  ← contract suite + Option A migration
-R2.10.3  Primitive roots, in derived order         ← A temporal (3/18/0/9) + B capabilities (4/18/0/8) + C migrations (5/18/0/7) + D reliability (6/18/0/6) + E boundaries (7/18/0/5) landed; F requirements_acceptance_traceability next
+R2.10.3  Primitive roots, in derived order         ← A temporal (3/18/0/9) + B capabilities (4/18/0/8) + C migrations (5/18/0/7) + D reliability (6/18/0/6) + E boundaries (7/18/0/5) + F requirements (8/18/0/4) landed; G deployment_rollout_rollback next
 R2.10.4  Architectural subgraph mutation — includes the Requirement Graph
          → ISR construction (the unbuilt top half), explicitly sequenced, not deferred
 R2.10.5  Safe structural crossover (chromosome families/genes: Architecture,

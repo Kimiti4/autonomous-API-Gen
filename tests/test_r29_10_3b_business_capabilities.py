@@ -463,6 +463,7 @@ class CapabilityPrimitiveHarness:
             "data_migrations",  # R2.10.3-C
             "reliability_resilience",  # R2.10.3-D
             "architecture_boundaries",  # R2.10.3-E
+            "requirements_acceptance_traceability",  # R2.10.3-F
         }
         post_partial = {
             "behavior_guards_actions", "behavior_state_semantics",
@@ -477,7 +478,6 @@ class CapabilityPrimitiveHarness:
         }
         post_missing = {
             "deployment_rollout_rollback",
-            "requirements_acceptance_traceability",
             "documentation", "testing_anchoring",
             "evolution_objectives_protected_regions",
         }
@@ -631,14 +631,20 @@ def test_empty_capability_carrier_identity_neutral(cap_harness):
     assert cap_harness.with_empty_capabilities(isr).content_hash == isr.content_hash
 
 
-def test_requirement_refs_reserved_until_traceability_lands(cap_harness):
-    """requirement_refs is carried but not validated until R2.10.4."""
+def test_requirement_refs_activated_by_traceability_lands(cap_harness):
+    """R2.10.3-F landed: requirement_refs now resolve against System.requirements.
+
+    The reservation is ACTIVE without any edit to the BusinessCapability
+    construct: a dangling requirement ref is rejected pre-execution, and a
+    capability with empty requirement_refs is byte-identical to its pre-F
+    self (asserted by the F suite's identity-neutral test).
+    """
     isr = cap_harness.isr_with(capabilities=(
         BusinessCapability("pay", "process a payment",
                            behavior_refs=("W1",),
                            requirement_refs=("REQ-not-yet-represented",)),
     ))
-    assert isr.validate_structure() is True  # reserved, not dangling-checked yet
+    assert isr.validate_structure() is False  # dangling requirement ref now rejected
     assert project_business_capabilities(isr)[0]["requirement_refs"] == [
         "REQ-not-yet-represented"
     ]

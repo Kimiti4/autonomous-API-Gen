@@ -413,6 +413,7 @@ class TemporalPrimitiveHarness:
             "data_migrations",  # R2.10.3-C
             "reliability_resilience",  # R2.10.3-D
             "architecture_boundaries",  # R2.10.3-E
+            "requirements_acceptance_traceability",  # R2.10.3-F
         }
         expected_partial = {
             "behavior_guards_actions", "behavior_state_semantics",
@@ -427,7 +428,6 @@ class TemporalPrimitiveHarness:
         }
         expected_missing = {
             "deployment_rollout_rollback",
-            "requirements_acceptance_traceability",
             "documentation", "testing_anchoring",
             "evolution_objectives_protected_regions",
         }

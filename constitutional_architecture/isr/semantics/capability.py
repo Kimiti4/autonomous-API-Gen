@@ -10,10 +10,11 @@ architecture implementing this capability?" — the capability's identity
 must not change when a referenced gene evolves, so the capability can
 anchor architectural replacement.
 
-``requirement_refs`` is reserved: carried empty until
-requirements_acceptance_traceability lands (per the derived dependency
-order, capabilities precede traceability), at which point its reference
-integrity becomes validated. Empty refs are identity-neutral (Option A).
+``requirement_refs`` was reserved through R2.10.3-E: carried empty,
+identity-neutral, unvalidated. R2.10.3-F (requirements_acceptance_traceability)
+ACTIVATES the reservation — ``Requirement`` exists, and reference integrity is
+now enforced (see ``validate_system_capability_constraints``). The construct
+itself is untouched by the activation.
 """
 from __future__ import annotations
 
@@ -40,10 +41,10 @@ class BusinessCapability:
     the Evolution Engine can reason about replacing the architecture that
     realizes a capability without touching the capability itself.
 
-    requirement_refs is reserved: it is carried empty until
-    requirements_acceptance_traceability lands (per the derived dependency
-    order, capabilities precede traceability), at which point its reference
-    integrity becomes validated. Empty refs are identity-neutral (Option A).
+    requirement_refs was reserved (carried empty, unvalidated) until
+    requirements_acceptance_traceability landed (R2.10.3-F), which ACTIVATED
+    its reference integrity without touching this construct: a capability with
+    empty requirement_refs is byte-identical before and after activation.
     """
 
     capability_id: str
@@ -90,14 +91,16 @@ def validate_system_capability_constraints(system: Any) -> tuple[str, ...]:
     """Reference integrity for one system's capability map.
 
     Rejects, pre-execution: duplicate capability ids, dangling
-    behavior/interface/constraint references. ``requirement_refs`` is
-    reserved and NOT validated until requirements_acceptance_traceability
-    lands. Empty tuple means valid.
+    behavior/interface/constraint references. Since R2.10.3-F
+    (requirements_acceptance_traceability), ``requirement_refs`` is ACTIVE:
+    dangling requirement references are rejected against
+    ``System.requirements``. Empty tuple means valid.
     """
     errors: list[str] = []
     behavior_ids = _behavior_ids(system)
     interface_ids = _interface_ids(system)
     constraint_ids = _constraint_ids(system)
+    requirement_ids = {r.requirement_id for r in system.requirements}
     seen: set[str] = set()
     for capability in system.business_capabilities:
         if capability.capability_id in seen:
@@ -122,6 +125,12 @@ def validate_system_capability_constraints(system: Any) -> tuple[str, ...]:
                 errors.append(
                     f"business capability '{capability.capability_id}' references "
                     f"unknown constraint '{constraint_ref}'"
+                )
+        for requirement_ref in capability.requirement_refs:
+            if requirement_ref not in requirement_ids:
+                errors.append(
+                    f"business capability '{capability.capability_id}' references "
+                    f"unknown requirement '{requirement_ref}'"
                 )
     return tuple(errors)
 

@@ -26,6 +26,9 @@ from constitutional_architecture.isr.semantics.projection import semantic_conten
 from constitutional_architecture.isr.semantics.reliability import (
     validate_system_reliability_constraints,
 )
+from constitutional_architecture.isr.semantics.requirement import (
+    validate_system_requirement_constraints,
+)
 from constitutional_architecture.isr.semantics.temporal import (
     validate_module_temporal_constraints,
 )
@@ -105,5 +108,7 @@ class ISR:
         if validate_system_reliability_constraints(self.system):
             return False
         if validate_system_boundary_constraints(self.system):
+            return False
+        if validate_system_requirement_constraints(self.system):
             return False
         return True

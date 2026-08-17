@@ -647,13 +647,25 @@ DEFAULT_PROBES: tuple[StaticCapabilityProbe, ...] = (
         capability_id="requirements_acceptance_traceability",
         name="Requirements: acceptance / traceability",
         description="Functional/NFR/acceptance criteria and requirement-to-gene traceability.",
-        carrier="(none)",
-        gene_paths=(),
+        carrier="System.requirements (Requirement) + System.acceptance_criteria (AcceptanceCriterion)",
+        gene_paths=("system.requirements[*]", "system.acceptance_criteria[*]"),
         constitutional_ids=("requirements",),
-        represented=False,
+        represented=True,
+        independently_mutatable=True,
+        independently_validatable=True,
+        compilable=True,
+        observable=True,
+        lineage_tracked=True,
         evidence=(
-            "NOT represented: no requirement references in the constitutional ISR",
-            "RequirementsReference exists only in tiannara's SystemModel, not in the ISR",
+            "represented: Requirement(statement, target_refs, acceptance_refs, constraint_refs)",
+            "represented: AcceptanceCriterion(obligation, kind, subject_refs) — the middle layer",
+            "mutatable: RequirementOperator (add/remove/set_statement/add_criterion/assign_criterion/link_capability)",
+            "validatable: validate_system_requirement_constraints — duplicate ids, dangling target/acceptance/constraint/subject refs",
+            "compilable: requirement is a semantic obligation, never an implementation task",
+            "observable: project_requirements / project_acceptance_criteria projections",
+            "lineage: MEASUREMENT events per mutation with before/after hashes",
+            "RESERVATION ACTIVATED: BusinessCapability.requirement_refs now resolve against System.requirements",
+            "acceptance criterion declares obligation + kind + subjects; no is_satisfied(), no verdict, no test reference",
         ),
     ),
     # -- reliability / performance / observability -----------------------------
@@ -833,8 +845,9 @@ def gene_index(isr: ISR) -> dict[str, str]:
     Node-level granularity: each dataclass instance (module, entity, service,
     workflow, state, transition, policy, interface, endpoint, event, constraint,
     temporal constraint, business capability, data migration, deployment
-    sub-config) is one gene. ``canonicalize`` is the shared single source of
-    truth, so gene hashes compose with the ISR's content hash.
+    sub-config, reliability requirement, architectural boundary, requirement,
+    acceptance criterion) is one gene. ``canonicalize`` is the shared single
+    source of truth, so gene hashes compose with the ISR's content hash.
     """
     idx: dict[str, str] = {}
     system = isr.system
@@ -857,6 +870,10 @@ def gene_index(isr: ISR) -> dict[str, str]:
         idx[f"system.reliability_requirements[{ri}]"] = _gene_hash(requirement)
     for bi, boundary in enumerate(system.architectural_boundaries):
         idx[f"system.architectural_boundaries[{bi}]"] = _gene_hash(boundary)
+    for ri, requirement in enumerate(system.requirements):
+        idx[f"system.requirements[{ri}]"] = _gene_hash(requirement)
+    for ci, criterion in enumerate(system.acceptance_criteria):
+        idx[f"system.acceptance_criteria[{ci}]"] = _gene_hash(criterion)
     for mi, module in enumerate(system.modules):
         base = f"system.modules[{mi}]"
         idx[base] = _gene_hash((module.id, module.name, module.description, module.metadata))

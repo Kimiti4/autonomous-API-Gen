@@ -979,6 +979,110 @@ Remaining MISSING (1): evolution_objectives_protected_regions.
 
 ---
 
+## 8l. R2.10.3-J — evolution_objectives_protected_regions (the constitutional capstone)
+
+J answers two distinct questions: **what is this evolution allowed to
+optimize?** (`EvolutionObjective`) and **what must this evolution never
+sacrifice?** (`ProtectedRegion`). An objective may be traded against another
+objective; a protected region may NOT be traded away for fitness. The
+enforcement boundary is a **FEASIBILITY GATE** — `EvolutionProtectionEvaluator`
+removes violating candidates from the feasible search space BEFORE objective
+evaluation — never a fitness penalty, which a sufficiently large competing
+fitness could overwhelm.
+
+**The three architectural proofs that gate promotion** (all asserted):
+
+1. **No self-authorization.** `ConstitutionalAuthorization` lives in
+   `constitutional_architecture/governance/` — OUTSIDE the evolution package,
+   which cannot import or construct it (module-boundary AST test, not
+   convention). The registry issues chain-anchored authorizations; the
+   evaluator receives them as opaque values and verifies the anchor against
+   the governance authority. An authorization that was never issued through
+   the governance seam does not verify; without a registry no CONSTITUTIONAL
+   change can ever be authorized. Ordinary evolution cannot satisfy a
+   constitutional authorization: the process being constrained does not
+   control the constraint.
+2. **No fitness/objective conflation.** No measured-value field exists on the
+   objective structurally (`value/score/fitness/measurement/metric/result`
+   field-name test). Changing objective weights changes per-objective
+   declarations only — the projection can never contain a combined
+   weighted-scalar artifact (no-scalarization guard + behavioral test).
+   Lexicographic tiers: `ObjectiveTier.CONSTITUTIONAL` (priority 0, subject
+   presence is a feasibility condition) vs `OPTIMIZATION` preference (tier
+   order by priority, intra-tier preference by weight — weight is never
+   scalarization).
+3. **No authority duplication between E/H/J.** J protects semantic identities
+   by REFERENCE (capabilities, requirements, boundaries, testing anchors,
+   reliability requirements, deployment intents, migrations, temporal
+   constraints, documentation, behaviors — ten domains) and never re-implements
+   E's boundary or H's anchor mechanics. Locality both ways: J's region
+   mutations never touch boundary/anchor genes; E/H mutations never touch
+   region genes.
+
+**Constructs.**
+
+- `constitutional_architecture/isr/semantics/evolution_policy.py` —
+  `EvolutionObjective(objective_id, dimension ×8, direction, tier, priority,
+  weight, subject_refs)` = tradeable preference; `ProtectedRegion(region_id,
+  subject_refs, protection_kind IMMUTABLE/CONSTITUTIONAL/PRESERVATION,
+  invariants)` = non-tradeable constraint; `EvolutionPolicy(objective_refs,
+  protected_region_refs, selection_constraints)` = composition. Structural
+  guards: PRESERVATION requires ≥1 invariant; only THRESHOLD invariants carry
+  a bound; CONSTITUTIONAL objectives are priority 0. `EVOLUTION_MECHANISM_TERMS`
+  (optimizer, algorithm, fitness_function, selection_algorithm, mutation_rate,
+  population_size, annealing, tournament, roulette, genetic_algorithm, pymoo,
+  nsga, reinforcement_learning) over the canonical form — asymmetry proven:
+  `maximize reliability` PASSES, `tournament selection with population_size
+  100` FAILS.
+- `tiannara/application/evolution/evolution_policy_mutation.py` —
+  `EvolutionPolicyOperator` (add/remove/respecify objective/region/policy +
+  deterministic `generate`), the only operator touching the three J carriers.
+- `tiannara/application/evolution/protection.py` — `EvolutionProtectionEvaluator`
+  operating ONLY on `EvolutionDiff(added_subjects, removed_subjects,
+  changed_subjects, ordering_changes)` — subjects are semantic identity ids
+  resolved from the gene index; `affected_subjects` is a projection output,
+  not a J-owned primitive. Regions and objectives resolve from the PARENT
+  constitution, never from a declaration the candidate could have weakened.
+  Preservation invariants reuse F's `ObligationKind` (PRESENCE/ABSENCE/
+  INVARIANT/ORDERING/THRESHOLD) — one predicate model across the ISR.
+- `constitutional_architecture/governance/constitutional_authorization.py` —
+  the governance seam: `ConstitutionalAuthorization` (a REFERENCE to
+  authority, never authority itself — `anchor_ref` identifies governance
+  evidence rather than duplicating it) + `ConstitutionalAuthorizationRegistry`
+  (chain-anchored issuance, membership verification).
+
+**Feasibility semantics.** IMMUTABLE: any touch → INFEASIBLE. CONSTITUTIONAL:
+same, unless an external governance authorization covers the change.
+PRESERVATION: change permitted iff every invariant holds on the parent →
+candidate semantic diff. Constitutional objectives are feasibility gates
+themselves: their subjects must remain present in any feasible candidate —
+the never-sacrifice guarantee closed at the objective level (a candidate that
+removes a constitutional objective's subject is INFEASIBLE even though no
+region mentions it). Protection is EXPLICITLY DECLARED, never inferred from
+structure/files/tests/config.
+
+**Gates (all green).** Eleven-gate protocol reused (representation /
+canonicalization — empty carriers identity-neutral, recipe `isr_hash`
+unchanged `317b62a8…` — tenth Option A use / semantic identity /
+validation — duplicate ids, dangling subject/policy refs, policies that
+govern nothing rejected pre-execution / locality — adding an objective
+touches no other gene / projection — `project_evolution_policy`,
+per-objective declarations only, no scalar aggregation, zero
+TECHNOLOGY_COUPLING_TERMS, zero EVOLUTION_MECHANISM_TERMS / compilation —
+`async_resolution_module` byte-identical with policy present / evidence /
+lineage — MEASUREMENT attribution with before/after hashes /
+reproducibility / audit).
+
+**Audit gate — exactly one row moved** (pre-landing matrix 11/18/0/1, after
+R2.10.3-I): `evolution_objectives_protected_regions`: MISSING → EXPRESSED,
+asserted mechanically as `moved_rows == {"evolution_objectives_protected_regions": ("MISSING", "EXPRESSED")}`.
+Re-attested matrix: **12 EXPRESSED / 18 PARTIAL / 0 PROJECTED /
+0 MISSING** — the FINAL R2.10.3 matrix — recipe isr_hash unchanged
+`317b62a8…` — Option A, tenth use. R2.10.3 is complete: no MISSING rows
+remain.
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -986,7 +1090,7 @@ Remaining MISSING (1): evolution_objectives_protected_regions.
 ```
 R2.10.1  ISR capability/expressivity audit        ← executed
 R2.10.2  Missing ISR primitives (the 10 MISSING rows above)  ← contract suite + Option A migration
-R2.10.3  Primitive roots, in derived order         ← A temporal (3/18/0/9) + B capabilities (4/18/0/8) + C migrations (5/18/0/7) + D reliability (6/18/0/6) + E boundaries (7/18/0/5) + F requirements (8/18/0/4) + G deployment (9/18/0/3) + H testing_anchoring (10/18/0/2) + I documentation (11/18/0/1) landed; J evolution_objectives_protected_regions capstone next
+R2.10.3  Primitive roots, in derived order         ← A temporal (3/18/0/9) + B capabilities (4/18/0/8) + C migrations (5/18/0/7) + D reliability (6/18/0/6) + E boundaries (7/18/0/5) + F requirements (8/18/0/4) + G deployment (9/18/0/3) + H testing_anchoring (10/18/0/2) + I documentation (11/18/0/1) + J evolution_objectives_protected_regions (12/18/0/0) landed — R2.10.3 COMPLETE, no MISSING rows remain
 R2.10.4  Architectural subgraph mutation — includes the Requirement Graph
          → ISR construction (the unbuilt top half), explicitly sequenced, not deferred
 R2.10.5  Safe structural crossover (chromosome families/genes: Architecture,

@@ -71,6 +71,13 @@ from constitutional_architecture.isr.semantics.documentation import (
     documentation_mechanism_hits, project_documentation_intents,
     validate_system_documentation_constraints,
 )
+from constitutional_architecture.isr.semantics.evolution_policy import (
+    EvolutionObjective, EvolutionPolicy, EvolutionPolicyValidationError,
+    ObjectiveDimension, ObjectiveDirection, ObjectiveTier, PreservationInvariant,
+    ProtectedRegion, ProtectionKind, assert_evolution_technology_agnostic,
+    evolution_mechanism_hits, evolution_policy_has_no_scalar_aggregation,
+    project_evolution_policy, validate_system_evolution_policy_constraints,
+)
 from constitutional_architecture.isr.completeness import CompletenessLevel
 
 __all__ = [
@@ -119,5 +126,11 @@ __all__ = [
     "DocumentationValidationError",
     "assert_documentation_technology_agnostic", "documentation_mechanism_hits",
     "project_documentation_intents", "validate_system_documentation_constraints",
+    "EvolutionObjective", "EvolutionPolicy", "EvolutionPolicyValidationError",
+    "ObjectiveDimension", "ObjectiveDirection", "ObjectiveTier",
+    "PreservationInvariant", "ProtectedRegion", "ProtectionKind",
+    "assert_evolution_technology_agnostic", "evolution_mechanism_hits",
+    "evolution_policy_has_no_scalar_aggregation", "project_evolution_policy",
+    "validate_system_evolution_policy_constraints",
     "CompletenessLevel",
 ]

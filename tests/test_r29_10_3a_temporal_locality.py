@@ -417,6 +417,7 @@ class TemporalPrimitiveHarness:
             "deployment_rollout_rollback",  # R2.10.3-G
             "testing_anchoring",  # R2.10.3-H
             "documentation",  # R2.10.3-I
+            "evolution_objectives_protected_regions",  # R2.10.3-J
         }
         expected_partial = {
             "behavior_guards_actions", "behavior_state_semantics",
@@ -429,9 +430,7 @@ class TemporalPrimitiveHarness:
             "performance_scalability", "observability",
             "operational_policies", "evolution_lineage_provenance",
         }
-        expected_missing = {
-            "evolution_objectives_protected_regions",
-        }
+        expected_missing: set[str] = set()
         one_row_only = (
             expressed == expected_expressed
             and partial == expected_partial
@@ -441,7 +440,7 @@ class TemporalPrimitiveHarness:
         return _result(
             "audit",
             one_row_only,
-            f"summary: {result.summary()}; expected 3/18/0/9 with exactly "
+            f"summary: {result.summary()}; expected 12/18/0/0 with exactly "
             f"behavior_temporal_semantics: MISSING -> EXPRESSED and the other 29 rows untouched",
         )
 

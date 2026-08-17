@@ -857,15 +857,33 @@ DEFAULT_PROBES: tuple[StaticCapabilityProbe, ...] = (
     StaticCapabilityProbe(
         capability_id="evolution_objectives_protected_regions",
         name="Evolution: objectives / protected regions",
-        description="Declared mutation points, protected regions, and evolution objectives in the ISR.",
-        carrier="(none)",
-        gene_paths=(),
+        description="Evolution authority in the ISR: WHAT evolution is allowed to optimize and WHAT it is constitutionally forbidden to sacrifice.",
+        carrier="System.evolution_objectives + System.protected_regions + System.evolution_policies",
+        gene_paths=(
+            "system.evolution_objectives[*]",
+            "system.protected_regions[*]",
+            "system.evolution_policies[*]",
+        ),
         constitutional_ids=(),
         machinery=True,
-        represented=False,
+        represented=True,
+        independently_mutatable=True,
+        independently_validatable=True,
+        compilable=True,
+        observable=True,
+        lineage_tracked=True,
         evidence=(
-            "NOT represented: no mutation-point / protected-region / objective carrier in the ISR",
-            "objectives live in the scheduler/policy layer, not in the ISR",
+            "represented: EvolutionObjective(dimension, direction, tier, priority, weight, subjects) + ProtectedRegion(region_id, subjects, protection_kind, invariants) + EvolutionPolicy(objective_refs, protected_region_refs, selection_constraints)",
+            "mutatable: EvolutionPolicyOperator (add/remove/respecify objectives, regions, policies + generate) — never touches other gene classes",
+            "validatable: validate_system_evolution_policy_constraints — duplicate ids, dangling refs, policies that govern nothing",
+            "compilable: semantic declaration consumed by EvolutionProtectionEvaluator as a FEASIBILITY gate, never a fitness penalty",
+            "observable: project_evolution_policy — per-objective declarations only, NO scalar aggregation (objective != fitness, structurally)",
+            "lineage: MEASUREMENT events per mutation with before/after hashes",
+            "OBJECTIVE != FITNESS: no measured-value field structurally; lexicographic tiers, never weighted scalars",
+            "PROTECTED != PENALTY: violating candidates removed from the feasible space BEFORE objective evaluation",
+            "CONSTITUTIONAL authorization is governance-owned (constitutional_architecture.governance) — the evolution package cannot create one (module-boundary test)",
+            "NON-INFERENCE: protection is explicitly declared, never inferred from structure/files/tests/config",
+            "E remains authoritative for boundaries, H for anchors — J protects identities by reference, no ownership transfer",
         ),
     ),
 )
@@ -886,7 +904,8 @@ def gene_index(isr: ISR) -> dict[str, str]:
     temporal constraint, business capability, data migration, deployment
     sub-config, reliability requirement, architectural boundary, requirement,
     acceptance criterion, deployment intent, testing anchor, documentation
-    intent) is one gene.
+    intent, evolution objective, protected region, evolution policy) is one
+    gene.
     ``canonicalize`` is the shared single source of truth, so gene hashes
     compose with the ISR's content hash.
     """
@@ -921,6 +940,12 @@ def gene_index(isr: ISR) -> dict[str, str]:
         idx[f"system.testing_anchors[{ai}]"] = _gene_hash(anchor)
     for di, intent in enumerate(system.documentation_intents):
         idx[f"system.documentation_intents[{di}]"] = _gene_hash(intent)
+    for oi, objective in enumerate(system.evolution_objectives):
+        idx[f"system.evolution_objectives[{oi}]"] = _gene_hash(objective)
+    for ri, region in enumerate(system.protected_regions):
+        idx[f"system.protected_regions[{ri}]"] = _gene_hash(region)
+    for pi, policy in enumerate(system.evolution_policies):
+        idx[f"system.evolution_policies[{pi}]"] = _gene_hash(policy)
     for mi, module in enumerate(system.modules):
         base = f"system.modules[{mi}]"
         idx[base] = _gene_hash((module.id, module.name, module.description, module.metadata))

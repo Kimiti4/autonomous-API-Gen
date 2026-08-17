@@ -467,6 +467,7 @@ class CapabilityPrimitiveHarness:
             "deployment_rollout_rollback",  # R2.10.3-G
             "testing_anchoring",  # R2.10.3-H
             "documentation",  # R2.10.3-I
+            "evolution_objectives_protected_regions",  # R2.10.3-J
         }
         post_partial = {
             "behavior_guards_actions", "behavior_state_semantics",
@@ -479,16 +480,14 @@ class CapabilityPrimitiveHarness:
             "performance_scalability", "observability",
             "operational_policies", "evolution_lineage_provenance",
         }
-        post_missing = {
-            "evolution_objectives_protected_regions",
-        }
+        post_missing: set[str] = set()
         matrix_ok = (
             expressed == post_expressed
             and partial == post_partial
             and missing == post_missing
             and CapabilityStatus.PROJECTED not in by_id.values()
         )
-        # Exactly one row moved vs the pre-landing (R2.10.3-A) matrix 3/18/0/9.
+        # Exactly one row moved vs the pre-landing (R2.10.3-I) matrix 11/18/0/1.
         pre_expressed = post_expressed - {"business_capabilities"}
         pre_missing = post_missing | {"business_capabilities"}
         one_row_only = (
@@ -499,7 +498,7 @@ class CapabilityPrimitiveHarness:
         return _result(
             "audit",
             matrix_ok and one_row_only,
-            f"summary: {result.summary()}; expected 4/18/0/8 with exactly "
+            f"summary: {result.summary()}; expected 12/18/0/0 with exactly "
             f"business_capabilities: MISSING -> EXPRESSED and the other 29 rows untouched",
         )
 

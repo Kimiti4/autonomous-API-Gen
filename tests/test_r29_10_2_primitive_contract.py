@@ -258,10 +258,10 @@ def test_migration_r2_10_1_matrix_re_attested() -> None:
     # R2.10.3-A..I landed (behavior_temporal_semantics, business_capabilities,
     # data_migrations, reliability_resilience, architecture_boundaries,
     # requirements_acceptance_traceability, deployment_rollout_rollback,
-    # testing_anchoring, documentation):
+    # testing_anchoring, documentation, evolution_objectives_protected_regions):
     # MISSING -> EXPRESSED
-    assert result.summary()["expressed"] == 11
-    assert result.summary()["missing"] == 1
+    assert result.summary()["expressed"] == 12
+    assert result.summary()["missing"] == 0
 
 
 # -- 7. compatibility contract (old ISR unchanged) ---------------------------------------

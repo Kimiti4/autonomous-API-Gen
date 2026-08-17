@@ -638,6 +638,7 @@ class DeploymentPrimitiveHarness:
             "deployment_rollout_rollback",
             "testing_anchoring",
             "documentation",
+            "evolution_objectives_protected_regions",  # R2.10.3-J
         }
         post_partial = {
             "behavior_guards_actions", "behavior_state_semantics",
@@ -650,16 +651,14 @@ class DeploymentPrimitiveHarness:
             "performance_scalability", "observability",
             "operational_policies", "evolution_lineage_provenance",
         }
-        post_missing = {
-            "evolution_objectives_protected_regions",
-        }
+        post_missing: set[str] = set()
         matrix_ok = (
             expressed == post_expressed
             and partial == post_partial
             and missing == post_missing
             and CapabilityStatus.PROJECTED not in by_id.values()
         )
-        # Exactly one row moved vs the pre-landing (R2.10.3-F) matrix 8/18/0/4.
+        # Exactly one row moved vs the pre-landing (R2.10.3-I) matrix 11/18/0/1.
         pre_expressed = post_expressed - {"deployment_rollout_rollback"}
         pre_missing = post_missing | {"deployment_rollout_rollback"}
         one_row_only = (
@@ -670,7 +669,7 @@ class DeploymentPrimitiveHarness:
         return _result(
             "audit",
             matrix_ok and one_row_only,
-            f"summary: {result.summary()}; expected 9/18/0/3 with exactly "
+            f"summary: {result.summary()}; expected 12/18/0/0 with exactly "
             f"deployment_rollout_rollback: MISSING -> EXPRESSED and the "
             f"other 29 rows untouched",
         )
@@ -944,16 +943,16 @@ def test_audit_moves_exactly_one_row(dep_harness):
     by_id = {c.capability_id: c.status for c in result.capabilities}
     expressed = {cid for cid, s in by_id.items() if s is CapabilityStatus.EXPRESSED}
     missing = {cid for cid, s in by_id.items() if s is CapabilityStatus.MISSING}
-    # Pre-landing (R2.10.3-H) matrix: 10/18/0/2.
+    # Pre-landing (R2.10.3-I) matrix: 11/18/0/1.
     pre_expressed = {
         "behavior_transitions", "behavior_await_surface",
         "behavior_temporal_semantics", "business_capabilities",
         "data_migrations", "reliability_resilience",
         "architecture_boundaries", "requirements_acceptance_traceability",
         "deployment_rollout_rollback", "testing_anchoring",
+        "documentation",
     }
     pre_missing = {
-        "documentation",
         "evolution_objectives_protected_regions",
     }
     moved_rows = {}
@@ -963,7 +962,7 @@ def test_audit_moves_exactly_one_row(dep_harness):
         if before != after:
             moved_rows[cid] = (before, after)
     assert moved_rows == {
-        "documentation": ("MISSING", "EXPRESSED")
+        "evolution_objectives_protected_regions": ("MISSING", "EXPRESSED")
     }
-    assert (len(expressed), 18, 0, len(missing)) == (11, 18, 0, 1)  # NOT 10/18/0/2
+    assert (len(expressed), 18, 0, len(missing)) == (12, 18, 0, 0)  # NOT 11/18/0/1
 

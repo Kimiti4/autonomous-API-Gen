@@ -58,6 +58,15 @@ class System:
     # subjects by identity and cannot author them (non-authority is
     # structural, so it can never become a second source of truth).
     documentation_intents: tuple[DocumentationIntent, ...] = ()
+    # Evolution policy (R2.10.3-J): WHAT evolution is allowed to optimize
+    # (objectives) and WHAT it is constitutionally forbidden to sacrifice
+    # (protected regions), composed by policies. All three are separate
+    # semantic genes; all empty identity-neutral (Option A). J is the
+    # constitutional declaration of evolution authority — never engine
+    # configuration, never measurements.
+    evolution_objectives: tuple[EvolutionObjective, ...] = ()
+    protected_regions: tuple[ProtectedRegion, ...] = ()
+    evolution_policies: tuple[EvolutionPolicy, ...] = ()
 
     def get_module(self, module_id: str) -> Optional[Module]:
         for m in self.modules:

@@ -762,13 +762,26 @@ DEFAULT_PROBES: tuple[StaticCapabilityProbe, ...] = (
     StaticCapabilityProbe(
         capability_id="documentation",
         name="Documentation",
-        description="Documentation as an ISR-represented capability.",
-        carrier="(none)",
-        gene_paths=(),
+        description="Documentation as an ISR-owned semantic artifact: WHAT must be documented, for whom, and why — never a format or path.",
+        carrier="System.documentation_intents (DocumentationIntent)",
+        gene_paths=("system.documentation_intents[*]",),
         constitutional_ids=("documentation",),
-        represented=False,
+        represented=True,
+        independently_mutatable=True,
+        independently_validatable=True,
+        compilable=True,
+        observable=True,
+        lineage_tracked=True,
         evidence=(
-            "NOT represented: README is a fixed backend template, not ISR-derived",
+            "represented: DocumentationIntent(subject_refs, purpose, audience, obligations) — intent, never artifact",
+            "mutatable: DocumentationOperator (add/remove/respecify/generate) — documentation can never author its subjects",
+            "validatable: validate_system_documentation_constraints — duplicate ids, dangling subject refs",
+            "compilable: realization (Markdown/HTML/API docs/diagrams) is the backend's concern; the ISR emits the semantic intent only",
+            "observable: project_documentation_intents projection",
+            "lineage: MEASUREMENT events per mutation with before/after hashes",
+            "NON-AUTHORITY: one-way direction ISR semantics -> intent -> realization — no override/redefine/replace/author field, structurally",
+            "locality: changing documentation moves only the documentation gene; a subject's implementation evolves while the documentation gene holds",
+            "no realization hook: no format/template/path/generator field; DOCUMENTATION_MECHANISM_TERMS gates the canonical form",
         ),
     ),
     StaticCapabilityProbe(
@@ -872,7 +885,8 @@ def gene_index(isr: ISR) -> dict[str, str]:
     workflow, state, transition, policy, interface, endpoint, event, constraint,
     temporal constraint, business capability, data migration, deployment
     sub-config, reliability requirement, architectural boundary, requirement,
-    acceptance criterion, deployment intent, testing anchor) is one gene.
+    acceptance criterion, deployment intent, testing anchor, documentation
+    intent) is one gene.
     ``canonicalize`` is the shared single source of truth, so gene hashes
     compose with the ISR's content hash.
     """
@@ -905,6 +919,8 @@ def gene_index(isr: ISR) -> dict[str, str]:
         idx[f"system.deployment_intents[{di}]"] = _gene_hash(intent)
     for ai, anchor in enumerate(system.testing_anchors):
         idx[f"system.testing_anchors[{ai}]"] = _gene_hash(anchor)
+    for di, intent in enumerate(system.documentation_intents):
+        idx[f"system.documentation_intents[{di}]"] = _gene_hash(intent)
     for mi, module in enumerate(system.modules):
         base = f"system.modules[{mi}]"
         idx[base] = _gene_hash((module.id, module.name, module.description, module.metadata))

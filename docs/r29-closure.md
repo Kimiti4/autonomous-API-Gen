@@ -912,6 +912,73 @@ Remaining MISSING (2): documentation, evolution_objectives_protected_regions.
 
 ---
 
+## 8k. R2.10.3-I — documentation (intent, never artifact)
+
+Documentation as an ISR-owned SEMANTIC artifact — NOT generated Markdown,
+HTML, source comments, or diagrams. A `DocumentationIntent` declares what
+must be documented, for whom, and why; the realization (Markdown, HTML, API
+docs, diagrams, anything else) is a compiler/backend concern and never part
+of this primitive.
+
+**The constraint this slice holds firm on — documentation must NOT become a
+second source of truth.** Direction is one-way: **ISR semantics →
+documentation intent → realization**, never the reverse. The non-authority
+is STRUCTURAL: the construct carries no override/redefine/replace/author/
+source-of field — there is no mechanism to author anything but its own
+intent. Proven by locality in both directions: changing documentation moves
+only the documentation gene (respecify purpose → capability gene
+byte-identical); a subject's implementation evolves while the documentation
+gene holds (reference-by-identity, exactly like the other primitives).
+
+**Construct.** `constitutional_architecture/isr/semantics/documentation.py`:
+`DocumentationIntent(documentation_id, subject_refs, purpose, audience,
+obligations)` — five fields, deliberately small. `DocumentationPurpose`
+(OPERATIONAL_REFERENCE, ARCHITECTURAL_RATIONALE, API_CONTRACT, ONBOARDING,
+COMPLIANCE) and `DocumentationAudience` (OPERATOR, DEVELOPER, ARCHITECT,
+SECURITY_AUDITOR, END_USER) are semantic, never formats or channels.
+`coverage_refs` collapsed into `subject_refs`; an `evolution_policy` would
+only ever have one valid value (derived), because non-authority makes
+documentation inherently non-authoritative — both are future extensions if
+a concrete substrate needs them.
+
+**Two-layer defense.** Structural exclusion: no format/path/template/
+generator field anywhere (field-name test). Semantic lint:
+`DOCUMENTATION_MECHANISM_TERMS` (markdown, html, rst, mdx, latex, asciidoc,
+template, filepath, file_path, output_path, render_config, docusaurus,
+mkdocs, sphinx, javadoc, typedoc, doxygen, gitbook) over the canonical
+form. Asymmetry proven: `purpose=OPERATIONAL_REFERENCE, audience=OPERATOR`
+PASSES; `obligations=("render markdown via mkdocs",)` FAILS.
+
+**Subject identity space.** `subject_refs` resolve against behaviors
+(workflow ids), capabilities, requirements, modules, and boundaries — the
+documentable genes. Dangling refs and duplicate ids rejected pre-execution.
+
+**No realization hook in the ISR.** The projection emits the semantic
+intent only; whichever backend renders Markdown/HTML/diagrams consumes it
+downstream. Landing I did NOT add a "render hint" field — that would be the
+realization leaking back in, refused.
+
+**Gates (all green).** Eleven-gate protocol reused (representation /
+canonicalization — empty carrier identity-neutral, recipe `isr_hash`
+unchanged `317b62a8…` — ninth Option A use / semantic identity /
+validation / locality — adding an intent touches no behavior/capability/
+migration/temporal/reliability/boundary/requirement/deployment/anchor gene /
+projection — `project_documentation_intents`, semantics only, zero
+TECHNOLOGY_COUPLING_TERMS, zero DOCUMENTATION_MECHANISM_TERMS /
+compilation — `async_resolution_module` byte-identical with intents present /
+evidence / lineage — MEASUREMENT attribution with before/after hashes /
+reproducibility / audit).
+
+**Audit gate — exactly one row moved** (pre-landing matrix 10/18/0/2, after
+R2.10.3-H): `documentation`: MISSING → EXPRESSED, asserted mechanically as
+`moved_rows == {"documentation": ("MISSING", "EXPRESSED")}`.
+Re-attested matrix: **11 EXPRESSED / 18 PARTIAL / 0 PROJECTED /
+1 MISSING**, recipe isr_hash unchanged `317b62a8…` — Option A, ninth use.
+
+Remaining MISSING (1): evolution_objectives_protected_regions.
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -919,7 +986,7 @@ Remaining MISSING (2): documentation, evolution_objectives_protected_regions.
 ```
 R2.10.1  ISR capability/expressivity audit        ← executed
 R2.10.2  Missing ISR primitives (the 10 MISSING rows above)  ← contract suite + Option A migration
-R2.10.3  Primitive roots, in derived order         ← A temporal (3/18/0/9) + B capabilities (4/18/0/8) + C migrations (5/18/0/7) + D reliability (6/18/0/6) + E boundaries (7/18/0/5) + F requirements (8/18/0/4) + G deployment (9/18/0/3) + H testing_anchoring (10/18/0/2) landed; I documentation next
+R2.10.3  Primitive roots, in derived order         ← A temporal (3/18/0/9) + B capabilities (4/18/0/8) + C migrations (5/18/0/7) + D reliability (6/18/0/6) + E boundaries (7/18/0/5) + F requirements (8/18/0/4) + G deployment (9/18/0/3) + H testing_anchoring (10/18/0/2) + I documentation (11/18/0/1) landed; J evolution_objectives_protected_regions capstone next
 R2.10.4  Architectural subgraph mutation — includes the Requirement Graph
          → ISR construction (the unbuilt top half), explicitly sequenced, not deferred
 R2.10.5  Safe structural crossover (chromosome families/genes: Architecture,

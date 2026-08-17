@@ -22,6 +22,9 @@ from constitutional_architecture.isr.semantics.capability import (
 from constitutional_architecture.isr.semantics.deployment import (
     validate_system_deployment_constraints,
 )
+from constitutional_architecture.isr.semantics.documentation import (
+    validate_system_documentation_constraints,
+)
 from constitutional_architecture.isr.semantics.migration import (
     validate_module_migration_constraints,
 )
@@ -118,6 +121,8 @@ class ISR:
         if validate_system_requirement_constraints(self.system):
             return False
         if validate_system_deployment_constraints(self.system):
+            return False
+        if validate_system_documentation_constraints(self.system):
             return False
         if validate_system_testing_anchor_constraints(self.system):
             return False

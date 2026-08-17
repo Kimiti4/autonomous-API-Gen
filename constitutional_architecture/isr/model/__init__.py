@@ -65,6 +65,12 @@ from constitutional_architecture.isr.semantics.testing_anchor import (
     assert_testing_technology_agnostic, project_testing_anchors,
     testing_mechanism_hits, validate_system_testing_anchor_constraints,
 )
+from constitutional_architecture.isr.semantics.documentation import (
+    DocumentationAudience, DocumentationIntent, DocumentationPurpose,
+    DocumentationValidationError, assert_documentation_technology_agnostic,
+    documentation_mechanism_hits, project_documentation_intents,
+    validate_system_documentation_constraints,
+)
 from constitutional_architecture.isr.completeness import CompletenessLevel
 
 __all__ = [
@@ -109,5 +115,9 @@ __all__ = [
     "TestingAnchorValidationError",
     "assert_testing_technology_agnostic", "project_testing_anchors",
     "testing_mechanism_hits", "validate_system_testing_anchor_constraints",
+    "DocumentationAudience", "DocumentationIntent", "DocumentationPurpose",
+    "DocumentationValidationError",
+    "assert_documentation_technology_agnostic", "documentation_mechanism_hits",
+    "project_documentation_intents", "validate_system_documentation_constraints",
     "CompletenessLevel",
 ]

@@ -52,6 +52,12 @@ class System:
     acceptance_criteria: tuple[AcceptanceCriterion, ...] = ()
     deployment_intents: tuple[DeploymentIntent, ...] = ()
     testing_anchors: tuple[TestingAnchor, ...] = ()
+    # Documentation intents (R2.10.3-I): WHAT must be documented, for whom,
+    # and why — semantic, never a format or path. One-way direction:
+    # ISR semantics -> intent -> realization. Documentation references its
+    # subjects by identity and cannot author them (non-authority is
+    # structural, so it can never become a second source of truth).
+    documentation_intents: tuple[DocumentationIntent, ...] = ()
 
     def get_module(self, module_id: str) -> Optional[Module]:
         for m in self.modules:

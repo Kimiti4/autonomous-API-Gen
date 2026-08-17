@@ -1,35 +1,26 @@
-"""R2.10.3-H — testing_anchoring: the declaration side of the ISR<->evidence loop.
+"""R2.10.3-I — documentation: intent, never artifact.
 
-H closes the loop between the ISR's semantic obligations and the evaluation
-boundary WITHOUT becoming a test-generation primitive — the inversion that
-lets the testing layer define the software's meaning is the failure mode H
-exists to avoid. Principle held since R2.8: **the ISR declares what evidence
-must establish; the evaluation system determines how that evidence is
-produced.** H is the declaration side, full stop.
+Documentation as an ISR-owned SEMANTIC artifact — NOT generated Markdown,
+HTML, source comments, or diagrams. A DocumentationIntent declares what must
+be documented, for whom, and why; the realization is a compiler/backend
+concern and never part of this primitive.
 
-A TestingAnchor declares which semantic obligation is demonstrated
-(obligation_refs → F's AcceptanceCriterion ids), which genes are exercised
-(subject_refs → behaviors/capabilities/requirements), what evidence must
-establish (evidence_requirements), what must remain protected
-(protection_policy), and whether the anchor is a fixed reference or follows
-its subjects (authority). NO test file, function, framework, fixture,
-marker, or execution mechanism — structurally impossible (field guard) and
-gated (TESTING_MECHANISM_TERMS lint).
+Direction is one-way: **ISR semantics → documentation intent → realization**.
+The constraint this slice holds firm on: documentation must NOT become a
+second source of truth. That non-authority is made STRUCTURAL — the
+construct carries no override/redefine/replace/author field (there is no
+mechanism to author anything but its own intent), and locality is proven
+both ways: changing documentation moves only the documentation gene; a
+subject's implementation evolves while the documentation gene holds.
 
-Scope holds: H does NOT evaluate (no is_satisfied, no verdict — structural
-test); H does NOT wire obligation→anchor→evidence into the live evaluation
-loop — obligation_refs RESOLVE against F's AcceptanceCriterion without
-editing F (the F→H edge), binding is the evaluation system's follow-up.
+Two-layer defense as always: structural exclusion (no format/path/template/
+generator field anywhere) + DOCUMENTATION_MECHANISM_TERMS lint over the
+canonical semantic form (purpose=OPERATIONAL_REFERENCE passes;
+render_markdown_via_mkdocs fails).
 
-The R2.8 connection: PROTECTED reuses R2.8.7's protected-evaluation-surface
-semantics generalized into the ISR — a protected anchor's removal or
-modification raises ConstitutionalViolation (the SAME violation E's
-BoundaryOperator raises for protected boundaries). One protection mechanism
-across primitives, not a parallel security model.
-
-The audit gate embeds the pre-landing matrix (9/18/0/3 — after R2.10.3-G)
-and asserts the delta is exactly {testing_anchoring: MISSING -> EXPRESSED}
--> 10/18/0/2.
+The audit gate embeds the pre-landing matrix (10/18/0/2 — after R2.10.3-H)
+and asserts the delta is exactly {documentation: MISSING -> EXPRESSED} ->
+11/18/0/1.
 """
 from __future__ import annotations
 
@@ -48,6 +39,10 @@ from constitutional_architecture.isr.model import (
     DataMigrationIntent,
     DegradationPolicy,
     DeploymentIntent,
+    DocumentationAudience,
+    DocumentationIntent,
+    DocumentationPurpose,
+    DocumentationValidationError,
     Entity,
     FailureMode,
     ISR,
@@ -66,19 +61,18 @@ from constitutional_architecture.isr.model import (
     TemporalConstraint,
     TemporalConstraintKind,
     TestingAnchor,
-    TestingAnchorValidationError,
     Workflow,
     WorkflowState,
     WorkflowTransition,
 )
-from constitutional_architecture.isr.semantics.testing_anchor import (
-    TESTING_MECHANISM_TERMS,
-    assert_testing_technology_agnostic,
-    project_testing_anchors,
-    testing_mechanism_hits as mechanism_hits,
+from constitutional_architecture.isr.semantics.documentation import (
+    DOCUMENTATION_MECHANISM_TERMS,
+    assert_documentation_technology_agnostic,
+    documentation_mechanism_hits as mechanism_hits,
+    project_documentation_intents,
 )
-from constitutional_architecture.validators import ConstitutionalViolation
 from tiannara.application.compiler.fastapi_hexagonal_backend import FastAPIHexagonalBackend
+from tiannara.application.evolution.documentation_mutation import DocumentationOperator
 from tiannara.application.evolution.isr_capability_audit import (
     CapabilityStatus,
     ISRCapabilityAudit,
@@ -92,7 +86,6 @@ from tiannara.application.evolution.primitive_gate import (
     GateResult,
     assert_all_gates,
 )
-from tiannara.application.evolution.testing_anchor_mutation import TestingAnchorOperator
 
 
 def _entity(entity_id: str) -> Entity:
@@ -128,32 +121,35 @@ def _workflow(workflow_id: str, trigger: str) -> Workflow:
     )
 
 
-class TestingAnchorPrimitiveHarness:
-    """The eleven-gate harness for testing_anchoring."""
+class DocumentationPrimitiveHarness:
+    """The eleven-gate harness for documentation."""
 
-    primitive_id = "testing_anchoring"
+    primitive_id = "documentation"
 
     def __init__(self) -> None:
         self.audit = ISRCapabilityAudit()
-        self.operator = TestingAnchorOperator()
+        self.operator = DocumentationOperator()
         self.locality_probe = MutationLocalityProbe()
         self.backend = FastAPIHexagonalBackend()
 
     # -- recipes ------------------------------------------------------------
 
-    def valid_anchor(self) -> TestingAnchor:
-        return TestingAnchor(
-            anchor_id="anchor1",
-            subject_refs=("w1",),
-            obligation_refs=("crit.cancel",),
-            evidence_requirements=("ORDERING before authorization demonstrated",),
-            protection_policy=ProtectionPolicy.EVOLVABLE,
-            authority=AnchorAuthority.DERIVED,
+    def valid_doc(
+        self,
+        purpose: DocumentationPurpose = DocumentationPurpose.OPERATIONAL_REFERENCE,
+        audience: DocumentationAudience = DocumentationAudience.DEVELOPER,
+    ) -> DocumentationIntent:
+        return DocumentationIntent(
+            documentation_id="doc1",
+            subject_refs=("capability_pay",),
+            purpose=purpose,
+            audience=audience,
+            obligations=("the capability's declared behavior must be documented",),
         )
 
     def isr_with(
         self,
-        anchors: tuple[TestingAnchor, ...] = (),
+        documentation: tuple[DocumentationIntent, ...] = (),
         with_deployment: bool = True,
         with_requirement: bool = True,
         with_boundary: bool = True,
@@ -161,6 +157,7 @@ class TestingAnchorPrimitiveHarness:
         with_migration: bool = True,
         with_temporal: bool = True,
         with_capability: bool = True,
+        with_anchor: bool = True,
     ) -> ISR:
         temporal_constraints = (
             (
@@ -194,7 +191,7 @@ class TestingAnchorPrimitiveHarness:
         capabilities = (
             (
                 BusinessCapability(
-                    capability_id="pay",
+                    capability_id="capability_pay",
                     intent="process a payment",
                     behavior_refs=("w1",),
                     interface_refs=("i1",),
@@ -207,7 +204,7 @@ class TestingAnchorPrimitiveHarness:
             (
                 ReliabilityRequirement(
                     requirement_id="rr1",
-                    target_refs=("pay",),
+                    target_refs=("capability_pay",),
                     failure_modes=(FailureMode.TRANSIENT_DEPENDENCY_FAILURE,),
                     recovery_objectives=(
                         RecoveryObjective(
@@ -241,7 +238,7 @@ class TestingAnchorPrimitiveHarness:
                 Requirement(
                     requirement_id="req.cancel",
                     statement="Cancellation must become effective before settlement",
-                    target_refs=("pay",),
+                    target_refs=("capability_pay",),
                     acceptance_refs=("crit.cancel",),
                     constraint_refs=("w1",),
                 ),
@@ -265,20 +262,35 @@ class TestingAnchorPrimitiveHarness:
             (
                 DeploymentIntent(
                     deployment_id="dep1",
-                    target_refs=("pay",),
+                    target_refs=("capability_pay",),
                     rollout_strategy=RolloutStrategy.CANARY,
                     rollback_required=True,
-                    rollback_target_ref="pay",
+                    rollback_target_ref="capability_pay",
                     rollback_invariants=("payment state preserved",),
                 ),
             )
             if with_deployment
             else ()
         )
+        anchors = (
+            (
+                TestingAnchor(
+                    anchor_id="anchor1",
+                    subject_refs=("w1",),
+                    obligation_refs=("crit.cancel",),
+                    evidence_requirements=(
+                        "ORDERING before authorization demonstrated",),
+                    protection_policy=ProtectionPolicy.EVOLVABLE,
+                    authority=AnchorAuthority.DERIVED,
+                ),
+            )
+            if with_anchor
+            else ()
+        )
         return ISR(
             system=System(
-                id="ta-sys",
-                name="TestingAnchorSystem",
+                id="doc-sys",
+                name="DocumentationSystem",
                 modules=(
                     Module(
                         id="m",
@@ -299,54 +311,48 @@ class TestingAnchorPrimitiveHarness:
                 acceptance_criteria=criteria,
                 deployment_intents=intents,
                 testing_anchors=anchors,
+                documentation_intents=documentation,
             )
         )
 
-    def isr_without_anchors(self) -> ISR:
+    def isr_without_documentation(self) -> ISR:
         return self.isr_with()
 
-    def isr_with_anchor(self) -> ISR:
-        return self.isr_with(anchors=(self.valid_anchor(),))
-
-    def isr_with_protected_anchor(self, anchor_id: str = "anchor1") -> ISR:
+    def isr_with_documentation_of(self, subject_id: str) -> ISR:
         return self.isr_with(
-            anchors=(
+            documentation=(
                 dataclasses.replace(
-                    self.valid_anchor(), protection_policy=ProtectionPolicy.PROTECTED
+                    self.valid_doc(), subject_refs=(subject_id,)
                 ),
             )
         )
 
-    def isr_with_anchor_on_subject(self, subject_id: str) -> ISR:
-        return self.isr_with(
-            anchors=(
-                dataclasses.replace(
-                    self.valid_anchor(), subject_refs=(subject_id,)
-                ),
-            )
-        )
-
-    def with_empty_anchors(self, isr: ISR) -> ISR:
+    def with_empty_documentation(self, isr: ISR) -> ISR:
         return isr.with_system(
-            dataclasses.replace(isr.system, testing_anchors=())
+            dataclasses.replace(isr.system, documentation_intents=())
         )
 
-    def respecify_anchor(self, isr: ISR, anchor_id: str) -> ISR:
-        return self.operator.respecify_anchor(
+    def respecify_documentation(
+        self,
+        isr: ISR,
+        documentation_id: str,
+        purpose: DocumentationPurpose,
+    ) -> ISR:
+        return self.operator.respecify_documentation(
             isr,
-            anchor_id=anchor_id,
-            evidence_requirements=("evidence obligation respecified",),
+            documentation_id=documentation_id,
+            purpose=purpose,
         ).candidate_isr
 
-    def evolve_subject_implementation(self, isr: ISR, workflow_id: str) -> ISR:
+    def evolve_subject(self, isr: ISR, subject_id: str) -> ISR:
         """Mutate a subject's implementation while its identity is stable."""
         modules = []
         for module in isr.system.modules:
             workflows = tuple(
                 dataclasses.replace(
-                    w, description=f"implementation evolved under anchor {workflow_id}"
+                    w, description=f"implementation evolved under {subject_id}"
                 )
-                if w.id == workflow_id
+                if w.id == subject_id
                 else w
                 for w in module.workflows
             )
@@ -359,23 +365,38 @@ class TestingAnchorPrimitiveHarness:
     # -- gene addressing ------------------------------------------------------
 
     def all_gene_hashes(self, isr: ISR) -> dict[str, str]:
-        """Every gene except the testing anchor gene class."""
+        """Every gene except the documentation gene class."""
         return {
             path: h
             for path, h in gene_index(isr).items()
-            if "testing_anchors" not in path
+            if "documentation_intents" not in path
         }
 
     def gene_hashes(self, isr: ISR, domain: str) -> dict[str, str]:
         return {p: h for p, h in gene_index(isr).items() if domain in p}
 
+    def subject_genes_identical(self, a: ISR, b: ISR) -> bool:
+        return self.all_gene_hashes(a) == self.all_gene_hashes(b)
+
+    def documentation_gene(self, isr: ISR) -> str:
+        idx = gene_index(isr)
+        for di in range(len(isr.system.documentation_intents)):
+            path = f"system.documentation_intents[{di}]"
+            if isr.system.documentation_intents[di].documentation_id == "doc1":
+                return idx[path]
+        return ""
+
     def gene_hash(self, isr: ISR, gene: tuple) -> str:
-        """("anchor", aid) / ("capability", cid) / ("module", mid) /
+        """("documentation", did) / ("capability", cid) / ("module", mid) /
         ("behavior", wf_id) / ("boundary", bid) / ("reliability", rid) /
         ("requirement", rid) / ("criterion", cid) / ("deployment", did) /
-        ("migration", mid) / ("temporal", cid)."""
+        ("anchor", aid) / ("migration", mid) / ("temporal", cid)."""
         idx = gene_index(isr)
         kind, name = gene
+        if kind == "documentation":
+            for di, doc in enumerate(isr.system.documentation_intents):
+                if doc.documentation_id == name:
+                    return idx[f"system.documentation_intents[{di}]"]
         if kind == "anchor":
             for ai, anchor in enumerate(isr.system.testing_anchors):
                 if anchor.anchor_id == name:
@@ -437,53 +458,67 @@ class TestingAnchorPrimitiveHarness:
 
     def _gate_representation(self):
         system_fields = {f.name for f in dataclasses.fields(System)}
-        ok = "testing_anchors" in system_fields
+        ok = "documentation_intents" in system_fields
         try:
-            self.valid_anchor()
-        except TestingAnchorValidationError:
+            self.valid_doc()
+        except DocumentationValidationError:
             ok = False
-        implementation_fields = {
+        realization_fields = {
             f.name
-            for f in dataclasses.fields(TestingAnchor)
+            for f in dataclasses.fields(DocumentationIntent)
             if any(bad in f.name.lower() for bad in (
-                "test_file", "function", "marker", "fixture", "command",
-                "runner", "script", "satisfied", "verdict", "score",
-                "execution", "framework",
+                "markdown", "html", "template", "path", "format", "render",
+                "generator",
             ))
         }
-        ok = ok and not implementation_fields
-        policies = {p.value for p in ProtectionPolicy}
-        ok = ok and policies == {"PROTECTED", "EVOLVABLE"}
-        authorities = {a.value for a in AnchorAuthority}
-        ok = ok and authorities == {"AUTHORITATIVE", "DERIVED"}
+        ok = ok and not realization_fields
+        authority_fields = {
+            f.name
+            for f in dataclasses.fields(DocumentationIntent)
+            if any(bad in f.name.lower() for bad in (
+                "override", "redefine", "replace", "author", "source_of",
+            ))
+        }
+        ok = ok and not authority_fields
+        purposes = {p.value for p in DocumentationPurpose}
+        ok = ok and purposes == {
+            "OPERATIONAL_REFERENCE", "ARCHITECTURAL_RATIONALE", "API_CONTRACT",
+            "ONBOARDING", "COMPLIANCE",
+        }
+        audiences = {a.value for a in DocumentationAudience}
+        ok = ok and audiences == {
+            "OPERATOR", "DEVELOPER", "ARCHITECT", "SECURITY_AUDITOR", "END_USER",
+        }
         return _result(
             "representation",
             ok,
-            f"System.testing_anchors carrier; TestingAnchor with "
-            f"subjects/obligations/evidence/protection/authority; "
-            f"ProtectionPolicy x2 + AnchorAuthority x2; no test-"
-            f"implementation fields: {implementation_fields or 'none'}",
+            f"System.documentation_intents carrier; DocumentationIntent "
+            f"(subjects/purpose/audience/obligations); Purpose x5 + "
+            f"Audience x5; no realization fields: {realization_fields or 'none'}; "
+            f"no authority fields: {authority_fields or 'none'}",
         )
 
     def _gate_canonicalization(self):
-        isr = self.isr_without_anchors()
-        same = self.with_empty_anchors(isr).content_hash == isr.content_hash
+        isr = self.isr_without_documentation()
+        same = self.with_empty_documentation(isr).content_hash == isr.content_hash
         return _result(
             "canonicalization",
             same,
-            f"empty testing anchor carrier identity-neutral: {same}",
+            f"empty documentation carrier identity-neutral: {same}",
         )
 
     def _gate_semantic_identity(self):
         isr = self.isr_with()
-        with_anchor = self.operator.add_anchor(
-            isr, self.valid_anchor()
+        with_doc = self.operator.add_documentation(
+            isr, self.valid_doc()
         ).candidate_isr
-        step1 = with_anchor.content_hash != isr.content_hash
-        respecified = self.respecify_anchor(with_anchor, "anchor1")
-        step2 = respecified.content_hash != with_anchor.content_hash
-        removed = self.operator.remove_anchor(
-            respecified, anchor_id="anchor1"
+        step1 = with_doc.content_hash != isr.content_hash
+        respecified = self.respecify_documentation(
+            with_doc, "doc1", DocumentationPurpose.COMPLIANCE
+        )
+        step2 = respecified.content_hash != with_doc.content_hash
+        removed = self.operator.remove_documentation(
+            respecified, documentation_id="doc1"
         ).candidate_isr
         step3 = removed.content_hash == isr.content_hash
         return _result(
@@ -496,50 +531,45 @@ class TestingAnchorPrimitiveHarness:
     def _gate_validation(self):
         ok = True
         for bad in (
-            dict(anchor_id="", subject_refs=("w1",)),
-            dict(anchor_id="a", subject_refs=()),
+            dict(documentation_id="", subject_refs=("w1",)),
+            dict(documentation_id="d", subject_refs=()),
         ):
             try:
-                TestingAnchor(**bad)
+                DocumentationIntent(
+                    purpose=DocumentationPurpose.ONBOARDING,
+                    audience=DocumentationAudience.DEVELOPER,
+                    **bad,
+                )
                 ok = False
-            except TestingAnchorValidationError:
+            except DocumentationValidationError:
                 pass
         dangling_subject = self.isr_with(
-            anchors=(
+            documentation=(
                 dataclasses.replace(
-                    self.valid_anchor(), subject_refs=("no-such-gene",)
+                    self.valid_doc(), subject_refs=("no-such-gene",)
                 ),
             ),
         )
         ok = ok and dangling_subject.validate_structure() is False
-        dangling_obligation = self.isr_with(
-            anchors=(
-                dataclasses.replace(
-                    self.valid_anchor(), obligation_refs=("no-such-criterion",)
-                ),
-            ),
-        )
-        ok = ok and dangling_obligation.validate_structure() is False
         duplicate = self.isr_with(
-            anchors=(self.valid_anchor(), self.valid_anchor()),
+            documentation=(self.valid_doc(), self.valid_doc()),
         )
         ok = ok and duplicate.validate_structure() is False
-        ok = ok and self.isr_with_anchor().validate_structure() is True
+        ok = ok and self.isr_with_documentation_of("capability_pay").validate_structure() is True
         return _result(
             "validation",
             ok,
-            "construction contracts enforced; dangling subject + obligation "
-            "refs rejected pre-execution; duplicate ids rejected; valid "
-            "anchor validates",
+            "construction contracts enforced; dangling subject refs rejected "
+            "pre-execution; duplicate ids rejected; valid intent validates",
         )
 
     def _gate_locality(self):
         isr = self.isr_with()
-        mutated = self.operator.add_anchor(
-            isr, self.valid_anchor()
+        mutated = self.operator.add_documentation(
+            isr, self.valid_doc()
         ).candidate_isr
         result = self.locality_probe.probe(
-            isr, mutated, "system.testing_anchors[0]"
+            isr, mutated, "system.documentation_intents[0]"
         )
         return _result(
             "locality",
@@ -549,35 +579,30 @@ class TestingAnchorPrimitiveHarness:
         )
 
     def _gate_projection(self):
-        isr = self.isr_with_anchor()
-        projected = project_testing_anchors(isr)
-        deterministic = projected == project_testing_anchors(isr)
+        isr = self.isr_with_documentation_of("capability_pay")
+        projected = project_documentation_intents(isr)
+        deterministic = projected == project_documentation_intents(isr)
         reflects = any(
-            a.get("anchor_id") == "anchor1"
-            and "w1" in a.get("subject_refs", [])
-            and "crit.cancel" in a.get("obligation_refs", [])
-            and a.get("protection_policy") == "EVOLVABLE"
-            and a.get("authority") == "DERIVED"
-            for a in projected
+            d.get("documentation_id") == "doc1"
+            and "capability_pay" in d.get("subject_refs", [])
+            and d.get("purpose") == "OPERATIONAL_REFERENCE"
+            and d.get("audience") == "DEVELOPER"
+            for d in projected
         )
         text = str(projected)
-        coupled = [
-            term for term in TECHNOLOGY_COUPLING_TERMS if term in text
-        ]
-        mechanism = [
-            term for term in TESTING_MECHANISM_TERMS if term in text
-        ]
+        coupled = [term for term in TECHNOLOGY_COUPLING_TERMS if term in text]
+        mechanism = [term for term in DOCUMENTATION_MECHANISM_TERMS if term in text]
         return _result(
             "projection",
             deterministic and reflects and not coupled and not mechanism,
-            f"deterministic: {deterministic}; reflects anchoring: {reflects}; "
+            f"deterministic: {deterministic}; reflects intent: {reflects}; "
             f"coupling terms: {coupled}; mechanism terms: {mechanism}",
         )
 
     def _gate_compilation(self):
         isr = self.isr_with()
-        mutated = self.operator.add_anchor(
-            isr, self.valid_anchor()
+        mutated = self.operator.add_documentation(
+            isr, self.valid_doc()
         ).candidate_isr
         before = self.backend.async_resolution_module(isr.system.modules[0].workflows)
         after = self.backend.async_resolution_module(mutated.system.modules[0].workflows)
@@ -588,40 +613,40 @@ class TestingAnchorPrimitiveHarness:
         return _result(
             "compilation",
             compatible and deterministic,
-            f"existing backend byte-identical with anchors present: "
+            f"existing backend byte-identical with documentation present: "
             f"{compatible}; deterministic: {deterministic}",
         )
 
     def _gate_evidence(self):
-        isr = self.isr_with_anchor()
+        isr = self.isr_with_documentation_of("capability_pay")
         observable = any(
-            a.get("anchor_id") == "anchor1"
-            for a in project_testing_anchors(isr)
+            d.get("documentation_id") == "doc1"
+            for d in project_documentation_intents(isr)
         )
-        empty = project_testing_anchors(
-            self.isr_without_anchors()
+        empty = project_documentation_intents(
+            self.isr_without_documentation()
         ) == ()
         return _result(
             "evidence",
             observable and empty,
-            f"anchor observable in semantic projection: {observable}; "
-            f"no anchors -> empty projection: {empty}",
+            f"intent observable in semantic projection: {observable}; "
+            f"no intents -> empty projection: {empty}",
         )
 
     def _gate_lineage(self):
         with tempfile.TemporaryDirectory() as tmp:
             ledger = EvolutionLedger(root=str(tmp))
-            operator = TestingAnchorOperator(ledger=ledger)
+            operator = DocumentationOperator(ledger=ledger)
             isr = self.isr_with()
-            candidate = operator.add_anchor(isr, self.valid_anchor())
+            candidate = operator.add_documentation(isr, self.valid_doc())
             chain_ok = ledger.verify_event_chain() is True
             events = ledger.events()
             event = events[0] if events else None
             attributed = (
                 event is not None
                 and event.event_type is EventType.MEASUREMENT
-                and event.payload["operator_id"] == "testing_anchor"
-                and event.payload["subject_id"] == "anchor1"
+                and event.payload["operator_id"] == "documentation"
+                and event.payload["subject_id"] == "doc1"
             )
             hashes_ok = (
                 event is not None
@@ -685,19 +710,19 @@ class TestingAnchorPrimitiveHarness:
             and missing == post_missing
             and CapabilityStatus.PROJECTED not in by_id.values()
         )
-        # Exactly one row moved vs the pre-landing (R2.10.3-G) matrix 9/18/0/3.
-        pre_expressed = post_expressed - {"testing_anchoring"}
-        pre_missing = post_missing | {"testing_anchoring"}
+        # Exactly one row moved vs the pre-landing (R2.10.3-H) matrix 10/18/0/2.
+        pre_expressed = post_expressed - {"documentation"}
+        pre_missing = post_missing | {"documentation"}
         one_row_only = (
-            expressed - pre_expressed == {"testing_anchoring"}
-            and missing == pre_missing - {"testing_anchoring"}
+            expressed - pre_expressed == {"documentation"}
+            and missing == pre_missing - {"documentation"}
             and partial == post_partial
         )
         return _result(
             "audit",
             matrix_ok and one_row_only,
-            f"summary: {result.summary()}; expected 10/18/0/2 with exactly "
-            f"testing_anchoring: MISSING -> EXPRESSED and the other 29 rows "
+            f"summary: {result.summary()}; expected 11/18/0/1 with exactly "
+            f"documentation: MISSING -> EXPRESSED and the other 29 rows "
             f"untouched",
         )
 
@@ -707,311 +732,279 @@ def _result(gate: str, passed: bool, evidence: str) -> GateResult:
 
 
 @pytest.fixture
-def ta_harness() -> TestingAnchorPrimitiveHarness:
-    return TestingAnchorPrimitiveHarness()
+def doc_harness() -> DocumentationPrimitiveHarness:
+    return DocumentationPrimitiveHarness()
 
 
-# -- locality: changing testing intent moves only the testing gene --------------------------
+# -- locality: changing documentation moves only the documentation gene -----------------------
 
-def test_changing_anchor_only_moves_testing_gene(ta_harness):
-    isr = ta_harness.isr_with_anchor()
-    subject_before = ta_harness.gene_hashes(isr, domain="workflows")
-    mutated = ta_harness.respecify_anchor(isr, "anchor1")
-    assert ta_harness.gene_hash(mutated, ("anchor", "anchor1")) != \
-        ta_harness.gene_hash(isr, ("anchor", "anchor1"))  # anchor moved
-    assert ta_harness.gene_hashes(mutated, domain="workflows") == subject_before  # subjects held
+def test_changing_documentation_does_not_change_subject_genes(doc_harness):
+    isr = doc_harness.isr_with_documentation_of("capability_pay")
+    subject_before = doc_harness.gene_hash(isr, ("capability", "capability_pay"))
+    mutated = doc_harness.respecify_documentation(
+        isr, "doc1", DocumentationPurpose.COMPLIANCE
+    )
+    assert doc_harness.gene_hash(mutated, ("documentation", "doc1")) != \
+        doc_harness.gene_hash(isr, ("documentation", "doc1"))  # doc moved
+    assert doc_harness.gene_hash(mutated, ("capability", "capability_pay")) == \
+        subject_before  # subject held
 
 
-def test_changing_anchor_touches_only_testing_gene(ta_harness):
+def test_changing_documentation_touches_only_documentation_gene(doc_harness):
     """The full locality of the proof: every other gene domain is byte-identical."""
-    isr = ta_harness.isr_with_anchor()
-    before = ta_harness.all_gene_hashes(isr)
-    mutated = ta_harness.respecify_anchor(isr, "anchor1")
-    assert ta_harness.all_gene_hashes(mutated) == before
-    assert ta_harness.gene_hash(mutated, ("anchor", "anchor1")) != \
-        ta_harness.gene_hash(isr, ("anchor", "anchor1"))
+    isr = doc_harness.isr_with_documentation_of("capability_pay")
+    before = doc_harness.all_gene_hashes(isr)
+    mutated = doc_harness.respecify_documentation(
+        isr, "doc1", DocumentationPurpose.ARCHITECTURAL_RATIONALE
+    )
+    assert doc_harness.all_gene_hashes(mutated) == before
+    assert doc_harness.gene_hash(mutated, ("documentation", "doc1")) != \
+        doc_harness.gene_hash(isr, ("documentation", "doc1"))
 
 
-def test_add_anchor_does_not_touch_other_genes(ta_harness):
-    isr = ta_harness.isr_with()
-    before = ta_harness.all_gene_hashes(isr)
-    mutated = ta_harness.operator.add_anchor(
-        isr, ta_harness.valid_anchor()
+def test_add_documentation_does_not_touch_other_genes(doc_harness):
+    isr = doc_harness.isr_with()
+    before = doc_harness.all_gene_hashes(isr)
+    mutated = doc_harness.operator.add_documentation(
+        isr, doc_harness.valid_doc()
     ).candidate_isr
-    assert ta_harness.all_gene_hashes(mutated) == before
-    assert ta_harness.has_gene(mutated, ("anchor", "anchor1"))
+    assert doc_harness.all_gene_hashes(mutated) == before
+    assert doc_harness.has_gene(mutated, ("documentation", "doc1"))
 
 
-# -- reference-by-identity: implementation evolves, anchor holds ---------------------------
+# -- reference-by-identity: implementation evolves, documentation holds ------------------------
 
-def test_anchor_stable_when_subject_implementation_evolves(ta_harness):
-    isr = ta_harness.isr_with_anchor_on_subject("w1")
-    anchor_before = ta_harness.gene_hash(isr, ("anchor", "anchor1"))
-    mutated = ta_harness.evolve_subject_implementation(isr, "w1")  # id stable
-    assert ta_harness.gene_hash(mutated, ("behavior", "w1")) != \
-        ta_harness.gene_hash(isr, ("behavior", "w1"))  # subject moved
-    assert ta_harness.gene_hash(mutated, ("anchor", "anchor1")) == anchor_before  # anchor held
+def test_documentation_stable_when_subject_evolves(doc_harness):
+    isr = doc_harness.isr_with_documentation_of("w1")
+    doc_before = doc_harness.gene_hash(isr, ("documentation", "doc1"))
+    mutated = doc_harness.evolve_subject(isr, "w1")  # id stable
+    assert doc_harness.gene_hash(mutated, ("behavior", "w1")) != \
+        doc_harness.gene_hash(isr, ("behavior", "w1"))  # subject moved
+    assert doc_harness.gene_hash(mutated, ("documentation", "doc1")) == doc_before
 
 
-def test_anchor_stable_when_capability_evolves(ta_harness):
-    isr = ta_harness.isr_with_anchor_on_subject("pay")
-    anchor_before = ta_harness.gene_hash(isr, ("anchor", "anchor1"))
+def test_documentation_stable_when_module_evolves(doc_harness):
+    isr = doc_harness.isr_with_documentation_of("m")
+    doc_before = doc_harness.gene_hash(isr, ("documentation", "doc1"))
     modules = []
     for module in isr.system.modules:
-        workflows = tuple(
-            dataclasses.replace(
-                w, description="capability implementation evolved"
+        if module.id == "m":
+            module = dataclasses.replace(
+                module, description="module implementation evolved"
             )
-            for w in module.workflows
-        )
-        module = dataclasses.replace(module, workflows=workflows)
         modules.append(module)
     evolved = isr.with_system(
         dataclasses.replace(isr.system, modules=tuple(modules))
     )
-    assert ta_harness.gene_hash(evolved, ("behavior", "w1")) != \
-        ta_harness.gene_hash(isr, ("behavior", "w1"))  # implementation moved
-    assert ta_harness.gene_hash(evolved, ("anchor", "anchor1")) == anchor_before
+    assert doc_harness.gene_hash(evolved, ("module", "m")) != \
+        doc_harness.gene_hash(isr, ("module", "m"))
+    assert doc_harness.gene_hash(evolved, ("documentation", "doc1")) == doc_before
 
 
-# -- the R2.8 connection: PROTECTED anchors are constitutionally protected -----------------
+# -- the I-specific constraint: documentation is a derived view, never an author ----------------
 
-def test_removing_protected_anchor_rejected(ta_harness):
-    isr = ta_harness.isr_with_protected_anchor("anchor1")
-    with pytest.raises(ConstitutionalViolation):
-        ta_harness.operator.remove_anchor(isr, anchor_id="anchor1")
-
-
-def test_modifying_protected_anchor_rejected(ta_harness):
-    isr = ta_harness.isr_with_protected_anchor("anchor1")
-    with pytest.raises(ConstitutionalViolation):
-        ta_harness.operator.respecify_anchor(
-            isr, anchor_id="anchor1",
-            evidence_requirements=("tampered",),
-        )
+def test_documentation_has_no_realization_fields():
+    fields = {f.name for f in dataclasses.fields(DocumentationIntent)}
+    realization = {
+        f for f in fields
+        if any(bad in f.lower() for bad in (
+            "markdown", "html", "template", "path", "format", "render",
+            "generator",
+        ))
+    }
+    assert not realization, f"documentation carries a realization field: {realization}"
 
 
-def test_downgrading_protected_anchor_rejected(ta_harness):
-    isr = ta_harness.isr_with_protected_anchor("anchor1")
-    with pytest.raises(ConstitutionalViolation):
-        ta_harness.operator.regrade_anchor(
-            isr, anchor_id="anchor1", policy=ProtectionPolicy.EVOLVABLE
-        )
+def test_documentation_has_no_subject_authority_fields():
+    fields = {f.name for f in dataclasses.fields(DocumentationIntent)}
+    authority = {
+        f for f in fields
+        if any(bad in f.lower() for bad in (
+            "override", "redefine", "replace", "author", "source_of",
+        ))
+    }
+    assert not authority, f"documentation carries a subject-authority field: {authority}"
 
 
-def test_removing_evolvable_anchor_restores_identity(ta_harness):
-    isr = ta_harness.isr_with()
-    with_anchor = ta_harness.operator.add_anchor(
-        isr, ta_harness.valid_anchor()
+def test_documentation_respecify_never_redefines_subjects(doc_harness):
+    """Respecifying what a doc must establish cannot redefine WHAT the
+    subjects are — the capability's declared intent is untouched."""
+    isr = doc_harness.isr_with_documentation_of("capability_pay")
+    capability_before = doc_harness.gene_hash(
+        isr, ("capability", "capability_pay")
+    )
+    mutated = doc_harness.operator.respecify_documentation(
+        isr, documentation_id="doc1",
+        obligations=("the capability must be documented for compliance",),
     ).candidate_isr
-    removed = ta_harness.operator.remove_anchor(
-        with_anchor, anchor_id="anchor1"
-    ).candidate_isr
-    assert removed.content_hash == isr.content_hash
-
-
-def test_elevating_anchor_is_authorized(ta_harness):
-    isr = ta_harness.isr_with_anchor()
-    elevated = ta_harness.operator.regrade_anchor(
-        isr, anchor_id="anchor1", policy=ProtectionPolicy.PROTECTED
-    ).candidate_isr
-    anchor = elevated.system.testing_anchors[0]
-    assert anchor.protection_policy is ProtectionPolicy.PROTECTED
+    assert doc_harness.gene_hash(mutated, ("capability", "capability_pay")) == \
+        capability_before
 
 
 # -- declared, never inferred ---------------------------------------------------------------
 
-def test_anchor_is_declared_not_inferred(ta_harness):
-    a = ta_harness.isr_with_anchor_on_subject("w1")
-    b = ta_harness.isr_with_anchor_on_subject("pay")
-    assert ta_harness.gene_hashes(a, domain="workflows") == \
-        ta_harness.gene_hashes(b, domain="workflows")  # same subjects
-    assert ta_harness.gene_hash(a, ("anchor", "anchor1")) != \
-        ta_harness.gene_hash(b, ("anchor", "anchor1"))
-
-
-def test_anchor_identity_is_semantic_not_structural(ta_harness):
-    a = ta_harness.isr_with_anchor_on_subject("w1")
-    b = ta_harness.isr_with_anchor_on_subject("w1")
-    b = b.with_system(dataclasses.replace(b.system, id="other-sys-id"))
-    assert ta_harness.gene_hash(a, ("anchor", "anchor1")) == \
-        ta_harness.gene_hash(b, ("anchor", "anchor1"))  # same declaration
-    assert a.content_hash != b.content_hash  # system identity differs
-
-
-# -- the F->H edge: obligation_refs resolve against F's AcceptanceCriterion ------------------
-
-def test_obligation_refs_resolve_against_acceptance_criteria(ta_harness):
-    assert ta_harness.isr_with_anchor().validate_structure() is True
-    dangling = ta_harness.isr_with(
-        anchors=(
-            dataclasses.replace(
-                ta_harness.valid_anchor(),
-                obligation_refs=("no-such-criterion",),
-            ),
+def test_documentation_is_declared_not_inferred(doc_harness):
+    a = doc_harness.isr_with(
+        documentation=(
+            doc_harness.valid_doc(purpose=DocumentationPurpose.API_CONTRACT),
         ),
     )
-    assert dangling.validate_structure() is False
+    b = doc_harness.isr_with(
+        documentation=(
+            doc_harness.valid_doc(purpose=DocumentationPurpose.COMPLIANCE),
+        ),
+    )
+    assert doc_harness.subject_genes_identical(a, b)  # same subjects
+    assert doc_harness.documentation_gene(a) != doc_harness.documentation_gene(b)
 
 
-def test_anchor_carrier_added_without_editing_f(ta_harness):
-    """The F->H edge activates by resolution only: F's AcceptanceCriterion
-    construct and validator are untouched by H (asserted by the fact that
-    the existing F suites still pass unchanged with the F-era assertions)."""
-    isr = ta_harness.isr_with_anchor()
-    criterion = isr.system.acceptance_criteria[0]
-    assert criterion.criterion_id == "crit.cancel"
-    assert not hasattr(criterion, "anchor_refs")  # F's construct carries no H edge
-    assert not hasattr(criterion, "testing_refs")
+def test_documentation_identity_is_semantic_not_structural(doc_harness):
+    a = doc_harness.isr_with_documentation_of("capability_pay")
+    b = a.with_system(dataclasses.replace(a.system, id="other-sys-id"))
+    assert doc_harness.documentation_gene(a) == doc_harness.documentation_gene(b)
+    assert a.content_hash != b.content_hash
 
 
-# -- the dangerous boundary: no test implementation leaks into the anchor --------------------
+# -- the lint: no realization leaks into the intent ------------------------------------------
 
-def test_anchor_has_no_test_implementation_fields():
-    fields = {f.name for f in dataclasses.fields(TestingAnchor)}
-    impl = {
-        f for f in fields
-        if any(bad in f.lower() for bad in (
-            "test_file", "function", "marker", "fixture", "command",
-            "runner", "script", "execution", "framework",
-        ))
-    }
-    assert not impl, f"anchor carries a test-implementation field: {impl}"
-
-
-def test_anchor_has_no_evaluation_methods():
-    anchor = TestingAnchor(anchor_id="a", subject_refs=("w1",))
-    assert not hasattr(anchor, "is_satisfied")
-    assert not hasattr(anchor, "verdict")
-    assert not hasattr(anchor, "score")
-    assert not hasattr(anchor, "execute")
-    assert not hasattr(anchor, "evidence_refs")  # evidence binding is the evaluator's follow-up
-
-
-def test_testing_lint_rejects_leaked_test_mechanism(ta_harness):
+def test_documentation_lint_rejects_leaked_realization(doc_harness):
     leak = dataclasses.replace(
-        ta_harness.valid_anchor(),
-        evidence_requirements=("test_file test_cancel_order.py via pytest",),
+        doc_harness.valid_doc(),
+        purpose=DocumentationPurpose.OPERATIONAL_REFERENCE,
+    )
+    leak = dataclasses.replace(
+        leak,
+        obligations=("render markdown via mkdocs",),
     )
     hits = mechanism_hits(leak)
-    assert "pytest" in hits
-    assert "test_file" in hits
-    with pytest.raises(TestingAnchorValidationError):
-        assert_testing_technology_agnostic(leak)
+    assert "markdown" in hits
+    assert "mkdocs" in hits
+    with pytest.raises(DocumentationValidationError):
+        assert_documentation_technology_agnostic(leak)
 
 
-def test_testing_lint_allows_semantic_evidence_obligations(ta_harness):
-    assert_testing_technology_agnostic(ta_harness.valid_anchor())
-    assert_testing_technology_agnostic(
-        TestingAnchor(
-            anchor_id="a2",
+def test_documentation_lint_allows_semantic_intents(doc_harness):
+    assert_documentation_technology_agnostic(doc_harness.valid_doc())
+    assert_documentation_technology_agnostic(
+        DocumentationIntent(
+            documentation_id="doc2",
             subject_refs=("w1",),
-            obligation_refs=("crit.cancel",),
-            evidence_requirements=(
-                "ORDERING must be demonstrated before authorization",),
+            purpose=DocumentationPurpose.API_CONTRACT,
+            audience=DocumentationAudience.OPERATOR,
+            obligations=("the API contract must be documented",),
         )
     )
     assert not mechanism_hits(
-        TestingAnchor(
-            anchor_id="a3",
-            subject_refs=("w1",),
-            evidence_requirements=("the declared behavior must be demonstrated",),
+        DocumentationIntent(
+            documentation_id="doc3",
+            subject_refs=("capability_pay",),
+            purpose=DocumentationPurpose.OPERATIONAL_REFERENCE,
+            audience=DocumentationAudience.SECURITY_AUDITOR,
+            obligations=("the declared behavior must be documented",),
         )
     )
 
 
 # -- structural validation -----------------------------------------------------------------
 
-def test_dangling_subject_ref_rejected(ta_harness):
-    dangling = ta_harness.isr_with(
-        anchors=(
+def test_dangling_subject_ref_rejected(doc_harness):
+    dangling = doc_harness.isr_with(
+        documentation=(
             dataclasses.replace(
-                ta_harness.valid_anchor(), subject_refs=("no-such-gene",)
+                doc_harness.valid_doc(), subject_refs=("no-such-gene",)
             ),
         ),
     )
     assert dangling.validate_structure() is False
 
 
-def test_dangling_obligation_ref_rejected(ta_harness):
-    dangling = ta_harness.isr_with(
-        anchors=(
+def test_dangling_boundary_ref_rejected(doc_harness):
+    dangling = doc_harness.isr_with(
+        documentation=(
             dataclasses.replace(
-                ta_harness.valid_anchor(), obligation_refs=("no-such-criterion",)
+                doc_harness.valid_doc(), subject_refs=("no-such-boundary",)
             ),
         ),
     )
     assert dangling.validate_structure() is False
 
 
-def test_duplicate_anchor_id_rejected(ta_harness):
-    duplicate = ta_harness.isr_with(
-        anchors=(ta_harness.valid_anchor(), ta_harness.valid_anchor()),
+def test_duplicate_documentation_id_rejected(doc_harness):
+    duplicate = doc_harness.isr_with(
+        documentation=(doc_harness.valid_doc(), doc_harness.valid_doc()),
     )
     assert duplicate.validate_structure() is False
 
 
 # -- construction validity ----------------------------------------------------------------
 
-def test_anchor_construction_validation():
-    with pytest.raises(TestingAnchorValidationError):
-        TestingAnchor(anchor_id="", subject_refs=("w1",))
-    with pytest.raises(TestingAnchorValidationError):
-        TestingAnchor(anchor_id="a", subject_refs=())
+def test_documentation_construction_validation():
+    with pytest.raises(DocumentationValidationError):
+        DocumentationIntent(
+            documentation_id="", subject_refs=("w1",),
+            purpose=DocumentationPurpose.ONBOARDING,
+            audience=DocumentationAudience.DEVELOPER,
+        )
+    with pytest.raises(DocumentationValidationError):
+        DocumentationIntent(
+            documentation_id="d", subject_refs=(),
+            purpose=DocumentationPurpose.ONBOARDING,
+            audience=DocumentationAudience.DEVELOPER,
+        )
 
 
 # -- canonicalization ----------------------------------------------------------------------
 
-def test_empty_anchor_carrier_identity_neutral(ta_harness):
-    isr = ta_harness.isr_without_anchors()
-    assert ta_harness.with_empty_anchors(isr).content_hash == isr.content_hash
+def test_empty_documentation_carrier_identity_neutral(doc_harness):
+    isr = doc_harness.isr_without_documentation()
+    assert doc_harness.with_empty_documentation(isr).content_hash == isr.content_hash
 
 
 # -- the eleven gates, parameterized --------------------------------------------------------
 
 @pytest.mark.parametrize("gate", PRIMITIVE_GATE)
-def test_primitive_gate(gate, ta_harness):
-    result = ta_harness.run_gate(gate)
+def test_primitive_gate(gate, doc_harness):
+    result = doc_harness.run_gate(gate)
     assert result.passed, f"{gate}: {result.evidence}"
 
 
-def test_all_gates_pass_together(ta_harness):
-    results = assert_all_gates(ta_harness)
+def test_all_gates_pass_together(doc_harness):
+    results = assert_all_gates(doc_harness)
     assert len(results) == len(PRIMITIVE_GATE)
 
 
 # -- lineage is chain-anchored -------------------------------------------------------------
 
-def test_anchor_mutation_is_chain_anchored(tmp_path):
+def test_documentation_mutation_is_chain_anchored(tmp_path):
     ledger = EvolutionLedger(root=str(tmp_path))
-    operator = TestingAnchorOperator(ledger=ledger)
-    harness = TestingAnchorPrimitiveHarness()
+    operator = DocumentationOperator(ledger=ledger)
+    harness = DocumentationPrimitiveHarness()
     isr = harness.isr_with()
-    candidate = operator.add_anchor(isr, harness.valid_anchor())
+    candidate = operator.add_documentation(isr, harness.valid_doc())
     assert ledger.verify_event_chain() is True
     event = ledger.events()[0]
     assert event.event_type is EventType.MEASUREMENT
-    assert event.payload["operator_id"] == "testing_anchor"
-    assert event.payload["subject_id"] == "anchor1"
+    assert event.payload["operator_id"] == "documentation"
+    assert event.payload["subject_id"] == "doc1"
     assert event.payload["isr_hash_before"] == isr.content_hash
     assert event.payload["isr_hash_after"] == candidate.candidate_isr.content_hash
 
 
-def test_anchor_remove_add_round_trip(ta_harness):
-    isr = ta_harness.isr_with()
-    added = ta_harness.operator.add_anchor(
-        isr, ta_harness.valid_anchor()
+def test_documentation_remove_add_round_trip(doc_harness):
+    isr = doc_harness.isr_with()
+    added = doc_harness.operator.add_documentation(
+        isr, doc_harness.valid_doc()
     ).candidate_isr
-    removed = ta_harness.operator.remove_anchor(
-        added, anchor_id="anchor1"
+    removed = doc_harness.operator.remove_documentation(
+        added, documentation_id="doc1"
     ).candidate_isr
     assert removed.content_hash == isr.content_hash
 
 
 # -- the audit, mechanically one row ---------------------------------------------------------
 
-def test_audit_moves_exactly_one_row(ta_harness):
-    result = ta_harness.audit.run(ta_harness.isr_with())
+def test_audit_moves_exactly_one_row(doc_harness):
+    result = doc_harness.audit.run(doc_harness.isr_with())
     by_id = {c.capability_id: c.status for c in result.capabilities}
     expressed = {cid for cid, s in by_id.items() if s is CapabilityStatus.EXPRESSED}
     missing = {cid for cid, s in by_id.items() if s is CapabilityStatus.MISSING}

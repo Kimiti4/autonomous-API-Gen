@@ -837,6 +837,81 @@ evolution_objectives_protected_regions.
 
 ---
 
+## 8j. R2.10.3-H — testing_anchoring (the declaration side of the ISR↔evidence loop)
+
+H closes the loop between the ISR's semantic obligations and the evaluation
+boundary WITHOUT becoming a test-generation primitive. The inversion that
+lets the testing layer define the software's meaning is the failure mode H
+exists to avoid; the principle held since R2.8: **the ISR declares what
+evidence must establish; the evaluation system determines how that evidence
+is produced.** H is the declaration side, full stop — structurally incapable
+of the dangerous half.
+
+**Scope holds (asserted).** (1) H does NOT evaluate: no `is_satisfied`, no
+verdict, no score, no execution — field-name test proves there is nowhere to
+put them. (2) H does NOT wire obligation→anchor→evidence into the live
+evaluation loop: `obligation_refs` merely RESOLVE against F's
+`AcceptanceCriterion` ids (the F→H edge) without editing F — H's validator
+rejects dangling obligation refs pre-execution; BINDING anchors to produced
+evidence is the evaluation system's follow-up, exactly where R2.8.14 ANCHOR
+events already live.
+
+**Construct.** `constitutional_architecture/isr/semantics/testing_anchor.py`:
+`TestingAnchor(anchor_id, subject_refs, obligation_refs,
+evidence_requirements, protection_policy, authority)` — `anchor_id` +
+`subject_refs` required. `ProtectionPolicy` (PROTECTED / EVOLVABLE) reuses
+R2.8.7's protected-evaluation-surface semantics generalized into the ISR;
+`AnchorAuthority` (AUTHORITATIVE / DERIVED) distinguishes fixed reference
+anchors from derived ones. `TESTING_MECHANISM_TERMS` gates the canonical
+semantic form (pytest, junit, cypress, selenium, jest, mocha, testng, rspec,
+test_file, test_function, test_name, test_case, fixture, conftest,
+pytest_marker, assert_function, mock_object, docker_command, shell_command,
+ci_step, runner_config). Asymmetry proven: "ORDERING must be demonstrated
+before authorization" PASSES; "test_file test_cancel_order.py via pytest"
+FAILS.
+
+**Subject / obligation identity space.** `subject_refs` resolve against
+behaviors (workflow ids), capabilities, and requirement ids — reference by
+identity, exactly E's member-ref discipline. `obligation_refs` resolve
+against F's `AcceptanceCriterion` ids. H adds NOTHING to F: the criterion
+construct carries no `anchor_refs`/`testing_refs` (asserted) — the edge
+activates by resolution only.
+
+**The R2.8 connection — ONE protection mechanism across primitives.**
+PROTECTED anchor removal/modification raises `ConstitutionalViolation` — the
+SAME violation E's `BoundaryOperator` raises for protected boundaries. Not a
+parallel security model: the governance kernel already understands this
+violation; a protected anchor is as untouchable as a protected boundary.
+Elevation EVOLVABLE→PROTECTED is authorized; downgrade PROTECTED→EVOLVABLE
+is a violation.
+
+**The substance of the slice — three proofs.** (1) Changing testing intent
+(respecify) moves ONLY the testing gene — every subject/behavior gene stays
+byte-identical (the full-locality proof). (2) A subject's implementation
+evolves while the anchor holds — reference-by-identity stability. (3) A
+PROTECTED anchor's removal/modification is constitutionally rejected;
+EVOLVABLE removal restores the exact prior hash.
+
+**Gates (all green).** Eleven-gate protocol reused (representation /
+canonicalization — empty carrier identity-neutral, recipe `isr_hash`
+unchanged `317b62a8…` — eighth Option A use / semantic identity / validation —
+duplicate ids, dangling subject + obligation refs rejected pre-execution /
+locality / projection — `project_testing_anchors`, semantics only, zero
+TECHNOLOGY_COUPLING_TERMS, zero TESTING_MECHANISM_TERMS / compilation —
+`async_resolution_module` byte-identical with anchors present / evidence /
+lineage — MEASUREMENT attribution with before/after hashes / reproducibility
+/ audit).
+
+**Audit gate — exactly one row moved** (pre-landing matrix 9/18/0/3, after
+R2.10.3-G): `testing_anchoring`: MISSING → EXPRESSED, asserted mechanically
+as `moved_rows == {"testing_anchoring": ("MISSING", "EXPRESSED")}`.
+Re-attested matrix: **10 EXPRESSED / 18 PARTIAL / 0 PROJECTED /
+2 MISSING**, recipe isr_hash unchanged `317b62a8…` — Option A, eighth use.
+
+Remaining MISSING (2): documentation, evolution_objectives_protected_regions.
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -844,7 +919,7 @@ evolution_objectives_protected_regions.
 ```
 R2.10.1  ISR capability/expressivity audit        ← executed
 R2.10.2  Missing ISR primitives (the 10 MISSING rows above)  ← contract suite + Option A migration
-R2.10.3  Primitive roots, in derived order         ← A temporal (3/18/0/9) + B capabilities (4/18/0/8) + C migrations (5/18/0/7) + D reliability (6/18/0/6) + E boundaries (7/18/0/5) + F requirements (8/18/0/4) + G deployment (9/18/0/3) landed; H testing_anchoring next
+R2.10.3  Primitive roots, in derived order         ← A temporal (3/18/0/9) + B capabilities (4/18/0/8) + C migrations (5/18/0/7) + D reliability (6/18/0/6) + E boundaries (7/18/0/5) + F requirements (8/18/0/4) + G deployment (9/18/0/3) + H testing_anchoring (10/18/0/2) landed; I documentation next
 R2.10.4  Architectural subgraph mutation — includes the Requirement Graph
          → ISR construction (the unbuilt top half), explicitly sequenced, not deferred
 R2.10.5  Safe structural crossover (chromosome families/genes: Architecture,

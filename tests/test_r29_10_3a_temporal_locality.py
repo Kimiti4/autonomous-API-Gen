@@ -415,6 +415,7 @@ class TemporalPrimitiveHarness:
             "architecture_boundaries",  # R2.10.3-E
             "requirements_acceptance_traceability",  # R2.10.3-F
             "deployment_rollout_rollback",  # R2.10.3-G
+            "testing_anchoring",  # R2.10.3-H
         }
         expected_partial = {
             "behavior_guards_actions", "behavior_state_semantics",
@@ -428,7 +429,7 @@ class TemporalPrimitiveHarness:
             "operational_policies", "evolution_lineage_provenance",
         }
         expected_missing = {
-            "documentation", "testing_anchoring",
+            "documentation",
             "evolution_objectives_protected_regions",
         }
         one_row_only = (

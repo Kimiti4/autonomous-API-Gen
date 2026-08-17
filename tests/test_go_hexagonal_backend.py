@@ -181,8 +181,8 @@ def test_go_struct_tag_is_well_formed_for_optional_fields():
 
 
 def _docker_available() -> bool:
-    import shutil
-    return shutil.which("docker") is not None
+    from tiannara.application.evolution.compiler_sandbox import docker_available
+    return docker_available()
 
 
 @pytest.mark.skipif(not _docker_available(), reason="docker + go toolchain required for runtime check")

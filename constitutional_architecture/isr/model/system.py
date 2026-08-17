@@ -17,6 +17,7 @@ from constitutional_architecture.isr.semantics.requirement import (
     AcceptanceCriterion,
     Requirement,
 )
+from constitutional_architecture.isr.semantics.testing_anchor import TestingAnchor
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,7 @@ class System:
     requirements: tuple[Requirement, ...] = ()
     acceptance_criteria: tuple[AcceptanceCriterion, ...] = ()
     deployment_intents: tuple[DeploymentIntent, ...] = ()
+    testing_anchors: tuple[TestingAnchor, ...] = ()
 
     def get_module(self, module_id: str) -> Optional[Module]:
         for m in self.modules:

@@ -558,6 +558,7 @@ class BoundaryPrimitiveHarness:
             "data_migrations", "reliability_resilience",
             "architecture_boundaries", "requirements_acceptance_traceability",
             "deployment_rollout_rollback",
+            "testing_anchoring",
         }
         post_partial = {
             "behavior_guards_actions", "behavior_state_semantics",
@@ -571,7 +572,7 @@ class BoundaryPrimitiveHarness:
             "operational_policies", "evolution_lineage_provenance",
         }
         post_missing = {
-            "documentation", "testing_anchoring",
+            "documentation",
             "evolution_objectives_protected_regions",
         }
         matrix_ok = (
@@ -831,17 +832,17 @@ def test_audit_moves_exactly_one_row(bd_harness):
     by_id = {c.capability_id: c.status for c in result.capabilities}
     expressed = {cid for cid, s in by_id.items() if s is CapabilityStatus.EXPRESSED}
     missing = {cid for cid, s in by_id.items() if s is CapabilityStatus.MISSING}
-    # Pre-landing (R2.10.3-F) matrix: 8/18/0/4.
+    # Pre-landing (R2.10.3-G) matrix: 9/18/0/3.
     pre_expressed = {
         "behavior_transitions", "behavior_await_surface",
         "behavior_temporal_semantics", "business_capabilities",
         "data_migrations", "reliability_resilience",
         "architecture_boundaries", "requirements_acceptance_traceability",
+        "deployment_rollout_rollback",
     }
     pre_missing = {
-        "deployment_rollout_rollback",
-        "documentation", "testing_anchoring",
-        "evolution_objectives_protected_regions",
+        "testing_anchoring",
+        "documentation", "evolution_objectives_protected_regions",
     }
     moved_rows = {}
     for cid in pre_expressed | pre_missing:
@@ -850,6 +851,6 @@ def test_audit_moves_exactly_one_row(bd_harness):
         if before != after:
             moved_rows[cid] = (before, after)
     assert moved_rows == {
-        "deployment_rollout_rollback": ("MISSING", "EXPRESSED")
+        "testing_anchoring": ("MISSING", "EXPRESSED")
     }
-    assert (len(expressed), 18, 0, len(missing)) == (9, 18, 0, 3)  # NOT 8/18/0/4
+    assert (len(expressed), 18, 0, len(missing)) == (10, 18, 0, 2)  # NOT 9/18/0/3

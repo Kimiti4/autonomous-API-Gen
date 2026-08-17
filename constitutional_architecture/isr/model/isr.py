@@ -32,6 +32,9 @@ from constitutional_architecture.isr.semantics.reliability import (
 from constitutional_architecture.isr.semantics.requirement import (
     validate_system_requirement_constraints,
 )
+from constitutional_architecture.isr.semantics.testing_anchor import (
+    validate_system_testing_anchor_constraints,
+)
 from constitutional_architecture.isr.semantics.temporal import (
     validate_module_temporal_constraints,
 )
@@ -115,5 +118,7 @@ class ISR:
         if validate_system_requirement_constraints(self.system):
             return False
         if validate_system_deployment_constraints(self.system):
+            return False
+        if validate_system_testing_anchor_constraints(self.system):
             return False
         return True

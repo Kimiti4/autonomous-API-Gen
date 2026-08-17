@@ -775,12 +775,25 @@ DEFAULT_PROBES: tuple[StaticCapabilityProbe, ...] = (
         capability_id="testing_anchoring",
         name="Testing: anchoring",
         description="Protected / holdout test identity as an ISR-represented capability.",
-        carrier="(none)",
-        gene_paths=(),
+        carrier="System.testing_anchors (TestingAnchor)",
+        gene_paths=("system.testing_anchors[*]",),
         constitutional_ids=("testing",),
-        represented=False,
+        represented=True,
+        independently_mutatable=True,
+        independently_validatable=True,
+        compilable=True,
+        observable=True,
+        lineage_tracked=True,
         evidence=(
-            "NOT represented in the ISR: protected/holdout test identity is external, anchored via R2.8.14 ANCHOR events",
+            "represented: TestingAnchor(subject_refs, obligation_refs, evidence_requirements, protection_policy, authority)",
+            "mutatable: TestingAnchorOperator (add/remove/respecify/regrade/generate) — PROTECTED removal/modification is a ConstitutionalViolation",
+            "validatable: validate_system_testing_anchor_constraints — duplicate ids, dangling subject/obligation refs",
+            "compilable: anchor is the declaration side of the ISR<->evidence loop, never a test implementation",
+            "observable: project_testing_anchors projection",
+            "lineage: MEASUREMENT events per mutation with before/after hashes",
+            "obligation_refs RESOLVE against F's AcceptanceCriterion ids without editing F (the F->H edge)",
+            "PROTECTION: R2.8.7 protected-evaluation-surface semantics generalized — one protection mechanism across primitives",
+            "R2.8.14 ANCHOR events remain the evidence-side binding; H is the ISR-side declaration",
         ),
     ),
     StaticCapabilityProbe(
@@ -859,9 +872,9 @@ def gene_index(isr: ISR) -> dict[str, str]:
     workflow, state, transition, policy, interface, endpoint, event, constraint,
     temporal constraint, business capability, data migration, deployment
     sub-config, reliability requirement, architectural boundary, requirement,
-    acceptance criterion, deployment intent) is one gene. ``canonicalize`` is
-    the shared single source of truth, so gene hashes compose with the ISR's
-    content hash.
+    acceptance criterion, deployment intent, testing anchor) is one gene.
+    ``canonicalize`` is the shared single source of truth, so gene hashes
+    compose with the ISR's content hash.
     """
     idx: dict[str, str] = {}
     system = isr.system
@@ -890,6 +903,8 @@ def gene_index(isr: ISR) -> dict[str, str]:
         idx[f"system.acceptance_criteria[{ci}]"] = _gene_hash(criterion)
     for di, intent in enumerate(system.deployment_intents):
         idx[f"system.deployment_intents[{di}]"] = _gene_hash(intent)
+    for ai, anchor in enumerate(system.testing_anchors):
+        idx[f"system.testing_anchors[{ai}]"] = _gene_hash(anchor)
     for mi, module in enumerate(system.modules):
         base = f"system.modules[{mi}]"
         idx[base] = _gene_hash((module.id, module.name, module.description, module.metadata))

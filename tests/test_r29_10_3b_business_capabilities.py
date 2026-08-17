@@ -465,6 +465,7 @@ class CapabilityPrimitiveHarness:
             "architecture_boundaries",  # R2.10.3-E
             "requirements_acceptance_traceability",  # R2.10.3-F
             "deployment_rollout_rollback",  # R2.10.3-G
+            "testing_anchoring",  # R2.10.3-H
         }
         post_partial = {
             "behavior_guards_actions", "behavior_state_semantics",
@@ -478,7 +479,7 @@ class CapabilityPrimitiveHarness:
             "operational_policies", "evolution_lineage_provenance",
         }
         post_missing = {
-            "documentation", "testing_anchoring",
+            "documentation",
             "evolution_objectives_protected_regions",
         }
         matrix_ok = (

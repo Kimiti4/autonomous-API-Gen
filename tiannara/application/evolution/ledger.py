@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import uuid
 from typing import Any
 
@@ -119,6 +120,7 @@ class EventType(str, enum.Enum):
     ISR_CAPABILITY_AUDIT = "isr_capability_audit"  # R2.10.1: signed capability/expressivity matrix
     PRIMITIVE_CONTRACT = "primitive_contract"  # R2.10.2: signed primitive/extension/compatibility contract
     VERIFICATION = "verification"  # R2.10.8: chain-addressable artifact verification result
+    GENERATION_OUTCOME = "generation_outcome"  # R2.10.9: one campaign generation outcome (intent -> ISR -> compilation -> verification)
 
 
 class EvolutionEvent(BaseModel):
@@ -223,6 +225,10 @@ class EvolutionLedger:
         self._events: list[EvolutionEvent] = []
         self._event_hashes: list[str] = []
         self._event_path: str | None = None
+        # R2.10.9: serialize concurrent campaign appends (parallel load keeps
+        # the chain intact by construction — parent/sequence are assigned
+        # under the lock).
+        self._append_lock = threading.Lock()
         if root:
             os.makedirs(root, exist_ok=True)
             self._path = os.path.join(root, "ledger.jsonl")
@@ -339,28 +345,33 @@ class EvolutionLedger:
         Sets ``parent_event_id`` to the prior event's ``event_hash`` (cascade on
         tamper), assigns ``sequence``, computes ``event_hash``, and persists to
         ``events.jsonl`` when a root is configured. Returns the event_id.
+
+        R2.10.9: concurrent appends (the campaign's parallel load) are
+        serialized by ``_append_lock`` so parent/sequence assignment and the
+        file append stay atomic — the chain cannot interleave.
         """
-        parent = self.latest_event_hash
-        seq = len(self._events)
-        ev = event.model_copy(update={
-            "parent_event_id": parent,
-            "sequence": seq,
-            "evolution_id": evolution_id or event.evolution_id,
-        })
-        # Finalize the event_id FIRST so the hash is computed over the final id
-        # (projected events arrive with an id; direct-authored ones get a uuid).
-        if not ev.event_id:
-            ev = ev.model_copy(update={"event_id": uuid.uuid4().hex})
-        ev = ev.model_copy(update={"event_hash": ev.computed_hash()})
-        self._events.append(ev)
-        self._event_hashes.append(ev.event_hash)
-        if self._event_path:
-            entry = {"id": ev.event_hash, **ev.model_dump(mode="json")}
-            line = json.dumps(entry, sort_keys=True)
-            with open(self._event_path, "a", encoding="utf-8") as fh:
-                fh.write(line + "\n")
-                fh.flush()
-                os.fsync(fh.fileno())
+        with self._append_lock:
+            parent = self.latest_event_hash
+            seq = len(self._events)
+            ev = event.model_copy(update={
+                "parent_event_id": parent,
+                "sequence": seq,
+                "evolution_id": evolution_id or event.evolution_id,
+            })
+            # Finalize the event_id FIRST so the hash is computed over the final id
+            # (projected events arrive with an id; direct-authored ones get a uuid).
+            if not ev.event_id:
+                ev = ev.model_copy(update={"event_id": uuid.uuid4().hex})
+            ev = ev.model_copy(update={"event_hash": ev.computed_hash()})
+            self._events.append(ev)
+            self._event_hashes.append(ev.event_hash)
+            if self._event_path:
+                entry = {"id": ev.event_hash, **ev.model_dump(mode="json")}
+                line = json.dumps(entry, sort_keys=True)
+                with open(self._event_path, "a", encoding="utf-8") as fh:
+                    fh.write(line + "\n")
+                    fh.flush()
+                    os.fsync(fh.fileno())
         return ev.event_id
 
     def get_event(self, event_id: str) -> EvolutionEvent | None:
@@ -589,6 +600,60 @@ class EvolutionLedger:
         self.append_event(event, evolution_id=evolution_id)
         return event.event_id
 
+    # -- R2.10.9: campaign generation outcomes (duck-typed, additive) ----------
+
+    def record_generation_outcome(
+        self,
+        intent_id: str,
+        compiled: Any,
+        verified: Any,
+        *,
+        campaign_id: str = "",
+        evolution_id: str = "",
+    ) -> str:
+        """Chain-anchor one campaign generation outcome: the full provenance
+        chain from intent through ISR, compilation, and verification.
+
+        ``compiled`` / ``verified`` are duck-typed (artifact_hash, isr_hash,
+        target_id, backend_id / verified, failures, verification_event_ref)
+        so the ledger never imports the campaign package. The event binds
+        intent -> ISR -> compilation -> verification and is the
+        ``provenance_chain_ref`` of the outcome's metrics — every outcome is
+        individually addressable on the chain. Returns the event_id.
+        """
+        event_id = (
+            f"generation-{campaign_id}-{intent_id}-"
+            f"{compiled.artifact_hash[:8]}"
+        )
+        evolution_id = evolution_id or f"campaign-{campaign_id}"
+        event = EvolutionEvent(
+            event_id=event_id,
+            evolution_id=evolution_id,
+            sequence=0,
+            event_type=EventType.GENERATION_OUTCOME,
+            subject_id=intent_id,
+            payload={
+                "campaign_id": campaign_id,
+                "intent_id": intent_id,
+                "isr_hash": compiled.isr_hash,
+                "target_id": compiled.target_id,
+                "backend_id": compiled.backend_id,
+                "artifact_hash": compiled.artifact_hash,
+                "compilation_event_ref": (
+                    f"compilation-{compiled.backend_id}-"
+                    f"{compiled.artifact_hash[:8]}"
+                ),
+                "verification_verified": verified.verified,
+                "verification_event_ref": verified.verification_event_ref,
+                "failures": list(verified.failures),
+            },
+            isr_hash=compiled.isr_hash,
+            candidate_hash=compiled.artifact_hash,
+            artifact_hash=compiled.artifact_hash,
+        )
+        self.append_event(event, evolution_id=evolution_id)
+        return event.event_id
+
     @classmethod
     def load(cls, root: str) -> "EvolutionLedger":
         """Reconstruct an in-memory ledger from its durable JSONL files.
@@ -606,6 +671,7 @@ class EvolutionLedger:
         ledger._selection_ids = []
         ledger._events: list[EvolutionEvent] = []
         ledger._event_hashes = []
+        ledger._append_lock = threading.Lock()
         from pathlib import Path
 
         root_path = Path(root)

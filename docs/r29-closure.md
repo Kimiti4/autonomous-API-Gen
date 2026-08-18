@@ -1551,6 +1551,72 @@ together: 104 passed).
 
 ---
 
+### 8s. R2.10.9 — Campaign readiness (deterministic, budget-respecting, ledger-faithful orchestration)
+
+R2.10.8 proved a single artifact can independently demonstrate its
+provenance. R2.10.9 proves the campaign machinery that will drive Phase 31 —
+the orchestrator itself — is deterministic, resource-budget-respecting, and
+ledger-faithful at small scale (26 intents, 2 per category, across all 13
+`ProjectCategory`s) before it scales to thousands.
+
+**The architecture.** The intent → ISR → evolution → compilation →
+verification → metrics pipeline is a dependency-inverted orchestration
+(`tiannara/application/campaign/`): `corpus.py` (intents, never ISRs — the
+corpus is `technology-free` by construction and the evolution Contamination
+Guard enforces it), `failure_taxonomy.py` (8 categories incl.
+CompilationContractViolation — non-recoverable — vs TimeoutError — recoverable;
+an uncategorized failure is itself a failure), `harness.py`
+(`CampaignHarness`: orchestrates and measures; AST-scanned to contain no
+ISR-mutation or verdict-override surface — the harness is an evidence
+collector, never an authority), `dry_run.py` (the same campaign run twice
+under the same seed with an honest verdict: `harness_deterministic`,
+`resource_budget_respected`, `all_failures_classified`,
+`ledger_intact_under_load`, `corpus_category_coverage`, `ready_to_scale`).
+
+**The declared seam.** The constitution's Problem → ISR pipeline exists
+(`tiannara.application.intent.IntentCompiler`) but is LLM-driven and not
+hermetic; the dry run derives ISRs through the `DeclaredIntentPipelineStub`
+and says so on every campaign result (`CampaignResult.declared_assumptions`)
+— never a silent approximation. Phase 31 injects the real pipeline behind
+the same duck-typed surface.
+
+**The parallel-safety discovery.** Running the frozen R2.10.5 loop from
+parallel campaign threads is unsafe by construction: the loop scopes its
+byte-exact reconstruction by ledger-length slices and keeps `_run_evolution_id`
+on the instance, so the R2.10.5 design assumes one loop per run. A shared
+loop leaked deltas and evolution ids across intents under `max_parallel=4`.
+`CampaignEvolution` therefore isolates every intent run behind fresh
+loop/gate/variation/ledger instances — the campaign ledger remains the
+durable evidence ledger (outcomes, compilations, verifications; the
+`_append_lock` serializes appends), while per-run evolution internals live
+in the run's own ledger. Ledger additions are additive and duck-typed:
+`EventType.GENERATION_OUTCOME` + `record_generation_outcome` (binds
+intent_id, isr_hash, target/backend, artifact_hash, compilation_event_ref,
+verification refs, failures — the full provenance chain) — `load()` is
+lock-guarded, and the chain stays intact under parallel load.
+
+**The milestone.** The dry run verdict is `ready_to_scale`: deterministic
+(same seed → identical outcomes, incl. hashes), budget-respecting
+(120 s / intent budget honored), every failure classified (none UNKNOWN),
+ledger chain intact under parallel load, all 13 categories covered, and
+every successful outcome carries its provenance chain.
+
+**Boundaries.** No Phase 31 scale (tens of intents, not thousands); no new
+compiler or evolution capability (R2.10.5–8 invoked as black boxes); no
+deployment execution (`deployment_attempted=False`); no lint/complexity
+scoring; the matrix does not move.
+
+**Matrix.** The recipe ISR is byte-identical (`isr_hash` unchanged
+`317b62a8…` — the **seventeenth Option A use**) and the matrix stays
+**12 EXPRESSED / 18 PARTIAL / 0 PROJECTED / 0 MISSING**, asserted
+mechanically.
+
+**Verification.** Full suite: **2195 passed / 10 skipped** (R2.10.9 suite:
+13 passed — the 10 acceptance tests plus the declared-stub test, the
+constitutional-ISR derivation test, and the `ready_to_scale` verdict test).
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -1565,6 +1631,7 @@ R2.10.6  ISR → Compiler Backend consumption contract (read-only CompilerBacken
 R2.10.7  Real-backend conformance behind the frozen R2.10.6 contract (FastAPI conformed; react, postgres, terraform, cicd, pytest, markdown follow) ← executed
 R2.10.7  Cross-backend conformance campaign (one ISR, seven realizations, one invariant semantic source) ← executed
 R2.10.8  Artifact verification & provenance (independent judge: artifact integrity, ISR binding, target/backend binding, coverage, ledger chain, conformance evidence — seven divergent realizations resolve to one semantic source) ← executed
+R2.10.9  Campaign readiness (orchestration, measurement, and failure classification proven deterministic, budget-respecting, ledger-faithful at tens of intents; dry-run verdict ready_to_scale) ← executed
 R2.10.6  Safe structural crossover (chromosome families/genes: Architecture,
          Persistence, Infrastructure, Security, Messaging, Observability,
          Testing, Deployment, Governance, Performance, Reliability)

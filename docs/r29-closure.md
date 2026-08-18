@@ -1326,6 +1326,83 @@ Option A use**) and the matrix stays **12 EXPRESSED / 18 PARTIAL /
 
 ---
 
+## 8p. R2.10.7 — Real-backend conformance behind the frozen R2.10.6 contract
+
+R2.10.6 froze the consumption contract and the eight-gate certifier; R2.10.7
+is the first time the contract meets backends that were built BEFORE it
+existed (the Phase 8-22 compilers under `constitutional_architecture/
+compilers/`). Governing principle, locked before implementation: **conform
+the backends to the contract, never weaken the contract to fit a backend** —
+a failing gate is a FINDING to remediate, never a gate to weaken.
+
+**Pre-implementation audit** (recorded as findings, not silently fixed): all
+seven real backends consume the pre-contract input surface — the raw
+`UniversalISR` object graph (`isr.nodes.values()`, `isr.edges`,
+`isr.intent_hash`, `isr.genome_hash`, `semantic_attributes`) plus
+`ArchitectureGenome` genes (`get_gene(...)`, `persistence_model`,
+`tenancy_strategy`, …) — with signature `compile(isr: UniversalISR, genome:
+ArchitectureGenome, context) -> CompilationBundle`; none has a
+model-consumption seam. **FastAPI** is the backend most likely to fail first
+(deepest graph consumption across four generation layers plus genome genes);
+**Markdown** has a latent Gate-B risk (`datetime.date.today()` in ADRs).
+
+**Machinery** (`tiannara/application/compilation/backend_conformance.py`):
+
+- `BackendCapabilityDeclaration` — a backend's EXPLICIT declaration of which
+  ISR semantics it realizes; an undeclared semantic defaults to UNSUPPORTED
+  (honest by default, never silently skipped).
+- `translate_projection_to_universal_inputs` — the projection-only
+  translation seam: behaviors (workflows) become SERVICE nodes, capabilities
+  become CAPABILITY nodes, from the model's canonical constraints alone —
+  the real backend never receives the semantic ISR object graph. Structural
+  genes (entities, interfaces, events) are outside the 14-semantic
+  projection and are recorded as a finding rather than invented.
+- `BackendConformanceAdapter` — wraps the real backend behind the frozen
+  `CompilerBackend`: consumes `BackendSemanticModel`, translates the
+  projection deterministically, invokes the real generation logic
+  READ-ONLY, and wraps the bundle (pydantic → `model_dump(mode="json")`)
+  in a provenance-bound artifact carrying `semantic_source` (Gate F
+  round-trips through it) + declared coverage.
+- `BackendConformanceReport` — the durable conformance artifact: gate
+  results, capability coverage, contamination findings, findings with
+  remediation notes, ISR semantic hash at conformance; `conforms` requires
+  every gate to hold AND zero contamination findings; `failed_gates` names
+  what did not.
+- `BackendConformanceEvaluator` — applies the EIGHT GATES UNCHANGED through
+  the integrity gate plus the three-layer contamination guard (Layer 1 scans
+  the real backend's module AST for mutation fragments). It has NO
+  gate-weakening surface.
+- `ledger.py` — duck-typed `record_conformance` (EventType.CERTIFICATION,
+  payload binds backend id / verdict / failed gates / coverage summary /
+  ISR hash). The report is chain-anchored alongside the COMPILATION events.
+
+**Acceptance evidence.** `tests/test_r29_10_7_backend_conformance.py` — 12
+tests: FastAPI (the first-fail candidate) conforms with all eight gates
+holding / the declaration enumerates all fourteen semantics / no silent
+omission (Gate D) / multi-backend invariance with the REAL backend (one
+semantic source, distinct artifacts) / Layer-2 neutrality before and after
+the real compile / the report binds to the ISR semantic hash / the
+evaluator has no gate-weakening surface ("relax"/"skip_gate"/"override_gate"
+absent from its source) / a non-deterministic backend (the markdown
+`date.today()` class of defect) is surfaced with Gate B naming the failure /
+undeclared semantics default to explicit UNSUPPORTED / honest findings are
+durable (pre-contract input surface + structural-gene projection gap with
+remediation notes) / the report is chain-anchored (CERTIFICATION event,
+chain verifies) / Option A (fourteenth use).
+
+**Matrix.** R2.10.7 adds no carriers and moves no matrix row: the recipe ISR
+is byte-identical (`isr_hash` unchanged `317b62a8…` — the **fourteenth
+Option A use**) and the matrix stays **12 EXPRESSED / 18 PARTIAL /
+0 PROJECTED / 0 MISSING**, asserted mechanically.
+
+**Verification.** Full suite: **2157 passed / 10 skipped** (R2.10.7 suite:
+12 passed; R2.10.4 + R2.10.5 + R2.10.6 + R2.10.7 together: 62 passed).
+FastAPI is the first backend conformed; the remaining six (react, postgres,
+terraform, cicd, pytest, markdown) follow the same adapter pattern in
+subsequent passes.
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -1337,6 +1414,7 @@ R2.10.3  Primitive roots, in derived order         ← A temporal (3/18/0/9) + B
 R2.10.4  Universal ISR evolution integration (SemanticEvolutionGate) ← executed
 R2.10.5  Universal evolutionary search (UniversalEvolutionLoop) ← executed
 R2.10.6  ISR → Compiler Backend consumption contract (read-only CompilerBackend) ← executed
+R2.10.7  Real-backend conformance behind the frozen R2.10.6 contract (FastAPI conformed; react, postgres, terraform, cicd, pytest, markdown follow) ← executed
 R2.10.6  Safe structural crossover (chromosome families/genes: Architecture,
          Persistence, Infrastructure, Security, Messaging, Observability,
          Testing, Deployment, Governance, Performance, Reliability)

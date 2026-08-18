@@ -503,6 +503,47 @@ class EvolutionLedger:
         self.append_event(event, evolution_id=evolution_id)
         return event.event_id
 
+    # -- R2.10.7: conformance evidence (duck-typed, additive) ------------------
+
+    def record_conformance(self, report: Any, *, evolution_id: str = "") -> str:
+        """Chain-anchor one backend conformance report on the authoritative
+        event chain.
+
+        ``report`` is duck-typed (backend_id, backend_version, conforms,
+        failed_gates, capability_coverage, isr_semantic_hash_at_conformance)
+        so the ledger never imports the conformance module — the R2.10.7
+        evaluator calls this through the duck-typed seam. The payload binds
+        the backend, its declared coverage summary, its verdict, and the ISR
+        hash the report was produced against. Returns the event_id.
+        """
+        summary: dict[str, int] = {}
+        for item in report.capability_coverage:
+            summary[item.support.value] = summary.get(item.support.value, 0) + 1
+        evolution_id = evolution_id or f"conformance-{report.backend_id}"
+        isr_hash = report.isr_semantic_hash_at_conformance
+        event = EvolutionEvent(
+            event_id=(
+                f"conformance-{report.backend_id}-{isr_hash[:8]}"
+            ),
+            evolution_id=evolution_id,
+            sequence=0,
+            event_type=EventType.CERTIFICATION,
+            subject_id=isr_hash,
+            payload={
+                "backend_id": report.backend_id,
+                "backend_version": report.backend_version,
+                "conforms": report.conforms,
+                "failed_gates": list(report.failed_gates),
+                "isr_hash": isr_hash,
+                "coverage_summary": summary,
+            },
+            isr_hash=isr_hash,
+            candidate_hash=f"conformance-{report.backend_id}",
+            artifact_hash="",
+        )
+        self.append_event(event, evolution_id=evolution_id)
+        return event.event_id
+
     # -- R2.7.5-F: replay / reconstruction from durable files ------------------
 
     @classmethod

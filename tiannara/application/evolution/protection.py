@@ -42,6 +42,7 @@ from constitutional_architecture.isr.semantics.evolution_policy import (
 )
 from constitutional_architecture.isr.semantics.requirement import ObligationKind
 
+from .identity_index import SemanticIdentityIndex
 from .isr_capability_audit import gene_index
 
 
@@ -74,7 +75,10 @@ class ProtectionResult:
 
     ``affected_subjects`` is a PROJECTION OUTPUT, not a J-owned semantic
     primitive — the ISR stays authoritative for identity, which keeps J
-    transferable beyond the FSM substrate.
+    transferable beyond the FSM substrate. ``regions_evaluated`` records
+    every policy region the candidate actually put in play (R2.10.4: the
+    multi-region evidence — each triggered region is judged, none
+    short-circuits another).
     """
 
     protected_ok: bool
@@ -82,6 +86,14 @@ class ProtectionResult:
     affected_subjects: tuple[str, ...] = ()
     authorized_by: Optional[str] = None
     notes: tuple[str, ...] = ()
+    regions_evaluated: tuple[str, ...] = ()
+
+
+_STRICTNESS = {
+    ProtectionKind.IMMUTABLE: 3,
+    ProtectionKind.CONSTITUTIONAL: 2,
+    ProtectionKind.PRESERVATION: 1,
+}
 
 
 class EvolutionProtectionEvaluator:
@@ -91,8 +103,13 @@ class EvolutionProtectionEvaluator:
     removed from the feasible search space before objective evaluation.
     """
 
-    def __init__(self, authority: Any = None) -> None:
+    def __init__(
+        self,
+        authority: Any = None,
+        identity_index: Any = None,
+    ) -> None:
         self._authority = authority
+        self._identity_index = identity_index or SemanticIdentityIndex()
 
     # -- the gate ---------------------------------------------------------------
 
@@ -107,6 +124,12 @@ class EvolutionProtectionEvaluator:
         # Regions and objectives resolve from the PARENT constitution: the
         # gate judges the candidate against the current declaration, never
         # against a declaration the candidate itself could have weakened.
+        # Every region the candidate puts in play is judged independently
+        # (R2.10.4 multi-region semantics): violations accumulate, the
+        # strictest kind wins, and every triggered region is evidenced in
+        # ``regions_evaluated`` — no region short-circuits another.
+        region_violations: list[tuple[ProtectionKind, frozenset[str], tuple[str, ...]]] = []
+        regions_evaluated: list[str] = []
         for region_ref in policy.protected_region_refs:
             region = self._resolve_region(parent, region_ref)
             if region is None:
@@ -114,21 +137,26 @@ class EvolutionProtectionEvaluator:
             affected = frozenset(region.subject_refs) & diff.affected_subjects
             if not affected:
                 continue
+            regions_evaluated.append(region_ref)
             if region.protection_kind is ProtectionKind.IMMUTABLE:
-                return ProtectionResult(
-                    False,
-                    ProtectionKind.IMMUTABLE,
-                    tuple(sorted(affected)),
-                    notes=(f"region '{region_ref}' is IMMUTABLE",),
+                region_violations.append(
+                    (
+                        ProtectionKind.IMMUTABLE,
+                        affected,
+                        (f"region '{region_ref}' is IMMUTABLE",),
+                    )
                 )
-            if region.protection_kind is ProtectionKind.CONSTITUTIONAL:
+            elif region.protection_kind is ProtectionKind.CONSTITUTIONAL:
                 if not self._valid_authorization(authorization, region_ref, affected):
-                    return ProtectionResult(
-                        False,
-                        ProtectionKind.CONSTITUTIONAL,
-                        tuple(sorted(affected)),
-                        notes=(f"region '{region_ref}' is CONSTITUTIONAL: "
-                               "external governance authorization required",),
+                    region_violations.append(
+                        (
+                            ProtectionKind.CONSTITUTIONAL,
+                            affected,
+                            (
+                                f"region '{region_ref}' is CONSTITUTIONAL: "
+                                "external governance authorization required",
+                            ),
+                        )
                     )
                 # externally authorized -> this region is satisfied
             elif region.protection_kind is ProtectionKind.PRESERVATION:
@@ -138,79 +166,78 @@ class EvolutionProtectionEvaluator:
                     if not self._invariant_holds(inv, diff)
                 )
                 if violated:
-                    return ProtectionResult(
-                        False,
-                        ProtectionKind.PRESERVATION,
-                        tuple(sorted(affected)),
-                        notes=violated,
+                    region_violations.append(
+                        (ProtectionKind.PRESERVATION, affected, violated)
                     )
         # Constitutional objectives are feasibility gates: their subjects must
         # remain present in any feasible candidate (the never-sacrifice
         # guarantee closed at the objective level).
+        objective_removed: list[tuple[frozenset[str], tuple[str, ...]]] = []
         for objective_ref in policy.objective_refs:
             objective = self._resolve_objective(parent, objective_ref)
             if objective is None or objective.tier is not ObjectiveTier.CONSTITUTIONAL:
                 continue
             removed = frozenset(objective.subject_refs) & diff.removed_subjects
             if removed:
-                return ProtectionResult(
-                    False,
-                    None,
-                    tuple(sorted(removed)),
-                    notes=(
-                        f"constitutional objective '{objective_ref}' subjects "
-                        f"removed: {sorted(removed)} — presence gate",
-                    ),
+                objective_removed.append(
+                    (
+                        removed,
+                        (
+                            f"constitutional objective '{objective_ref}' subjects "
+                            f"removed: {sorted(removed)} — presence gate",
+                        ),
+                    )
                 )
-        return ProtectionResult(True, None, ())
+        evaluated = tuple(sorted(regions_evaluated))
+        if region_violations:
+            strictest = max(
+                region_violations, key=lambda v: _STRICTNESS[v[0]]
+            )
+            affected = frozenset().union(
+                *(affected for _, affected, _ in region_violations)
+            )
+            notes = tuple(
+                note
+                for _, _, region_notes in region_violations
+                for note in region_notes
+            )
+            return ProtectionResult(
+                False,
+                strictest[0],
+                tuple(sorted(affected)),
+                notes=notes,
+                regions_evaluated=evaluated,
+            )
+        if objective_removed:
+            removed = frozenset().union(
+                *(removed for removed, _ in objective_removed)
+            )
+            notes = tuple(
+                note
+                for _, region_notes in objective_removed
+                for note in region_notes
+            )
+            return ProtectionResult(
+                False,
+                None,
+                tuple(sorted(removed)),
+                notes=notes,
+                regions_evaluated=evaluated,
+            )
+        return ProtectionResult(True, None, (), regions_evaluated=evaluated)
 
     # -- semantic diff (gene-index based, representation-agnostic) ---------------
 
-    def _identity_index(self, isr: Any) -> dict[str, str]:
-        """gene path -> semantic identity id for the ten protected-identity
-        domains (capabilities, requirements, acceptance criteria, boundaries,
-        testing anchors, reliability requirements, deployment intents,
-        migrations, temporal constraints, documentation intents, behaviors).
-        Paths outside these domains stay unkeyed (the path itself is the
-        subject)."""
-        system = isr.system
-        index: dict[str, str] = {}
-        for ci, capability in enumerate(system.business_capabilities):
-            index[f"system.business_capabilities[{ci}]"] = capability.capability_id
-        for ri, requirement in enumerate(system.reliability_requirements):
-            index[f"system.reliability_requirements[{ri}]"] = requirement.requirement_id
-        for bi, boundary in enumerate(system.architectural_boundaries):
-            index[f"system.architectural_boundaries[{bi}]"] = boundary.boundary_id
-        for ri, requirement in enumerate(system.requirements):
-            index[f"system.requirements[{ri}]"] = requirement.requirement_id
-        for ci, criterion in enumerate(system.acceptance_criteria):
-            index[f"system.acceptance_criteria[{ci}]"] = criterion.criterion_id
-        for di, intent in enumerate(system.deployment_intents):
-            index[f"system.deployment_intents[{di}]"] = intent.deployment_id
-        for ai, anchor in enumerate(system.testing_anchors):
-            index[f"system.testing_anchors[{ai}]"] = anchor.anchor_id
-        for di, intent in enumerate(system.documentation_intents):
-            index[f"system.documentation_intents[{di}]"] = intent.documentation_id
-        for mi, module in enumerate(system.modules):
-            base = f"system.modules[{mi}]"
-            for wi, workflow in enumerate(module.workflows):
-                wbase = f"{base}.workflows[{wi}]"
-                index[wbase] = workflow.id
-                for sti in range(len(workflow.states)):
-                    index[f"{wbase}.states[{sti}]"] = workflow.id
-                for ti in range(len(workflow.transitions)):
-                    index[f"{wbase}.transitions[{ti}]"] = workflow.id
-            for mi_i, migration in enumerate(module.data_migrations):
-                index[f"{base}.data_migrations[{mi_i}]"] = migration.migration_id
-            for tci, constraint in enumerate(module.temporal_constraints):
-                index[f"{base}.temporal_constraints[{tci}]"] = constraint.constraint_id
-        return index
+    # The shared SemanticIdentityIndex (R2.10.4) is the ONE identity
+    # namespace: path -> semantic identity id for the ten protected-identity
+    # domains. Paths outside these domains stay unkeyed (the path itself is
+    # the subject).
 
     def _semantic_diff(self, parent: Any, candidate: Any) -> EvolutionDiff:
         before = gene_index(parent)
         after = gene_index(candidate)
-        parent_identities = self._identity_index(parent)
-        candidate_identities = self._identity_index(candidate)
+        parent_identities = self._identity_index.path_identities(parent)
+        candidate_identities = self._identity_index.path_identities(candidate)
         added = frozenset(path for path in after if path not in before)
         removed = frozenset(path for path in before if path not in after)
         changed = frozenset(

@@ -1083,6 +1083,87 @@ remain.
 
 ---
 
+## 8m. R2.10.4 — SemanticEvolutionGate (universal ISR evolution integration)
+
+R2.10.1 proved per-gene identity; R2.10.2/R2.10.3 added the semantic
+primitives. R2.10.4 proves they **COMPOSE**: one candidate evolves ≥4
+independent genes across distinct domains (capability + reliability +
+deployment + temporal) while every integration guarantee holds — and the
+negative variants FAIL VISIBLY.
+
+**The gate contract** (`tiannara/application/evolution/semantic_evolution_gate.py`):
+
+1. **Feasibility first.** The J protection projection — resolved from the
+   PARENT constitution — runs before any proof and before any objective
+   evaluation. An infeasible candidate returns immediately: no proofs, no
+   ledger event (source-order + behavioral tests).
+2. **≥4 independent genes across ≥4 distinct domains.** `GeneEdit(domain,
+   gene_id, new_gene)` + `MultiGeneDelta(delta_id, edits, edited_domains)`.
+   A single-gene evolution is not a composition and cannot be substituted
+   for it (no single-gene fallback).
+3. **Four proofs** (`GateProof(proof_id, held, evidence)`):
+   - `locality` — exactly the declared genes moved, nothing else disturbed
+     (identity-index hashes, ONE namespace). Negative variant: an
+     application layer that silently touches an unrelated gene is DETECTED.
+   - `reference_integrity` — the candidate introduces no new dangling
+     cross-gene reference (via the identity index). Negative variant: a
+     delta that dangles is rejected BY THE GATE, not merely by the
+     constructor.
+   - `backend_independence` — all ten primitives' mechanism lints aggregate
+     on the candidate: the 8 named `assert_*_technology_agnostic` lints +
+     capability free-text `intent` scan against the union of all eight term
+     sets + temporal by-construction (typed fields). Negative variant: one
+     coupled gene among otherwise-clean genes fails the whole composition.
+   - `r28_evidence_path` — the gate holds no evaluation machinery of its
+     own: AST scan of the gate + protection sources for
+     `fitness/score/metric/measurement` identifiers; the protection
+     projection is consumed by the R2.8 gate stack.
+4. **Ledger binding.** Every feasible evaluation records a chain-anchored
+   `MEASUREMENT` event with the canonical edit list (sorted by
+   domain/gene_id), seed, proof outcomes, and before/after hashes. Same
+   parent + delta + seed → same candidate hash and identical event content
+   (event hashes differ only by chain anchoring).
+
+**Shared identity namespace.** `tiannara/application/evolution/
+identity_index.py` — `SemanticIdentityIndex` is now THE single resolution
+mechanism for all ten protected-identity domains: `path_identities` (the
+R2.10.3-J walk, preserved exactly), `genes`/`gene_hashes`/`gene_hash`
+((domain, gene_id) → canonical hash, same canonicalization as the ISR
+content hash), `replace_gene` (deterministic single-gene replacement,
+KeyError for unknown genes = rejection before evaluation),
+`resolvable_ids`, `dangling_references`. J's `EvolutionProtectionEvaluator`
+now consumes the shared index (the private path-index walk is gone) and
+gains multi-region semantics: violations accumulate, the strictest kind
+wins, every triggered region is evidenced in `regions_evaluated` — no
+region short-circuits another. The rule the R2.10.3-J fail-open fix
+established is now structural: identity is resolved through the index;
+paths are only a projection artifact — never compare an identity to a path.
+
+**Parent authority (permanent, enforced two ways).** AST proof: the gate
+source resolves the policy only as `resolve_evolution_policy(parent_isr)`
+— never from the candidate. Behavioral proof: a candidate that strips its
+own evolution-policy carriers is still judged under the PARENT's regions
+(region_A protects the capability the delta changes → infeasible).
+Multi-policy parents merge deterministically (`merged` = union of refs,
+first-occurrence order); no policy → a default that governs nothing.
+
+**Matrix.** R2.10.4 adds no carriers and moves no matrix row: the recipe
+ISR is byte-identical (`isr_hash` unchanged `317b62a8…` — the **eleventh
+Option A use**) and the matrix stays **12 EXPRESSED / 18 PARTIAL /
+0 PROJECTED / 0 MISSING**, asserted mechanically.
+
+**Verification.** `tests/test_r29_10_4_semantic_evolution_gate.py` — 14
+tests: the 8 acceptance tests (multi-gene preserves unrelated genes /
+disturbed gene detected / cross-gene references hold / dangling reference
+rejected / projection backend-independent / coupling rejected in
+composition / reproducible + ledger verifiable / Option A under
+composition) plus parent authority ×2, multi-region strictest-wins,
+feasibility-precedes-objectives (both failure paths + source order), the
+R2.8 evidence substrate, and deterministic merged-policy resolution.
+Full suite: **2109 passed / 10 skipped** (R2.10 suites: 352 passed).
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -1091,8 +1172,7 @@ remain.
 R2.10.1  ISR capability/expressivity audit        ← executed
 R2.10.2  Missing ISR primitives (the 10 MISSING rows above)  ← contract suite + Option A migration
 R2.10.3  Primitive roots, in derived order         ← A temporal (3/18/0/9) + B capabilities (4/18/0/8) + C migrations (5/18/0/7) + D reliability (6/18/0/6) + E boundaries (7/18/0/5) + F requirements (8/18/0/4) + G deployment (9/18/0/3) + H testing_anchoring (10/18/0/2) + I documentation (11/18/0/1) + J evolution_objectives_protected_regions (12/18/0/0) landed — R2.10.3 COMPLETE, no MISSING rows remain
-R2.10.4  Architectural subgraph mutation — includes the Requirement Graph
-         → ISR construction (the unbuilt top half), explicitly sequenced, not deferred
+R2.10.4  Universal ISR evolution integration (SemanticEvolutionGate) ← executed
 R2.10.5  Safe structural crossover (chromosome families/genes: Architecture,
          Persistence, Infrastructure, Security, Messaging, Observability,
          Testing, Deployment, Governance, Performance, Reliability)

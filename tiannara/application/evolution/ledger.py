@@ -27,6 +27,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from constitutional_architecture.isr.semantics.projection import canonical_form
 from tiannara.domain.services.canonical import canonical_hash
 
 
@@ -392,6 +393,67 @@ class EvolutionLedger:
             return True
         anchor_env = self._events[0].environment_hash
         return all(ev.environment_hash == anchor_env for ev in self._events)
+
+    # -- R2.10.5: generation records (the full delta is the content) -----------
+
+    def record_generation(self, record: Any, *, evolution_id: str = "") -> str:
+        """Record one universal-search generation as a MEASUREMENT event
+        carrying the FULL canonical delta content.
+
+        R2.10.5's headline: the final selected ISR must be reconstructable
+        byte-exactly from the ledger alone. Each selected generation
+        therefore records every edit's canonical ``new_gene`` content
+        (``canonical_form``), not just the edit addresses — the recorded
+        material is sufficient to replay the entire lineage from the
+        initial ISR. ``record`` is duck-typed (generation, selected_delta,
+        parent_semantic_hash, selected_candidate_hash, policy_resolved_from,
+        feasible_count, population_size) so the ledger never imports the
+        search module. Returns the event_id.
+        """
+        edits = sorted(record.selected_delta.edits, key=lambda e: (e.domain, e.gene_id))
+        event = EvolutionEvent(
+            event_id=(
+                f"{evolution_id or 'universal'}-generation-{record.generation}-"
+                f"{record.selected_delta.delta_id}"
+            ),
+            evolution_id=evolution_id or record.selected_delta.delta_id,
+            sequence=0,
+            event_type=EventType.MEASUREMENT,
+            subject_id=record.selected_candidate_hash,
+            payload={
+                "generation": record.generation,
+                "parent_semantic_hash": record.parent_semantic_hash,
+                "selected_candidate_hash": record.selected_candidate_hash,
+                "policy_resolved_from": record.policy_resolved_from,
+                "feasible_count": record.feasible_count,
+                "population_size": record.population_size,
+                "delta": {
+                    "delta_id": record.selected_delta.delta_id,
+                    "edits": [
+                        {
+                            "domain": edit.domain,
+                            "gene_id": edit.gene_id,
+                            "new_gene": canonical_form(edit.new_gene),
+                        }
+                        for edit in edits
+                    ],
+                },
+            },
+            isr_hash=record.parent_semantic_hash,
+            candidate_hash=record.selected_candidate_hash,
+        )
+        self.append_event(event, evolution_id=evolution_id or record.selected_delta.delta_id)
+        return event.event_id
+
+    def recorded_deltas(self) -> tuple[dict, ...]:
+        """The full canonical delta material of every recorded generation,
+        in append order — the reconstruction input for R2.10.5's replay.
+        Only generation records carry the ``delta`` payload key."""
+        return tuple(
+            ev.payload["delta"]
+            for ev in self._events
+            if ev.event_type is EventType.MEASUREMENT and "delta" in ev.payload
+        )
 
     def event_chain_ok(self) -> bool:
         return self.verify_event_chain()

@@ -77,7 +77,7 @@ from constitutional_architecture.isr.semantics.testing_anchor import (
     assert_testing_technology_agnostic,
 )
 
-from .identity_index import SemanticIdentityIndex
+from .identity_index import IdentityIndex, identity_index_replace_gene
 from .ledger import EventType, EvolutionEvent, stable_isr_hash
 from .protection import EvolutionProtectionEvaluator, ProtectionResult
 
@@ -187,10 +187,12 @@ def apply_multi_gene_delta(isr: Any, delta: MultiGeneDelta, seed: int = 0):
     is mechanical; the gate evaluates the candidate and its proofs after.
     """
     del seed
-    index = SemanticIdentityIndex()
+    index = IdentityIndex.derive(isr)
     current = isr
     for edit in sorted(delta.edits, key=lambda e: (e.domain, e.gene_id)):
-        current = index.replace_gene(current, edit.domain, edit.gene_id, edit.new_gene)
+        current = identity_index_replace_gene(
+            index, current, edit.domain, edit.gene_id, edit.new_gene
+        )
     return current
 
 
@@ -208,13 +210,18 @@ def _module_free_of_evaluation_machinery(source: Path) -> bool:
 
 
 def is_projection_consumed_by_r28() -> bool:
-    """The protection projection is consumed by the R2.8 gate stack: neither
-    the gate nor the protection module may contain evaluation machinery
-    (fitness / score / metric / measurement identifiers, structurally)."""
+    """The protection projection is consumed by the R2.8 gate stack: none of
+    the evolution sources may contain evaluation machinery (fitness / score
+    / metric / measurement identifiers, structurally) — the gate, the
+    protection module, or the R2.10.5 universal-search module."""
     here = Path(__file__)
-    return _module_free_of_evaluation_machinery(
-        here
-    ) and _module_free_of_evaluation_machinery(here.parent / "protection.py")
+    return (
+        _module_free_of_evaluation_machinery(here)
+        and _module_free_of_evaluation_machinery(here.parent / "protection.py")
+        and _module_free_of_evaluation_machinery(
+            here.parent / "universal_evolution.py"
+        )
+    )
 
 
 # -- the gate ------------------------------------------------------------------
@@ -234,26 +241,45 @@ class SemanticEvolutionGate:
         protection: Any = None,
         ledger: Any = None,
     ) -> None:
-        self._identity_index = identity_index or SemanticIdentityIndex()
+        self._identity_index = identity_index or IdentityIndex
         self._protection = protection or EvolutionProtectionEvaluator()
         self._ledger = ledger
 
     # -- the composition evaluation ---------------------------------------------
 
-    def evaluate(self, parent_isr: Any, delta: MultiGeneDelta, seed: int = 0):
-        """Apply the delta and evaluate the composition."""
+    def evaluate(
+        self,
+        parent_isr: Any,
+        delta: MultiGeneDelta,
+        seed: int = 0,
+        authorization: Any = None,
+    ):
+        """Apply the delta and evaluate the composition.
+
+        ``authorization`` is an opaque governance-issued value received by
+        the protection evaluator (R2.10.3-J CONSTITUTIONAL semantics and the
+        R2.10.5 self-governance seam); ordinary evolution carries none."""
         self._require_composition(delta)
         candidate = self._apply(parent_isr, delta, seed)
-        return self.evaluate_candidate(parent_isr, candidate, delta, seed)
+        return self.evaluate_candidate(
+            parent_isr, candidate, delta, seed, authorization
+        )
 
     def evaluate_candidate(
-        self, parent_isr: Any, candidate: Any, delta: MultiGeneDelta, seed: int = 0
+        self,
+        parent_isr: Any,
+        candidate: Any,
+        delta: MultiGeneDelta,
+        seed: int = 0,
+        authorization: Any = None,
     ) -> SemanticEvolutionVerdict:
         """Evaluate an externally-built candidate against the parent (the
         application-layer failure-injection seam: a caller that applied the
         delta wrongly still gets judged by the gate)."""
         policy = resolve_evolution_policy(parent_isr)
-        protection = self._protection.evaluate(parent_isr, candidate, policy)
+        protection = self._protection.evaluate(
+            parent_isr, candidate, policy, authorization
+        )
         if not protection.protected_ok:
             # FEASIBILITY FIRST: no proof, no objective evaluation, no
             # ledger event for an infeasible candidate.
@@ -308,8 +334,8 @@ class SemanticEvolutionGate:
     def _prove_locality(
         self, parent_isr: Any, candidate: Any, delta: MultiGeneDelta
     ) -> GateProof:
-        before = self._identity_index.gene_hashes(parent_isr)
-        after = self._identity_index.gene_hashes(candidate)
+        before = self._identity_index.derive(parent_isr).gene_hashes
+        after = self._identity_index.derive(candidate).gene_hashes
         edited = delta.edited_genes
         disturbed = sorted(
             (domain, gene_id)
@@ -329,8 +355,8 @@ class SemanticEvolutionGate:
     def _prove_reference_integrity(
         self, parent_isr: Any, candidate: Any
     ) -> GateProof:
-        before = self._identity_index.dangling_references(parent_isr)
-        after = self._identity_index.dangling_references(candidate)
+        before = self._identity_index.derive(parent_isr).dangling_references
+        after = self._identity_index.derive(candidate).dangling_references
         newly_dangling = tuple(d for d in after if d not in before)
         held = not newly_dangling
         evidence = (
@@ -404,9 +430,10 @@ class SemanticEvolutionGate:
             PROOF_R28_EVIDENCE_PATH,
             held,
             "protection projection consumed by the R2.8 gate stack; "
-            "no evaluation machinery in evolution-gate sources"
+            "no evaluation machinery in evolution-gate or "
+            "universal-search sources"
             if held
-            else "evaluation machinery found in evolution-gate sources",
+            else "evaluation machinery found in evolution sources",
         )
 
     # -- the ledger binding -------------------------------------------------------

@@ -1164,6 +1164,88 @@ Full suite: **2109 passed / 10 skipped** (R2.10 suites: 352 passed).
 
 ---
 
+## 8n. R2.10.5 — UniversalEvolutionLoop (universal evolutionary search)
+
+R2.9 proved population dynamics on the FSM substrate; R2.10.4 proved the
+universal semantic transaction (≥4 independent genes across distinct
+domains under one gate). R2.10.5 fuses them: multi-generation search whose
+final selected ISR is reconstructable **byte-exactly from the ledger
+alone** — replaying only the recorded delta material (each recorded
+generation event carries the full canonical content of every edit).
+
+**Locked invariants (before implementation).**
+
+1. `IdentityIndex` stays a **DERIVED PROJECTION** — a frozen dataclass with
+   no mutation surface (no `add_`/`remove_`/`replace_`/`set_` methods),
+   constructible only through `derive(isr)`. Gene replacement is the
+   module-level `identity_index_replace_gene` producing a new ISR version
+   (the R2.10.4 `SemanticIdentityIndex` is renamed/refactored to this
+   under R2.10.5; gate/protection/tests all consume the new surface).
+2. Parent-authoritativeness is **per-step**: each generation is judged by
+   that generation's parent constitution, never by rules the candidate
+   authored; a governance-authorized policy change may propagate to the
+   next generation.
+
+**Machinery** (`tiannara/application/evolution/universal_evolution.py`):
+
+- `UniversalVariationOperator` — a population of 4-domain universal deltas,
+  drawn deterministically from `random.Random(seed)`; only domains with a
+  declared mutator participate (mechanism, never content).
+- `lexicographic_tiers(parent)` — the objective evaluation order: the
+  CONSTITUTIONAL presence gates first, then OPTIMIZATION objectives by
+  (priority, weight descending, objective_id) — resolved from the PARENT.
+- `UniversalSelector` — the profile is a TUPLE (never a scalar) of
+  per-objective engagement bits, compared lexicographically with a
+  deterministic `delta_id` tie-break.
+- `UniversalEvolutionLoop` — per-generation seed `seed + generation`;
+  `_apply` seam judged by the gate like any application layer; records
+  only selected generations; `_verify_reconstruction` replays the ledger's
+  recorded deltas and requires a byte-exact (hash-identical) final ISR
+  with an intact identity namespace.
+- `rebuild_gene` — the exact inverse of `canonical_form` for the ten
+  identity domains (type-directed via `get_type_hints`; `tuple[X, ...]`
+  handles the `Ellipsis` arg; `(str, Enum)` canonicalize as their value —
+  the projection's str branch catches them before the Enum branch).
+- Ledger (`ledger.py`): `record_generation` records MEASUREMENT events
+  carrying the full canonical delta content; `recorded_deltas()` is the
+  reconstruction input. The ledger never imports the search module
+  (duck-typed record).
+
+**Self-governance seam** (`protection.py`): a candidate that weakens its
+OWN evolution-policy carriers — carriers removed, subject_refs reduced,
+protection kind downgraded, CONSTITUTIONAL objective downgraded — is a
+CONSTITUTIONAL violation unless a governance-issued authorization
+(`SELF_GOVERNANCE_REF` + `ConstitutionalAuthorizationRegistry` anchor
+verification) permits it. Content-only differences that do not reduce the
+governance surface (e.g. an invariant bound) are NOT weakening — the fix
+for a false positive surfaced by J's `test_preservation_threshold_invariant`
+(kind PRESERVATION restored, not CONSTITUTIONAL).
+
+**Acceptance evidence.** `tests/test_r29_10_5_universal_evolution.py` — 15
+tests: reconstructable from the ledger (in-memory AND durable reload) /
+lineage chain intact / locality every generation / reference integrity
+every generation / parent-authoritative every generation (behavioral +
+AST) / self-weakening rejected → honest halt / authorized constitutional
+change propagates and governs the next search (unauthorized → rejected at
+the seam) / E-H carriers byte-identical across the search / R2.8 is the
+only trust boundary (the scan now covers `universal_evolution.py`, which
+carries no evaluation identifiers and imports no observation machinery) /
+candidate identity deterministic / competing candidates comparable
+deterministically / identity index derived + non-mutable / diversity
+observed over universal genes (entropy > 0) without perturbing selection /
+all-infeasible halts honestly (`generations_run == 0`, reconstructable
+True, nothing recorded) / Option A under universal search.
+
+**Matrix.** R2.10.5 adds no carriers and moves no matrix row: the recipe
+ISR is byte-identical (`isr_hash` unchanged `317b62a8…` — the **twelfth
+Option A use**) and the matrix stays **12 EXPRESSED / 18 PARTIAL /
+0 PROJECTED / 0 MISSING**, asserted mechanically.
+
+**Verification.** Full suite: **2124 passed / 10 skipped** (R2.10 suites:
+381 passed); R2.10.4 + R2.10.3-J suites green together (68 passed).
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -1173,7 +1255,8 @@ R2.10.1  ISR capability/expressivity audit        ← executed
 R2.10.2  Missing ISR primitives (the 10 MISSING rows above)  ← contract suite + Option A migration
 R2.10.3  Primitive roots, in derived order         ← A temporal (3/18/0/9) + B capabilities (4/18/0/8) + C migrations (5/18/0/7) + D reliability (6/18/0/6) + E boundaries (7/18/0/5) + F requirements (8/18/0/4) + G deployment (9/18/0/3) + H testing_anchoring (10/18/0/2) + I documentation (11/18/0/1) + J evolution_objectives_protected_regions (12/18/0/0) landed — R2.10.3 COMPLETE, no MISSING rows remain
 R2.10.4  Universal ISR evolution integration (SemanticEvolutionGate) ← executed
-R2.10.5  Safe structural crossover (chromosome families/genes: Architecture,
+R2.10.5  Universal evolutionary search (UniversalEvolutionLoop) ← executed
+R2.10.6  Safe structural crossover (chromosome families/genes: Architecture,
          Persistence, Infrastructure, Security, Messaging, Observability,
          Testing, Deployment, Governance, Performance, Reliability)
 R2.10.6  Multi-objective architectural evolution

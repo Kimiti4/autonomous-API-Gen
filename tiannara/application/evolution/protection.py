@@ -42,8 +42,19 @@ from constitutional_architecture.isr.semantics.evolution_policy import (
 )
 from constitutional_architecture.isr.semantics.requirement import ObligationKind
 
-from .identity_index import SemanticIdentityIndex
+from .identity_index import IdentityIndex
 from .isr_capability_audit import gene_index
+
+# R2.10.5: the self-governance reference — J-carrier changes (evolution
+# objectives / protected regions / evolution policies) are authorized only
+# through this governance seam, exactly like CONSTITUTIONAL regions.
+SELF_GOVERNANCE_REF = "self_governance"
+
+_J_CARRIER_PREFIXES = (
+    "system.evolution_objectives[",
+    "system.protected_regions[",
+    "system.evolution_policies[",
+)
 
 
 @dataclass(frozen=True)
@@ -109,7 +120,7 @@ class EvolutionProtectionEvaluator:
         identity_index: Any = None,
     ) -> None:
         self._authority = authority
-        self._identity_index = identity_index or SemanticIdentityIndex()
+        self._identity_index = identity_index or IdentityIndex
 
     # -- the gate ---------------------------------------------------------------
 
@@ -188,6 +199,40 @@ class EvolutionProtectionEvaluator:
                         ),
                     )
                 )
+        # R2.10.5 self-governance (accumulated, CONSTITUTIONAL kind): a
+        # candidate that weakens its OWN evolution-policy carriers
+        # (objectives / regions / policies) is eroding the very gate it is
+        # judged under. The parent's regions already judge it; this closes
+        # the gap when the delta touches no protected gene. Only actual
+        # WEAKENING is flagged (carrier removals, subject-ref reductions,
+        # protection downgrades) — content-only differences that do not
+        # reduce the governance surface (e.g. an invariant bound) are not
+        # weakening. Governance-issued authorization (SELF_GOVERNANCE_REF)
+        # permits an authorized constitutional change — the one legitimate
+        # carrier mutation.
+        carrier_paths = frozenset(
+            path
+            for path in diff.affected_subjects
+            if path.startswith(_J_CARRIER_PREFIXES)
+        )
+        if carrier_paths:
+            weakened = self._self_governance_weakened(parent, candidate)
+            if weakened:
+                regions_evaluated.append(SELF_GOVERNANCE_REF)
+                if not self._valid_authorization(
+                    authorization, SELF_GOVERNANCE_REF, carrier_paths
+                ):
+                    region_violations.append(
+                        (
+                            ProtectionKind.CONSTITUTIONAL,
+                            carrier_paths,
+                            (
+                                "self-governance: "
+                                + "; ".join(weakened)
+                                + " — governance authorization required",
+                            ),
+                        )
+                    )
         evaluated = tuple(sorted(regions_evaluated))
         if region_violations:
             strictest = max(
@@ -228,16 +273,17 @@ class EvolutionProtectionEvaluator:
 
     # -- semantic diff (gene-index based, representation-agnostic) ---------------
 
-    # The shared SemanticIdentityIndex (R2.10.4) is the ONE identity
-    # namespace: path -> semantic identity id for the ten protected-identity
-    # domains. Paths outside these domains stay unkeyed (the path itself is
-    # the subject).
+    # The shared IdentityIndex (R2.10.4, derived projection R2.10.5) is the
+    # ONE identity namespace: path -> semantic identity id for the ten
+    # protected-identity domains. Paths outside these domains stay unkeyed
+    # (the path itself is the subject). Each ISR derives its own projection;
+    # the namespace is shared by construction, never by instance.
 
     def _semantic_diff(self, parent: Any, candidate: Any) -> EvolutionDiff:
         before = gene_index(parent)
         after = gene_index(candidate)
-        parent_identities = self._identity_index.path_identities(parent)
-        candidate_identities = self._identity_index.path_identities(candidate)
+        parent_identities = self._identity_index.derive(parent).path_identities
+        candidate_identities = self._identity_index.derive(candidate).path_identities
         added = frozenset(path for path in after if path not in before)
         removed = frozenset(path for path in before if path not in after)
         changed = frozenset(
@@ -288,6 +334,82 @@ class EvolutionProtectionEvaluator:
             if objective.objective_id == objective_ref:
                 return objective
         return None
+
+    # -- R2.10.5 self-governance (the candidate's own declaration) ---------------
+
+    def _self_governance_weakened(self, parent: Any, candidate: Any) -> tuple[str, ...]:
+        """Does the candidate's evolution-policy declaration weaken the
+        PARENT's? Carrier removals, subject-ref reductions, and protection
+        downgrades are weakening; content-only differences that do not
+        reduce the governance surface (e.g. an invariant bound, a priority,
+        a weight) are not — the parent's declaration governs the judgment
+        regardless, so only the candidate's future-governance surface
+        matters. Empty tuple = declaration intact (or strictly stronger).
+        """
+        system = parent.system
+        candidate_system = candidate.system
+        problems: list[str] = []
+
+        parent_regions = {r.region_id: r for r in system.protected_regions}
+        candidate_regions = {r.region_id: r for r in candidate_system.protected_regions}
+        for region_id, region in parent_regions.items():
+            candidate_region = candidate_regions.get(region_id)
+            if candidate_region is None:
+                problems.append(f"protected region '{region_id}' removed")
+                continue
+            if not set(region.subject_refs) <= set(candidate_region.subject_refs):
+                problems.append(
+                    f"protected region '{region_id}' subject_refs reduced"
+                )
+            if _STRICTNESS[candidate_region.protection_kind] < _STRICTNESS[region.protection_kind]:
+                problems.append(
+                    f"protected region '{region_id}' protection downgraded "
+                    f"({region.protection_kind.value} -> "
+                    f"{candidate_region.protection_kind.value})"
+                )
+
+        parent_objectives = {o.objective_id: o for o in system.evolution_objectives}
+        candidate_objectives = {
+            o.objective_id: o for o in candidate_system.evolution_objectives
+        }
+        for objective_id, objective in parent_objectives.items():
+            candidate_objective = candidate_objectives.get(objective_id)
+            if candidate_objective is None:
+                problems.append(f"evolution objective '{objective_id}' removed")
+                continue
+            if (
+                objective.tier is ObjectiveTier.CONSTITUTIONAL
+                and candidate_objective.tier is not ObjectiveTier.CONSTITUTIONAL
+            ):
+                problems.append(
+                    f"constitutional objective '{objective_id}' downgraded "
+                    "to OPTIMIZATION"
+                )
+            if not set(objective.subject_refs) <= set(candidate_objective.subject_refs):
+                problems.append(
+                    f"evolution objective '{objective_id}' subject_refs reduced"
+                )
+
+        parent_policies = {p.policy_id: p for p in system.evolution_policies}
+        candidate_policies = {
+            p.policy_id: p for p in candidate_system.evolution_policies
+        }
+        for policy_id, policy in parent_policies.items():
+            candidate_policy = candidate_policies.get(policy_id)
+            if candidate_policy is None:
+                problems.append(f"evolution policy '{policy_id}' removed")
+                continue
+            if not set(policy.objective_refs) <= set(candidate_policy.objective_refs):
+                problems.append(
+                    f"evolution policy '{policy_id}' objective_refs reduced"
+                )
+            if not set(policy.protected_region_refs) <= set(
+                candidate_policy.protected_region_refs
+            ):
+                problems.append(
+                    f"evolution policy '{policy_id}' protected_region_refs reduced"
+                )
+        return tuple(problems)
 
     # -- authorization verification -------------------------------------------------
 

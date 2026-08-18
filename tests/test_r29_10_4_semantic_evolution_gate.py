@@ -84,7 +84,10 @@ from constitutional_architecture.isr.model import (
 from constitutional_architecture.isr.semantics.reliability import (
     RELIABILITY_MECHANISM_TERMS,
 )
-from tiannara.application.evolution.identity_index import SemanticIdentityIndex
+from tiannara.application.evolution.identity_index import (
+    IdentityIndex,
+    identity_index_replace_gene,
+)
 from tiannara.application.evolution.isr_capability_audit import (
     CapabilityStatus,
     ISRCapabilityAudit,
@@ -148,14 +151,15 @@ class BuggyApplicationGate(SemanticEvolutionGate):
 
     def _apply(self, parent_isr, delta, seed):
         candidate = super()._apply(parent_isr, delta, seed)
-        index = SemanticIdentityIndex()
+        index = IdentityIndex.derive(candidate)
         workflow = next(
             w
             for m in candidate.system.modules
             for w in m.workflows
             if w.id == "w1"
         )
-        return index.replace_gene(
+        return identity_index_replace_gene(
+            index,
             candidate,
             "behavior",
             "w1",
@@ -168,7 +172,7 @@ class SemanticEvolutionIntegrationHarness:
     semantic carriers, the four-gene delta, and the negative variants."""
 
     def __init__(self) -> None:
-        self.index = SemanticIdentityIndex()
+        self.index = IdentityIndex
         self._tmp = tempfile.TemporaryDirectory()
         self.ledger = EvolutionLedger(root=self._tmp.name)
         self.gate = SemanticEvolutionGate(
@@ -554,8 +558,8 @@ def test_multi_gene_evolution_preserves_unrelated_genes(harness):
     assert verdict.feasible is True
     assert verdict.policy_resolved_from == "parent"
     assert verdict.protection.protected_ok is True
-    before = harness.index.gene_hashes(parent)
-    after = harness.index.gene_hashes(candidate)
+    before = IdentityIndex.derive(parent).gene_hashes
+    after = IdentityIndex.derive(candidate).gene_hashes
     moved = {key for key in before if before[key] != after.get(key)}
     assert moved == set(harness.four_gene_delta().edited_genes)
     assert harness.proof(verdict, PROOF_LOCALITY).held is True
@@ -580,10 +584,10 @@ def test_cross_gene_references_hold(harness):
     """The evolved candidate's cross-gene references all still resolve
     through the identity index (parent and candidate both clean)."""
     parent = harness.parent_isr()
-    assert harness.index.dangling_references(parent) == ()
+    assert IdentityIndex.derive(parent).dangling_references == ()
     verdict = harness.evolve(seed=7)
     candidate = apply_multi_gene_delta(parent, harness.four_gene_delta(), seed=7)
-    assert harness.index.dangling_references(candidate) == ()
+    assert IdentityIndex.derive(candidate).dangling_references == ()
     assert harness.proof(verdict, PROOF_REFERENCE_INTEGRITY).held is True
 
 

@@ -118,6 +118,7 @@ class EventType(str, enum.Enum):
     SCHEDULER_DECISION = "scheduler_decision"  # R2.9.5: search-budget allocation + evidence snapshot
     ISR_CAPABILITY_AUDIT = "isr_capability_audit"  # R2.10.1: signed capability/expressivity matrix
     PRIMITIVE_CONTRACT = "primitive_contract"  # R2.10.2: signed primitive/extension/compatibility contract
+    VERIFICATION = "verification"  # R2.10.8: chain-addressable artifact verification result
 
 
 class EvolutionEvent(BaseModel):
@@ -368,6 +369,12 @@ class EvolutionLedger:
                 return ev
         return None
 
+    def event_by_ref(self, event_id: str) -> EvolutionEvent | None:
+        """Lookup by event reference (alias of ``get_event``) — the R2.10.8
+        verifier cross-checks the claimed compilation event against the
+        independently-recorded chain."""
+        return self.get_event(event_id)
+
     def events(self) -> list[EvolutionEvent]:
         return list(self._events)
 
@@ -544,7 +551,43 @@ class EvolutionLedger:
         self.append_event(event, evolution_id=evolution_id)
         return event.event_id
 
-    # -- R2.7.5-F: replay / reconstruction from durable files ------------------
+    # -- R2.10.8: artifact verification results (duck-typed, additive) ---------
+
+    def record_verification(
+        self,
+        *,
+        artifact_hash: str,
+        verified: bool,
+        failures: tuple[str, ...] = (),
+        evolution_id: str = "",
+    ) -> str:
+        """Chain-anchor one artifact verification verdict on the authoritative
+        event chain.
+
+        The R2.10.8 verifier records its independent verdict — never the
+        compiler's — so a later reviewer can address the exact event that
+        judged the artifact. The event binds the artifact identity, the
+        verdict, and the failure inventory; appending after it is protected
+        by the hash chain. Returns the event_id.
+        """
+        evolution_id = evolution_id or f"verification-{artifact_hash[:8]}"
+        event = EvolutionEvent(
+            event_id=f"verification-{artifact_hash[:8]}",
+            evolution_id=evolution_id,
+            sequence=0,
+            event_type=EventType.VERIFICATION,
+            subject_id=artifact_hash,
+            payload={
+                "artifact_hash": artifact_hash,
+                "verified": verified,
+                "failures": list(failures),
+            },
+            isr_hash="",
+            candidate_hash=artifact_hash,
+            artifact_hash=artifact_hash,
+        )
+        self.append_event(event, evolution_id=evolution_id)
+        return event.event_id
 
     @classmethod
     def load(cls, root: str) -> "EvolutionLedger":

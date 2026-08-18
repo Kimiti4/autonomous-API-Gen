@@ -412,10 +412,12 @@ class BackendConformanceEvaluator:
         integrity_gate: CompilationIntegrityGate,
         contamination_guard: ContaminationGuard,
         ledger: Any = None,
+        conformance_registry: Any = None,
     ) -> None:
         self._integrity_gate = integrity_gate
         self._contamination_guard = contamination_guard
         self._ledger = ledger
+        self._conformance_registry = conformance_registry
 
     def conform(
         self,
@@ -476,10 +478,16 @@ class BackendConformanceEvaluator:
 
     def record_report(self, report: BackendConformanceReport) -> str:
         """Chain-anchor the durable report alongside the COMPILATION events
-        (the evidence substrate is the only trust boundary)."""
+        (the evidence substrate is the only trust boundary). When a
+        conformance registry is bound (R2.10.8), the report is also
+        registered so the verifier can confirm the evidence EXISTS without
+        re-running conformance."""
         if self._ledger is None:
             raise ValueError(
                 "no evidence ledger bound — a conformance report without "
                 "chain-anchored evidence cannot be certified"
             )
-        return self._ledger.record_conformance(report)
+        event_id = self._ledger.record_conformance(report)
+        if self._conformance_registry is not None:
+            self._conformance_registry.register(report)
+        return event_id

@@ -1500,6 +1500,55 @@ PARTIAL / 0 PROJECTED / 0 MISSING**, asserted mechanically.
 113 passed). The question Phase 31 needs is now answered in evidence:
 different realizations preserve the same ISR semantics.
 
+### 8r. R2.10.8 — Artifact Verification & Provenance
+
+R2.10.7 proved the backend consumed the ISR correctly. R2.10.8 proves the
+resulting artifact can independently demonstrate where it came from and
+what semantic source it represents — judged by a verifier that trusts
+nothing (`tiannara/application/compilation/artifact_verification.py`).
+
+**The claim.** `ArtifactProvenance` binds the artifact identity
+(`artifact_hash`), the semantic source (`isr_hash`), the realization
+(`target_id`), the producer (`backend_id` + `backend_version`), and the two
+chain-anchored references: the COMPILATION event (Gate H) and the R2.10.7
+CERTIFICATION evidence (`conformance_evidence_ref`), whose existence the
+`ConformanceEvidenceRegistry` confirms — conformance is judged to EXIST,
+never re-run.
+
+**The judge.** `ArtifactVerifier` re-derives everything: the artifact hash
+from the artifact content (`hash_artifact_canonical` — the same no-default-
+str canonicalization the compile used at Gate H, raising
+`CanonicalizationError` on unhandled types so identity is never manufactured
+by a silent `str()`), the semantic hash from the ISR, and the expected
+provenance from the ledger's independently-recorded compilation event
+(`event_by_ref` + `verify_event_chain`). Coverage is checked against the
+expressed carriers: a silent omission is fatal
+(`silently_discarded:<ids>`), an explicit UNSUPPORTED boundary is
+permitted. The verdict itself is chain-anchored
+(`ledger.record_verification`, `EventType.VERIFICATION`) — recorded only
+when the chain is intact. The verifier never mutates the ISR, the artifact,
+or the claim (Option A, sixteenth use — zero identity requirement).
+
+**The milestone.** `verify_cross_backend` runs the same judge across the
+cross-backend campaign's seven DIVERGENT realizations: all seven verify,
+all resolve to ONE semantic source, and artifact equality is never required
+(`artifact_equality_required=False`) — divergence is the point of real
+backends; semantic agreement is the point of the platform.
+
+**Boundaries.** No verification semantics enter the ISR (the ISR stays the
+sole semantic authority); no backend defines what counts as valid
+provenance; the verifier does not re-run conformance; the matrix does not
+move.
+
+**Matrix.** The recipe ISR is byte-identical (`isr_hash` unchanged
+`317b62a8…` — the **sixteenth Option A use**) and the matrix stays
+**12 EXPRESSED / 18 PARTIAL / 0 PROJECTED / 0 MISSING**, asserted
+mechanically.
+
+**Verification.** Full suite: **2182 passed / 10 skipped** (R2.10.8 suite:
+14 passed; R2.10.4 + R2.10.5 + R2.10.6 + R2.10.7 + expansion + R2.10.8
+together: 104 passed).
+
 ---
 
 ## 9. Next phase boundary
@@ -1515,6 +1564,7 @@ R2.10.5  Universal evolutionary search (UniversalEvolutionLoop) ← executed
 R2.10.6  ISR → Compiler Backend consumption contract (read-only CompilerBackend) ← executed
 R2.10.7  Real-backend conformance behind the frozen R2.10.6 contract (FastAPI conformed; react, postgres, terraform, cicd, pytest, markdown follow) ← executed
 R2.10.7  Cross-backend conformance campaign (one ISR, seven realizations, one invariant semantic source) ← executed
+R2.10.8  Artifact verification & provenance (independent judge: artifact integrity, ISR binding, target/backend binding, coverage, ledger chain, conformance evidence — seven divergent realizations resolve to one semantic source) ← executed
 R2.10.6  Safe structural crossover (chromosome families/genes: Architecture,
          Persistence, Infrastructure, Security, Messaging, Observability,
          Testing, Deployment, Governance, Performance, Reliability)

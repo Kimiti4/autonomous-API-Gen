@@ -71,6 +71,15 @@ class BackendCapabilityDeclaration:
     impossible because Gate D checks the declared coverage against the full
     semantic enumeration of the ISR. An undeclared semantic defaults to
     UNSUPPORTED (honest by default, never silently skipped).
+
+    Two vocabularies are supported:
+
+    - the 14 carrier ids (the gate-level enumeration, e.g. ``behavior``,
+      ``requirement``) — the R2.10.7 original shape; and
+    - the 12 capability ids (the user's R2.10.7-expansion vocabulary, e.g.
+      ``behavior_transitions``, ``requirements_acceptance_traceability``),
+      each grouping one or more carriers via ``CAPABILITY_TO_CARRIERS``.
+      The adapter expands the 12 onto the 14 for the gate-level coverage.
     """
 
     backend_id: str
@@ -78,6 +87,55 @@ class BackendCapabilityDeclaration:
 
     def support_for(self, semantic_id: str) -> CapabilitySupport:
         return self.declarations.get(semantic_id, CapabilitySupport.UNSUPPORTED)
+
+
+# The 12 capability ids -> the 14 gate-level carriers they group.
+CAPABILITY_TO_CARRIERS: Mapping[str, tuple[str, ...]] = {
+    "behavior_transitions": ("behavior",),
+    "behavior_await_surface": ("behavior",),
+    "temporal_semantics": ("temporal",),
+    "business_capabilities": ("capability",),
+    "data_migrations": ("migration",),
+    "reliability_resilience": ("reliability",),
+    "architecture_boundaries": ("boundary",),
+    "requirements_acceptance_traceability": ("requirement", "acceptance_criterion"),
+    "deployment_rollout_rollback": ("deployment",),
+    "testing_anchoring": ("testing_anchor",),
+    "documentation": ("documentation",),
+    "evolution_objectives_protected_regions": (
+        "evolution_objective",
+        "protected_region",
+        "evolution_policy",
+    ),
+}
+
+_SUPPORT_ORDER: Mapping[CapabilitySupport, int] = {
+    CapabilitySupport.SUPPORTED: 3,
+    CapabilitySupport.PARTIALLY_SUPPORTED: 2,
+    CapabilitySupport.UNSUPPORTED: 1,
+}
+
+
+def _resolve_support(
+    declaration: BackendCapabilityDeclaration, carrier_id: str
+) -> CapabilitySupport:
+    """Gate-level support for one carrier: a direct declaration wins; a
+    12-capability declaration is expanded onto its carriers with the
+    best-of-facets merge (a carrier with ANY supported facet is at least
+    PARTIALLY_SUPPORTED — the degradation is carried, never hidden)."""
+    if carrier_id in declaration.declarations:
+        return declaration.support_for(carrier_id)
+    facets = tuple(
+        capability_id
+        for capability_id, carriers in CAPABILITY_TO_CARRIERS.items()
+        if carrier_id in carriers
+    )
+    if not facets:
+        return CapabilitySupport.UNSUPPORTED
+    return max(
+        (declaration.support_for(facet) for facet in facets),
+        key=_SUPPORT_ORDER.get,
+    )
 
 
 _SUPPORT_NOTES: Mapping[CapabilitySupport, str] = {
@@ -90,6 +148,26 @@ _SUPPORT_NOTES: Mapping[CapabilitySupport, str] = {
 
 
 # -- projection-only translation to the real backend's native inputs -----------
+
+@dataclass(frozen=True)
+class UniversalInputs:
+    """The universal input surface the real backends' native entrypoints
+    consume: the translated graph (UniversalISR), the genome, the context
+    dict, and — for meta-compilers — the deployment bundle."""
+
+    universal_isr: UniversalISR
+    genome: ArchitectureGenome
+    context: dict
+    system_bundle: Any = None
+
+
+class ProjectionSeam:
+    """Backend-specific translation: BackendSemanticModel -> UniversalInputs.
+    Projection-only — the seam never reaches into the semantic ISR itself."""
+
+    def translate(self, model: BackendSemanticModel) -> UniversalInputs:
+        raise NotImplementedError
+
 
 def translate_projection_to_universal_inputs(
     model: BackendSemanticModel,
@@ -130,6 +208,20 @@ def translate_projection_to_universal_inputs(
     return universal, genome, {}
 
 
+class FastAPIProjectionSeam(ProjectionSeam):
+    """The FastAPI seam (R2.10.7 original): behaviors -> SERVICE + CAPABILITY
+    nodes. Kept as the default seam so the frozen R2.10.7 adapter behaves
+    identically."""
+
+    def translate(self, model: BackendSemanticModel) -> UniversalInputs:
+        universal, genome, context = translate_projection_to_universal_inputs(
+            model
+        )
+        return UniversalInputs(
+            universal_isr=universal, genome=genome, context=context
+        )
+
+
 # -- the conformance adapter ----------------------------------------------------
 
 class BackendConformanceAdapter(CompilerBackend):
@@ -138,10 +230,15 @@ class BackendConformanceAdapter(CompilerBackend):
     The seam where an existing backend is brought into conformance: it
     consumes the BackendSemanticModel (never the raw semantic ISR object
     graph), derives the semantic projection deterministically, translates it
-    into the real backend's native inputs, invokes the real generation logic
-    READ-ONLY, and wraps the resulting bundle in a provenance-bound artifact
-    that re-declares its semantic source (Gate F round-trips through it).
-    Coverage comes from the backend's explicit declaration.
+    into the real backend's native inputs through its projection seam, invokes
+    the real generation logic READ-ONLY, and wraps the resulting bundle in a
+    provenance-bound artifact that re-declares its semantic source (Gate F
+    round-trips through it). Coverage comes from the backend's explicit
+    declaration.
+
+    A backend whose native entrypoint is ``compile_system(bundle, context)``
+    (the CI/CD meta-compiler) is dispatched through the bundle seam — the
+    adapter routes to the entrypoint the real backend actually implements.
     """
 
     def __init__(
@@ -150,11 +247,15 @@ class BackendConformanceAdapter(CompilerBackend):
         backend_version: str,
         real_backend: Any,
         declaration: BackendCapabilityDeclaration,
+        projection_seam: Any = None,
+        findings: tuple[str, ...] = (),
     ) -> None:
         self.backend_id = backend_id
         self.backend_version = backend_version
         self._real_backend = real_backend
         self._declaration = declaration
+        self._projection_seam = projection_seam or FastAPIProjectionSeam()
+        self.findings = findings
 
     # -- the projection boundary -------------------------------------------------
 
@@ -168,8 +269,10 @@ class BackendConformanceAdapter(CompilerBackend):
         return tuple(
             CapabilityCoverage(
                 capability_id=semantic_id,
-                support=self._declaration.support_for(semantic_id),
-                note=_SUPPORT_NOTES[self._declaration.support_for(semantic_id)],
+                support=_resolve_support(self._declaration, semantic_id),
+                note=_SUPPORT_NOTES[
+                    _resolve_support(self._declaration, semantic_id)
+                ],
             )
             for semantic_id in sorted(semantics)
         )
@@ -180,10 +283,15 @@ class BackendConformanceAdapter(CompilerBackend):
         self, isr: Any, target: CompilationTarget
     ) -> CompilationResult:
         model = self.semantic_projection(isr)
-        universal, genome, context = translate_projection_to_universal_inputs(
-            model
-        )
-        bundle = self._real_backend.compile(universal, genome, context)
+        inputs = self._projection_seam.translate(model)
+        if hasattr(self._real_backend, "compile_system"):
+            bundle = self._real_backend.compile_system(
+                inputs.system_bundle, inputs.context
+            )
+        else:
+            bundle = self._real_backend.compile(
+                inputs.universal_isr, inputs.genome, inputs.context
+            )
         coverage = self.coverage_for(isr)
         artifact = {
             "semantic_source": {
@@ -348,6 +456,7 @@ class BackendConformanceEvaluator:
         except AssertionError as exc:
             contamination.append(str(exc))
 
+        findings.extend(adapter.findings)
         findings.extend(_projection_gap_findings(isr))
         findings.append(
             "pre-contract input surface: the real backend consumes its "

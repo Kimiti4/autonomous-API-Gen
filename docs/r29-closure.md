@@ -1403,6 +1403,105 @@ subsequent passes.
 
 ---
 
+## 8q. R2.10.7 expansion — conformance of the remaining six real backends
+
+R2.10.7 proved the frozen contract against FastAPI, the first-fail
+candidate. The expansion conforms the remaining six real backends one at a
+time through the same discipline, then runs the milestone: the cross-backend
+conformance campaign. Governing principle, preserved: **conform the
+backends to the contract, never weaken the contract** — and the declaration
+is the honesty boundary: SUPPORTED where the backend consumes the
+dimension's content through its seam, PARTIALLY_SUPPORTED where the
+dimension is realized only in part or at presence level, UNSUPPORTED where
+it is not — never OMITTED, never aspirational ("an aspirational PARTIAL is
+the same dishonesty as a silent omission, just with a nicer label").
+
+**Source-verified declarations** (each verified against the real backend's
+generation surface before being treated as authoritative;
+`backend_capability_registry.py` — the twelve SEMANTIC_IDS, `declaration()`
+with UNSUPPORTED as the implicit default):
+
+- **react** — SUPPORTED: behavior_transitions (workflow -> views + service
+  components), business_capabilities (capabilities -> COMPONENT pages);
+  UNSUPPORTED: await surface, temporal, requirements traceability,
+  documentation (the generated UI consumes none of them — aspirational
+  PARTIALs removed with findings).
+- **postgres** — SUPPORTED: data_migrations (migration target_schema_ref
+  -> DATA_ENTITY -> DDL + alembic); UNSUPPORTED: capabilities, reliability,
+  boundaries (attribute/FK/policy content is structural, outside the
+  projection).
+- **terraform** — PARTIAL: deployment_rollout_rollback (deployment
+  artifacts exist but generation is genome-driven — NO carrier content is
+  consumable through the projection; rollout strategy / health requirements
+  / rollback invariants unrealized); everything else UNSUPPORTED.
+- **cicd** — PARTIAL: deployment_rollout_rollback, testing_anchoring,
+  reliability_resilience (presence-level: the seam composes a
+  SystemDeploymentBundle from carrier PRESENCE — behaviors -> backend
+  bundle, migrations -> database bundle, deployment -> infra bundle,
+  testing anchors -> tests bundle, reliability -> operations bundle — the
+  meta-compiler's pipeline stages derive from it).
+- **pytest** — PARTIAL: testing_anchoring (tests are generated, not bound
+  to anchor evidence); UNSUPPORTED: behavior (contract tests gated off by
+  the default MODULAR_MONOLITH genome), requirements traceability.
+- **markdown** — SUPPORTED: documentation (README/ADRs/runbook); the
+  DocumentationIntent content is not consumed (docs are genome-derived) and
+  the ADRs embed datetime.date.today() — latent cross-day determinism risk,
+  recorded as a finding.
+- **fastapi** (registry entry for the campaign) — SUPPORTED:
+  behavior_transitions, business_capabilities; PARTIAL: reliability,
+  boundaries, deployment (unchanged from the frozen declaration).
+
+**Machinery** (all projection-only — the semantic ISR object graph is never
+handed to a backend):
+
+- `projection_seams.py` — `UniversalInputs` (universal graph + genome +
+  context + optional deployment bundle), `ProjectionSeam` Protocol, and the
+  six seams: React (behaviors -> FRONTEND_VIEW + SERVICE, capabilities ->
+  COMPONENT), Postgres (migrations -> DATA_ENTITY targets), Terraform
+  (empty graph — nothing consumable), Cicd (carrier presence ->
+  SystemDeploymentBundle), Pytest (behaviors -> SERVICE), Markdown (empty
+  graph — ERD is entity-driven).
+- `backend_conformance.py` — the adapter generalizes: `projection_seam`
+  parameter (default FastAPIProjectionSeam — the frozen behavior is
+  byte-identical), `compile_system` dispatch for the meta-compiler, and the
+  12 -> 14 coverage expansion (`CAPABILITY_TO_CARRIERS` + `_resolve_support`
+  best-of-facets merge: a carrier with ANY supported facet is at least
+  PARTIALLY_SUPPORTED). The frozen 14-key declaration vocabulary still works
+  (direct declaration wins).
+- `backend_capability_registry.py` — SEMANTIC_IDS (the twelve),
+  `declaration()`, BACKEND_DECLARATIONS (seven), BACKEND_FINDINGS
+  (per-backend remediation notes), `BackendRegistry` (real implementations,
+  versions, seams, targets), `conform_all_backends` (conform + chain-anchor
+  every report).
+- `cross_backend_campaign.py` — `CrossBackendConformanceReport`
+  (isr_semantic_hash, per_backend, semantic_invariance_held,
+  artifact_divergence_count, all_conform) + `CrossBackendConformanceCampaign`
+  — the milestone: same ISR through all seven realizations, one invariant
+  semantic source, artifacts required to diverge.
+
+**Acceptance evidence.** `tests/test_r29_10_7_backend_conformance_expansion.py`
+— 11 tests: every declaration covers all twelve semantics / undeclared is
+UNSUPPORTED / all six conform (all eight gates hold, failures never silent)
+/ Gate D across the six (14-carrier coverage, no omission) / Layer-2
+neutrality across six real compilations / **the milestone: one invariant
+semantic source across all SEVEN divergent realizations, all conforming** /
+seven chain-anchored CERTIFICATION events on a verifying chain / the seams
+deliver real content (react pages from workflows + capabilities, postgres
+DDL from migration targets, cicd pipeline stages from carrier presence) /
+Option A (fifteenth use).
+
+**Matrix.** The expansion adds no carriers and moves no matrix row: the
+recipe ISR is byte-identical (`isr_hash` unchanged `317b62a8…` — the
+**fifteenth Option A use**) and the matrix stays **12 EXPRESSED / 18
+PARTIAL / 0 PROJECTED / 0 MISSING**, asserted mechanically.
+
+**Verification.** Full suite: **2168 passed / 10 skipped** (expansion suite:
+11 passed; R2.10.4 + R2.10.5 + R2.10.6 + R2.10.7 + expansion together:
+113 passed). The question Phase 31 needs is now answered in evidence:
+different realizations preserve the same ISR semantics.
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -1415,6 +1514,7 @@ R2.10.4  Universal ISR evolution integration (SemanticEvolutionGate) ← execute
 R2.10.5  Universal evolutionary search (UniversalEvolutionLoop) ← executed
 R2.10.6  ISR → Compiler Backend consumption contract (read-only CompilerBackend) ← executed
 R2.10.7  Real-backend conformance behind the frozen R2.10.6 contract (FastAPI conformed; react, postgres, terraform, cicd, pytest, markdown follow) ← executed
+R2.10.7  Cross-backend conformance campaign (one ISR, seven realizations, one invariant semantic source) ← executed
 R2.10.6  Safe structural crossover (chromosome families/genes: Architecture,
          Persistence, Infrastructure, Security, Messaging, Observability,
          Testing, Deployment, Governance, Performance, Reliability)

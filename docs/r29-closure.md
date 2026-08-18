@@ -1246,6 +1246,86 @@ Option A use**) and the matrix stays **12 EXPRESSED / 18 PARTIAL /
 
 ---
 
+## 8o. R2.10.6 — ISR → Compiler Backend consumption contract (read-only backend)
+
+R2.10.4/5 proved universal ISR evolution under one gate; R2.10.6 proves the
+DOWNSTREAM contract: a compiler backend CONSUMES the ISR without ever
+participating in it. The backend is a consumer, never a participant — it may
+read the semantic projection and realize it, but it may never mutate the
+ISR, add meaning, infer requirements, inject technology concepts, rewrite
+evolution decisions, or weaken constitutional constraints.
+
+**Locked invariants (user-specified, before implementation).**
+
+1. The backend is a consumer, never a participant (never mutates the ISR,
+   adds meaning, infers requirements, injects tech concepts, rewrites
+   evolution decisions, or weakens constitutional constraints).
+2. `CompilationTarget` is a REALIZATION SELECTION — passed to the backend
+   at compile time, never embedded in ISR genes.
+3. The projection boundary (`BackendSemanticModel`) is deterministic and
+   faithful.
+4. The three-layer contamination guard: (L1) the backend module is
+   structurally read-only, (L2) the ISR stays technology-neutral under
+   compilation, (L3) no reverse contamination flows artifact → ISR.
+5. Capability mismatch is EXPLICIT (SUPPORTED / PARTIALLY_SUPPORTED /
+   UNSUPPORTED) — never silent omission.
+6. The semantic source is invariant across backends.
+
+**Machinery** (`tiannara/application/compilation/` — new package; the real
+compiler backends under `constitutional_architecture/compilers/` are NOT
+touched — that is R2.10.7):
+
+- `consumption_contract.py` — `CapabilitySupport` / `CapabilityCoverage` /
+  `CompilationTarget` / `CompilationProvenance` / `CompilationResult`;
+  `CompilerBackend` Protocol (runtime-checkable, read-only surface);
+  `BackendSemanticModel` (model_hash, source_isr_hash, capabilities,
+  constraints as (kind, canonical_form) pairs, protected_regions);
+  `derive_backend_semantic_model` (constraints walked through the identity
+  index — the single identity namespace — + the two policy carriers, sorted
+  by (kind, content)); `enumerate_isr_semantics` (the 14 carrier ids);
+  `constitutional_surface_intact` (the 7 per-kind content comparisons);
+  `reconstruct_semantic_source` (reads the hash back from the artifact);
+  `isr_has_no_target_genes`; `REALIZATION_TECHNOLOGY_LEXICON` (react,
+  fastapi, postgres, postgresql + the deployment/boundary guard terms);
+  `ContaminationGuard` (layers 1–3).
+- `integrity_gate.py` — `CompilationIntegrityGate` with the eight gates:
+  A read-only, B determinism, C provenance, D semantic coverage, E backend
+  independence (compile under a DIFFERENT target), F round-trip,
+  G constitutional preservation, H evidence binding (no ledger bound = not
+  certifiable).
+- `reference_backend.py` — `ReferenceCompilerBackend` (json / manifest /
+  fragment artifact styles, all embedding `semantic_source`; conformance
+  variants: `declared_unsupported` (explicit, Gate D holds) vs `omitted`
+  (silent, Gate D fails)).
+- `ledger.py` — duck-typed `record_compilation` (EventType.COMPILATION,
+  payload binds isr_hash / target / backend / artifact / coverage). The
+  ledger never imports the contract module.
+
+**Acceptance evidence.** `tests/test_r29_10_6_consumption_contract.py` — 21
+tests: all eight gates hold / Gate A read-only / Gate B determinism /
+Gate C provenance / Gate D silent omission impossible (the omitting backend
+is rejected with "silently discarded: ['reliability']") / Gate D explicit
+UNSUPPORTED is not silent / Gate E independence / Gate F round-trip /
+Gate G constitutional preservation (+ tampered-projection rejection) /
+Gate H evidence binding (chain-anchored COMPILATION event, payload binds) /
+Gate H requires a ledger / multi-backend semantic-source invariance (three
+artifact styles → one semantic source, distinct artifacts) / Layer 1
+structural read-only (positive + negative AST) / Layer 2 technology
+neutrality under compilation (+ realization-leak and mechanism-leak
+negatives) / Layer 3 no reverse contamination (+ forged-provenance
+negative) / target never embedded (ISR neutral before and after; the target
+lives in the artifact) / model deterministic and faithful / Option A.
+
+**Matrix.** R2.10.6 adds no carriers and moves no matrix row: the recipe
+ISR is byte-identical (`isr_hash` unchanged `317b62a8…` — the **thirteenth
+Option A use**) and the matrix stays **12 EXPRESSED / 18 PARTIAL /
+0 PROJECTED / 0 MISSING**, asserted mechanically.
+
+**Verification.** Full suite: **2145 passed / 10 skipped** (R2.10.6 suite:
+21 passed; R2.10.4 + R2.10.5 + R2.10.6 together: 50 passed).
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -1256,6 +1336,7 @@ R2.10.2  Missing ISR primitives (the 10 MISSING rows above)  ← contract suite 
 R2.10.3  Primitive roots, in derived order         ← A temporal (3/18/0/9) + B capabilities (4/18/0/8) + C migrations (5/18/0/7) + D reliability (6/18/0/6) + E boundaries (7/18/0/5) + F requirements (8/18/0/4) + G deployment (9/18/0/3) + H testing_anchoring (10/18/0/2) + I documentation (11/18/0/1) + J evolution_objectives_protected_regions (12/18/0/0) landed — R2.10.3 COMPLETE, no MISSING rows remain
 R2.10.4  Universal ISR evolution integration (SemanticEvolutionGate) ← executed
 R2.10.5  Universal evolutionary search (UniversalEvolutionLoop) ← executed
+R2.10.6  ISR → Compiler Backend consumption contract (read-only CompilerBackend) ← executed
 R2.10.6  Safe structural crossover (chromosome families/genes: Architecture,
          Persistence, Infrastructure, Security, Messaging, Observability,
          Testing, Deployment, Governance, Performance, Reliability)

@@ -458,6 +458,51 @@ class EvolutionLedger:
     def event_chain_ok(self) -> bool:
         return self.verify_event_chain()
 
+    # -- R2.10.6: compilation evidence (duck-typed, additive) -----------------
+
+    def record_compilation(self, result: Any, *, evolution_id: str = "") -> str:
+        """Chain-anchor one compilation on the authoritative event chain.
+
+        ``result`` is duck-typed (artifact, isr_hash, target_id, backend_id,
+        backend_version, artifact_hash, capability_coverage) so the ledger
+        never imports the consumption-contract module — the R2.10.6 gate
+        calls this through the duck-typed seam. The payload binds the ISR,
+        the target, the backend, the artifact, and the explicit coverage
+        declaration (support value + note per capability). Returns the
+        event_id.
+        """
+        coverage = tuple(
+            {
+                "capability_id": item.capability_id,
+                "support": item.support.value,
+                "note": item.note,
+            }
+            for item in result.capability_coverage
+        )
+        evolution_id = evolution_id or f"compilation-{result.backend_id}"
+        event = EvolutionEvent(
+            event_id=(
+                f"compilation-{result.backend_id}-{result.artifact_hash[:8]}"
+            ),
+            evolution_id=evolution_id,
+            sequence=0,
+            event_type=EventType.COMPILATION,
+            subject_id=result.isr_hash,
+            payload={
+                "isr_hash": result.isr_hash,
+                "target_id": result.target_id,
+                "backend_id": result.backend_id,
+                "backend_version": result.backend_version,
+                "artifact_hash": result.artifact_hash,
+                "coverage": coverage,
+            },
+            isr_hash=result.isr_hash,
+            candidate_hash=result.artifact_hash,
+            artifact_hash=result.artifact_hash,
+        )
+        self.append_event(event, evolution_id=evolution_id)
+        return event.event_id
+
     # -- R2.7.5-F: replay / reconstruction from durable files ------------------
 
     @classmethod

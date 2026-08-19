@@ -1678,6 +1678,81 @@ test and the JSON-safe-payload test).
 
 ---
 
+### 8u. R2.10.31.2 — The backend matrix experiment (coverage and invariance at matrix scale, not throughput)
+
+31.1 calibrated the campaign; 31.2 multiplies the baseline against the
+seven real backends: **26 intents × 7 backends = 182 cases**, each disposed
+into exactly one of the five disposition classes. The guardrail: 31.1's
+26/26 is NOT a success baseline every backend must match — R2.10.7's
+capability declarations already establish that the seven backends have
+different semantic coverage, so a backend that honestly declares
+UNSUPPORTED semantics is correct, not failing. The matrix is a
+coverage-and-invariance experiment, never a throughput tally.
+
+**The machinery.** `tiannara/application/campaign/backend_matrix.py` —
+`MatrixHarness` derives each intent's ISR ONCE (the same declared-stub
+pipeline 31.1 calibrated, no evolution — compile-side coverage is what the
+matrix measures) and compiles it through all seven backends, each with its
+own registry target (the R2.10.7/8 cross-backend precedent; `target_for`
+selects only the category's backend, so per-backend targets are the
+comparison's unit). Every case: `evaluator.conform` + `record_report`
+(R2.10.7 evidence on the chain) → `adapter.compile` → `provenance_claim`
+(R2.10.8) → `ArtifactVerifier.verify` — the frozen foundations invoked as
+black boxes. The EXPLICITLY_UNSUPPORTED decision is made BEFORE compiling,
+from the backend's declared coverage (`adapter.coverage_for` + the
+mechanical `unsupported_required`): a case whose required semantics are ALL
+declared UNSUPPORTED is disposed honestly, never compiled into a doomed
+artifact; the unsupported semantics are named, never silent.
+
+**The five-way disposition.** VERIFIED_COMPILATION (compiled AND
+independently verified), SUCCESSFUL_COMPILATION (compiled; verification
+ran, did not verify — the R2.10.8 gap stays visible, never averaged away),
+EXPLICITLY_UNSUPPORTED (declared, legitimate), DIAGNOSED_FAILURE
+(attempted and failed, classified by the R2.10.9 taxonomy),
+INFRASTRUCTURE_FAILURE (environment/resource — recoverable
+RESOURCE_EXHAUSTION/TIMEOUT classes). A case with no disposition is the
+only fatal outcome: it can't be audited.
+
+**The invariance assertion.** Per intent, every backend that compiled it
+binds to ONE semantic source while artifacts are REQUIRED to diverge
+structurally — divergence of realization, invariance of meaning. A
+disagreement fails the experiment regardless of how many cases succeeded.
+
+**The verdict.** `READY_FOR_31_3` ⇔ all 182 cases carry a complete,
+chain-resolvable disposition, every non-VERIFIED case is classified into
+the four other classes, per-intent cross-backend invariance holds, and the
+31.1 declared-stub assumption is mechanically carried into the report and
+its ledger event (`record_matrix`, `EventType.MATRIX` — JSON-safe per-case
+payloads; never re-derived, never dropped). Deliberately no CERTIFIED —
+31.2 earns 31.3, not the Phase 31 claim.
+
+**The measured result.** All 182 cases disposed as VERIFIED_COMPILATION
+(26 per backend across all seven: react, fastapi, postgres, terraform,
+cicd, pytest, markdown), zero SUCCESSFUL/UNSUPPORTED/DIAGNOSED/
+INFRASTRUCTURE, invariance held, artifacts diverging with one semantic
+source per intent. No 26-intent corpus case is all-unsupported on any real
+backend (each backend realizes at least one of the stub's expressed
+carriers); the EXPLICITLY_UNSUPPORTED mechanism is exercised and proven
+mechanically in the suite (`unsupported_required` — named semantics, all
+required vs partially covered).
+
+**Boundaries.** No certification claim; no throughput metric as the gate
+(a backend with many EXPLICITLY_UNSUPPORTED cases is honest, not weak);
+no failure-rate comparison against 31.1's 26/26 (that baseline measured
+the campaign pipeline, not per-backend coverage); no new backends,
+semantics, or corpus; no matrix movement.
+
+**Matrix.** The recipe ISR is byte-identical (`isr_hash` unchanged
+`317b62a8…` — the **nineteenth Option A use**) and the matrix stays
+**12 EXPRESSED / 18 PARTIAL / 0 PROJECTED / 0 MISSING**, asserted
+mechanically.
+
+**Verification.** Full suite: **2220 passed / 10 skipped** (31.2 suite:
+13 passed — the 11 acceptance tests plus the verdict-has-no-CERTIFIED test
+and the mechanical-unsupported-decision test).
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -1694,6 +1769,7 @@ R2.10.7  Cross-backend conformance campaign (one ISR, seven realizations, one in
 R2.10.8  Artifact verification & provenance (independent judge: artifact integrity, ISR binding, target/backend binding, coverage, ledger chain, conformance evidence — seven divergent realizations resolve to one semantic source) ← executed
 R2.10.9  Campaign readiness (orchestration, measurement, and failure classification proven deterministic, budget-respecting, ledger-faithful at tens of intents; dry-run verdict ready_to_scale) ← executed
 R2.10.31.1  Calibration — Phase 31 staged campaign slice 1 (baseline established across all thirteen categories, deterministic replay, complete provenance, failures classified; verdict READY_FOR_31_2 — a measurement, never a certification) ← executed
+R2.10.31.2  Backend matrix — Phase 31 staged campaign slice 2 (26 intents × 7 backends = 182 cases, five-way disposition, cross-backend invariance per intent, declared-stub assumption propagated; verdict READY_FOR_31_3) ← executed
 R2.10.6  Safe structural crossover (chromosome families/genes: Architecture,
          Persistence, Infrastructure, Security, Messaging, Observability,
          Testing, Deployment, Governance, Performance, Reliability)

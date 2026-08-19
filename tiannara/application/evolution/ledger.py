@@ -122,6 +122,7 @@ class EventType(str, enum.Enum):
     VERIFICATION = "verification"  # R2.10.8: chain-addressable artifact verification result
     GENERATION_OUTCOME = "generation_outcome"  # R2.10.9: one campaign generation outcome (intent -> ISR -> compilation -> verification)
     CALIBRATION = "calibration"  # R2.10.31.1: one 31.1 calibration report (a measurement, never a certification)
+    MATRIX = "matrix"  # R2.10.31.2: one 31.2 backend-matrix report (coverage and invariance, never throughput)
 
 
 class EvolutionEvent(BaseModel):
@@ -717,6 +718,44 @@ class EvolutionLedger:
                 "provenance_complete": provenance_complete,
                 "failures_fully_classified": failures_classified,
                 "calibration_verdict": verdict,
+                "declared_assumptions": list(declared_assumptions),
+            },
+        )
+        self.append_event(event, evolution_id=event_id)
+        return event.event_id
+
+    def record_matrix(
+        self,
+        matrix_id: str,
+        cases: Any,
+        *,
+        invariance: bool,
+        verdict: str,
+        declared_assumptions: tuple[str, ...] = (),
+    ) -> str:
+        """Chain-anchor one 31.2 backend-matrix report.
+
+        ``cases`` is duck-typed (a JSON-safe list of per-case dispositions —
+        intent/backend/disposition/hashes/unsupported semantics/failure
+        class/evidence refs) so the ledger never imports the campaign
+        package. The verdict is a MEASUREMENT (``READY_FOR_31_3`` /
+        ``NOT_READY``) — there is no certification here; 31.5 certifies.
+        The 31.1 declared-stub assumption is carried on the event, never
+        dropped. Returns the event_id.
+        """
+        event_id = f"matrix-{matrix_id}"
+        event = EvolutionEvent(
+            event_id=event_id,
+            evolution_id=event_id,
+            sequence=0,
+            event_type=EventType.MATRIX,
+            subject_id=matrix_id,
+            payload={
+                "matrix_id": matrix_id,
+                "case_count": len(cases),
+                "cases": cases,
+                "cross_backend_invariance_held": invariance,
+                "verdict": verdict,
                 "declared_assumptions": list(declared_assumptions),
             },
         )

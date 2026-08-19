@@ -123,6 +123,8 @@ class EventType(str, enum.Enum):
     GENERATION_OUTCOME = "generation_outcome"  # R2.10.9: one campaign generation outcome (intent -> ISR -> compilation -> verification)
     CALIBRATION = "calibration"  # R2.10.31.1: one 31.1 calibration report (a measurement, never a certification)
     MATRIX = "matrix"  # R2.10.31.2: one 31.2 backend-matrix report (coverage and invariance, never throughput)
+    TAXONOMY_CASE = "taxonomy_case"  # R2.10.31.3: one induced failure observation + its classifier disposition
+    TAXONOMY_VALIDATION = "taxonomy_validation"  # R2.10.31.3: one 31.3 failure-taxonomy validation report
 
 
 class EvolutionEvent(BaseModel):
@@ -755,6 +757,71 @@ class EvolutionLedger:
                 "case_count": len(cases),
                 "cases": cases,
                 "cross_backend_invariance_held": invariance,
+                "verdict": verdict,
+                "declared_assumptions": list(declared_assumptions),
+            },
+        )
+        self.append_event(event, evolution_id=event_id)
+        return event.event_id
+
+    def record_taxonomy_case(
+        self, observation: Any, disposition: Any
+    ) -> str:
+        """Chain-anchor one 31.3 failure observation + its classifier
+        disposition.
+
+        ``observation`` / ``disposition`` are duck-typed (JSON-safe payloads
+        built by the campaign package; the ledger never imports it) so every
+        induced failure and its disposition are individually addressable
+        and the whole validation is replayable. Returns the event_id.
+        """
+        event_id = f"taxonomy-case-{observation['observation_id']}"
+        event = EvolutionEvent(
+            event_id=event_id,
+            evolution_id=f"taxonomy-validation",
+            sequence=0,
+            event_type=EventType.TAXONOMY_CASE,
+            subject_id=observation["intent_id"],
+            payload={
+                "observation": observation,
+                "disposition": disposition,
+            },
+        )
+        self.append_event(event, evolution_id="taxonomy-validation")
+        return event.event_id
+
+    def record_taxonomy_validation(
+        self,
+        validation_id: str,
+        cases: Any,
+        *,
+        all_correct: bool,
+        no_conflation: bool,
+        verdict: str,
+        declared_assumptions: tuple[str, ...] = (),
+    ) -> str:
+        """Chain-anchor one 31.3 taxonomy-validation report.
+
+        ``cases`` is duck-typed (a JSON-safe list of per-case dispositions)
+        so the ledger never imports the campaign package. The verdict is a
+        MEASUREMENT (``READY_FOR_31_4`` / ``NOT_READY``) — there is no
+        certification here; 31.5 certifies. The 31.1 declared-stub
+        assumption is carried on the event, never dropped. Returns the
+        event_id.
+        """
+        event_id = f"taxonomy-{validation_id}"
+        event = EvolutionEvent(
+            event_id=event_id,
+            evolution_id=event_id,
+            sequence=0,
+            event_type=EventType.TAXONOMY_VALIDATION,
+            subject_id=validation_id,
+            payload={
+                "validation_id": validation_id,
+                "case_count": len(cases),
+                "cases": cases,
+                "all_correct": all_correct,
+                "no_conflation": no_conflation,
                 "verdict": verdict,
                 "declared_assumptions": list(declared_assumptions),
             },

@@ -1753,6 +1753,98 @@ and the mechanical-unsupported-decision test).
 
 ---
 
+### 8v. R2.10.31.3 — Failure taxonomy validation (the epistemic layer between scale and trust)
+
+31.1 proved the baseline reproduces; 31.2 proved it reproduces across all
+seven realizations; 31.3 proves that **when a compilation does not verify,
+the platform can correctly determine WHY** — without conflating an
+infrastructure failure, an unsupported semantic, a contract violation, a
+genuine generated-software defect, and a harness bug. That is the layer
+without which Phase 31's certification is untrustworthy: a success rate
+you can't decompose into causes is a number you can't act on and can't
+certify.
+
+**The constitutional invariant.** The classifier consumes execution
+evidence and produces a disposition — it NEVER reinterprets the failure to
+make the campaign pass. The taxonomy is ORTHOGONAL to compiler success:
+the disposition derives from what the evidence shows, never from whether
+the compile succeeded. That is structural, not aspirational: the suite
+AST-parses `TaxonomyClassifier.classify` and asserts it contains no
+outcome vocabulary (`succeeded`, `compile_success`, `passed`) — the
+classifier cannot rationalize because it cannot see the outcome.
+
+**The validation problem.** 31.2 produced 182/182 verified compilations —
+a strength of the platform but a problem for 31.3: a failure taxonomy that
+is never exercised is unvalidated. Every class is therefore INDUCED as a
+real execution condition and classified from evidence that actually
+occurred: the actual R2.10.9 exception types raised at the actual stage
+(infrastructure), the real declaration builder + 12→14 support resolver
+over a real derived ISR (unsupported), real compile-then-silent-omission
+caught by the real verifier (`silently_discarded` — contract/conformance),
+real compile-then-tamper caught by the real verifier (`artifact_modified`
+— generated-software), and a genuinely malformed corpus intent that really
+fails derivation (campaign/harness). The injector knows what it induced;
+the classifier knows only the evidence — the gap between those two is
+exactly what is validated. Where a condition is induced (the resource cap
+is raised rather than observed from live budget enforcement; the
+UNSUPPORTED condition uses an all-unsupported declaration built by the
+real builder, since no corpus backend is all-unsupported for any corpus
+intent), the report declares it — the declared-limitation discipline
+applies to injection too (`INJECTION_ASSUMPTIONS`).
+
+**The root-cause ordering.** The classifier derives the class in
+root-cause order: resource evidence first (a resource exhaustion that
+CAUSES a verification failure is INFRASTRUCTURE, never the
+GENERATED_SOFTWARE it corrupted — the symptom), then contract evidence
+(UNSUPPORTED before CONTRACT_CONFORMANCE), then verification evidence
+(GENERATED_SOFTWARE only when `is_artifact_fault` — derived from the
+R2.10.8 failure reason), then stage evidence (CAMPAIGN_HARNESS). The two
+dangerous confusions are proven absent: infrastructure never laundered
+into generated-software (manufactures false failures) and
+generated-software never hidden behind infrastructure (conceals real
+bugs); contract violations never misread as artifact defects.
+
+**The coherence mapping.** The five 31.3 classes and the eight R2.10.9
+`FailureCategory` values are one system, not two drifting vocabularies
+(`failure_category_map`, asserted mechanically): RESOURCE_EXHAUSTION /
+TIMEOUT → INFRASTRUCTURE; COMPILATION_CONTRACT_VIOLATION →
+CONTRACT_CONFORMANCE; VERIFICATION_FAILED → GENERATED_SOFTWARE;
+INTENT_DERIVATION_FAILED / EVOLUTION_HALTED / COMPILATION_FAILED / UNKNOWN
+→ CAMPAIGN_HARNESS.
+
+**The verdict.** `READY_FOR_31_4` ⇔ all 910 induced cases (26 intents × 7
+backends × 5 classes) classified correctly from evidence alone, the
+conflation checks hold, and the 31.1 declared-stub assumption is carried
+forward into the report and its ledger event
+(`record_taxonomy_validation`, `EventType.TAXONOMY_VALIDATION`) — every
+case is chain-addressable too (`record_taxonomy_case`,
+`EventType.TAXONOMY_CASE`: observation payload + disposition payload on
+the same event). Deliberately no CERTIFIED — 31.3 earns the scale ramp,
+not the Phase 31 claim.
+
+**The measured result.** All 910 induced cases classified correctly
+(13/13 suite green: 11 acceptance tests + the taxonomy-coherence-mapping
+test + the real-evidence test), no conflation, verdict
+`READY_FOR_31_4` — every deviation can be correctly explained, and the
+explanation is grounded in evidence, not rationalization.
+
+**Boundaries.** No certification claim; no outcome-peeking classifier
+(structurally enforced); no synthetic labels (injections are real
+execution conditions; the two induced-condition limitations are declared);
+no taxonomy revision to make cases pass (misclassification is a classifier
+defect, never a taxonomy rationalization); no new backends, semantics, or
+corpus; no matrix movement.
+
+**Matrix.** The recipe ISR is byte-identical (`isr_hash` unchanged
+`317b62a8…` — the **twentieth Option A use**) and the matrix stays
+**12 EXPRESSED / 18 PARTIAL / 0 PROJECTED / 0 MISSING**, asserted
+mechanically.
+
+**Verification.** Full suite: **2233 passed / 10 skipped** (31.3 suite:
+13 passed).
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -1770,6 +1862,7 @@ R2.10.8  Artifact verification & provenance (independent judge: artifact integri
 R2.10.9  Campaign readiness (orchestration, measurement, and failure classification proven deterministic, budget-respecting, ledger-faithful at tens of intents; dry-run verdict ready_to_scale) ← executed
 R2.10.31.1  Calibration — Phase 31 staged campaign slice 1 (baseline established across all thirteen categories, deterministic replay, complete provenance, failures classified; verdict READY_FOR_31_2 — a measurement, never a certification) ← executed
 R2.10.31.2  Backend matrix — Phase 31 staged campaign slice 2 (26 intents × 7 backends = 182 cases, five-way disposition, cross-backend invariance per intent, declared-stub assumption propagated; verdict READY_FOR_31_3) ← executed
+R2.10.31.3  Failure taxonomy validation — Phase 31 staged campaign slice 3 (all five failure classes induced as real execution conditions, classifier correct on every one from evidence alone — AST-enforced no-outcome-peeking — no conflation, chain-resolvable; verdict READY_FOR_31_4) ← executed
 R2.10.6  Safe structural crossover (chromosome families/genes: Architecture,
          Persistence, Infrastructure, Security, Messaging, Observability,
          Testing, Deployment, Governance, Performance, Reliability)

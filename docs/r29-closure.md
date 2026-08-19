@@ -1617,6 +1617,67 @@ constitutional-ISR derivation test, and the `ready_to_scale` verdict test).
 
 ---
 
+### 8t. R2.10.31.1 — Calibration (the baseline everything else in Phase 31 is measured against)
+
+31.1 is the first slice of the staged Phase 31 (31.1 calibration → 31.2
+backend matrix → 31.3 failure-taxonomy validation → 31.4 scale ramp → 31.5
+certification). Calibration is a MEASUREMENT phase, not a certification:
+it establishes the reference distribution and proves the campaign pipeline
+is deterministic and fully provenanced at the 26-intent scale, but makes
+no claim about compiler correctness at scale. The epistemic chain stays
+clean: R2.10.9's `ready_to_scale` (infrastructure structurally ready) →
+31.1's calibration (baseline established and reproducible) → 31.5's
+certification (compiler correctness proven). Each earns the next; none is
+conflated.
+
+**The machinery.** `tiannara/application/campaign/calibration.py` —
+`CalibrationHarness` runs the same 26-intent corpus through the frozen
+R2.10.9 `CampaignHarness` TWICE with the same seed (per-intent seeds are
+derived from `(config.seed, intent_id)` — determinism holds per intent,
+not just in aggregate), establishes `BaselineDistribution` (per-category
+outcomes + per-failure-class counts — a shift at higher scale is a signal
+to understand, not noise), and applies three gates: determinism (same
+intent → same outcome, same artifact hash), complete provenance
+(`ledger.chain_complete` — every successful outcome's ref AND its
+compilation + verification anchors must resolve mechanically; an outcome
+without provenance is unauditable), and full classification (no silent
+UNKNOWN). The verdict is `READY_FOR_31_2` or `NOT_READY` — deliberately
+no `CERTIFIED` (calibration measures; 31.5 certifies). The report is
+chain-anchored (`ledger.record_calibration`,
+`EventType.CALIBRATION` — JSON-safe baseline payload, duck-typed, the
+ledger never imports the campaign package).
+
+**The declared limitation.** The intent → ISR pipeline behind the dry run
+is the DECLARED stub (the real `IntentCompiler` is LLM-driven and not
+hermetic); the report records this on every calibration — a calibration
+over stubbed derivations is a calibration of the stub, and says so
+explicitly (`CalibrationReport.declared_assumptions`), never hidden.
+
+**The milestone.** The calibration report is `READY_FOR_31_2`: baseline
+established across all thirteen categories (26 intents, 26 successes,
+0 failures — the same distribution the dry run produced), deterministic
+across two runs (and reproducible across independent harness
+invocations), every successful outcome carrying a resolvable provenance
+chain, zero UNKNOWN failures, substrate undisturbed, and the calibration
+event on an intact ledger chain.
+
+**Boundaries.** No certification claim; no corpus growth (how the corpus
+grows to thousands is 31.4's design decision — derived-from-26-seeds
+measures variation-on-a-theme, genuinely new intents measure the space);
+no new backends or semantics (R2.10.5–9 invoked as black boxes); no
+matrix movement.
+
+**Matrix.** The recipe ISR is byte-identical (`isr_hash` unchanged
+`317b62a8…` — the **eighteenth Option A use**) and the matrix stays
+**12 EXPRESSED / 18 PARTIAL / 0 PROJECTED / 0 MISSING**, asserted
+mechanically.
+
+**Verification.** Full suite: **2207 passed / 10 skipped** (31.1 suite:
+12 passed — the 10 acceptance tests plus the declared-stub-limitation
+test and the JSON-safe-payload test).
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -1632,6 +1693,7 @@ R2.10.7  Real-backend conformance behind the frozen R2.10.6 contract (FastAPI co
 R2.10.7  Cross-backend conformance campaign (one ISR, seven realizations, one invariant semantic source) ← executed
 R2.10.8  Artifact verification & provenance (independent judge: artifact integrity, ISR binding, target/backend binding, coverage, ledger chain, conformance evidence — seven divergent realizations resolve to one semantic source) ← executed
 R2.10.9  Campaign readiness (orchestration, measurement, and failure classification proven deterministic, budget-respecting, ledger-faithful at tens of intents; dry-run verdict ready_to_scale) ← executed
+R2.10.31.1  Calibration — Phase 31 staged campaign slice 1 (baseline established across all thirteen categories, deterministic replay, complete provenance, failures classified; verdict READY_FOR_31_2 — a measurement, never a certification) ← executed
 R2.10.6  Safe structural crossover (chromosome families/genes: Architecture,
          Persistence, Infrastructure, Security, Messaging, Observability,
          Testing, Deployment, Governance, Performance, Reliability)

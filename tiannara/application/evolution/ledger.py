@@ -121,6 +121,7 @@ class EventType(str, enum.Enum):
     PRIMITIVE_CONTRACT = "primitive_contract"  # R2.10.2: signed primitive/extension/compatibility contract
     VERIFICATION = "verification"  # R2.10.8: chain-addressable artifact verification result
     GENERATION_OUTCOME = "generation_outcome"  # R2.10.9: one campaign generation outcome (intent -> ISR -> compilation -> verification)
+    CALIBRATION = "calibration"  # R2.10.31.1: one 31.1 calibration report (a measurement, never a certification)
 
 
 class EvolutionEvent(BaseModel):
@@ -652,6 +653,74 @@ class EvolutionLedger:
             artifact_hash=compiled.artifact_hash,
         )
         self.append_event(event, evolution_id=evolution_id)
+        return event.event_id
+
+    def chain_complete(self, provenance_chain_ref: str) -> bool:
+        """Per-outcome chain-completeness: the outcome event resolves AND its
+        two chain-anchored references — the COMPILATION event and the
+        VERIFICATION event — both resolve on the same ledger.
+
+        R2.10.31.1's provenance gate is mechanical: an outcome without a
+        resolvable compilation or verification anchor is unauditable and
+        fails calibration. Global chain integrity (parent links, tamper
+        cascade) is ``verify_event_chain``'s concern — this is the
+        per-outcome check.
+        """
+        event = self.event_by_ref(provenance_chain_ref)
+        if event is None:
+            return False
+        payload = event.payload or {}
+        compilation_ref = payload.get("compilation_event_ref")
+        verification_ref = payload.get("verification_event_ref")
+        if not compilation_ref or not verification_ref:
+            return False
+        return (
+            self.event_by_ref(compilation_ref) is not None
+            and self.event_by_ref(verification_ref) is not None
+        )
+
+    # -- R2.10.31.1: calibration reports (measurement, not certification) -------
+
+    def record_calibration(
+        self,
+        calibration_id: str,
+        seed: int,
+        baseline: Any,
+        *,
+        deterministic: bool,
+        provenance_complete: bool,
+        failures_classified: bool,
+        verdict: str,
+        declared_assumptions: tuple[str, ...] = (),
+    ) -> str:
+        """Chain-anchor one 31.1 calibration report.
+
+        ``baseline`` is duck-typed (a JSON-safe payload of the baseline
+        distribution — per-category outcomes and per-failure-class counts)
+        so the ledger never imports the campaign package. The verdict is a
+        MEASUREMENT (``READY_FOR_31_2`` / ``NOT_READY``) — there is no
+        certification here; 31.5 certifies. The declared-stub limitation is
+        recorded with the report, never hidden. Returns the event_id.
+        """
+        event_id = f"calibration-{calibration_id}"
+        event = EvolutionEvent(
+            event_id=event_id,
+            evolution_id=event_id,
+            sequence=0,
+            event_type=EventType.CALIBRATION,
+            subject_id=calibration_id,
+            payload={
+                "calibration_id": calibration_id,
+                "seed": seed,
+                "baseline": baseline,
+                "deterministic_replay_verified": deterministic,
+                "provenance_complete": provenance_complete,
+                "failures_fully_classified": failures_classified,
+                "calibration_verdict": verdict,
+                "declared_assumptions": list(declared_assumptions),
+            },
+        )
+        self.append_event(event, evolution_id=event_id)
         return event.event_id
 
     @classmethod

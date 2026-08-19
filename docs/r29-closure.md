@@ -1845,6 +1845,119 @@ mechanically.
 
 ---
 
+### 8w. R2.10.31.4 — The scale ramp (the envelope, measured not assumed)
+
+31.1-31.3 established the semantic contract at small scale. 31.4 stops
+asking "can the system do this?" and asks **"do the properties established
+at small scale remain true as workload increases?"** It is OBSERVATIONAL,
+never architectural: the ramp never changes the semantic contract to fit
+scale — it runs the REAL campaign pipeline at every level (real derivation,
+real evolution, real compilation, real verification, real ledger records)
+and measures where a property stops holding. The invariant that governs it:
+
+> Scale must not become a source of epistemic ambiguity.
+
+At 26 intents every outcome is individually inspectable; at 500 it is not,
+and the danger at scale is not that failures occur but that they become
+blurry. The ten gates are what keep scale honest, and they reduce to one
+requirement: every property proven in 31.1-31.3 either still holds at
+larger scale or fails visibly and is classified.
+
+**The declared methodology (on the report and its ledger event, never
+implicit):**
+
+  * **Corpus growth: DERIVED_FROM_SEEDS.** Every scale corpus is the 26
+    calibrated seeds (byte-identical, in the same order) plus deterministic
+    derived variants — a pure function of (seed intent, tier index), no
+    RNG. The ramp therefore measures *volume-of-similar*, never
+    diversity-at-scale; NEW_INTENTS / MIXED are declared unreachable on
+    this platform (`UnreachableCorpusStrategy` — a declared exception, not
+    a silent approximation).
+  * **The rerun subset (the canary) is predeclared.** `canary-6` — the
+    first six calibrated seed intents — chosen in the fixture BEFORE the
+    ramp runs (post-hoc selection would invite picking the cases that
+    still pass, the rationalization 31.3 made structurally impossible),
+    and replayed at every level through the full seven-backend matrix with
+    real verification and real provenance.
+  * **The reachable top is DECLARED, never silently capped.** Levels 1000
+    and 5000 are scheduled but not run: full real per-intent compilation
+    bounds the runnable top within the declared per-level budget. The
+    measured cost at the reached top is recorded; the unreached levels are
+    NAMED in the report and the assumptions.
+  * **The per-level budget is a real resource measured by the real
+    clock** — a breach is envelope evidence, never a campaign defect.
+
+**The ten gates, evaluated at every level.** SCALE_MONOTONICITY (every
+seed intent's outcome — success and artifact hash — byte-identical to its
+level-26 outcome; the 26 seeds are present at every level, so growing the
+corpus cannot silently change per-intent semantic behavior);
+FAILURE_RATE_ACCOUNTING (every case has exactly one terminal disposition:
+succeeded-with-chain-anchor XOR classified-failure, and the counts sum
+exactly); TAXONOMY_STABILITY (every real failure classified by the SAME
+31.3 classifier over the SAME real evidence — the `evidence_to_observation`
+bridge — must match the R2.10.9→31.3 category map); NO_SILENT_OMISSION
+(level generation events on the chain equal the success count — no dropped
+cases — every canary case binds to its conformance evidence, and any
+EXPLICITLY_UNSUPPORTED case names its semantics); LEDGER_COMPLETENESS
+(chain intact and every outcome and canary case chain-addressable — the
+canary's anchors are the verification event, the compilation event by its
+deterministic id, and the conformance evidence); PROVENANCE_PRESERVATION
+(ISR → target → backend → artifact → verification reconstructible, one
+semantic source per intent across backends); RESOURCE_BOUND_HONESTY (a
+resource-classified failure MUST flag the envelope — exhaustion is
+INFRASTRUCTURE evidence, never blurred into the failure rate);
+DETERMINISTIC_RERUN_SUBSET (the canary's 42 cases — disposition, isr_hash,
+artifact_hash, verification — identical at every level); NO_CROSS_INTENT_
+CONTAMINATION (every level outcome event binds to its own intent and to
+its own category's declared backend — the R2.10.9 isolation at scale);
+NO_CERTIFICATION_INFLATION (the verdict space has no CERTIFIED).
+
+**The envelope is a measurement, not an encounter.** `_detect_envelope_hit`
+reads REAL resource signals: a real classified RESOURCE_EXHAUSTION/TIMEOUT
+from the real execution, a real MemoryError, or the measured wall-clock
+duration exceeding the declared budget. On the run machine the ramp climbed
+26 → 100 → 500 with all ten gates held at every level; at 500 the measured
+level duration exceeded the declared 300s per-level budget — the envelope
+was therefore **measured at 500**, the breach named precisely in the report
+(`envelope_hit_at`, `envelope_reason`), and the ramp stopped honestly.
+Verdict: `READY_FOR_31_5` — the properties hold as workload increases up to
+a measured boundary, and nothing degraded silently on the way.
+
+**The canary sang.** The 42 subset cases compiled and independently
+verified at every level (`canary_tally["VERIFIED_COMPILATION"] == 42`,
+invariance held, identical artifacts level over level) — determinism did
+not degrade as the corpus grew. The 26 seeds produced byte-identical
+outcomes at every level. The ledger chain stayed intact across the whole
+climb. And the ramp observed **zero failures** at scale — the report
+declares `taxonomy_exercised: False` rather than letting the taxonomy gate
+masquerade as exercised (31.3 remains the validated domain of
+failure-classification; the vacuity is named, never blurred).
+
+**The synthetic proofs keep the machinery honest.** A declared 1ms budget
+is breached by the real measured duration of level 26 — the ramp stops,
+names the breach, and still reports its envelope and `READY_FOR_31_5`
+(gates held); and a corpus builder that genuinely changes one seed's
+problem at scale 100 makes the canary's artifact genuinely differ — the
+ramp refuses readiness (`NOT_READY`, envelope at 26), proving that a
+silently degraded determinism CANNOT be certified.
+
+**Matrix.** The recipe ISR is byte-identical (`isr_hash` unchanged
+`317b62a8…` — the **twenty-first Option A use**) and the matrix stays
+**12 EXPRESSED / 18 PARTIAL / 0 PROJECTED / 0 MISSING**, asserted
+mechanically.
+
+**Verification.** Full suite: **2253 passed / 10 skipped** (31.4 suite:
+20 passed — the ten gates at every level, the envelope probes, the
+not-ready drift proof, the ledger entry, and the identity assertions).
+
+**Boundaries.** No semantic-contract change; no certification claim
+(`READY_FOR_31_5`, never CERTIFIED); no post-hoc subset selection; no
+exhaustion-as-failure (the envelope is measured and declared); no matrix
+movement; levels 1000/5000 declared-not-run with the reachable top named;
+no re-injection at scale (31.4 observes; 31.3 injects).
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -1863,6 +1976,7 @@ R2.10.9  Campaign readiness (orchestration, measurement, and failure classificat
 R2.10.31.1  Calibration — Phase 31 staged campaign slice 1 (baseline established across all thirteen categories, deterministic replay, complete provenance, failures classified; verdict READY_FOR_31_2 — a measurement, never a certification) ← executed
 R2.10.31.2  Backend matrix — Phase 31 staged campaign slice 2 (26 intents × 7 backends = 182 cases, five-way disposition, cross-backend invariance per intent, declared-stub assumption propagated; verdict READY_FOR_31_3) ← executed
 R2.10.31.3  Failure taxonomy validation — Phase 31 staged campaign slice 3 (all five failure classes induced as real execution conditions, classifier correct on every one from evidence alone — AST-enforced no-outcome-peeking — no conflation, chain-resolvable; verdict READY_FOR_31_4) ← executed
+R2.10.31.4  Scale ramp — Phase 31 staged campaign slice 4 (26 → 100 → 500 real campaign runs, all ten gates held at every level, predeclared canary replayed through all seven backends, envelope measured and declared at 500, no silent degradation, no certification inflation; verdict READY_FOR_31_5) ← executed
 R2.10.6  Safe structural crossover (chromosome families/genes: Architecture,
          Persistence, Infrastructure, Security, Messaging, Observability,
          Testing, Deployment, Governance, Performance, Reliability)

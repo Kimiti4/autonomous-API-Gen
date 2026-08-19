@@ -125,6 +125,7 @@ class EventType(str, enum.Enum):
     MATRIX = "matrix"  # R2.10.31.2: one 31.2 backend-matrix report (coverage and invariance, never throughput)
     TAXONOMY_CASE = "taxonomy_case"  # R2.10.31.3: one induced failure observation + its classifier disposition
     TAXONOMY_VALIDATION = "taxonomy_validation"  # R2.10.31.3: one 31.3 failure-taxonomy validation report
+    SCALE_RAMP = "scale_ramp"  # R2.10.31.4: one 31.4 scale-ramp report (per-level gates + measured envelope)
 
 
 class EvolutionEvent(BaseModel):
@@ -823,6 +824,62 @@ class EvolutionLedger:
                 "all_correct": all_correct,
                 "no_conflation": no_conflation,
                 "verdict": verdict,
+                "declared_assumptions": list(declared_assumptions),
+            },
+        )
+        self.append_event(event, evolution_id=event_id)
+        return event.event_id
+
+    def record_scale_ramp(
+        self,
+        ramp_id: str,
+        per_level: Any,
+        *,
+        scale_envelope: int,
+        ramp_complete: bool,
+        envelope_hit_at: int | None,
+        envelope_reason: str | None,
+        corpus_growth_strategy: str,
+        rerun_subset: Any,
+        reachable_top: int,
+        scheduled_levels: Any,
+        level_budget_seconds: int,
+        taxonomy_exercised: bool,
+        verdict: str,
+        declared_assumptions: tuple[str, ...] = (),
+    ) -> str:
+        """Chain-anchor one 31.4 scale-ramp report.
+
+        ``per_level`` is duck-typed (a JSON-safe list of per-level
+        results — scale/counts/tallies/gates/envelope/duration) so the
+        ledger never imports the campaign package. The report records the
+        measured envelope and the declared methodology (growth strategy,
+        rerun subset, reachable top, per-level budget) — the ramp is
+        reproducible because its methodology is on the chain. The verdict
+        is a MEASUREMENT (``READY_FOR_31_5`` / ``NOT_READY``) — there is
+        no certification here; 31.5 certifies. Returns the event_id.
+        """
+        event_id = f"scale-ramp-{ramp_id}"
+        event = EvolutionEvent(
+            event_id=event_id,
+            evolution_id=event_id,
+            sequence=0,
+            event_type=EventType.SCALE_RAMP,
+            subject_id=ramp_id,
+            payload={
+                "ramp_id": ramp_id,
+                "per_level": per_level,
+                "scale_envelope": scale_envelope,
+                "ramp_complete": ramp_complete,
+                "envelope_hit_at": envelope_hit_at,
+                "envelope_reason": envelope_reason,
+                "corpus_growth_strategy": corpus_growth_strategy,
+                "rerun_subset": rerun_subset,
+                "reachable_top": reachable_top,
+                "scheduled_levels": list(scheduled_levels),
+                "level_budget_seconds": level_budget_seconds,
+                "taxonomy_exercised": taxonomy_exercised,
+                "scale_ramp_verdict": verdict,
                 "declared_assumptions": list(declared_assumptions),
             },
         )

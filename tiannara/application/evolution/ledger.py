@@ -886,6 +886,49 @@ class EvolutionLedger:
         self.append_event(event, evolution_id=event_id)
         return event.event_id
 
+    def record_certification(
+        self,
+        certification_id: str,
+        verdict: str,
+        certification_statement: str,
+        dimensions: Any,
+        *,
+        measured_envelope: int,
+        declared_assumptions: tuple[str, ...] = (),
+        evidence_chain_refs: Any = (),
+        content_hash: str = "",
+    ) -> str:
+        """Chain-anchor one 31.5 CertificationArtifact.
+
+        ``dimensions`` is duck-typed (a JSON-safe list of dimension
+        payloads — dimension_id/verdict/evidence_refs/bounds) so the
+        ledger never imports the campaign package. The event is the
+        certification itself, not a document that describes it: the
+        content hash commits to the evidence references, and every claim
+        is independently reconstructible from the chain. Returns the
+        event_id.
+        """
+        event_id = f"certification-{certification_id}"
+        event = EvolutionEvent(
+            event_id=event_id,
+            evolution_id=event_id,
+            sequence=0,
+            event_type=EventType.CERTIFICATION,
+            subject_id=certification_id,
+            payload={
+                "certification_id": certification_id,
+                "verdict": verdict,
+                "certification_statement": certification_statement,
+                "dimensions": dimensions,
+                "measured_envelope": measured_envelope,
+                "declared_assumptions": list(declared_assumptions),
+                "evidence_chain_refs": list(evidence_chain_refs),
+                "content_hash": content_hash,
+            },
+        )
+        self.append_event(event, evolution_id=event_id)
+        return event.event_id
+
     @classmethod
     def load(cls, root: str) -> "EvolutionLedger":
         """Reconstruct an in-memory ledger from its durable JSONL files.

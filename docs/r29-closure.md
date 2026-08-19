@@ -1958,6 +1958,95 @@ no re-injection at scale (31.4 observes; 31.3 injects).
 
 ---
 
+### 8x. R2.10.31.5 — Certification (consume the evidence, earn the word)
+
+31.1-31.4 accumulated the evidence; 31.5 certifies it. It is the one
+phase whose verdict may finally say `CERTIFIED` — every prior phase
+deliberately used `READY_FOR_X` precisely so this one could earn the word.
+But the certification is **bounded, never inflated**: an unbounded
+certification is the inflation the nine invariants exist to prevent. The
+certifier ASSEMBLES and VERIFIES the evidence chain — it does not run new
+machinery that could change what the evidence shows. The two deliberate
+exceptions are the canary **re-run** (a certification that trusts
+yesterday's evidence without reproducing it is one step from trusting
+yesterday's claim) and the **novelty-grounding check** (the capstone that
+operationalizes the constitution's foundational principle — "requirements
+should never directly generate source code; all work must flow through
+the ISR").
+
+**The seven dimensions, each bound to its evidence and its bounds.**
+`calibration` (the baseline is reproducible, on the declared pipeline);
+`backend_matrix` (the invariant survives seven realizations of one
+semantic source); `failure_taxonomy` (every deviation correctly attributed
+from real evidence — 910 induced cases, intact); `scale_ramp` (the ten
+gates held at every level to the measured envelope); `canary` (the 42-case
+rerun subset **replayed through the seven-backend matrix at certification
+time** — reproduced, never cited); `envelope` (the measured boundary is
+first-class certification content, and the budget exceedance stays
+INFRASTRUCTURE-classified — a real resource signal, never reinterpreted as
+a software defect); `novelty_grounding` (a genuinely new intent — outside
+the calibration corpus, so the check exercises generative capacity, never
+corpus recall — flows through the ISR, verifies against its source, and
+contains not one untraceable semantic element).
+
+**Grounding is decidable because both sides speak the same language.** The
+R2.10.6 `BackendSemanticModel` projection is the common vocabulary: the
+ISR's semantic surface (capability ids, constraint forms, protected
+regions) versus the semantic elements the artifact actually carries (its
+declared coverage, its embedded projection). An artifact element with no
+counterpart in the source ISR is **hallucination, by definition** — the
+generator asserting what the source of truth never said — and there is no
+minor-hallucination pass: any untraced element fails the check. The
+grounding comparison is proven real, not tautological: a tampered artifact
+carrying a foreign capability id is detected and the untraced element is
+named.
+
+**The qualification belongs in the verdict, not in a footnote.** The
+honest verdict is `QUALIFIED_PARTIAL`: 31.4 observed zero failures, so the
+taxonomy was validated on induced failures (31.3) but never exercised on
+natural failures at scale (`taxonomy_exercised: False`, already declared).
+That is not a defect — it is a bound on the certification's scope, and it
+is carried in the verdict, in the scale_ramp dimension's bounds, and in
+the certification statement. `CERTIFIED` is earned, never issued by
+default: the pure verdict renderer returns it only when every dimension
+passes. And the machinery refuses to certify a canary that genuinely
+drifts: a baseline with one differing artifact hash fails the canary
+dimension → `NOT_CERTIFIED`, with the failure named.
+
+**The artifact is bound to the ledger, not a document about it.** Each
+dimension names the refs it is reconstructed from; the content hash
+commits to (verdict, dimensions, evidence_chain_refs) under the
+no-default-str canonicalization; the certification event on the chain
+carries the same claim; every ref resolves to a real event; the chain
+stays intact across the whole certification. The measured result on the
+run machine: envelope **500** (measured, never assumed), canary re-run
+**42/42 VERIFIED_COMPILATION with identical artifacts**, novelty intent
+`inventory-lot-01` derived → compiled → verified → **zero untraced
+semantics**, verdict **`QUALIFIED_PARTIAL`** with the taxonomy-at-scale
+bound declared.
+
+**Matrix.** The recipe ISR is byte-identical (`isr_hash` unchanged
+`317b62a8…` — the **twenty-second Option A use**) and the matrix stays
+**12 EXPRESSED / 18 PARTIAL / 0 PROJECTED / 0 MISSING**, asserted
+mechanically.
+
+**Verification.** Full suite: **2273 passed / 10 skipped** (31.5 suite:
+20 passed — the seven dimensions, the canary re-run, the novelty
+grounding, the negative probes, the verdict discipline, the ledger
+binding, and the identity assertions).
+
+**Boundaries.** No semantic-contract change; no unbounded statement (the
+statement names the envelope, the assumptions, and the novelty result);
+`QUALIFIED_PARTIAL` is the honest verdict (the taxonomy-at-scale bound
+declared, never hidden); `CERTIFIED` only when every dimension passes;
+no criterion retroactively weakened to fit the measured envelope (the
+certifier has no criterion-mutation surface — enforced structurally);
+no hallucination tolerance; no matrix movement; no re-run of the campaign
+itself (the evidence chain is consumed, the canary reproduced, the
+novelty check performed).
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -1977,6 +2066,7 @@ R2.10.31.1  Calibration — Phase 31 staged campaign slice 1 (baseline establish
 R2.10.31.2  Backend matrix — Phase 31 staged campaign slice 2 (26 intents × 7 backends = 182 cases, five-way disposition, cross-backend invariance per intent, declared-stub assumption propagated; verdict READY_FOR_31_3) ← executed
 R2.10.31.3  Failure taxonomy validation — Phase 31 staged campaign slice 3 (all five failure classes induced as real execution conditions, classifier correct on every one from evidence alone — AST-enforced no-outcome-peeking — no conflation, chain-resolvable; verdict READY_FOR_31_4) ← executed
 R2.10.31.4  Scale ramp — Phase 31 staged campaign slice 4 (26 → 100 → 500 real campaign runs, all ten gates held at every level, predeclared canary replayed through all seven backends, envelope measured and declared at 500, no silent degradation, no certification inflation; verdict READY_FOR_31_5) ← executed
+R2.10.31.5  Certification — Phase 31 staged campaign slice 5, the culmination (the 31.1-31.4 evidence chain consumed and bound: seven dimensions with evidence refs and declared bounds, canary re-run 42/42 at certification time, novel intent outside the corpus derived → verified → zero untraced semantics, content hash committing to the evidence refs; verdict QUALIFIED_PARTIAL — the taxonomy-at-scale bound declared in the verdict, never a footnote) ← executed
 R2.10.6  Safe structural crossover (chromosome families/genes: Architecture,
          Persistence, Infrastructure, Security, Messaging, Observability,
          Testing, Deployment, Governance, Performance, Reliability)

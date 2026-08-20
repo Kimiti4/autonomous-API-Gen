@@ -2478,6 +2478,74 @@ remains deferred to R2.10.31.5's `natural_failure_at_scale`
 
 ---
 
+### 8af. R2.10.32.7 — The analyzer contract (the evidence-production boundary)
+
+32.1–32.6 settled the OBLIGATION layer; 32.7 settles the EVIDENCE layer
+— what produces the measurements that certification judges. The
+governing invariant is the three-way distinction, made structural rather
+than merely documented:
+
+    Analyzer observation != ISR obligation != Certification verdict
+
+An analyzer produces OBSERVATIONS — Ruff finds an unused import, Bandit
+finds a hardcoded secret, the responsibility analyzer finds a cluster
+structure. None of those is an obligation (obligations originate in the
+ISR) and none is a verdict (verdicts are the certifier's judgment
+against gates). The moment an analyzer can declare "this architectural
+decision is invalid," it has become a second source of architectural
+truth. `analyzer_contract.py` makes that impossible: analyzers emit
+findings with provenance, and the only legitimate path from a finding to
+an obligation is the OPTIONAL `obligation_id` link to something the ISR
+(or a declared derivation from it) already carries. `obligation_exists`
+resolves the link against the obligation-bearing carriers — F
+requirements, 32.1 decisions, 32.3 threats, and the 32.6 derived
+obligation set — and `validate_obligation_links` raises
+`AnalyzerContractViolation` when a link resolves to nothing: an
+unresolvable link is a contract violation, never a silent drop.
+
+`obligation_id` being OPTIONAL is the design decision that makes the
+contract honest: obligation-realization evidence (32.2/32.4 traces)
+carries an obligation_id; emergent-property evidence (32.5 concentration
+findings) does not. Forcing both through a mandatory obligation field
+would either fabricate obligations for emergent findings or strip the
+linkage from realization findings — one contract serves both modes while
+keeping the distinction visible.
+
+Every result carries full provenance (who, which version, against which
+artifact, under which configuration, what was observed, where the
+evidence is, whether it can be reproduced). `derive_execution_identity`
+derives the execution instance deterministically from the identity tuple
+(analyzer_id, version, artifact, configuration), so replay reproduces
+the instance (canonical-form and ledger-replay discipline). The contract
+ships `ReferenceAnalyzer`, a minimal deterministic reference
+implementation — the conformance exemplar 32.8's real adapters
+implement rather than only a protocol.
+
+**Matrix.** The recipe ISR is byte-identical (`isr_hash` unchanged
+`317b62a8…` — the **thirtieth Option A use**) and the matrix stays
+**12 EXPRESSED / 18 PARTIAL / 0 PROJECTED / 0 MISSING**, asserted
+mechanically.
+
+**Verification.** Full suite: **2360 passed / 10 skipped** (R2.10.32.7
+suite: 7 passed — the observation-not-obligation-or-verdict structural
+rule with the optional link, obligation-link resolution against the ISR
+with the unresolvable-link contract violation, full-result provenance,
+the no-verdict/no-obligation-construction protocol surface, reference
+analyzer determinism (replay reproduces the execution instance), the two
+evidence modes coexisting without conflation, and the locked
+matrix/recipe identity).
+
+**Boundaries.** No concrete external tools (Ruff, ESLint, Clippy are
+32.8 adapters — building an adapter before the contract is how tool
+semantics leak into certification semantics), no verdict logic (the 32.0
+certifier remains the only verdict authority), no mandatory obligation
+linkage, no modification of 32.0–32.6 semantics (additive only), no
+matrix movement. The runtime→ISR feedback loop remains deferred to
+R2.10.31.5's `natural_failure_at_scale` (learning-governance), untouched
+by this phase.
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -2505,7 +2573,8 @@ R2.10.32.3  Threat model carrier (a security intent the ISR declares — the ISR
 R2.10.32.4  Security traceability (consume the threat carrier through the R2.10.32.2 epistemic pattern: Threat → requirement → invariant → architectural control → implementation → verification → evidence — the proof-half for security obligations) ← executed
 R2.10.32.5  Responsibility concentration (identify where obligations converge on too few actors — concentration as a named structural risk, never a verdict on who is responsible) ← executed
 R2.10.32.6  Failure obligation derivation (derive failure obligations WITH provenance from the E/D/J invariants the ISR already declares — derived, never invented) ← executed
-R2.10.32.7  Analyzer contract (the uniform analyzer interface: every Phase 32 analyzer returns a chain-addressable report against locked invariants) ← next
+R2.10.32.7  Analyzer contract (the uniform analyzer interface: every Phase 32 analyzer returns a chain-addressable report against locked invariants) ← executed
+R2.10.32.8  External tool adapters (Ruff/Pylint/Bandit/ESLint/Clippy-style evidence through the 32.7 contract — analyzers as interchangeable backends, never certification semantics) ← next
 R2.10.6  Safe structural crossover (chromosome families/genes: Architecture,
          Persistence, Infrastructure, Security, Messaging, Observability,
          Testing, Deployment, Governance, Performance, Reliability)

@@ -2192,6 +2192,51 @@ feedback loop remains deferred to R2.10.31.5's `natural_failure_at_scale`
 
 ---
 
+### 8aa. R2.10.32.2 — Decision traceability (resolve decisions to their implementing structures)
+
+32.1 made the decision a record; 32.2 proves the record's realization. The
+traceability engine (`tiannara/application/quality/decision_traceability.py`)
+walks an obligation ALREADY PRESENT in the ISR along its existing edges —
+Requirement → Decision → Architecture → Module/Boundary → Implementation →
+Verification → Evidence — resolving the 32.1 decision's `requirement_refs` /
+`invariant_refs` / `architectural_scope` / `verification_refs`, E's member
+refs, the artifact's manifest/bundle realization, and the ledger's
+chain-anchored events. It authors nothing: `obligation_origin == "ISR"`
+always, and any obligation that does not originate in the ISR raises
+`ObligationOriginError` (`CERTIFICATION_TRACEABILITY_NEVER_CREATES_OBLIGATIONS`).
+
+Five states, decided by the FIRST link the chain could not resolve (the
+frozen tail is never re-attempted): `INVALID_REFERENCE` (a reference that
+resolves to nothing in the identity universe — the decision's invariant
+refs are walked AS WRITTEN, never silently filtered), `MISSING_LINK` (an
+absent link — a requirement no decision serves), `UNSATISFIED` (a module
+that exists but is not realized in the artifact), `SATISFIED` (the chain
+resolved and the terminal verification evidence is chain-addressable on the
+ledger), and `INSUFFICIENT_EVIDENCE` (realized but unproven — advisory,
+never a pass). The state ordering implements the vacuity policy applied to
+the certification's own chains.
+
+**Matrix.** The recipe ISR is byte-identical (`isr_hash` unchanged
+`317b62a8…` — the **twenty-fifth Option A use**) and the matrix stays
+**12 EXPRESSED / 18 PARTIAL / 0 PROJECTED / 0 MISSING**, asserted
+mechanically.
+
+**Verification.** Full suite: **2316 passed / 10 skipped** (R2.10.32.2
+suite: 16 passed — the ISR-obligation trace, the non-ISR refusal, the
+Phase 32 `kind:id` form, the five distinguishable states, the
+insufficient-evidence-never-pass policy, the unrealized-not-satisfied
+rule, the complete and ordered chain, the structural no-construction
+surface, chain-addressable evidence, unaddressable missing evidence, and
+the locked matrix/recipe identity).
+
+**Boundaries.** No new obligation types, no obligation authorship, no
+binary pass/fail, no decision-carrier modification (32.1's interface is
+stable), no matrix movement. The runtime→ISR feedback loop remains
+deferred to R2.10.31.5's `natural_failure_at_scale` (learning-governance),
+untouched by this phase.
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -2214,7 +2259,8 @@ R2.10.31.4  Scale ramp — Phase 31 staged campaign slice 4 (26 → 100 → 500 
 R2.10.31.5  Certification — Phase 31 staged campaign slice 5, the culmination (the 31.1-31.4 evidence chain consumed and bound: seven dimensions with evidence refs and declared bounds, canary re-run 42/42 at certification time, novel intent outside the corpus derived → verified → zero untraced semantics, content hash committing to the evidence refs; verdict QUALIFIED_PARTIAL — the taxonomy-at-scale bound declared in the verdict, never a footnote) ← executed
 R2.10.32  Engineering Certification (gates, never averages: the dispositive ISR-conformance check first, seven gradable dimensions over the artifact's real declared evidence, verdict rendered from gates with no score, certifier with no mutation surface, EvolutionaryQualityLoop as the only remediation seam mutating only the ISR through declared operators; honest runs: reference certifies, FastAPI-full is locally-perfect-but-architecturally-wrong on conformance, FastAPI-minimal is structurally blocked by a CRITICAL CORS/credentials security violation, Postgres-migration probe fails the ungameable evolvability gate, the loop reaches CERTIFIED in declared generations; full suite 2289 passed / 10 skipped) ← executed
 R2.10.32.1  ArchitecturalDecision ISR carrier (the decision record in ADR-complete form, empty identity-neutral, participating in the identity index and consumption contract, reference edges resolving against F/E/D/J/modules/H with no new obligation authored, structural no-author boundary for Phase 32; full suite 2304 passed / 10 skipped) ← executed
-R2.10.32.2  Decision traceability (resolve decisions to their implementing structures — next)
+R2.10.32.2  Decision traceability (resolve decisions to their implementing structures: the proof-half — an ISR obligation walked along existing edges to chain-anchored evidence, five states, no obligation created, no decision modified; full suite 2316 passed / 10 skipped) ← executed
+R2.10.32.3  Threat model carrier (a security intent the ISR declares — the ISR's security obligation surface, R2.10.32.2-traceable) ← next
 R2.10.6  Safe structural crossover (chromosome families/genes: Architecture,
          Persistence, Infrastructure, Security, Messaging, Observability,
          Testing, Deployment, Governance, Performance, Reliability)

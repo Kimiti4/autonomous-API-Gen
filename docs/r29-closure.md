@@ -2613,6 +2613,84 @@ by this phase.
 
 ---
 
+### 8ah. R2.10.32.9 — Complete evidence coverage (evidence gaps, not architecture)
+
+Phase 32's certification position is now stated explicitly, in two
+states: **Phase 32 Architectural Certification — CERTIFIED** (the
+32.0–32.8 architecture, provenance, evidence model, analyzer boundary,
+and certification mechanics satisfy their contracts), and **Phase 32
+Evidence Completeness — NOT YET CERTIFIED** (the complete original
+specification's evidence set is not yet demonstrated — real tool
+execution, the full metric set, operational evidence, and senior-quality
+calibration remain environment-bounded or uncalibrated). 32.9 closes
+what can be closed deterministically and keeps every environment-
+dependent absence epistemically visible, so the distinction stays
+mechanical.
+
+The seven metric analyzers (`metric_analyzers.py`) close the spec's
+metric list — cyclomatic complexity (decision-point density per unit),
+code duplication (body-fingerprint multiplicity), dead code
+(unreferenced, non-entry units), unused dependencies (declared-but-
+unreferenced), naming consistency (dominant-convention coherence),
+documentation coverage (documented over public surface), public API
+consistency (declared vs realized) — as deterministic, dependency-free,
+content-addressed `MetricMeasurement`s (ledger-replayable via
+`measurement_evidence_ref`). They are emergent-property producers under
+the 32.7 contract: a `MetricMeasurement` carries no `obligation_id`
+(structurally asserted), and whether a measurement meets a bound is a
+gate's judgment, never the analyzer's.
+
+`tool_availability.py` probes the 32.8 registry for the eleven required
+external producers (Ruff, Pylint, MyPy, Bandit, ESLint, tsc, Sonar,
+SpotBugs, PMD, golangci-lint, Clippy); absence is a state — every tool
+appears in the report, and `implementation_quality_dimension_state`
+renders the dimension PROVEN only for executed producers, UNPROVEN where
+none ran (vacuity policy: tool unavailable != tool found zero defects).
+The senior-quality target stops being an aspiration:
+`senior_quality_contract.py` defines `SENIOR_QUALITY_CONTRACT` — ten
+gates, each with a statement, gate, evidence binding, and **declared
+calibration basis** (an uncalibrated bound certifies nothing; an
+unprovenanced calibration is an assertion). `SeniorQualityCertificationGate`
+evaluates the contract consuming the existing evidence — 32.2/32.4
+verification anchors on the ISR carriers, 32.5 boundary prohibitions,
+32.6 derivations, artifact critical findings and observability surface
+— and renders the bounded verdict: CERTIFIED only with every gate
+PASSED and every required producer executed, QUALIFIED_PARTIAL where a
+producer is absent or a gate unproven, NOT_CERTIFIED where any gate
+fails (a critical finding is structurally dispositive). The verdict
+structurally has no composite score field. `operational_evidence.py`
+expands Operational Quality to the full observability surface
+(structured logging, metrics, tracing, health/readiness checks, audit
+events) measured as present/absent evidence, never a score.
+
+**Matrix.** The recipe ISR is byte-identical (`isr_hash` unchanged
+`317b62a8…` — the **thirty-second Option A use**) and the matrix stays
+**12 EXPRESSED / 18 PARTIAL / 0 PROJECTED / 0 MISSING**, asserted
+mechanically.
+
+**Verification.** Full suite: **2379 passed / 10 skipped** (R2.10.32.9
+suite: 10 passed — deterministic metrics, emergent-not-author
+measurements, all seven spec metrics implemented, honest tool-absence
+reporting, the UNPROVEN-not-PROVEN dimension state, no-composite-score
+contract with the QUALIFIED_PARTIAL normal path, per-criterion
+calibration provenance, critical-failure-blocks-CERTIFIED, the
+operational surface evidenced, and the locked matrix/recipe identity).
+
+**Boundaries.** No architecture changes (32.0–32.8 is the certified
+substrate; 32.9 adds producers, calibrations, and the target definition
+behind the existing boundaries), no forced tool presence (a tool that
+isn't installed is TOOL_NOT_INSTALLED and its dimension is UNPROVEN —
+the certificate is environment-bounded and says so), no composite
+quality score, no uncalibrated bounds, no metric-as-obligation, no
+matrix movement. Real-tool execution, remaining metric calibration, and
+the environment-bounded certification of the quality dimensions remain
+the honest `⚠️ Partial` gap that 32.9's availability report keeps
+visible. The runtime→ISR feedback loop remains deferred to
+R2.10.31.5's `natural_failure_at_scale` (learning-governance), untouched
+by this phase.
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -2642,7 +2720,8 @@ R2.10.32.5  Responsibility concentration (identify where obligations converge on
 R2.10.32.6  Failure obligation derivation (derive failure obligations WITH provenance from the E/D/J invariants the ISR already declares — derived, never invented) ← executed
 R2.10.32.7  Analyzer contract (the uniform analyzer interface: every Phase 32 analyzer returns a chain-addressable report against locked invariants) ← executed
 R2.10.32.8  External tool adapters (Ruff/Pylint/Bandit/ESLint/Clippy-style evidence through the 32.7 contract — analyzers as interchangeable backends, never certification semantics) ← executed
-— Phase 32 sequence complete (32.0–32.8); continuation phases will be declared when the era's next boundary is specified.
+R2.10.32.9  Complete evidence coverage (real adapters, missing metric analyzers, operational evidence, senior-quality contract calibration — evidence gaps, not architecture) ← executed
+— Phase 32 sequence complete (32.0–32.9); Architectural Certification CERTIFIED, Evidence Completeness NOT YET CERTIFIED (real-tool execution and metric calibration remain environment-bounded).
 R2.10.6  Safe structural crossover (chromosome families/genes: Architecture,
          Persistence, Infrastructure, Security, Messaging, Observability,
          Testing, Deployment, Governance, Performance, Reliability)

@@ -2546,6 +2546,73 @@ by this phase.
 
 ---
 
+### 8ag. R2.10.32.8 — External tool adapters (evidence production as a plugin boundary)
+
+32.7 defined the evidence-production contract; 32.8 proves it against
+the contract's execution states and output shapes with a deterministic
+exemplar adapter, then makes external tools registrations rather than
+redesigns. The governing rule: **an adapter TRANSLATES tool output into
+the analyzer contract's shape; it never interprets architectural
+meaning.** Normalization is structural (Ruff's F401 becomes
+`category="unused_import"`), never semantic (it does not become
+`architectural_violation=true`) — that mapping, where it exists at all,
+is a declared certification concern, not an adapter decision.
+
+`tool_adapters.py` makes the five rules mechanical: (1) the
+`AnalyzerRegistry` is the only dispatch surface — external tools are
+registered implementations, never special cases (`if analyzer == "ruff"`
+inside certification logic is the anti-pattern this phase exists to
+prevent); (2) tool failure is never a clean result — `ToolExecutionState`
+distinguishes `ANALYSIS_COMPLETED` / `TOOL_EXECUTION_FAILED` /
+`TOOL_TIMEOUT` / `TOOL_NOT_INSTALLED` / `TOOL_INVALID_OUTPUT`, so a
+missing analyzer never reads as zero findings (the vacuity policy
+applied to evidence production); (3) raw provenance is preserved —
+`content_address` (the platform's canonical content-addressing from
+`evidence/integrity.py`) makes the normalized evidence point back to a
+content-addressed raw result; (4) `normalize` is structural (the AST
+acceptance tests assert the adapter source carries no architectural-
+violation/verdict surface); (5) tool absence is epistemically visible —
+`registry.execution_state` reports `TOOL_NOT_INSTALLED` for an absent
+analyzer, surfaced as NOT_AVAILABLE in the quality dimensions it
+covers, never PASS, never silently omitted.
+
+The `ExemplarToolAdapter` is the first adapter: it proves the pattern
+against deterministic simulated output across **all five execution
+states** (completed/failed/timeout/not_installed/invalid_output), so the
+contract is validated against reality's shape without a runtime
+dependency. The ecosystem adapters (Ruff, Pylint, MyPy, Bandit, ESLint,
+tsc, Sonar, SpotBugs, PMD, golangci-lint, Clippy) implement the
+identical surface as registrations afterward — the sequencing decision
+that protects the phase from premature tool explosion: a dozen adapters
+built against an unvalidated pattern is a tooling-integration project;
+one adapter that exercises every state is a proven contract. Adapter
+executions reuse 32.7's deterministic `derive_execution_identity`, so
+they join the same replay/reconstruction scheme.
+
+**Matrix.** The recipe ISR is byte-identical (`isr_hash` unchanged
+`317b62a8…` — the **thirty-first Option A use**) and the matrix stays
+**12 EXPRESSED / 18 PARTIAL / 0 PROJECTED / 0 MISSING**, asserted
+mechanically.
+
+**Verification.** Full suite: **2369 passed / 10 skipped** (R2.10.32.8
+suite: 9 passed — registry-only dispatch, epistemically visible tool
+absence, the full five-state reachability proof, failed-tool-is-not-a-
+clean-result, content-addressed raw provenance, structural-not-semantic
+normalization, the no-verdict/no-obligation adapter surface, execution
+identity determinism, and the locked matrix/recipe identity).
+
+**Boundaries.** No real-tool dependencies yet (the exemplar proves the
+pattern; real adapters implement the identical surface once validated),
+no semantic interpretation in adapters (finding→obligation or
+finding→gate mapping is a declared certification concern, never an
+adapter decision), no tool-specific branching in certification (the
+registry is the dispatch surface), no silent absence, no matrix
+movement. The runtime→ISR feedback loop remains deferred to
+R2.10.31.5's `natural_failure_at_scale` (learning-governance), untouched
+by this phase.
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -2574,7 +2641,8 @@ R2.10.32.4  Security traceability (consume the threat carrier through the R2.10.
 R2.10.32.5  Responsibility concentration (identify where obligations converge on too few actors — concentration as a named structural risk, never a verdict on who is responsible) ← executed
 R2.10.32.6  Failure obligation derivation (derive failure obligations WITH provenance from the E/D/J invariants the ISR already declares — derived, never invented) ← executed
 R2.10.32.7  Analyzer contract (the uniform analyzer interface: every Phase 32 analyzer returns a chain-addressable report against locked invariants) ← executed
-R2.10.32.8  External tool adapters (Ruff/Pylint/Bandit/ESLint/Clippy-style evidence through the 32.7 contract — analyzers as interchangeable backends, never certification semantics) ← next
+R2.10.32.8  External tool adapters (Ruff/Pylint/Bandit/ESLint/Clippy-style evidence through the 32.7 contract — analyzers as interchangeable backends, never certification semantics) ← executed
+— Phase 32 sequence complete (32.0–32.8); continuation phases will be declared when the era's next boundary is specified.
 R2.10.6  Safe structural crossover (chromosome families/genes: Architecture,
          Persistence, Infrastructure, Security, Messaging, Observability,
          Testing, Deployment, Governance, Performance, Reliability)

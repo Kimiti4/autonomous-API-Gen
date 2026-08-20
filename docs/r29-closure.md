@@ -2355,6 +2355,65 @@ by this phase.
 
 ---
 
+### 8ad. R2.10.32.5 — Responsibility concentration (the emergent-property dimension)
+
+32.1–32.4 established "what must be true → how we prove it"; 32.5
+evaluates an EMERGENT architectural property: does the implementation's
+responsibility structure violate the architectural quality contract? The
+character change is deliberate: responsibility concentration is not
+something the ISR DECLARES but something the implementation EXHIBITS, so
+32.5 is an ANALYZER, not an obligation carrier. There is no
+`ResponsibilityObligation` — symmetry with 32.1/32.3 is sacrificed on
+purpose, because inventing the carrier would be the certifier authoring
+an obligation it then judges against (the same contamination in a new
+costume). The analyzer
+(`tiannara/application/quality/responsibility_concentration.py`) derives
+evidence from the existing ISR architecture, module/boundary identity,
+32.1 decision scope, and the implementation graph (the artifact's R2.10.7
+projection seam), and its output is a `ResponsibilityConcentrationFinding`
+— evidence about the artifact with no obligation_id, creating no
+obligation, redefining no architecture.
+
+The anti-gaming rule is the epistemic heart: **large module ≠ bad.** A
+large, coherent module (OrderService: create order, validate order,
+calculate totals, apply order rules) is well-engineered; a small module
+that owns billing, authentication, email, persistence, analytics, and
+shipping is a god-module regardless of line count. The four structural
+signals — `multiple_unrelated_responsibility_clusters` (affinity-derived,
+never keyword heuristics), `high_dependency_diversity`,
+`cross_boundary_ownership`, `decision_scope_conflict` — fire on
+CONCENTRATION, a structural property of the responsibility graph, never a
+volume metric; the line-count signal is structurally absent (AST
+enforced).
+
+Severity never self-escalates: a finding is `CRITICAL` only when the ISR
+EXPLICITLY prohibits the concentration (the module is named in an E
+boundary's `forbidden_dependency_refs` — genuinely ISR-authored
+escalation), otherwise `ADVISORY`/`WARNING`. The standard boundary
+pattern holds: the analyzer has no carrier-module import and no
+constructor binding.
+
+**Matrix.** The recipe ISR is byte-identical (`isr_hash` unchanged
+`317b62a8…` — the **twenty-eighth Option A use**) and the matrix stays
+**12 EXPRESSED / 18 PARTIAL / 0 PROJECTED / 0 MISSING**, asserted
+mechanically.
+
+**Verification.** Full suite: **2346 passed / 10 skipped** (R2.10.32.5
+suite: 8 passed — the large-coherent-module-not-flagged anti-gaming rule,
+the small-god-module-flagged inverse, the no-line-count structural rule,
+the finding-is-evidence-not-obligation rule, chain-addressable finding
+evidence, the never-self-escalated CRITICAL (prohibited vs unprohibited),
+the no-obligation-authoring surface, and the locked matrix/recipe
+identity).
+
+**Boundaries.** No obligation carrier, no line-count rule, no
+self-escalation to CRITICAL, no redefinition of the architecture, no
+matrix movement. The runtime→ISR feedback loop remains deferred to
+R2.10.31.5's `natural_failure_at_scale` (learning-governance), untouched
+by this phase.
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -2380,7 +2439,8 @@ R2.10.32.1  ArchitecturalDecision ISR carrier (the decision record in ADR-comple
 R2.10.32.2  Decision traceability (resolve decisions to their implementing structures: the proof-half — an ISR obligation walked along existing edges to chain-anchored evidence, five states, no obligation created, no decision modified; full suite 2316 passed / 10 skipped) ← executed
 R2.10.32.3  Threat model carrier (a security intent the ISR declares — the ISR's security obligation surface, R2.10.32.2-traceable) ← executed
 R2.10.32.4  Security traceability (consume the threat carrier through the R2.10.32.2 epistemic pattern: Threat → requirement → invariant → architectural control → implementation → verification → evidence — the proof-half for security obligations) ← executed
-R2.10.32.5  Responsibility concentration (identify where obligations converge on too few actors — concentration as a named structural risk, never a verdict on who is responsible) ← next
+R2.10.32.5  Responsibility concentration (identify where obligations converge on too few actors — concentration as a named structural risk, never a verdict on who is responsible) ← executed
+R2.10.32.6  Failure obligation derivation (derive failure obligations WITH provenance from the E/D/J invariants the ISR already declares — derived, never invented) ← next
 R2.10.6  Safe structural crossover (chromosome families/genes: Architecture,
          Persistence, Infrastructure, Security, Messaging, Observability,
          Testing, Deployment, Governance, Performance, Reliability)

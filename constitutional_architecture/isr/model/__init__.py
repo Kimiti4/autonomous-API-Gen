@@ -76,6 +76,11 @@ from constitutional_architecture.isr.semantics.decision import (
     assert_decision_technology_agnostic, project_architectural_decisions,
     realization_terms_present, validate_system_decision_constraints,
 )
+from constitutional_architecture.isr.semantics.threat import (
+    SecurityThreat, ThreatRealizationError, ThreatSeverity,
+    ThreatValidationError, threat_terms_present,
+    validate_system_threat_constraints, validate_threat_neutrality,
+)
 from constitutional_architecture.isr.semantics.evolution_policy import (
     EvolutionObjective, EvolutionPolicy, EvolutionPolicyValidationError,
     ObjectiveDimension, ObjectiveDirection, ObjectiveTier, PreservationInvariant,
@@ -134,6 +139,9 @@ __all__ = [
     "ArchitecturalDecision", "DecisionValidationError",
     "assert_decision_technology_agnostic", "project_architectural_decisions",
     "realization_terms_present", "validate_system_decision_constraints",
+    "SecurityThreat", "ThreatRealizationError", "ThreatSeverity",
+    "ThreatValidationError", "threat_terms_present",
+    "validate_system_threat_constraints", "validate_threat_neutrality",
     "EvolutionObjective", "EvolutionPolicy", "EvolutionPolicyValidationError",
     "ObjectiveDimension", "ObjectiveDirection", "ObjectiveTier",
     "PreservationInvariant", "ProtectedRegion", "ProtectionKind",

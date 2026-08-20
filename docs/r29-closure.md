@@ -2237,6 +2237,64 @@ untouched by this phase.
 
 ---
 
+### 8ab. R2.10.32.3 — the SecurityThreat ISR carrier (the security-obligation record)
+
+Security threats became first-class ISR objects: the security intent the
+architecture is AUTHORSED against — scenarioed, severity-declared,
+invariant-bound, control-referenced, and verification-linked. The carrier
+lives in the ISR (`constitutional_architecture/isr/semantics/threat.py`) —
+the constitution's "Security by Design" principle made a semantic gene:
+security as an obligation represented BEFORE implementation, never a
+finding scanned AFTER it. This is 32.1's pattern applied to security, and
+the one sentence that governs it is that 32.3 is a security-obligation
+primitive, NOT a security scanner — inference-from-implementation
+("this application has authentication, therefore these are its threats")
+is obligation-authorship by another name, and it belongs upstream
+(evolution/architecture selection) or in an explicit obligation-derivation
+stage (R2.10.32.6), never in certification.
+
+The threat is an OBLIGATION, never a finding: `threat_id`, `scenario`,
+`severity` (a declaration, never a measurement), `invariant_statement`
+(the invariant certification will hold the implementation to — a threat
+without one is undefined and rejected at construction), and four reference
+edges that resolve against existing constructs and author no new
+obligation: `requirement_refs` → F's requirements,
+`architectural_control_refs` → E's boundaries,
+`implementation_obligation_refs` → the 32.1 decision/obligation carrier,
+`verification_refs` → H's testing anchors. A threat tied to neither a
+requirement nor a control is unanchored and rejected. The verification
+edge is an OBLIGATION/PROVENANCE edge, never proof that verification
+occurred — a threat structurally cannot claim a verdict.
+
+The carrier participates in the semantic identity like any other gene:
+`security_threats` joins the identity-index DOMAINS (thirteen), is
+path-identifiable, ref-checked against the existing carriers (dangling
+edges rejected), and identity-affecting when populated — automatically
+identity-neutral when empty.
+
+**Matrix.** The recipe ISR is byte-identical (`isr_hash` unchanged
+`317b62a8…` — the **twenty-sixth Option A use**) and the matrix stays
+**12 EXPRESSED / 18 PARTIAL / 0 PROJECTED / 0 MISSING**, asserted
+mechanically.
+
+**Verification.** Full suite: **2326 passed / 10 skipped** (R2.10.32.3
+suite: 10 passed — the full-chain carrier fields, the invariant-less
+rejection, the unanchored rejection, empty identity neutrality, populated
+identity participation with intact reference edges, the dangling
+reference rejection, security-technology neutrality with JWT/OAuth/mTLS/
+Kafka rejected as compiler backends, and the structural no-author
+certification boundary).
+
+**Boundaries.** No scanning, no inference, no threat discovery from
+artifacts, no traceability (R2.10.32.4 walks this carrier), no Phase 32
+consumption logic, no matrix movement. An unrepresented threat surface is
+a gap to be named (ADVISORY, per the vacuity policy) — never a CRITICAL
+violation, which requires an actual ISR obligation. The runtime→ISR
+feedback loop remains deferred to R2.10.31.5's
+`natural_failure_at_scale` (learning-governance), untouched by this phase.
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -2260,7 +2318,8 @@ R2.10.31.5  Certification — Phase 31 staged campaign slice 5, the culmination 
 R2.10.32  Engineering Certification (gates, never averages: the dispositive ISR-conformance check first, seven gradable dimensions over the artifact's real declared evidence, verdict rendered from gates with no score, certifier with no mutation surface, EvolutionaryQualityLoop as the only remediation seam mutating only the ISR through declared operators; honest runs: reference certifies, FastAPI-full is locally-perfect-but-architecturally-wrong on conformance, FastAPI-minimal is structurally blocked by a CRITICAL CORS/credentials security violation, Postgres-migration probe fails the ungameable evolvability gate, the loop reaches CERTIFIED in declared generations; full suite 2289 passed / 10 skipped) ← executed
 R2.10.32.1  ArchitecturalDecision ISR carrier (the decision record in ADR-complete form, empty identity-neutral, participating in the identity index and consumption contract, reference edges resolving against F/E/D/J/modules/H with no new obligation authored, structural no-author boundary for Phase 32; full suite 2304 passed / 10 skipped) ← executed
 R2.10.32.2  Decision traceability (resolve decisions to their implementing structures: the proof-half — an ISR obligation walked along existing edges to chain-anchored evidence, five states, no obligation created, no decision modified; full suite 2316 passed / 10 skipped) ← executed
-R2.10.32.3  Threat model carrier (a security intent the ISR declares — the ISR's security obligation surface, R2.10.32.2-traceable) ← next
+R2.10.32.3  Threat model carrier (a security intent the ISR declares — the ISR's security obligation surface, R2.10.32.2-traceable) ← executed
+R2.10.32.4  Security traceability (consume the threat carrier through the R2.10.32.2 epistemic pattern: Threat → requirement → invariant → architectural control → implementation → verification → evidence — the proof-half for security obligations) ← next
 R2.10.6  Safe structural crossover (chromosome families/genes: Architecture,
          Persistence, Infrastructure, Security, Messaging, Observability,
          Testing, Deployment, Governance, Performance, Reliability)

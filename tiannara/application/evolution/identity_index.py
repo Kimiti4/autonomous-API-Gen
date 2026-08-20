@@ -60,6 +60,7 @@ DOMAINS: tuple[str, ...] = (
     "temporal",
     "behavior",
     "decision",
+    "threat",
 )
 
 # system-level fields + their id attributes, per domain
@@ -73,6 +74,7 @@ _SYSTEM_FIELD: dict[str, str] = {
     "deployment": "deployment_intents",
     "documentation": "documentation_intents",
     "decision": "architectural_decisions",
+    "threat": "security_threats",
 }
 
 _ID_ATTR: dict[str, str] = {
@@ -85,6 +87,7 @@ _ID_ATTR: dict[str, str] = {
     "deployment": "deployment_id",
     "documentation": "documentation_id",
     "decision": "decision_id",
+    "threat": "threat_id",
 }
 
 
@@ -99,8 +102,8 @@ def _path_identities(isr: Any) -> dict[str, str]:
     domains (capabilities, requirements, acceptance criteria, boundaries,
     testing anchors, reliability requirements, deployment intents,
     migrations, temporal constraints, documentation intents, behaviors,
-    architectural decisions). Paths outside these domains stay unkeyed (the
-    path itself is the subject)."""
+    architectural decisions, security threats). Paths outside these domains
+    stay unkeyed (the path itself is the subject)."""
     system = isr.system
     index: dict[str, str] = {}
     for ci, capability in enumerate(system.business_capabilities):
@@ -121,6 +124,8 @@ def _path_identities(isr: Any) -> dict[str, str]:
         index[f"system.documentation_intents[{di}]"] = intent.documentation_id
     for di, decision in enumerate(system.architectural_decisions):
         index[f"system.architectural_decisions[{di}]"] = decision.decision_id
+    for ti, threat in enumerate(system.security_threats):
+        index[f"system.security_threats[{ti}]"] = threat.threat_id
     for mi, module in enumerate(system.modules):
         base = f"system.modules[{mi}]"
         for wi, workflow in enumerate(module.workflows):
@@ -159,6 +164,8 @@ def _genes(isr: Any) -> dict[tuple[str, str], Any]:
         genes[("documentation", intent.documentation_id)] = intent
     for decision in system.architectural_decisions:
         genes[("decision", decision.decision_id)] = decision
+    for threat in system.security_threats:
+        genes[("threat", threat.threat_id)] = threat
     for module in system.modules:
         for workflow in module.workflows:
             genes[("behavior", workflow.id)] = workflow
@@ -232,6 +239,7 @@ def _dangling_references(isr: Any) -> tuple[str, ...]:
         for module in system.modules
         for migration in module.data_migrations
     }
+    decision_ids = {d.decision_id for d in system.architectural_decisions}
 
     dangles: list[str] = []
 
@@ -292,6 +300,12 @@ def _dangling_references(isr: Any) -> tuple[str, ...]:
         check(owner, "invariant_ref", decision.invariant_refs, invariant_carrier_ids)
         check(owner, "architectural_scope", decision.architectural_scope, frozenset(module_ids))
         check(owner, "verification_ref", decision.verification_refs, frozenset(anchor_ids))
+    for threat in system.security_threats:
+        owner = f"threat '{threat.threat_id}'"
+        check(owner, "requirement_ref", threat.requirement_refs, frozenset(requirement_ids))
+        check(owner, "architectural_control_ref", threat.architectural_control_refs, frozenset(boundary_ids))
+        check(owner, "implementation_obligation_ref", threat.implementation_obligation_refs, frozenset(decision_ids))
+        check(owner, "verification_ref", threat.verification_refs, frozenset(anchor_ids))
     for intent in system.documentation_intents:
         check(
             f"documentation '{intent.documentation_id}'",

@@ -19,6 +19,7 @@ from constitutional_architecture.isr.semantics.requirement import (
     Requirement,
 )
 from constitutional_architecture.isr.semantics.testing_anchor import TestingAnchor
+from constitutional_architecture.isr.semantics.threat import SecurityThreat
 
 
 @dataclass(frozen=True)
@@ -77,6 +78,15 @@ class System:
     # invariants from E/D/J, modules, anchors from H) — the carrier authors
     # no new obligation. Empty identity-neutral (Option A).
     architectural_decisions: tuple[ArchitecturalDecision, ...] = ()
+    # Security threats (R2.10.32.3): the security-obligation carrier — a
+    # threat the architecture is AUTHORSED against (scenario, declared
+    # severity, the invariant certification will hold the implementation
+    # to, and reference edges to F's requirements / E's boundaries / the
+    # decision obligation carrier / H's anchors). Supplied by
+    # evolution/architecture selection, NEVER inferred from the
+    # implementation — certification is the CONSUMER of threats, never
+    # their author. Empty identity-neutral (Option A).
+    security_threats: tuple[SecurityThreat, ...] = ()
 
     def get_module(self, module_id: str) -> Optional[Module]:
         for m in self.modules:

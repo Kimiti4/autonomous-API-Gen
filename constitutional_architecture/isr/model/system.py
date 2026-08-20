@@ -11,6 +11,7 @@ from constitutional_architecture.isr.model.deployment import Deployment
 from constitutional_architecture.isr.model.module import Module
 from constitutional_architecture.isr.semantics.boundary import ArchitecturalBoundary
 from constitutional_architecture.isr.semantics.capability import BusinessCapability
+from constitutional_architecture.isr.semantics.decision import ArchitecturalDecision
 from constitutional_architecture.isr.semantics.deployment import DeploymentIntent
 from constitutional_architecture.isr.semantics.reliability import ReliabilityRequirement
 from constitutional_architecture.isr.semantics.requirement import (
@@ -67,6 +68,15 @@ class System:
     evolution_objectives: tuple[EvolutionObjective, ...] = ()
     protected_regions: tuple[ProtectedRegion, ...] = ()
     evolution_policies: tuple[EvolutionPolicy, ...] = ()
+    # Architectural decisions (R2.10.32.1): the decision record — WHY the
+    # system's shape is what it is, in ADR-complete form (context, question,
+    # alternatives, selection, justification, rejected alternatives, future
+    # evolution). The ISR is the only author of decisions: Phase 32
+    # (certification) is their CONSUMER, never their author. Reference
+    # edges resolve against existing constructs (requirements from F,
+    # invariants from E/D/J, modules, anchors from H) — the carrier authors
+    # no new obligation. Empty identity-neutral (Option A).
+    architectural_decisions: tuple[ArchitecturalDecision, ...] = ()
 
     def get_module(self, module_id: str) -> Optional[Module]:
         for m in self.modules:

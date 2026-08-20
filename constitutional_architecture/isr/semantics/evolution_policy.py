@@ -270,6 +270,7 @@ def _protected_gene_ids(system: Any) -> set[str]:
         ids.update(m.migration_id for m in module.data_migrations)
         ids.update(t.constraint_id for t in module.temporal_constraints)
         ids.update(w.id for w in module.workflows)
+    ids.update(d.decision_id for d in system.architectural_decisions)
     return ids
 
 

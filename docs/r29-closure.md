@@ -2133,6 +2133,65 @@ finding exists.
 
 ---
 
+### 8z. R2.10.32.1 — the ArchitecturalDecision ISR carrier (the decision record)
+
+Architectural decisions became first-class ISR objects: WHY the system's
+shape is what it is, in ADR-complete form. The carrier lives in the ISR
+(`constitutional_architecture/isr/semantics/decision.py`) — the ISR is the
+source of truth; Phase 32 (certification) is its CONSUMER, never its
+author, and that authorship boundary is enforced structurally (the
+certification package contains no construction surface for
+`ArchitecturalDecision`).
+
+The carrier is constitutionally ADR-complete: arc42 Context → `context`,
+Problem → `question`, Alternatives → `alternatives`, Selection →
+`selected_strategy`, Trade-offs → `trade_offs`, Benefits → `benefits`,
+Risks → `risks`/`rejected`, Future evolution → `future_evolution`. It is a
+RECORD of an actual choice: `selected_strategy` must be among at least two
+alternatives (a single option is not a decision), and an unexplained
+decision (no trade_offs, no benefits) is rejected at construction.
+
+Reference edges resolve against the existing constructs and author no new
+obligation: `requirement_refs` → F's requirements, `invariant_refs` → the
+invariant-bearing carriers of E/D/J (boundary ids, reliability requirement
+ids, protected region ids), `architectural_scope` → modules,
+`verification_refs` → H's testing anchors. The verification edge is an
+OBLIGATION/PROVENANCE edge, never proof that verification occurred — a
+decision structurally cannot claim a verdict (the three-layer separation
+holds: the ISR declares what evidence must establish, evaluation produces
+it, certification judges it). No `architecture_ref`/`implementation_refs`
+fields yet — resolving decisions to their implementations is the
+traceability phase's job (R2.10.32.2).
+
+The carrier participates in the semantic identity like any other gene:
+`architectural_decisions` joins the identity-index DOMAINS, is
+path-identifiable, ref-checked against the existing carriers (dangling
+edges rejected), referenceable by J's protected regions, and carried by
+the consumption contract — all automatically identity-neutral when empty.
+
+**Matrix.** The recipe ISR is byte-identical (`isr_hash` unchanged
+`317b62a8…` — the **twenty-fourth Option A use**) and the matrix stays
+**12 EXPRESSED / 18 PARTIAL / 0 PROJECTED / 0 MISSING**, asserted
+mechanically.
+
+**Verification.** Full suite: **2304 passed / 10 skipped** (R2.10.32.1
+suite: 15 passed — the ADR-complete carrier, the selected-in-alternatives
+rule, the single-option rejection, the unexplained-decision rejection,
+empty identity neutrality, the canonical omission, the locked matrix, the
+identity-index participation with intact reference edges, the dangling
+reference rejection, the obligation-edge-not-verdict structure, J
+protectability, the semantics-only projection, technology neutrality,
+realization-term rejection, and the structural no-author certification
+boundary).
+
+**Boundaries.** No decision generation, no ADR inference, no traceability
+evaluation, no design-quality certification, no Phase 32 mutation — the
+carrier is a record; records do not judge themselves. The runtime→ISR
+feedback loop remains deferred to R2.10.31.5's `natural_failure_at_scale`
+(learning-governance), untouched by this phase.
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -2154,6 +2213,8 @@ R2.10.31.3  Failure taxonomy validation — Phase 31 staged campaign slice 3 (al
 R2.10.31.4  Scale ramp — Phase 31 staged campaign slice 4 (26 → 100 → 500 real campaign runs, all ten gates held at every level, predeclared canary replayed through all seven backends, envelope measured and declared at 500, no silent degradation, no certification inflation; verdict READY_FOR_31_5) ← executed
 R2.10.31.5  Certification — Phase 31 staged campaign slice 5, the culmination (the 31.1-31.4 evidence chain consumed and bound: seven dimensions with evidence refs and declared bounds, canary re-run 42/42 at certification time, novel intent outside the corpus derived → verified → zero untraced semantics, content hash committing to the evidence refs; verdict QUALIFIED_PARTIAL — the taxonomy-at-scale bound declared in the verdict, never a footnote) ← executed
 R2.10.32  Engineering Certification (gates, never averages: the dispositive ISR-conformance check first, seven gradable dimensions over the artifact's real declared evidence, verdict rendered from gates with no score, certifier with no mutation surface, EvolutionaryQualityLoop as the only remediation seam mutating only the ISR through declared operators; honest runs: reference certifies, FastAPI-full is locally-perfect-but-architecturally-wrong on conformance, FastAPI-minimal is structurally blocked by a CRITICAL CORS/credentials security violation, Postgres-migration probe fails the ungameable evolvability gate, the loop reaches CERTIFIED in declared generations; full suite 2289 passed / 10 skipped) ← executed
+R2.10.32.1  ArchitecturalDecision ISR carrier (the decision record in ADR-complete form, empty identity-neutral, participating in the identity index and consumption contract, reference edges resolving against F/E/D/J/modules/H with no new obligation authored, structural no-author boundary for Phase 32; full suite 2304 passed / 10 skipped) ← executed
+R2.10.32.2  Decision traceability (resolve decisions to their implementing structures — next)
 R2.10.6  Safe structural crossover (chromosome families/genes: Architecture,
          Persistence, Infrastructure, Security, Messaging, Observability,
          Testing, Deployment, Governance, Performance, Reliability)

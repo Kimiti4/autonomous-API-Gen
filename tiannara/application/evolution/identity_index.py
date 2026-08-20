@@ -59,6 +59,7 @@ DOMAINS: tuple[str, ...] = (
     "migration",
     "temporal",
     "behavior",
+    "decision",
 )
 
 # system-level fields + their id attributes, per domain
@@ -71,6 +72,7 @@ _SYSTEM_FIELD: dict[str, str] = {
     "reliability": "reliability_requirements",
     "deployment": "deployment_intents",
     "documentation": "documentation_intents",
+    "decision": "architectural_decisions",
 }
 
 _ID_ATTR: dict[str, str] = {
@@ -82,6 +84,7 @@ _ID_ATTR: dict[str, str] = {
     "reliability": "requirement_id",
     "deployment": "deployment_id",
     "documentation": "documentation_id",
+    "decision": "decision_id",
 }
 
 
@@ -92,12 +95,12 @@ def _gene_hash(value: Any) -> str:
 
 
 def _path_identities(isr: Any) -> dict[str, str]:
-    """Projection path -> semantic identity id for the ten protected
-    identity domains (capabilities, requirements, acceptance criteria,
-    boundaries, testing anchors, reliability requirements, deployment
-    intents, migrations, temporal constraints, documentation intents,
-    behaviors). Paths outside these domains stay unkeyed (the path
-    itself is the subject)."""
+    """Projection path -> semantic identity id for the protected identity
+    domains (capabilities, requirements, acceptance criteria, boundaries,
+    testing anchors, reliability requirements, deployment intents,
+    migrations, temporal constraints, documentation intents, behaviors,
+    architectural decisions). Paths outside these domains stay unkeyed (the
+    path itself is the subject)."""
     system = isr.system
     index: dict[str, str] = {}
     for ci, capability in enumerate(system.business_capabilities):
@@ -116,6 +119,8 @@ def _path_identities(isr: Any) -> dict[str, str]:
         index[f"system.testing_anchors[{ai}]"] = anchor.anchor_id
     for di, intent in enumerate(system.documentation_intents):
         index[f"system.documentation_intents[{di}]"] = intent.documentation_id
+    for di, decision in enumerate(system.architectural_decisions):
+        index[f"system.architectural_decisions[{di}]"] = decision.decision_id
     for mi, module in enumerate(system.modules):
         base = f"system.modules[{mi}]"
         for wi, workflow in enumerate(module.workflows):
@@ -152,6 +157,8 @@ def _genes(isr: Any) -> dict[tuple[str, str], Any]:
         genes[("deployment", intent.deployment_id)] = intent
     for intent in system.documentation_intents:
         genes[("documentation", intent.documentation_id)] = intent
+    for decision in system.architectural_decisions:
+        genes[("decision", decision.decision_id)] = decision
     for module in system.modules:
         for workflow in module.workflows:
             genes[("behavior", workflow.id)] = workflow
@@ -202,6 +209,12 @@ def _dangling_references(isr: Any) -> tuple[str, ...]:
     requirement_ids = {r.requirement_id for r in system.requirements}
     criterion_ids = {c.criterion_id for c in system.acceptance_criteria}
     module_ids = {module.id for module in system.modules}
+    anchor_ids = {a.anchor_id for a in system.testing_anchors}
+    boundary_ids = {b.boundary_id for b in system.architectural_boundaries}
+    reliability_requirement_ids = {
+        r.requirement_id for r in system.reliability_requirements
+    }
+    region_ids = {r.region_id for r in system.protected_regions}
     entity_ids = {
         entity.id for module in system.modules for entity in module.entities
     }
@@ -268,6 +281,17 @@ def _dangling_references(isr: Any) -> tuple[str, ...]:
         owner = f"testing_anchor '{anchor.anchor_id}'"
         check(owner, "subject_ref", anchor.subject_refs, identities)
         check(owner, "obligation_ref", anchor.obligation_refs, frozenset(criterion_ids))
+    for decision in system.architectural_decisions:
+        owner = f"decision '{decision.decision_id}'"
+        check(owner, "requirement_ref", decision.requirement_refs, frozenset(requirement_ids))
+        invariant_carrier_ids = (
+            frozenset(boundary_ids)
+            | frozenset(reliability_requirement_ids)
+            | frozenset(region_ids)
+        )
+        check(owner, "invariant_ref", decision.invariant_refs, invariant_carrier_ids)
+        check(owner, "architectural_scope", decision.architectural_scope, frozenset(module_ids))
+        check(owner, "verification_ref", decision.verification_refs, frozenset(anchor_ids))
     for intent in system.documentation_intents:
         check(
             f"documentation '{intent.documentation_id}'",

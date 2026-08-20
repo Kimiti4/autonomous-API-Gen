@@ -71,6 +71,11 @@ from constitutional_architecture.isr.semantics.documentation import (
     documentation_mechanism_hits, project_documentation_intents,
     validate_system_documentation_constraints,
 )
+from constitutional_architecture.isr.semantics.decision import (
+    ArchitecturalDecision, DecisionValidationError,
+    assert_decision_technology_agnostic, project_architectural_decisions,
+    realization_terms_present, validate_system_decision_constraints,
+)
 from constitutional_architecture.isr.semantics.evolution_policy import (
     EvolutionObjective, EvolutionPolicy, EvolutionPolicyValidationError,
     ObjectiveDimension, ObjectiveDirection, ObjectiveTier, PreservationInvariant,
@@ -126,6 +131,9 @@ __all__ = [
     "DocumentationValidationError",
     "assert_documentation_technology_agnostic", "documentation_mechanism_hits",
     "project_documentation_intents", "validate_system_documentation_constraints",
+    "ArchitecturalDecision", "DecisionValidationError",
+    "assert_decision_technology_agnostic", "project_architectural_decisions",
+    "realization_terms_present", "validate_system_decision_constraints",
     "EvolutionObjective", "EvolutionPolicy", "EvolutionPolicyValidationError",
     "ObjectiveDimension", "ObjectiveDirection", "ObjectiveTier",
     "PreservationInvariant", "ProtectedRegion", "ProtectionKind",

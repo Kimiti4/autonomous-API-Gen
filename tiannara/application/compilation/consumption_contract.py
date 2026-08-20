@@ -54,6 +54,9 @@ from constitutional_architecture.isr.semantics.documentation import (
     DOCUMENTATION_MECHANISM_TERMS,
     assert_documentation_technology_agnostic,
 )
+from constitutional_architecture.isr.semantics.decision import (
+    assert_decision_technology_agnostic,
+)
 from constitutional_architecture.isr.semantics.evolution_policy import (
     EVOLUTION_MECHANISM_TERMS,
     assert_evolution_technology_agnostic,
@@ -165,6 +168,7 @@ _SEMANTIC_CARRIERS: tuple[tuple[str, str], ...] = (
     ("behavior", "workflows"),
     ("migration", "data_migrations"),
     ("temporal", "temporal_constraints"),
+    ("decision", "architectural_decisions"),
 )
 
 _MODULE_CARRIERS: frozenset[str] = frozenset(
@@ -492,6 +496,8 @@ def isr_technology_neutral_hits(isr: Any) -> tuple[str, ...]:
          assert_documentation_technology_agnostic),
         ("evolution", system.evolution_policies,
          assert_evolution_technology_agnostic),
+        ("decision", system.architectural_decisions,
+         assert_decision_technology_agnostic),
     )
     for name, carriers, lint in linted:
         for gene in carriers:

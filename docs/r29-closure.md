@@ -2414,6 +2414,70 @@ by this phase.
 
 ---
 
+### 8ae. R2.10.32.6 — Failure obligation derivation (the provenance-preserving dimension)
+
+32.6 is the one place Phase 32 PRODUCES obligations, and the precision
+the word "derivation" requires is stated exactly: **deriving an
+obligation from a declared ISR fact via a declared rule is NOT inventing
+an obligation.** The obligation still originates in the ISR — in the fact
+("an external network dependency exists") — and the derivation is a
+controlled, auditable transformation of that fact into the failure
+classes it implies (timeout, unavailable dependency, partial response,
+duplicate operation). What remains forbidden is the other path:
+*implementation observation → obligation* ("the code contains a network
+call, therefore there must be a network-partition requirement") — that
+path is obligation-contamination regardless of how reasonable the
+inference seems, because its origin is the artifact rather than the ISR.
+The derivation engine
+(`tiannara/application/quality/failure_obligation_derivation.py`)
+therefore has NO artifact-reading surface (structurally asserted: its
+`derive` signature is `(self, isr)` and it performs no scan/observation
+calls): the artifact is what obligations are later traced INTO (by 32.4's
+epistemic machinery), never what they are derived FROM.
+
+The machinery: `extract_isr_facts` reads the declared-fact carriers — D
+reliability requirements, G deployment constraints, and the dependency
+declarations (external network exposure, persistent storage) — producing
+facts (id, kind, carrier); `FAILURE_DERIVATION_RULES` is a declared,
+versioned rule set (RULE-NETWORK-001, RULE-PERSISTENCE-001,
+RULE-RELIABILITY-001, RULE-DEPLOYMENT-001), never assembled from
+observations; the engine matches fact kinds against rule patterns and
+emits one `FailureObligation` per derived failure class with a
+deterministic, chain-addressable identity
+(`derive_id(fact_id, rule_id, failure_class)`) — re-derivation is
+idempotent. `FailureObligation.__post_init__` enforces the provenance
+contract: no source → invention, no rule → unauditable.
+
+The central invariant, asserted by the acceptance suite:
+
+> Every derived failure obligation has an explicit ISR provenance chain
+> (`source_refs` resolve to declared ISR facts) and a declared derivation
+> rule; no implementation observation may become a failure obligation
+> without an explicit, authorized derivation rule whose source ultimately
+> resolves to the ISR.
+
+**Matrix.** The recipe ISR is byte-identical (`isr_hash` unchanged
+`317b62a8…` — the **twenty-ninth Option A use**) and the matrix stays
+**12 EXPRESSED / 18 PARTIAL / 0 PROJECTED / 0 MISSING**, asserted
+mechanically.
+
+**Verification.** Full suite: **2353 passed / 10 skipped** (R2.10.32.6
+suite: 7 passed — ISR provenance resolution, declared-rule membership,
+the structural no-artifact-surface rule, the source/rule rejection
+contract, auditable end-to-end derivation, same-fact-different-rule
+distinctness, and the locked matrix/recipe identity).
+
+**Boundaries.** No artifact-scanning derivation, no per-observation rule
+invention (rules are the declared set; a new failure class is a new
+declared rule), no traceability yet (deriving is 32.6; tracing reuses
+32.4's machinery as the natural follow-on), no severity authorship (the
+obligation's criticality comes from its source fact and rule, never the
+engine's judgment), no matrix movement. The runtime→ISR feedback loop
+remains deferred to R2.10.31.5's `natural_failure_at_scale`
+(learning-governance), untouched by this phase.
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -2440,7 +2504,8 @@ R2.10.32.2  Decision traceability (resolve decisions to their implementing struc
 R2.10.32.3  Threat model carrier (a security intent the ISR declares — the ISR's security obligation surface, R2.10.32.2-traceable) ← executed
 R2.10.32.4  Security traceability (consume the threat carrier through the R2.10.32.2 epistemic pattern: Threat → requirement → invariant → architectural control → implementation → verification → evidence — the proof-half for security obligations) ← executed
 R2.10.32.5  Responsibility concentration (identify where obligations converge on too few actors — concentration as a named structural risk, never a verdict on who is responsible) ← executed
-R2.10.32.6  Failure obligation derivation (derive failure obligations WITH provenance from the E/D/J invariants the ISR already declares — derived, never invented) ← next
+R2.10.32.6  Failure obligation derivation (derive failure obligations WITH provenance from the E/D/J invariants the ISR already declares — derived, never invented) ← executed
+R2.10.32.7  Analyzer contract (the uniform analyzer interface: every Phase 32 analyzer returns a chain-addressable report against locked invariants) ← next
 R2.10.6  Safe structural crossover (chromosome families/genes: Architecture,
          Persistence, Infrastructure, Security, Messaging, Observability,
          Testing, Deployment, Governance, Performance, Reliability)

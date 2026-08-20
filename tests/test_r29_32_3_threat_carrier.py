@@ -323,7 +323,11 @@ def test_security_technologies_rejected_from_threats():
 def test_quality_package_cannot_construct_threats():
     """Structural: Phase 32's certification package contains no construction
     surface for SecurityThreat — the ISR is the only author of threats,
-    certification is the consumer. No scanning, no inference."""
+    certification is the consumer. No scanning, no inference. The import
+    ban targets the threat CARRIER (``isr.semantics.threat``) and its
+    constructor name only: R2.10.32.4 consumes the DECLARED severity type
+    through the model facade (``isr.model``) — carrying a declaration is
+    not authorship."""
     quality_dir = pathlib.Path(tiannara.__file__).parent / "application" / "quality"
     assert quality_dir.is_dir()
     offenders: list[str] = []
@@ -335,18 +339,26 @@ def test_quality_package_cannot_construct_threats():
                 if "SecurityThreat" in fn:
                     offenders.append(f"{source.name}: constructs {fn}")
             elif isinstance(node, ast.ImportFrom):
-                if "threat" in (node.module or ""):
+                module = node.module or ""
+                if (
+                    "semantics.threat" in module
+                    or module == "threat"
+                    or module.endswith(".threat")
+                ):
                     offenders.append(
-                        f"{source.name}: imports {node.module}"
+                        f"{source.name}: imports {module}"
                     )
                 for alias in node.names:
-                    if "Threat" in alias.name:
+                    if alias.name == "SecurityThreat":
                         offenders.append(
                             f"{source.name}: imports {alias.name}"
                         )
             elif isinstance(node, ast.Import):
                 for alias in node.names:
-                    if "threat" in alias.name.lower():
+                    if (
+                        "threat" in alias.name.lower()
+                        and "semantics" in alias.name.lower()
+                    ):
                         offenders.append(
                             f"{source.name}: imports {alias.name}"
                         )

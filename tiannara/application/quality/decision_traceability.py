@@ -188,6 +188,49 @@ def _verification_event_ref(artifact: Mapping[str, Any]) -> Optional[str]:
     return f"verification-{artifact_hash[:8]}"
 
 
+# -- shared epistemic machinery (reused by every obligation-class engine) ------
+
+def reference_exists(ref: str, isr: Any, identity_index: Any = IdentityIndex) -> bool:
+    """R2.10's reference-integrity discipline: a reference resolves iff
+    it is a member of the identity index's resolvable universe."""
+    return ref in identity_index.derive(isr).resolvable_ids
+
+
+def determine_trace_state(
+    links: tuple[TraceabilityLink, ...],
+    isr: Any,
+    identity_index: Any = IdentityIndex,
+) -> TraceabilityState:
+    """The five-state determination, shared by every traceability engine.
+
+    The state is decided by the FIRST link the chain could not resolve
+    (everything after it is a frozen absent tail, never re-attempted):
+
+      * a reference that resolves to something that does not exist in
+        the identity universe -> INVALID_REFERENCE;
+      * a link that is simply absent -> MISSING_LINK;
+      * a link whose reference exists but that is not realized (e.g. a
+        module not carried by the artifact) -> UNSATISFIED;
+      * the whole chain resolved, but the terminal verification
+        evidence is not chain-anchored -> INSUFFICIENT_EVIDENCE
+        (advisory, never a pass);
+      * the whole chain resolved and evidenced -> SATISFIED.
+    """
+    for link in links:
+        if link.resolved:
+            continue
+        if link.to_ref is not None and not reference_exists(
+            link.to_ref, isr, identity_index
+        ):
+            return TraceabilityState.INVALID_REFERENCE
+        if link.to_ref is None:
+            return TraceabilityState.MISSING_LINK
+        return TraceabilityState.UNSATISFIED
+    if links[-1].evidence_ref is not None:
+        return TraceabilityState.SATISFIED
+    return TraceabilityState.INSUFFICIENT_EVIDENCE
+
+
 class DecisionTraceabilityEngine:
     """32.2 — Decision Traceability.
 
@@ -470,26 +513,14 @@ class DecisionTraceabilityEngine:
             (advisory, never a pass);
           * the whole chain resolved and evidenced -> SATISFIED.
         """
-        for link in links:
-            if link.resolved:
-                continue
-            if link.to_ref is not None and not self._reference_exists(
-                link.to_ref, isr
-            ):
-                return TraceabilityState.INVALID_REFERENCE
-            if link.to_ref is None:
-                return TraceabilityState.MISSING_LINK
-            return TraceabilityState.UNSATISFIED
-        if links[-1].evidence_ref is not None:
-            return TraceabilityState.SATISFIED
-        return TraceabilityState.INSUFFICIENT_EVIDENCE
+        return determine_trace_state(links, isr, self._identity_index)
 
     # -- helpers ------------------------------------------------------------------
 
     def _reference_exists(self, ref: str, isr: Any) -> bool:
         """R2.10's reference-integrity discipline: a reference resolves iff
         it is a member of the identity index's resolvable universe."""
-        return ref in self._identity_index.derive(isr).resolvable_ids
+        return reference_exists(ref, isr, self._identity_index)
 
     @staticmethod
     def _carrier_id(kind: str, carrier: Any) -> str:

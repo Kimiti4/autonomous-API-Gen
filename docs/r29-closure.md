@@ -2295,6 +2295,66 @@ feedback loop remains deferred to R2.10.31.5's
 
 ---
 
+### 8ac. R2.10.32.4 — Security traceability (resolve threats to their implementing structures)
+
+32.3 made the threat a record; 32.4 proves the record's realization — and
+proves that the 32.2 epistemic architecture is REUSABLE across obligation
+classes, not an accident of the decision carrier. The security traceability
+engine (`tiannara/application/quality/security_traceability.py`) walks a
+threat ALREADY PRESENT in the ISR along its existing edges — Threat →
+Requirement → Invariant → Architectural Control → Implementation Obligation
+→ Verification → Evidence — resolving the 32.3 edges (`requirement_refs`,
+`invariant_statement`, `architectural_control_refs`,
+`implementation_obligation_refs`, `verification_refs`), the 32.1
+decision's scoped modules, the artifact's manifest/bundle realization, and
+the ledger's chain-anchored events.
+
+The governing invariant is one verb wider than 32.2's and governs the
+implementation: **Security Traceability may prove or disprove realization
+of an ISR-declared threat obligation; it may never create, modify, infer,
+or reclassify that obligation.** 32.2 forbade CREATING obligations; 32.4
+also forbids RECLASSIFYING them — severity is *declared, never measured*,
+so the trace carries `declared_severity` verbatim and structurally has no
+risk score and no computed severity. The two questions are never
+conflated: A (was the obligation realized?) is answered by the five-state
+verdict; B (is the declared severity appropriate?) is absent from the
+engine's surface entirely until an explicitly defined risk-analysis
+mechanism exists.
+
+The epistemic machinery is imported, not redefined: `TraceabilityState`,
+`TraceabilityLink`, `ObligationOriginError`, the five-state determination,
+the first-unresolvable-link freeze, the ledger-addressable evidence refs,
+and the reference-integrity discipline all come from the R2.10.32.2
+engine unchanged — the security engine supplies only the chain definition
+and the six threat link resolvers. The AST boundaries stay construction-
+surface-exact: the quality package imports no carrier module and binds no
+carrier constructor (the 32.1/32.3 AST tests were scoped to the carrier
+modules accordingly — epistemic reuse across the quality package is not
+authorship).
+
+**Matrix.** The recipe ISR is byte-identical (`isr_hash` unchanged
+`317b62a8…` — the **twenty-seventh Option A use**) and the matrix stays
+**12 EXPRESSED / 18 PARTIAL / 0 PROJECTED / 0 MISSING**, asserted
+mechanically.
+
+**Verification.** Full suite: **2338 passed / 10 skipped** (R2.10.32.4
+suite: 12 passed — the ISR-threat trace, the non-ISR refusal, the
+scanner-observation refusal (an undeclared surface is not an obligation),
+the five distinguishable states, insufficient-evidence-never-pass, the
+unrealized-not-satisfied rule, severity carried verbatim, the no-severity-
+authoring surface, the answered-question-A/unanswered-question-B split,
+the complete and ordered chain, chain-addressable evidence, and the locked
+matrix/recipe identity).
+
+**Boundaries.** No threat creation or inference, no severity reassessment,
+no new epistemic states (the five inherit from 32.2 unchanged), no 32.3
+carrier modification (the carrier interface is stable), no matrix
+movement. The runtime→ISR feedback loop remains deferred to
+R2.10.31.5's `natural_failure_at_scale` (learning-governance), untouched
+by this phase.
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -2319,7 +2379,8 @@ R2.10.32  Engineering Certification (gates, never averages: the dispositive ISR-
 R2.10.32.1  ArchitecturalDecision ISR carrier (the decision record in ADR-complete form, empty identity-neutral, participating in the identity index and consumption contract, reference edges resolving against F/E/D/J/modules/H with no new obligation authored, structural no-author boundary for Phase 32; full suite 2304 passed / 10 skipped) ← executed
 R2.10.32.2  Decision traceability (resolve decisions to their implementing structures: the proof-half — an ISR obligation walked along existing edges to chain-anchored evidence, five states, no obligation created, no decision modified; full suite 2316 passed / 10 skipped) ← executed
 R2.10.32.3  Threat model carrier (a security intent the ISR declares — the ISR's security obligation surface, R2.10.32.2-traceable) ← executed
-R2.10.32.4  Security traceability (consume the threat carrier through the R2.10.32.2 epistemic pattern: Threat → requirement → invariant → architectural control → implementation → verification → evidence — the proof-half for security obligations) ← next
+R2.10.32.4  Security traceability (consume the threat carrier through the R2.10.32.2 epistemic pattern: Threat → requirement → invariant → architectural control → implementation → verification → evidence — the proof-half for security obligations) ← executed
+R2.10.32.5  Responsibility concentration (identify where obligations converge on too few actors — concentration as a named structural risk, never a verdict on who is responsible) ← next
 R2.10.6  Safe structural crossover (chromosome families/genes: Architecture,
          Persistence, Infrastructure, Security, Messaging, Observability,
          Testing, Deployment, Governance, Performance, Reliability)

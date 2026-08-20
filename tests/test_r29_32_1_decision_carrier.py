@@ -430,7 +430,11 @@ def test_realization_terms_rejected_from_decisions():
 def test_certification_never_authors_decisions():
     """Structural: Phase 32's certification package contains no construction
     surface for ArchitecturalDecision — the ISR is the only author of
-    decisions, certification is the consumer."""
+    decisions, certification is the consumer. The import ban targets the
+    decision CARRIER (``isr.semantics.decision``) and its constructor
+    names only: R2.10.32.4 reuses the 32.2 engine module
+    (``quality.decision_traceability``) by locked contract — epistemic
+    reuse is not authorship."""
     quality_dir = pathlib.Path(tiannara.__file__).parent / "application" / "quality"
     assert quality_dir.is_dir()
     offenders: list[str] = []
@@ -442,18 +446,27 @@ def test_certification_never_authors_decisions():
                 if "ArchitecturalDecision" in fn:
                     offenders.append(f"{source.name}: constructs {fn}")
             elif isinstance(node, ast.ImportFrom):
-                if "decision" in (node.module or ""):
+                module = node.module or ""
+                if (
+                    "semantics.decision" in module
+                    or module == "decision"
+                    or module.endswith(".decision")
+                ):
                     offenders.append(
-                        f"{source.name}: imports {node.module}"
+                        f"{source.name}: imports {module}"
                     )
                 for alias in node.names:
-                    if "Decision" in alias.name:
+                    if alias.name in {"ArchitecturalDecision",
+                                      "DecisionValidationError"}:
                         offenders.append(
                             f"{source.name}: imports {alias.name}"
                         )
             elif isinstance(node, ast.Import):
                 for alias in node.names:
-                    if "decision" in alias.name.lower():
+                    if (
+                        "decision" in alias.name.lower()
+                        and "semantics" in alias.name.lower()
+                    ):
                         offenders.append(
                             f"{source.name}: imports {alias.name}"
                         )

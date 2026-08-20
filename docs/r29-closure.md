@@ -2047,6 +2047,92 @@ novelty check performed).
 
 ---
 
+### 8y. R2.10.32 — Engineering Certification (gates, never averages)
+
+Phase 32 certifies the engineering of the generated product itself: one
+artifact against the ISR that produced it, under the declared R2.10.32
+contract. It is a measurement harness — the certifier never mutates the
+ISR or the artifact (no mutation surface, enforced structurally via AST);
+the EvolutionaryQualityLoop is the only remediation surface, and it
+mutates ONLY the ISR through the declared mutation operators
+(reliability / deployment / testing-anchor), then recompiles and
+re-certifies.
+
+**The contract** (`tiannara/application/quality/engineering_contract.py`):
+eight gates — **ISR Conformance** (dispositive, checked FIRST) plus
+IMPLEMENTATION, ARCHITECTURE, DESIGN, FAILURE_ENGINEERING, SECURITY,
+EVOLVABILITY, OPERATIONS. The verdict is rendered from the gates, never
+averaged, never scored: any CRITICAL finding is structurally dispositive
+(`NOT_CERTIFIED`); otherwise all-meet → `CERTIFIED`, else
+`QUALIFIED_PARTIAL`. The gate calibration is declared — severity
+calibration, vacuity policy (insufficient evidence is ADVISORY and named,
+never blurred), and the abstraction-justified threshold (0.50) that
+conjoins the EVOLVABILITY complexity gate so over-abstraction cannot game
+a cheap simulated evolution cost.
+
+**The harness** (`engineering_certification.py`): `extract_isr_obligations`
+lifts every carrier out of the ISR (mandatory: requirement, acceptance
+criterion, boundary, reliability, deployment, migration, temporal,
+testing anchor, protected region; advisory: documentation, evolution
+objective, evolution policy). `ISRConformanceCheck` binds the artifact to
+its ISR via `semantic_source.isr_hash` (divergence violates every
+obligation) and enforces each obligation through the artifact's real
+declared evidence — its own coverage claims, projection content, and
+bundle files. The seven built-in analyzers are deterministic over that
+same evidence (coverage / projection / bundle / ISR carriers — no
+external tools). Every dimension result and every certificate is
+chain-anchored (`ENGINEERING_DIMENSION` / `ENGINEERING_CERTIFICATION`
+events); the certificate's content hash commits to its content and its
+evidence refs.
+
+**Honest runs (the test suite's narratives).** The reference artifact over
+the full derived ISR certifies (conformance enforced, all seven gates
+met, 3/3 failure scenarios handled). The FastAPI artifact over the same
+ISR is NOT_CERTIFIED on conformance — its own declared coverage leaves
+most mandatory obligations UNSUPPORTED/PARTIAL: locally well-formed
+(hexagonal layers, acyclic) but architecturally wrong, named as such. The
+FastAPI artifact over a behavior-only ISR passes conformance vacuously
+(named) and is then NOT_CERTIFIED structurally: wildcard CORS +
+`allow_credentials` + OAuth bearer is a CRITICAL SECURITY violation. The
+Postgres artifact over a migration-only ISR passes conformance but fails
+EVOLVABILITY: abstraction not justified (1 of 5 expressed semantics
+realized) despite a cheap evolution cost — the conjoined gate refuses
+over-abstraction. Wrong-source artifacts stop before any dimension runs.
+
+**The loop.** Starting from the behavior-only ISR (`QUALIFIED_PARTIAL` —
+no failure scenarios MAJOR, no deployment semantics MAJOR), the loop
+applies its declared mutations in generation order — reliability
+requirement, then testing anchor, then deployment intent — reaching
+`CERTIFIED` within the declared generation budget, every generation
+chain-anchored. Weaknesses without a declared mutation mapping (a
+backend's declared-unsupported semantics) are carried in the diagnosis,
+never papered over; already-satisfied mutations are declined, never
+re-applied.
+
+**Matrix.** The recipe ISR is byte-identical (`isr_hash` unchanged
+`317b62a8…` — the **twenty-third Option A use**) and the matrix stays
+**12 EXPRESSED / 18 PARTIAL / 0 PROJECTED / 0 MISSING**, asserted
+mechanically.
+
+**Verification.** Full suite: **2289 passed / 10 skipped** (Phase 32
+suite: 16 passed — the dispositive conformance probes, the
+locally-perfect-but-wrong case, the structural CRITICAL block, the
+scenario-driven failure coverage, the ungameable evolvability gate, the
+evidence binding, the idempotent chain, the vacuity-named-never-blurred
+policy, the AST-enforced no-mutation surface, the declared gate
+calibration, the loop's discovered better architecture, and the matrix
+identity).
+
+**Boundaries.** No semantic-contract change; no matrix movement; no
+unbounded statement (gates name thresholds and calibration); vacuity is
+named, never blurred; the certifier cannot mutate (enforced
+structurally); the loop mutates only the ISR through declared operators;
+no external tooling assumed (analyzers are deterministic over declared
+evidence); `CERTIFIED` only when every gate meets and no CRITICAL
+finding exists.
+
+---
+
 ## 9. Next phase boundary
 
 **R2.10 — Production software generation**, sequenced (order is mandatory):
@@ -2067,6 +2153,7 @@ R2.10.31.2  Backend matrix — Phase 31 staged campaign slice 2 (26 intents × 7
 R2.10.31.3  Failure taxonomy validation — Phase 31 staged campaign slice 3 (all five failure classes induced as real execution conditions, classifier correct on every one from evidence alone — AST-enforced no-outcome-peeking — no conflation, chain-resolvable; verdict READY_FOR_31_4) ← executed
 R2.10.31.4  Scale ramp — Phase 31 staged campaign slice 4 (26 → 100 → 500 real campaign runs, all ten gates held at every level, predeclared canary replayed through all seven backends, envelope measured and declared at 500, no silent degradation, no certification inflation; verdict READY_FOR_31_5) ← executed
 R2.10.31.5  Certification — Phase 31 staged campaign slice 5, the culmination (the 31.1-31.4 evidence chain consumed and bound: seven dimensions with evidence refs and declared bounds, canary re-run 42/42 at certification time, novel intent outside the corpus derived → verified → zero untraced semantics, content hash committing to the evidence refs; verdict QUALIFIED_PARTIAL — the taxonomy-at-scale bound declared in the verdict, never a footnote) ← executed
+R2.10.32  Engineering Certification (gates, never averages: the dispositive ISR-conformance check first, seven gradable dimensions over the artifact's real declared evidence, verdict rendered from gates with no score, certifier with no mutation surface, EvolutionaryQualityLoop as the only remediation seam mutating only the ISR through declared operators; honest runs: reference certifies, FastAPI-full is locally-perfect-but-architecturally-wrong on conformance, FastAPI-minimal is structurally blocked by a CRITICAL CORS/credentials security violation, Postgres-migration probe fails the ungameable evolvability gate, the loop reaches CERTIFIED in declared generations; full suite 2289 passed / 10 skipped) ← executed
 R2.10.6  Safe structural crossover (chromosome families/genes: Architecture,
          Persistence, Infrastructure, Security, Messaging, Observability,
          Testing, Deployment, Governance, Performance, Reliability)

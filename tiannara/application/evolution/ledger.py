@@ -126,6 +126,8 @@ class EventType(str, enum.Enum):
     TAXONOMY_CASE = "taxonomy_case"  # R2.10.31.3: one induced failure observation + its classifier disposition
     TAXONOMY_VALIDATION = "taxonomy_validation"  # R2.10.31.3: one 31.3 failure-taxonomy validation report
     SCALE_RAMP = "scale_ramp"  # R2.10.31.4: one 31.4 scale-ramp report (per-level gates + measured envelope)
+    ENGINEERING_DIMENSION = "engineering_dimension"  # R2.10.32: one gradable engineering dimension result
+    ENGINEERING_CERTIFICATION = "engineering_certification"  # R2.10.32: one chain-anchored engineering certificate
 
 
 class EvolutionEvent(BaseModel):
@@ -925,6 +927,94 @@ class EvolutionLedger:
                 "evidence_chain_refs": list(evidence_chain_refs),
                 "content_hash": content_hash,
             },
+        )
+        self.append_event(event, evolution_id=event_id)
+        return event.event_id
+
+    def record_dimension(
+        self,
+        report: Any,
+        *,
+        evolution_id: str = "",
+    ) -> str:
+        """Chain-anchor one R2.10.32 gradable dimension result.
+
+        ``report`` is duck-typed (dimension, meets, findings,
+        insufficient_evidence, summary, isr_ref, architecture_ref) so the
+        ledger never imports the quality package. The event binds the
+        dimension's verdict and findings to the ISR and artifact hashes it
+        was measured against. Deterministic event ids make re-measuring an
+        identical input idempotent. Returns the event_id.
+        """
+        isr_ref = report.isr_ref
+        architecture_ref = report.architecture_ref
+        event_id = (
+            f"engineering-dim-{report.dimension.value}-{isr_ref[:12]}-"
+            f"{architecture_ref[:12]}"
+        )
+        if self.get_event(event_id) is not None:
+            return event_id
+        event = EvolutionEvent(
+            event_id=event_id,
+            evolution_id=evolution_id or f"engineering-{isr_ref[:8]}",
+            sequence=0,
+            event_type=EventType.ENGINEERING_DIMENSION,
+            subject_id=isr_ref,
+            payload={
+                "dimension": report.dimension.value,
+                "meets": report.meets,
+                "findings": [
+                    {"severity": finding.severity.value, "description": finding.description}
+                    for finding in report.findings
+                ],
+                "insufficient_evidence": report.insufficient_evidence,
+                "summary": report.summary,
+            },
+            isr_hash=isr_ref,
+            artifact_hash=architecture_ref,
+        )
+        self.append_event(event, evolution_id=event_id)
+        return event.event_id
+
+    def record_engineering_certification(
+        self,
+        certificate: Any,
+        *,
+        evolution_id: str = "",
+    ) -> str:
+        """Chain-anchor one R2.10.32 EngineeringCertificate.
+
+        ``certificate`` is duck-typed (content(), isr_ref,
+        architecture_ref, verdict, generation_id) so the ledger never
+        imports the quality package. The event IS the certificate: the
+        content hash commits to the verdict, the dimension results, the
+        conformance summary, the critical violations, and the evidence
+        refs — every claim is reconstructible from the chain. Deterministic
+        event ids make re-certifying an identical input idempotent.
+        Returns the event_id.
+        """
+        content = certificate.content()
+        isr_ref = certificate.isr_ref
+        architecture_ref = certificate.architecture_ref
+        event_id = (
+            f"engineering-cert-{isr_ref[:12]}-{architecture_ref[:12]}"
+        )
+        if self.get_event(event_id) is not None:
+            return event_id
+        event = EvolutionEvent(
+            event_id=event_id,
+            evolution_id=evolution_id or f"engineering-{isr_ref[:8]}",
+            sequence=0,
+            event_type=EventType.ENGINEERING_CERTIFICATION,
+            subject_id=isr_ref,
+            payload={
+                "verdict": certificate.verdict.value,
+                "generation_id": certificate.generation_id,
+                "content_hash": certificate.content_hash,
+                "certificate_content": content,
+            },
+            isr_hash=isr_ref,
+            artifact_hash=architecture_ref,
         )
         self.append_event(event, evolution_id=event_id)
         return event.event_id

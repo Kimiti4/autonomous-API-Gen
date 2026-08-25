@@ -1,0 +1,15 @@
+# Root-context docker build exclusions (dashboard image builds from repo root)
+.git
+**/.git
+**/node_modules
+**/dist
+**/coverage
+release/evidence
+docs
+folder
+tests
+tiannara
+generated
+(2)
+*.log
+.env

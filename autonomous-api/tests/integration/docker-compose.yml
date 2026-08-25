@@ -1,0 +1,17 @@
+services:
+  pg-test:
+    image: postgres:16-alpine
+    container_name: esap-pg-test
+    environment:
+      POSTGRES_USER: esap
+      POSTGRES_PASSWORD: esap
+      POSTGRES_DB: esap_test
+    ports:
+      - "5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U esap -d esap_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30

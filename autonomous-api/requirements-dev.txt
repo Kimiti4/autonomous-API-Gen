@@ -1,0 +1,3 @@
+# Dev-only gate dependencies (CI installs alongside requirements.txt).
+pytest-cov>=5.0.0
+mypy>=1.11.0

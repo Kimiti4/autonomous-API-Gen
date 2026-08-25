@@ -1,0 +1,8 @@
+{
+  "observationApiPath": "/observation",
+  "observationWsPath": "/ws/evolution",
+  "streamId": "evolution-main",
+  "enableTelemetry": false,
+  "serviceName": "esap-dashboard",
+  "authLoginPath": "/auth/login"
+}

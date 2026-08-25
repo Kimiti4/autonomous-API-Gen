@@ -1,0 +1,976 @@
+{
+  "models": {
+    "CandidateFitness": {
+      "fields": {
+        "candidateId": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "isOnParetoFrontier": {
+          "required": true,
+          "type": "<class 'bool'>"
+        },
+        "scores": {
+          "required": true,
+          "type": "<class 'dict'>"
+        }
+      }
+    },
+    "CandidateLineage": {
+      "fields": {
+        "candidateId": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "deployments": {
+          "required": false,
+          "type": "<class 'list'>"
+        },
+        "evaluations": {
+          "required": false,
+          "type": "<class 'list'>"
+        },
+        "feedback": {
+          "required": false,
+          "type": "<class 'list'>"
+        },
+        "generation": {
+          "required": true,
+          "type": "<class 'int'>"
+        },
+        "isrRevision": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "operations": {
+          "required": false,
+          "type": "<class 'list'>"
+        },
+        "origin": {
+          "required": false,
+          "type": "app.core.contracts.lineage.OriginSpec | None"
+        },
+        "requirementIds": {
+          "required": false,
+          "type": "<class 'list'>"
+        },
+        "verifications": {
+          "required": false,
+          "type": "<class 'list'>"
+        }
+      }
+    },
+    "CandidateLineageState": {
+      "fields": {
+        "candidateId": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "deployments": {
+          "required": false,
+          "type": "<class 'list'>"
+        },
+        "evaluations": {
+          "required": false,
+          "type": "<class 'list'>"
+        },
+        "feedback": {
+          "required": false,
+          "type": "<class 'list'>"
+        },
+        "generation": {
+          "required": true,
+          "type": "<class 'int'>"
+        },
+        "isrRevision": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "operations": {
+          "required": false,
+          "type": "<class 'list'>"
+        },
+        "origin": {
+          "required": false,
+          "type": "app.core.contracts.lineage.OriginSpec | None"
+        },
+        "requirementIds": {
+          "required": false,
+          "type": "<class 'list'>"
+        },
+        "verifications": {
+          "required": false,
+          "type": "<class 'list'>"
+        }
+      }
+    },
+    "CandidateProjection": {
+      "fields": {
+        "candidateId": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "designDimensions": {
+          "required": true,
+          "type": "<class 'list'>"
+        },
+        "evidenceRefs": {
+          "required": false,
+          "type": "<class 'list'>"
+        },
+        "generation": {
+          "required": true,
+          "type": "<class 'int'>"
+        },
+        "lifecycleState": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "metadata": {
+          "required": true,
+          "type": "<class 'app.core.contracts.provenance.ContractMetadata'>"
+        },
+        "parentCandidateIds": {
+          "required": false,
+          "type": "<class 'list'>"
+        },
+        "provenance": {
+          "required": true,
+          "type": "<class 'app.core.contracts.provenance.ObservationProvenance'>"
+        }
+      }
+    },
+    "CapabilityContract": {
+      "fields": {
+        "contractId": {
+          "required": false,
+          "type": "<class 'str'>"
+        },
+        "eventTypes": {
+          "required": true,
+          "type": "<class 'list'>"
+        },
+        "features": {
+          "required": true,
+          "type": "<class 'list'>"
+        },
+        "observationSchemas": {
+          "required": true,
+          "type": "<class 'list'>"
+        },
+        "schemaVersion": {
+          "required": false,
+          "type": "<class 'str'>"
+        },
+        "supportedStreamIds": {
+          "required": true,
+          "type": "<class 'list'>"
+        }
+      }
+    },
+    "CapabilityFeature": {
+      "fields": {
+        "id": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "version": {
+          "required": true,
+          "type": "<class 'str'>"
+        }
+      }
+    },
+    "CapabilitySchema": {
+      "fields": {
+        "contractId": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "versions": {
+          "required": true,
+          "type": "<class 'list'>"
+        }
+      }
+    },
+    "Certification": {
+      "fields": {
+        "candidateId": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "certificationId": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "certifiedBy": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "criteria": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "evidenceRefs": {
+          "required": false,
+          "type": "<class 'list'>"
+        },
+        "grantedAt": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "revokedAt": {
+          "required": false,
+          "type": "str | None"
+        },
+        "revokedBy": {
+          "required": false,
+          "type": "str | None"
+        },
+        "scope": {
+          "required": false,
+          "type": "str | None"
+        },
+        "validUntil": {
+          "required": false,
+          "type": "str | None"
+        }
+      }
+    },
+    "ContractMetadata": {
+      "fields": {
+        "contractId": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "schemaVersion": {
+          "required": true,
+          "type": "<class 'str'>"
+        }
+      }
+    },
+    "CouncilComposition": {
+      "fields": {
+        "members": {
+          "required": false,
+          "type": "<class 'list'>"
+        },
+        "updatedAt": {
+          "required": false,
+          "type": "str | None"
+        }
+      }
+    },
+    "CouncilMember": {
+      "fields": {
+        "memberId": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "name": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "role": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "votingWeight": {
+          "required": true,
+          "type": "<class 'float'>"
+        }
+      }
+    },
+    "DeploymentLineage": {
+      "fields": {
+        "deployedAt": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "deployedBy": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "deploymentId": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "target": {
+          "required": true,
+          "type": "<class 'str'>"
+        }
+      }
+    },
+    "DeploymentTargetSummary": {
+      "fields": {
+        "serviceCount": {
+          "required": true,
+          "type": "<class 'int'>"
+        },
+        "target": {
+          "required": true,
+          "type": "<class 'str'>"
+        }
+      }
+    },
+    "DesignDimension": {
+      "fields": {
+        "family": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "summary": {
+          "required": true,
+          "type": "<class 'str'>"
+        }
+      }
+    },
+    "DomainSummary": {
+      "fields": {
+        "capabilityCount": {
+          "required": true,
+          "type": "<class 'int'>"
+        },
+        "name": {
+          "required": true,
+          "type": "<class 'str'>"
+        }
+      }
+    },
+    "ErrorContext": {
+      "fields": {
+        "contractId": {
+          "required": false,
+          "type": "str | None"
+        },
+        "operation": {
+          "required": false,
+          "type": "str | None"
+        },
+        "parameters": {
+          "required": false,
+          "type": "dict | None"
+        },
+        "sequence": {
+          "required": false,
+          "type": "int | None"
+        },
+        "streamId": {
+          "required": false,
+          "type": "str | None"
+        }
+      }
+    },
+    "ErrorEnvelope": {
+      "fields": {
+        "context": {
+          "required": false,
+          "type": "app.core.contracts.errors.ErrorContext | None"
+        },
+        "error": {
+          "required": true,
+          "type": "<class 'app.core.contracts.errors.ObservationError'>"
+        },
+        "metadata": {
+          "required": true,
+          "type": "<class 'app.core.contracts.provenance.ContractMetadata'>"
+        },
+        "provenance": {
+          "required": true,
+          "type": "<class 'app.core.contracts.provenance.ObservationProvenance'>"
+        },
+        "recovery": {
+          "required": true,
+          "type": "<class 'app.core.contracts.errors.RecoveryGuidance'>"
+        }
+      }
+    },
+    "EventIntegrity": {
+      "fields": {
+        "contentHash": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "signature": {
+          "required": false,
+          "type": "str | None"
+        }
+      }
+    },
+    "EventSource": {
+      "fields": {
+        "revision": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "subsystem": {
+          "required": true,
+          "type": "<class 'str'>"
+        }
+      }
+    },
+    "EvidenceRecord": {
+      "fields": {
+        "contentHash": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "evidenceId": {
+          "required": true,
+          "type": "<class 'str'>"
+        }
+      }
+    },
+    "EvolutionEventEnvelope": {
+      "fields": {
+        "causationId": {
+          "required": false,
+          "type": "str | None"
+        },
+        "correlationId": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "eventId": {
+          "required": true,
+          "type": "<class 'uuid.UUID'>"
+        },
+        "eventType": {
+          "required": true,
+          "type": "typing.Literal['isr.updated', 'evolution.stage_changed', 'fitness.evaluated', 'candidate.promoted', 'governance.decision_made', 'operational.feedback_received', 'observation.error', 'event.dropped', 'observation.heartbeat']"
+        },
+        "generation": {
+          "required": true,
+          "type": "<class 'int'>"
+        },
+        "integrity": {
+          "required": false,
+          "type": "app.core.contracts.events.EventIntegrity | None"
+        },
+        "occurredAt": {
+          "required": true,
+          "type": "<class 'datetime.datetime'>"
+        },
+        "payload": {
+          "required": true,
+          "type": "~T"
+        },
+        "sequence": {
+          "required": true,
+          "type": "<class 'int'>"
+        },
+        "source": {
+          "required": true,
+          "type": "<class 'app.core.contracts.events.EventSource'>"
+        },
+        "streamId": {
+          "required": true,
+          "type": "<class 'str'>"
+        }
+      }
+    },
+    "EvolutionOperation": {
+      "fields": {
+        "generation": {
+          "required": true,
+          "type": "<class 'int'>"
+        },
+        "occurredAt": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "operationId": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "operationType": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "summary": {
+          "required": true,
+          "type": "<class 'str'>"
+        }
+      }
+    },
+    "FitnessEvaluationLineage": {
+      "fields": {
+        "evaluatedAt": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "evaluationId": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "fitnessScore": {
+          "required": true,
+          "type": "<class 'float'>"
+        },
+        "generation": {
+          "required": true,
+          "type": "<class 'int'>"
+        },
+        "objectiveScores": {
+          "required": false,
+          "type": "<class 'dict'>"
+        }
+      }
+    },
+    "FitnessObjective": {
+      "fields": {
+        "dimension": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "direction": {
+          "required": true,
+          "type": "typing.Literal['maximize', 'minimize']"
+        },
+        "normalization": {
+          "required": true,
+          "type": "<class 'str'>"
+        }
+      }
+    },
+    "FitnessReport": {
+      "fields": {
+        "candidates": {
+          "required": true,
+          "type": "<class 'list'>"
+        },
+        "evaluatedAt": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "generation": {
+          "required": true,
+          "type": "<class 'int'>"
+        },
+        "metadata": {
+          "required": true,
+          "type": "<class 'app.core.contracts.provenance.ContractMetadata'>"
+        },
+        "objectives": {
+          "required": true,
+          "type": "<class 'list'>"
+        },
+        "paretoFrontierCandidateIds": {
+          "required": true,
+          "type": "<class 'list'>"
+        },
+        "provenance": {
+          "required": true,
+          "type": "<class 'app.core.contracts.provenance.ObservationProvenance'>"
+        }
+      }
+    },
+    "GateOutcome": {
+      "fields": {
+        "candidateId": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "evaluatedAt": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "evaluatedBy": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "evidenceRefs": {
+          "required": false,
+          "type": "<class 'list'>"
+        },
+        "gateId": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "note": {
+          "required": false,
+          "type": "str | None"
+        },
+        "status": {
+          "required": true,
+          "type": "typing.Literal['pending', 'passed', 'failed', 'waived']"
+        },
+        "waivedBy": {
+          "required": false,
+          "type": "str | None"
+        }
+      }
+    },
+    "GovernanceDecision": {
+      "fields": {
+        "authorizesTransition": {
+          "required": true,
+          "type": "<class 'bool'>"
+        },
+        "candidateId": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "decidedAt": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "decidedBy": {
+          "required": true,
+          "type": "<class 'list'>"
+        },
+        "decisionId": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "evidenceRefs": {
+          "required": false,
+          "type": "<class 'list'>"
+        },
+        "fromState": {
+          "required": true,
+          "type": "typing.Literal['proposed', 'evaluating', 'verified', 'certified', 'selected', 'deployed', 'operating', 'retired']"
+        },
+        "generation": {
+          "required": true,
+          "type": "<class 'int'>"
+        },
+        "rationale": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "supersedesDecisionId": {
+          "required": false,
+          "type": "str | None"
+        },
+        "toState": {
+          "required": true,
+          "type": "typing.Literal['proposed', 'evaluating', 'verified', 'certified', 'selected', 'deployed', 'operating', 'retired']"
+        },
+        "verdict": {
+          "required": true,
+          "type": "typing.Literal['approve', 'reject', 'defer']"
+        }
+      }
+    },
+    "GovernanceGate": {
+      "fields": {
+        "category": {
+          "required": true,
+          "type": "typing.Literal['intake', 'verification', 'certification', 'selection', 'deployment-readiness', 'operational-readiness', 'retirement', 'constitution', 'security', 'policy']"
+        },
+        "description": {
+          "required": false,
+          "type": "str | None"
+        },
+        "gateId": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "guards": {
+          "required": false,
+          "type": "<class 'list'>"
+        },
+        "name": {
+          "required": true,
+          "type": "<class 'str'>"
+        }
+      }
+    },
+    "GovernanceProjection": {
+      "fields": {
+        "council": {
+          "required": true,
+          "type": "<class 'app.core.contracts.governance.CouncilComposition'>"
+        },
+        "decisions": {
+          "required": false,
+          "type": "<class 'list'>"
+        },
+        "gates": {
+          "required": false,
+          "type": "<class 'list'>"
+        }
+      }
+    },
+    "ISRObservation": {
+      "fields": {
+        "deploymentTargets": {
+          "required": true,
+          "type": "<class 'list'>"
+        },
+        "domains": {
+          "required": true,
+          "type": "<class 'list'>"
+        },
+        "isrRevision": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "metadata": {
+          "required": true,
+          "type": "<class 'app.core.contracts.provenance.ContractMetadata'>"
+        },
+        "provenance": {
+          "required": true,
+          "type": "<class 'app.core.contracts.provenance.ObservationProvenance'>"
+        },
+        "services": {
+          "required": true,
+          "type": "<class 'list'>"
+        }
+      }
+    },
+    "ObservationError": {
+      "fields": {
+        "category": {
+          "required": true,
+          "type": "typing.Literal['client', 'platform', 'contract', 'synchronization', 'security', 'resource']"
+        },
+        "code": {
+          "required": true,
+          "type": "typing.Literal['CLIENT_INVALID_REQUEST', 'CLIENT_MISSING_PARAMETER', 'CLIENT_INVALID_CONTRACT_VERSION', 'SEC_UNAUTHENTICATED', 'SEC_UNAUTHORIZED', 'SEC_TOKEN_EXPIRED', 'SEC_FORBIDDEN_RESOURCE', 'CONTRACT_DEPRECATED', 'CONTRACT_UNSUPPORTED_VERSION', 'CONTRACT_SCHEMA_MISMATCH', 'SYNC_SEQUENCE_GAP', 'SYNC_STREAM_NOT_FOUND', 'SYNC_CHECKPOINT_UNAVAILABLE', 'SYNC_REPLAY_EXHAUSTED', 'SYNC_DESYNCHRONIZED', 'PLATFORM_INTERNAL', 'PLATFORM_UNAVAILABLE', 'PLATFORM_DEGRADED', 'PLATFORM_MAINTENANCE', 'RESOURCE_RATE_LIMITED', 'RESOURCE_QUOTA_EXCEEDED', 'RESOURCE_NOT_FOUND', 'RESOURCE_CONCURRENT_MODIFICATION']"
+        },
+        "message": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "occurredAt": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "severity": {
+          "required": true,
+          "type": "typing.Literal['info', 'warning', 'error', 'fatal']"
+        },
+        "traceId": {
+          "required": false,
+          "type": "str | None"
+        }
+      }
+    },
+    "ObservationProvenance": {
+      "fields": {
+        "capturedAt": {
+          "required": true,
+          "type": "<class 'datetime.datetime'>"
+        },
+        "contentHash": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "sourceRevision": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "sourceSubsystem": {
+          "required": true,
+          "type": "<class 'str'>"
+        }
+      }
+    },
+    "ObservationSnapshotWrapper": {
+      "fields": {
+        "data": {
+          "required": true,
+          "type": "<class 'dict'>"
+        },
+        "sequence": {
+          "required": true,
+          "type": "<class 'int'>"
+        },
+        "streamId": {
+          "required": true,
+          "type": "<class 'str'>"
+        }
+      }
+    },
+    "OperationalFeedbackLineage": {
+      "fields": {
+        "feedbackId": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "influencedNextGeneration": {
+          "required": false,
+          "type": "<class 'bool'>"
+        },
+        "receivedAt": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "source": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "summary": {
+          "required": true,
+          "type": "<class 'str'>"
+        }
+      }
+    },
+    "OriginSpec": {
+      "fields": {
+        "operationId": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "operationType": {
+          "required": true,
+          "type": "typing.Literal['genesis', 'mutation', 'crossover', 'refinement']"
+        },
+        "parentCandidateIds": {
+          "required": false,
+          "type": "<class 'list'>"
+        },
+        "summary": {
+          "required": true,
+          "type": "<class 'str'>"
+        }
+      }
+    },
+    "PolicySummary": {
+      "fields": {
+        "name": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "policyId": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "summary": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "version": {
+          "required": true,
+          "type": "<class 'str'>"
+        }
+      }
+    },
+    "RecoveryGuidance": {
+      "fields": {
+        "action": {
+          "required": true,
+          "type": "typing.Literal['none', 'retry_immediately', 'retry_with_backoff', 'resync_stream', 'renegotiate_contract', 'authenticate', 'failover', 'halt_and_report']"
+        },
+        "alternativeEndpoint": {
+          "required": false,
+          "type": "str | None"
+        },
+        "message": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "requiredContractVersion": {
+          "required": false,
+          "type": "str | None"
+        },
+        "resyncFromSequence": {
+          "required": false,
+          "type": "int | None"
+        },
+        "retryAfterSeconds": {
+          "required": false,
+          "type": "int | None"
+        }
+      }
+    },
+    "RecoveryResult": {
+      "fields": {
+        "replayEvents": {
+          "required": false,
+          "type": "<class 'list'>"
+        },
+        "sequence": {
+          "required": true,
+          "type": "<class 'int'>"
+        },
+        "state": {
+          "required": true,
+          "type": "<class 'dict'>"
+        }
+      }
+    },
+    "ServiceSummary": {
+      "fields": {
+        "domain": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "id": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "name": {
+          "required": true,
+          "type": "<class 'str'>"
+        }
+      }
+    },
+    "TransitionRef": {
+      "fields": {
+        "fromState": {
+          "required": true,
+          "type": "typing.Literal['proposed', 'evaluating', 'verified', 'certified', 'selected', 'deployed', 'operating', 'retired']"
+        },
+        "toState": {
+          "required": true,
+          "type": "typing.Literal['proposed', 'evaluating', 'verified', 'certified', 'selected', 'deployed', 'operating', 'retired']"
+        }
+      }
+    },
+    "VerificationLineage": {
+      "fields": {
+        "evidenceRefs": {
+          "required": false,
+          "type": "<class 'list'>"
+        },
+        "verdict": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "verificationId": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "verifiedAt": {
+          "required": true,
+          "type": "<class 'str'>"
+        },
+        "verifiedBy": {
+          "required": true,
+          "type": "<class 'str'>"
+        }
+      }
+    }
+  },
+  "registries": {
+    "ErrorCodes": [
+      "CLIENT_INVALID_CONTRACT_VERSION",
+      "CLIENT_INVALID_REQUEST",
+      "CLIENT_MISSING_PARAMETER",
+      "CONTRACT_DEPRECATED",
+      "CONTRACT_SCHEMA_MISMATCH",
+      "CONTRACT_UNSUPPORTED_VERSION",
+      "PLATFORM_DEGRADED",
+      "PLATFORM_INTERNAL",
+      "PLATFORM_MAINTENANCE",
+      "PLATFORM_UNAVAILABLE",
+      "RESOURCE_CONCURRENT_MODIFICATION",
+      "RESOURCE_NOT_FOUND",
+      "RESOURCE_QUOTA_EXCEEDED",
+      "RESOURCE_RATE_LIMITED",
+      "SEC_FORBIDDEN_RESOURCE",
+      "SEC_TOKEN_EXPIRED",
+      "SEC_UNAUTHENTICATED",
+      "SEC_UNAUTHORIZED",
+      "SYNC_CHECKPOINT_UNAVAILABLE",
+      "SYNC_DESYNCHRONIZED",
+      "SYNC_REPLAY_EXHAUSTED",
+      "SYNC_SEQUENCE_GAP",
+      "SYNC_STREAM_NOT_FOUND"
+    ]
+  },
+  "version": "1.1.0"
+}

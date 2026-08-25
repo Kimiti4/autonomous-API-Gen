@@ -1,0 +1,6 @@
+"""36.3 Compliance -- CONTROL_IMPLEMENTED vs VERIFIED vs EVIDENCE_COMPLETE vs COMPLIANCE_READY."""
+from enum import Enum
+class ControlState(str, Enum):
+    CONTROL_IMPLEMENTED="CONTROL_IMPLEMENTED"; CONTROL_VERIFIED="CONTROL_VERIFIED"; EVIDENCE_COMPLETE="EVIDENCE_COMPLETE"; COMPLIANCE_READY="COMPLIANCE_READY"
+def to_compliance_ready(state: ControlState) -> bool:
+    return state == ControlState.COMPLIANCE_READY

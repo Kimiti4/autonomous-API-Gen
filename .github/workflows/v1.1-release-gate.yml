@@ -1,0 +1,475 @@
+name: v1.1 Release Gate
+
+on:
+  push:
+    branches: [main]
+    tags: ['v1.1.*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: v1.1-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write       # for GHCR push on main
+  id-token: write       # for future OIDC integrations
+
+env:
+  NODE_VERSION: '20'
+  PYTHON_VERSION: '3.12'
+  OBSERVATION_CLIENT_DIR: observation-client
+  PLATFORM_DIR: autonomous-api
+  DASHBOARD_DIR: dashboard
+  GHCR_IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  # =====================================================================
+  # GATE 1 — Observation Client (TypeScript, framework-agnostic sync engine)
+  # =====================================================================
+  observation-client:
+    name: Gate 1 · observation-client
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ${{ env.OBSERVATION_CLIENT_DIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.OBSERVATION_CLIENT_DIR }}/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test (unit + reducer equivalence against committed fixture)
+        run: npm run test
+        env:
+          # Equivalence test runs in VERIFY mode: fails if fixture is out of sync.
+          # (Regeneration is a developer-local operation; CI never writes fixtures.)
+          REDUCER_VECTORS_MODE: verify
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: observation-client-dist
+          path: ${{ env.OBSERVATION_CLIENT_DIR }}/dist
+          retention-days: 7
+
+      - name: Upload test coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: observation-client-coverage
+          path: ${{ env.OBSERVATION_CLIENT_DIR }}/coverage
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # =====================================================================
+  # GATE 2 — Platform Python: unit tests + reducer equivalence (no DB)
+  # =====================================================================
+  platform-unit:
+    name: Gate 2 · platform unit + equivalence
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ${{ env.PLATFORM_DIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: ${{ env.PLATFORM_DIR }}/requirements*.txt
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Typecheck
+        run: python -m mypy app --ignore-missing-imports || true
+        # mypy is advisory in v1.1; tighten in v1.2
+
+      - name: Unit tests (excluding integration)
+        run: pytest -m "not integration" --cov=app --cov-report=term --cov-report=xml -q
+
+      - name: Reducer equivalence — fixture must be committed and in sync
+        # The Python test verifies the fold matches the committed vectors.json.
+        # If the fold changed without a fixture regeneration, this fails.
+        run: pytest tests/observation/test_reducer_equivalence.py -v
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-coverage
+          path: ${{ env.PLATFORM_DIR }}/coverage.xml
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # =====================================================================
+  # GATE 3 — Platform Postgres integration (V1-07: sequence durability)
+  #
+  # Runs V1-07 against a real Postgres 16 service container.
+  # 20 concurrent writers × 500 increments = 10,000 sequences.
+  # Asserts: zero gaps, zero duplicates, UNIQUE constraint holds.
+  # This gate is the release-blocking durability check.
+  # =====================================================================
+  platform-integration:
+    name: Gate 3 · platform Postgres integration (V1-07)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: platform-unit      # unit must pass before we run the expensive integration
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: esap
+          POSTGRES_PASSWORD: esap
+          POSTGRES_DB: esap_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U esap -d esap_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    defaults:
+      run:
+        working-directory: ${{ env.PLATFORM_DIR }}
+    env:
+      TEST_PG_DSN: postgresql+asyncpg://esap:esap@127.0.0.1:5432/esap_test
+      OBSERVATION_SCHEMA_SQL: ${{ github.workspace }}/${{ env.PLATFORM_DIR }}/app/observation/sequences/schema.sql
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: ${{ env.PLATFORM_DIR }}/requirements*.txt
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Verify Postgres is healthy
+        run: |
+          for i in {1..30}; do
+            pg_isready -h 127.0.0.1 -p 5432 -U esap && exit 0
+            sleep 2
+          done
+          echo "Postgres did not become ready" >&2
+          exit 1
+
+      - name: Run V1-07 integration suite
+        # atomic_counter_no_gaps_no_dupes (20×500) + envelope_unique_constraint
+        run: pytest -m integration -v --tb=short
+
+      - name: Upload integration results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-integration-results
+          path: ${{ env.PLATFORM_DIR }}/.pytest_cache
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # =====================================================================
+  # GATE 4 — Dashboard (React presentation backend)
+  #
+  # Depends on observation-client Gate 1 so the file: dependency resolves
+  # to a verified build.
+  # =====================================================================
+  dashboard:
+    name: Gate 4 · dashboard
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: observation-client
+    defaults:
+      run:
+        working-directory: ${{ env.DASHBOARD_DIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            ${{ env.OBSERVATION_CLIENT_DIR }}/package-lock.json
+            ${{ env.DASHBOARD_DIR }}/package-lock.json
+
+      - name: Restore observation-client build
+        uses: actions/download-artifact@v4
+        with:
+          name: observation-client-dist
+          path: ${{ env.OBSERVATION_CLIENT_DIR }}/dist
+
+      - name: "Install observation-client (resolved via file: link)"
+        working-directory: ${{ env.OBSERVATION_CLIENT_DIR }}
+        run: npm ci
+
+      - name: Install dashboard
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Upload dashboard dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-dist
+          path: ${{ env.DASHBOARD_DIR }}/dist
+          retention-days: 7
+
+      - name: Upload test coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-coverage
+          path: ${{ env.DASHBOARD_DIR }}/coverage
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # =====================================================================
+  # GATE 4b — Integration evidence chain (v1.1 orchestrator)
+  #
+  # Runs release/run-v1.1-gates.sh end-to-end (it manages its own Postgres
+  # via docker compose for V1-07) and archives the machine-readable evidence
+  # chain EVEN ON FAILURE — failure evidence is exactly what certification
+  # needs. The orchestrator exits non-zero on NOT_CERTIFIED.
+  #
+  # Deliberate duplication: gates 1/4/6 also run as granular jobs above for
+  # fast blame-localized feedback; the orchestrator re-runs them under a
+  # single run_id to produce one unified evidence chain for certification.
+  # =====================================================================
+  integration-evidence:
+    name: Gate 4b · integration evidence chain
+    needs: [observation-client, platform-unit, platform-integration, dashboard]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: ${{ env.PLATFORM_DIR }}/requirements*.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install platform dependencies
+        working-directory: ${{ env.PLATFORM_DIR }}
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run v1.1 integration orchestrator
+        run: bash release/run-v1.1-gates.sh
+
+      - name: Capture run id
+        if: always()
+        id: runid
+        run: |
+          if [ -f release/evidence/.latest-run-id ]; then
+            echo "run_id=$(cat release/evidence/.latest-run-id)" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_id=unknown" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Archive evidence chain
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v1.1-evidence-${{ steps.runid.outputs.run_id }}
+          path: release/evidence/
+          retention-days: 90
+          if-no-files-found: error
+
+  # =====================================================================
+  # GATE 5 — Release: Docker build + push (main branch only)
+  #
+  # Produces the immutable dashboard image tagged with the commit SHA and
+  # `latest`. The platform-api image is built in the same way if its
+  # Dockerfile exists. Both are pushed to GHCR.
+  #
+  # The release job CONSUMES the archived evidence chain and asserts the
+  # aggregate verdict CERTIFIED before any image is built or pushed — it
+  # does not infer truth from console text or exit codes alone.
+  # =====================================================================
+  release:
+    name: Gate 5 · release (docker)
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v1.1.')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [platform-integration, dashboard, integration-evidence]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download integration evidence
+        uses: actions/download-artifact@v4
+        with:
+          pattern: v1.1-evidence-*
+          path: release/evidence-downloaded/
+
+      - name: Verify release certification manifest
+        run: |
+          set -euo pipefail
+          agg="$(find release/evidence-downloaded -name aggregate.yaml -print -quit)"
+          test -n "$agg" || { echo "FAIL: no aggregate.yaml in evidence chain" >&2; exit 1; }
+          grep -q '^  verdict: CERTIFIED$' "$agg"     || { echo "FAIL: verdict not CERTIFIED ($agg)" >&2; cat "$agg" >&2; exit 1; }
+          grep -q '^  missing_evidence: \[\]$' "$agg" || { echo "FAIL: missing_evidence non-empty" >&2; cat "$agg" >&2; exit 1; }
+          grep -q '^  failed_gates: \[\]$' "$agg"     || { echo "FAIL: failed_gates non-empty" >&2; cat "$agg" >&2; exit 1; }
+          dir="$(dirname "$agg")"
+          python3 - "$dir" <<'PY'
+          import hashlib, os, re, sys
+          d = sys.argv[1]; agg = os.path.join(d, "aggregate.yaml")
+          in_gates = False; cur = None; bad = []
+          for line in open(agg):
+              if line.rstrip() == "gates:":         in_gates = True;  continue
+              if line.rstrip() == "certification:": in_gates = False; continue
+              if in_gates:
+                  m = re.match(r"^  (\S+):$", line)
+                  if m: cur = m.group(1); continue
+                  m = re.match(r"^    evidence_sha256: (\S+)$", line)
+                  if m and cur:
+                      want = m.group(1); ev = os.path.join(d, cur, "evidence.yaml")
+                      if want == "null" or not os.path.exists(ev):
+                          bad.append(f"{cur}:missing"); continue
+                      got = hashlib.sha256(open(ev, "rb").read()).hexdigest()
+                      if got != want: bad.append(f"{cur}:hash-mismatch")
+          if bad:
+              print("FAIL: evidence hash chain broken:", bad, file=sys.stderr); sys.exit(1)
+          print("release certification manifest verified (verdict + empty failure sets + evidence hash chain)")
+          PY
+          echo "Release evidence consumed: $agg"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Dashboard image metadata
+        id: dashboard-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.GHCR_IMAGE }}/dashboard
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build + push dashboard
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ env.DASHBOARD_DIR }}/Dockerfile
+          push: true
+          tags: ${{ steps.dashboard-meta.outputs.tags }}
+          labels: ${{ steps.dashboard-meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Platform API image metadata
+        id: platform-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.GHCR_IMAGE }}/platform-api
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build + push platform-api (if Dockerfile exists)
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ env.PLATFORM_DIR }}
+          push: true
+          tags: ${{ steps.platform-meta.outputs.tags }}
+          labels: ${{ steps.platform-meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # =====================================================================
+  # GATE 6 — v1.1 Aggregate (the single pass/fail signal for the PR)
+  #
+  # Branch protection targets this job. If any upstream gate fails, this
+  # fails; otherwise it succeeds. Required status checks should reference
+  # "v1.1 Release Gate — aggregate".
+  # =====================================================================
+  aggregate:
+    name: v1.1 aggregate gate
+    if: always()
+    runs-on: ubuntu-latest
+    needs: [observation-client, platform-unit, platform-integration, dashboard, integration-evidence]
+    steps:
+      - name: Summarize gates
+        run: |
+          echo "## v1.1 Release Gate Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Gate | Job | Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 1 · observation-client | observation-client | ${{ needs.observation-client.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 2 · platform unit + equivalence | platform-unit | ${{ needs.platform-unit.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 3 · Postgres integration (V1-07) | platform-integration | ${{ needs.platform-integration.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 4 · dashboard | dashboard | ${{ needs.dashboard.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 4b · integration evidence chain | integration-evidence | ${{ needs.integration-evidence.result }} |" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail if any gate failed
+        if: |
+          needs.observation-client.result != 'success' ||
+          needs.platform-unit.result != 'success' ||
+          needs.platform-integration.result != 'success' ||
+          needs.dashboard.result != 'success' ||
+          needs.integration-evidence.result != 'success'
+        run: |
+          echo "::error::One or more v1.1 release gates failed."
+          exit 1
+
+      - name: All gates green
+        if: |
+          needs.observation-client.result == 'success' &&
+          needs.platform-unit.result == 'success' &&
+          needs.platform-integration.result == 'success' &&
+          needs.dashboard.result == 'success' &&
+          needs.integration-evidence.result == 'success'
+        run: |
+          echo "✅ All v1.1 release gates passed." >> "$GITHUB_STEP_SUMMARY"

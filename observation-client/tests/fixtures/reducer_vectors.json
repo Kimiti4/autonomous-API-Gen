@@ -1,0 +1,81 @@
+{
+  "fitness_then_candidate_upsert": {
+    "events": [
+      {
+        "causationId": null,
+        "correlationId": "c",
+        "eventId": "e0",
+        "eventType": "fitness.evaluated",
+        "generation": 1,
+        "occurredAt": "2026-08-23T00:00:00Z",
+        "payload": {
+          "generation": 1,
+          "score": 0.9
+        },
+        "sequence": 0,
+        "source": {
+          "revision": "r",
+          "subsystem": "t"
+        },
+        "streamId": "s"
+      },
+      {
+        "causationId": null,
+        "correlationId": "c",
+        "eventId": "e1",
+        "eventType": "candidate.promoted",
+        "generation": 1,
+        "occurredAt": "2026-08-23T00:00:01Z",
+        "payload": {
+          "candidateId": "a",
+          "v": 1
+        },
+        "sequence": 1,
+        "source": {
+          "revision": "r",
+          "subsystem": "t"
+        },
+        "streamId": "s"
+      },
+      {
+        "causationId": null,
+        "correlationId": "c",
+        "eventId": "e2",
+        "eventType": "candidate.promoted",
+        "generation": 1,
+        "occurredAt": "2026-08-23T00:00:02Z",
+        "payload": {
+          "candidateId": "a",
+          "v": 2
+        },
+        "sequence": 2,
+        "source": {
+          "revision": "r",
+          "subsystem": "t"
+        },
+        "streamId": "s"
+      }
+    ],
+    "expected": {
+      "facets": {
+        "candidates": [
+          {
+            "candidateId": "a",
+            "v": 2
+          }
+        ],
+        "fitness": {
+          "generation": 1,
+          "score": 0.9
+        }
+      },
+      "meta": {
+        "facetUpdatedAt": {
+          "candidates": "2026-08-23T00:00:02Z",
+          "fitness": "2026-08-23T00:00:00Z"
+        },
+        "generation": 1
+      }
+    }
+  }
+}

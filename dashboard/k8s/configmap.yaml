@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: esap-dashboard-config
+  labels: { app: esap-dashboard }
+data:
+  runtime.json: |
+    {
+      "observationApiPath": "/observation",
+      "observationWsPath": "/ws/evolution",
+      "streamId": "evolution-main",
+      "enableTelemetry": false,
+      "serviceName": "esap-dashboard",
+      "authLoginPath": "/auth/login"
+    }

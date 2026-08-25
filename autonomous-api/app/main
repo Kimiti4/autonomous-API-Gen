@@ -1,0 +1,85 @@
+from fastapi import FastAPI
+from app.api.routes import router
+from app.api.ws import router as ws_router
+from fastapi.middleware.cors import CORSMiddleware
+from app.core.config import get_settings
+from app.core.logger import logger
+from app.middleware.error_handler import ErrorHandlingConfig, install_error_handlers
+from app.storage.db import init_db
+from app.middleware.rate_limit import RateLimitMiddleware
+from app.middleware.security import SecurityHeadersMiddleware, validate_cors_origins
+from app.core.metrics import setup_metrics
+import asyncio
+
+settings = get_settings()
+
+app = FastAPI(
+    title=settings.APP_NAME,
+    version=settings.APP_VERSION,
+    description="Autonomous Evolution Engine - Genetic API Architecture Generator"
+)
+
+# Add security middleware FIRST (runs on all requests)
+app.add_middleware(SecurityHeadersMiddleware)
+
+# Add rate limiting middleware
+app.add_middleware(RateLimitMiddleware)
+
+# Configure CORS with validated origins
+validated_origins = validate_cors_origins(settings.CORS_ORIGINS)
+logger.info(f"CORS origins configured: {validated_origins}")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=validated_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
+    expose_headers=["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
+    max_age=600,  # Cache preflight requests for 10 minutes
+)
+
+# GAP-06 remediation: every unhandled error becomes an ErrorEnvelope.
+# No bare str(e) reaches a client; full detail stays in server logs.
+install_error_handlers(
+    app,
+    ErrorHandlingConfig(source_revision=settings.APP_VERSION)
+)
+
+# Include routers
+app.include_router(router)
+app.include_router(ws_router)
+
+# Set up Prometheus metrics
+setup_metrics(app)
+
+@app.get("/")
+async def root():
+    logger.info("Root endpoint accessed")
+    return {
+        "message": "Autonomous Evolution Engine",
+        "version": settings.APP_VERSION,
+        "docs": "/docs",
+        "websocket": "/ws/evolution"
+    }
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database and services on startup"""
+    logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+    logger.info(f"Ollama URL: {settings.OLLAMA_URL}")
+    logger.info(f"Model: {settings.OLLAMA_MODEL}")
+    
+    # Initialize database asynchronously to avoid blocking
+    try:
+        init_db()
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Database initialization failed: {str(e)}")
+        # Don't fail startup if DB init fails - can retry later
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    logger.info("Shutting down application")

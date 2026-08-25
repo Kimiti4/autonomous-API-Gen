@@ -155,7 +155,7 @@ jobs:
         working-directory: ${{ env.PLATFORM_DIR }}
     env:
       TEST_PG_DSN: postgresql+asyncpg://esap:esap@127.0.0.1:5432/esap_test
-      OBSERVATION_SCHEMA_SQL: ${{ github.workspace }}/${{ env.PLATFORM_DIR }}/app/observation/sequences/schema.sql
+      OBSERVATION_SCHEMA_SQL: ${{ github.workspace }}/autonomous-api/app/observation/sequences/schema.sql
     steps:
       - uses: actions/checkout@v4
 

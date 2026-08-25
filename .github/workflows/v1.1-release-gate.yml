@@ -107,12 +107,12 @@ jobs:
         # mypy is advisory in v1.1; tighten in v1.2
 
       - name: Unit tests (excluding integration)
-        run: pytest -m "not integration" --cov=app --cov-report=term --cov-report=xml -q
+        run: python -m pytest tests -m "not integration" --cov=app --cov-report=term --cov-report=xml -q
 
       - name: Reducer equivalence — fixture must be committed and in sync
         # The Python test verifies the fold matches the committed vectors.json.
         # If the fold changed without a fixture regeneration, this fails.
-        run: pytest tests/observation/test_reducer_equivalence.py -v
+        run: python -m pytest tests/observation/test_reducer_equivalence.py -v
 
       - name: Upload coverage
         if: always()
@@ -182,7 +182,7 @@ jobs:
 
       - name: Run V1-07 integration suite
         # atomic_counter_no_gaps_no_dupes (20×500) + envelope_unique_constraint
-        run: pytest -m integration -v --tb=short
+        run: python -m pytest tests -m integration -v --tb=short
 
       - name: Upload integration results
         if: always()

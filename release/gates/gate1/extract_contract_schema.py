@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-import argparse, importlib, inspect, json, os, sys
+# Canonical contract-schema extractor.
+#
+# Field TYPES are rendered through render_type(): a deterministic,
+# interpreter-version-independent encoding of the annotation graph. Never use
+# str(annotation) here — typing reprs vary across Python versions (3.12 vs
+# 3.14 differ) and would corrupt the golden with environment artifacts.
+import argparse, importlib, inspect, json, os, sys, types, typing
 from pydantic import BaseModel
 _here = os.path.dirname(os.path.abspath(__file__))
 _root = os.path.abspath(os.path.join(_here, "..", "..", ".."))
@@ -10,6 +16,29 @@ CONTRACT_MODULES = [
     "app.core.contracts.governance", "app.core.contracts.lineage",
     "app.core.contracts.evidence",
 ]
+def render_type(t):
+    if t is type(None):
+        return "none"
+    origin = typing.get_origin(t)
+    if origin is None:
+        return getattr(t, "__name__", str(t))
+    args = typing.get_args(t)
+    if origin is typing.Literal:
+        return "literal(" + ",".join(repr(a) for a in args) + ")"
+    if origin in (typing.Union, types.UnionType):
+        parts = sorted({render_type(a) for a in args if a is not type(None)})
+        has_none = any(a is type(None) for a in args)
+        body = "|".join(parts)
+        return f"{body} | none" if has_none else body
+    if origin in (list, tuple, set, frozenset):
+        inner = ",".join(render_type(a) for a in args)
+        return f"{origin.__name__}[{inner}]" if args else origin.__name__
+    if origin is dict:
+        kv = ",".join(render_type(a) for a in args)
+        return f"dict[{kv}]" if args else "dict"
+    # Unknown construct (e.g. Annotated remnants): fall back to a stable name.
+    return getattr(origin, "__name__", str(origin))
+
 def collect_models():
     models = {}
     for modname in CONTRACT_MODULES:
@@ -21,7 +50,7 @@ def collect_models():
 def extract():
     schema = {"version": "1.1.0", "models": {}, "registries": {}}
     for name, model in sorted(collect_models().items()):
-        schema["models"][name] = {"fields": {f: {"required": i.is_required(), "type": str(i.annotation)} for f, i in model.model_fields.items()}}
+        schema["models"][name] = {"fields": {f: {"required": i.is_required(), "type": render_type(i.annotation)} for f, i in model.model_fields.items()}}
     try:
         from app.core.contracts.events import EventTypes
         schema["registries"]["EventTypes"] = sorted(v for k, v in vars(EventTypes).items() if not k.startswith("_") and isinstance(v, str))
@@ -52,6 +81,11 @@ def main():
         gf, cf = set(g["models"][m]["fields"]), set(c["models"][m]["fields"])
         if gf != cf:
             print(f"  {m}: fields added={sorted(cf-gf)} removed={sorted(gf-cf)}", file=sys.stderr)
+            continue
+        for f in sorted(gf):
+            gv, cv = g["models"][m]["fields"][f], c["models"][m]["fields"][f]
+            if gv != cv:
+                print(f"  {m}.{f}: {gv} -> {cv}", file=sys.stderr)
     print("  Re-run with --update and commit ONLY after an intentional contract change.", file=sys.stderr)
     return 1
 if __name__ == "__main__": sys.exit(main())

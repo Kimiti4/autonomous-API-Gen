@@ -4,15 +4,15 @@
       "fields": {
         "candidateId": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "isOnParetoFrontier": {
           "required": true,
-          "type": "<class 'bool'>"
+          "type": "bool"
         },
         "scores": {
           "required": true,
-          "type": "<class 'dict'>"
+          "type": "dict"
         }
       }
     },
@@ -20,43 +20,43 @@
       "fields": {
         "candidateId": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "deployments": {
           "required": false,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "evaluations": {
           "required": false,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "feedback": {
           "required": false,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "generation": {
           "required": true,
-          "type": "<class 'int'>"
+          "type": "int"
         },
         "isrRevision": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "operations": {
           "required": false,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "origin": {
           "required": false,
-          "type": "app.core.contracts.lineage.OriginSpec | None"
+          "type": "OriginSpec | none"
         },
         "requirementIds": {
           "required": false,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "verifications": {
           "required": false,
-          "type": "<class 'list'>"
+          "type": "list"
         }
       }
     },
@@ -64,43 +64,43 @@
       "fields": {
         "candidateId": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "deployments": {
           "required": false,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "evaluations": {
           "required": false,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "feedback": {
           "required": false,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "generation": {
           "required": true,
-          "type": "<class 'int'>"
+          "type": "int"
         },
         "isrRevision": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "operations": {
           "required": false,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "origin": {
           "required": false,
-          "type": "app.core.contracts.lineage.OriginSpec | None"
+          "type": "OriginSpec | none"
         },
         "requirementIds": {
           "required": false,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "verifications": {
           "required": false,
-          "type": "<class 'list'>"
+          "type": "list"
         }
       }
     },
@@ -108,35 +108,35 @@
       "fields": {
         "candidateId": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "designDimensions": {
           "required": true,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "evidenceRefs": {
           "required": false,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "generation": {
           "required": true,
-          "type": "<class 'int'>"
+          "type": "int"
         },
         "lifecycleState": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "metadata": {
           "required": true,
-          "type": "<class 'app.core.contracts.provenance.ContractMetadata'>"
+          "type": "ContractMetadata"
         },
         "parentCandidateIds": {
           "required": false,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "provenance": {
           "required": true,
-          "type": "<class 'app.core.contracts.provenance.ObservationProvenance'>"
+          "type": "ObservationProvenance"
         }
       }
     },
@@ -144,27 +144,27 @@
       "fields": {
         "contractId": {
           "required": false,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "eventTypes": {
           "required": true,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "features": {
           "required": true,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "observationSchemas": {
           "required": true,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "schemaVersion": {
           "required": false,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "supportedStreamIds": {
           "required": true,
-          "type": "<class 'list'>"
+          "type": "list"
         }
       }
     },
@@ -172,11 +172,11 @@
       "fields": {
         "id": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "version": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         }
       }
     },
@@ -184,11 +184,11 @@
       "fields": {
         "contractId": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "versions": {
           "required": true,
-          "type": "<class 'list'>"
+          "type": "list"
         }
       }
     },
@@ -196,43 +196,43 @@
       "fields": {
         "candidateId": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "certificationId": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "certifiedBy": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "criteria": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "evidenceRefs": {
           "required": false,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "grantedAt": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "revokedAt": {
           "required": false,
-          "type": "str | None"
+          "type": "str | none"
         },
         "revokedBy": {
           "required": false,
-          "type": "str | None"
+          "type": "str | none"
         },
         "scope": {
           "required": false,
-          "type": "str | None"
+          "type": "str | none"
         },
         "validUntil": {
           "required": false,
-          "type": "str | None"
+          "type": "str | none"
         }
       }
     },
@@ -240,11 +240,11 @@
       "fields": {
         "contractId": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "schemaVersion": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         }
       }
     },
@@ -252,11 +252,11 @@
       "fields": {
         "members": {
           "required": false,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "updatedAt": {
           "required": false,
-          "type": "str | None"
+          "type": "str | none"
         }
       }
     },
@@ -264,19 +264,19 @@
       "fields": {
         "memberId": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "name": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "role": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "votingWeight": {
           "required": true,
-          "type": "<class 'float'>"
+          "type": "float"
         }
       }
     },
@@ -284,19 +284,19 @@
       "fields": {
         "deployedAt": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "deployedBy": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "deploymentId": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "target": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         }
       }
     },
@@ -304,11 +304,11 @@
       "fields": {
         "serviceCount": {
           "required": true,
-          "type": "<class 'int'>"
+          "type": "int"
         },
         "target": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         }
       }
     },
@@ -316,11 +316,11 @@
       "fields": {
         "family": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "summary": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         }
       }
     },
@@ -328,11 +328,11 @@
       "fields": {
         "capabilityCount": {
           "required": true,
-          "type": "<class 'int'>"
+          "type": "int"
         },
         "name": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         }
       }
     },
@@ -340,23 +340,23 @@
       "fields": {
         "contractId": {
           "required": false,
-          "type": "str | None"
+          "type": "str | none"
         },
         "operation": {
           "required": false,
-          "type": "str | None"
+          "type": "str | none"
         },
         "parameters": {
           "required": false,
-          "type": "dict | None"
+          "type": "dict | none"
         },
         "sequence": {
           "required": false,
-          "type": "int | None"
+          "type": "int | none"
         },
         "streamId": {
           "required": false,
-          "type": "str | None"
+          "type": "str | none"
         }
       }
     },
@@ -364,23 +364,23 @@
       "fields": {
         "context": {
           "required": false,
-          "type": "app.core.contracts.errors.ErrorContext | None"
+          "type": "ErrorContext | none"
         },
         "error": {
           "required": true,
-          "type": "<class 'app.core.contracts.errors.ObservationError'>"
+          "type": "ObservationError"
         },
         "metadata": {
           "required": true,
-          "type": "<class 'app.core.contracts.provenance.ContractMetadata'>"
+          "type": "ContractMetadata"
         },
         "provenance": {
           "required": true,
-          "type": "<class 'app.core.contracts.provenance.ObservationProvenance'>"
+          "type": "ObservationProvenance"
         },
         "recovery": {
           "required": true,
-          "type": "<class 'app.core.contracts.errors.RecoveryGuidance'>"
+          "type": "RecoveryGuidance"
         }
       }
     },
@@ -388,11 +388,11 @@
       "fields": {
         "contentHash": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "signature": {
           "required": false,
-          "type": "str | None"
+          "type": "str | none"
         }
       }
     },
@@ -400,11 +400,11 @@
       "fields": {
         "revision": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "subsystem": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         }
       }
     },
@@ -412,11 +412,11 @@
       "fields": {
         "contentHash": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "evidenceId": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         }
       }
     },
@@ -424,47 +424,47 @@
       "fields": {
         "causationId": {
           "required": false,
-          "type": "str | None"
+          "type": "str | none"
         },
         "correlationId": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "eventId": {
           "required": true,
-          "type": "<class 'uuid.UUID'>"
+          "type": "UUID"
         },
         "eventType": {
           "required": true,
-          "type": "typing.Literal['isr.updated', 'evolution.stage_changed', 'fitness.evaluated', 'candidate.promoted', 'governance.decision_made', 'operational.feedback_received', 'observation.error', 'event.dropped', 'observation.heartbeat']"
+          "type": "literal('isr.updated','evolution.stage_changed','fitness.evaluated','candidate.promoted','governance.decision_made','operational.feedback_received','observation.error','event.dropped','observation.heartbeat')"
         },
         "generation": {
           "required": true,
-          "type": "<class 'int'>"
+          "type": "int"
         },
         "integrity": {
           "required": false,
-          "type": "app.core.contracts.events.EventIntegrity | None"
+          "type": "EventIntegrity | none"
         },
         "occurredAt": {
           "required": true,
-          "type": "<class 'datetime.datetime'>"
+          "type": "datetime"
         },
         "payload": {
           "required": true,
-          "type": "~T"
+          "type": "T"
         },
         "sequence": {
           "required": true,
-          "type": "<class 'int'>"
+          "type": "int"
         },
         "source": {
           "required": true,
-          "type": "<class 'app.core.contracts.events.EventSource'>"
+          "type": "EventSource"
         },
         "streamId": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         }
       }
     },
@@ -472,23 +472,23 @@
       "fields": {
         "generation": {
           "required": true,
-          "type": "<class 'int'>"
+          "type": "int"
         },
         "occurredAt": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "operationId": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "operationType": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "summary": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         }
       }
     },
@@ -496,23 +496,23 @@
       "fields": {
         "evaluatedAt": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "evaluationId": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "fitnessScore": {
           "required": true,
-          "type": "<class 'float'>"
+          "type": "float"
         },
         "generation": {
           "required": true,
-          "type": "<class 'int'>"
+          "type": "int"
         },
         "objectiveScores": {
           "required": false,
-          "type": "<class 'dict'>"
+          "type": "dict"
         }
       }
     },
@@ -520,15 +520,15 @@
       "fields": {
         "dimension": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "direction": {
           "required": true,
-          "type": "typing.Literal['maximize', 'minimize']"
+          "type": "literal('maximize','minimize')"
         },
         "normalization": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         }
       }
     },
@@ -536,31 +536,31 @@
       "fields": {
         "candidates": {
           "required": true,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "evaluatedAt": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "generation": {
           "required": true,
-          "type": "<class 'int'>"
+          "type": "int"
         },
         "metadata": {
           "required": true,
-          "type": "<class 'app.core.contracts.provenance.ContractMetadata'>"
+          "type": "ContractMetadata"
         },
         "objectives": {
           "required": true,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "paretoFrontierCandidateIds": {
           "required": true,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "provenance": {
           "required": true,
-          "type": "<class 'app.core.contracts.provenance.ObservationProvenance'>"
+          "type": "ObservationProvenance"
         }
       }
     },
@@ -568,35 +568,35 @@
       "fields": {
         "candidateId": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "evaluatedAt": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "evaluatedBy": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "evidenceRefs": {
           "required": false,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "gateId": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "note": {
           "required": false,
-          "type": "str | None"
+          "type": "str | none"
         },
         "status": {
           "required": true,
-          "type": "typing.Literal['pending', 'passed', 'failed', 'waived']"
+          "type": "literal('pending','passed','failed','waived')"
         },
         "waivedBy": {
           "required": false,
-          "type": "str | None"
+          "type": "str | none"
         }
       }
     },
@@ -604,51 +604,51 @@
       "fields": {
         "authorizesTransition": {
           "required": true,
-          "type": "<class 'bool'>"
+          "type": "bool"
         },
         "candidateId": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "decidedAt": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "decidedBy": {
           "required": true,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "decisionId": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "evidenceRefs": {
           "required": false,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "fromState": {
           "required": true,
-          "type": "typing.Literal['proposed', 'evaluating', 'verified', 'certified', 'selected', 'deployed', 'operating', 'retired']"
+          "type": "literal('proposed','evaluating','verified','certified','selected','deployed','operating','retired')"
         },
         "generation": {
           "required": true,
-          "type": "<class 'int'>"
+          "type": "int"
         },
         "rationale": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "supersedesDecisionId": {
           "required": false,
-          "type": "str | None"
+          "type": "str | none"
         },
         "toState": {
           "required": true,
-          "type": "typing.Literal['proposed', 'evaluating', 'verified', 'certified', 'selected', 'deployed', 'operating', 'retired']"
+          "type": "literal('proposed','evaluating','verified','certified','selected','deployed','operating','retired')"
         },
         "verdict": {
           "required": true,
-          "type": "typing.Literal['approve', 'reject', 'defer']"
+          "type": "literal('approve','reject','defer')"
         }
       }
     },
@@ -656,23 +656,23 @@
       "fields": {
         "category": {
           "required": true,
-          "type": "typing.Literal['intake', 'verification', 'certification', 'selection', 'deployment-readiness', 'operational-readiness', 'retirement', 'constitution', 'security', 'policy']"
+          "type": "literal('intake','verification','certification','selection','deployment-readiness','operational-readiness','retirement','constitution','security','policy')"
         },
         "description": {
           "required": false,
-          "type": "str | None"
+          "type": "str | none"
         },
         "gateId": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "guards": {
           "required": false,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "name": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         }
       }
     },
@@ -680,15 +680,15 @@
       "fields": {
         "council": {
           "required": true,
-          "type": "<class 'app.core.contracts.governance.CouncilComposition'>"
+          "type": "CouncilComposition"
         },
         "decisions": {
           "required": false,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "gates": {
           "required": false,
-          "type": "<class 'list'>"
+          "type": "list"
         }
       }
     },
@@ -696,27 +696,27 @@
       "fields": {
         "deploymentTargets": {
           "required": true,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "domains": {
           "required": true,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "isrRevision": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "metadata": {
           "required": true,
-          "type": "<class 'app.core.contracts.provenance.ContractMetadata'>"
+          "type": "ContractMetadata"
         },
         "provenance": {
           "required": true,
-          "type": "<class 'app.core.contracts.provenance.ObservationProvenance'>"
+          "type": "ObservationProvenance"
         },
         "services": {
           "required": true,
-          "type": "<class 'list'>"
+          "type": "list"
         }
       }
     },
@@ -724,27 +724,27 @@
       "fields": {
         "category": {
           "required": true,
-          "type": "typing.Literal['client', 'platform', 'contract', 'synchronization', 'security', 'resource']"
+          "type": "literal('client','platform','contract','synchronization','security','resource')"
         },
         "code": {
           "required": true,
-          "type": "typing.Literal['CLIENT_INVALID_REQUEST', 'CLIENT_MISSING_PARAMETER', 'CLIENT_INVALID_CONTRACT_VERSION', 'SEC_UNAUTHENTICATED', 'SEC_UNAUTHORIZED', 'SEC_TOKEN_EXPIRED', 'SEC_FORBIDDEN_RESOURCE', 'CONTRACT_DEPRECATED', 'CONTRACT_UNSUPPORTED_VERSION', 'CONTRACT_SCHEMA_MISMATCH', 'SYNC_SEQUENCE_GAP', 'SYNC_STREAM_NOT_FOUND', 'SYNC_CHECKPOINT_UNAVAILABLE', 'SYNC_REPLAY_EXHAUSTED', 'SYNC_DESYNCHRONIZED', 'PLATFORM_INTERNAL', 'PLATFORM_UNAVAILABLE', 'PLATFORM_DEGRADED', 'PLATFORM_MAINTENANCE', 'RESOURCE_RATE_LIMITED', 'RESOURCE_QUOTA_EXCEEDED', 'RESOURCE_NOT_FOUND', 'RESOURCE_CONCURRENT_MODIFICATION']"
+          "type": "literal('CLIENT_INVALID_REQUEST','CLIENT_MISSING_PARAMETER','CLIENT_INVALID_CONTRACT_VERSION','SEC_UNAUTHENTICATED','SEC_UNAUTHORIZED','SEC_TOKEN_EXPIRED','SEC_FORBIDDEN_RESOURCE','CONTRACT_DEPRECATED','CONTRACT_UNSUPPORTED_VERSION','CONTRACT_SCHEMA_MISMATCH','SYNC_SEQUENCE_GAP','SYNC_STREAM_NOT_FOUND','SYNC_CHECKPOINT_UNAVAILABLE','SYNC_REPLAY_EXHAUSTED','SYNC_DESYNCHRONIZED','PLATFORM_INTERNAL','PLATFORM_UNAVAILABLE','PLATFORM_DEGRADED','PLATFORM_MAINTENANCE','RESOURCE_RATE_LIMITED','RESOURCE_QUOTA_EXCEEDED','RESOURCE_NOT_FOUND','RESOURCE_CONCURRENT_MODIFICATION')"
         },
         "message": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "occurredAt": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "severity": {
           "required": true,
-          "type": "typing.Literal['info', 'warning', 'error', 'fatal']"
+          "type": "literal('info','warning','error','fatal')"
         },
         "traceId": {
           "required": false,
-          "type": "str | None"
+          "type": "str | none"
         }
       }
     },
@@ -752,19 +752,19 @@
       "fields": {
         "capturedAt": {
           "required": true,
-          "type": "<class 'datetime.datetime'>"
+          "type": "datetime"
         },
         "contentHash": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "sourceRevision": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "sourceSubsystem": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         }
       }
     },
@@ -772,15 +772,15 @@
       "fields": {
         "data": {
           "required": true,
-          "type": "<class 'dict'>"
+          "type": "dict"
         },
         "sequence": {
           "required": true,
-          "type": "<class 'int'>"
+          "type": "int"
         },
         "streamId": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         }
       }
     },
@@ -788,23 +788,23 @@
       "fields": {
         "feedbackId": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "influencedNextGeneration": {
           "required": false,
-          "type": "<class 'bool'>"
+          "type": "bool"
         },
         "receivedAt": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "source": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "summary": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         }
       }
     },
@@ -812,19 +812,19 @@
       "fields": {
         "operationId": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "operationType": {
           "required": true,
-          "type": "typing.Literal['genesis', 'mutation', 'crossover', 'refinement']"
+          "type": "literal('genesis','mutation','crossover','refinement')"
         },
         "parentCandidateIds": {
           "required": false,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "summary": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         }
       }
     },
@@ -832,19 +832,19 @@
       "fields": {
         "name": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "policyId": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "summary": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "version": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         }
       }
     },
@@ -852,27 +852,27 @@
       "fields": {
         "action": {
           "required": true,
-          "type": "typing.Literal['none', 'retry_immediately', 'retry_with_backoff', 'resync_stream', 'renegotiate_contract', 'authenticate', 'failover', 'halt_and_report']"
+          "type": "literal('none','retry_immediately','retry_with_backoff','resync_stream','renegotiate_contract','authenticate','failover','halt_and_report')"
         },
         "alternativeEndpoint": {
           "required": false,
-          "type": "str | None"
+          "type": "str | none"
         },
         "message": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "requiredContractVersion": {
           "required": false,
-          "type": "str | None"
+          "type": "str | none"
         },
         "resyncFromSequence": {
           "required": false,
-          "type": "int | None"
+          "type": "int | none"
         },
         "retryAfterSeconds": {
           "required": false,
-          "type": "int | None"
+          "type": "int | none"
         }
       }
     },
@@ -880,15 +880,15 @@
       "fields": {
         "replayEvents": {
           "required": false,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "sequence": {
           "required": true,
-          "type": "<class 'int'>"
+          "type": "int"
         },
         "state": {
           "required": true,
-          "type": "<class 'dict'>"
+          "type": "dict"
         }
       }
     },
@@ -896,15 +896,15 @@
       "fields": {
         "domain": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "id": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "name": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         }
       }
     },
@@ -912,11 +912,11 @@
       "fields": {
         "fromState": {
           "required": true,
-          "type": "typing.Literal['proposed', 'evaluating', 'verified', 'certified', 'selected', 'deployed', 'operating', 'retired']"
+          "type": "literal('proposed','evaluating','verified','certified','selected','deployed','operating','retired')"
         },
         "toState": {
           "required": true,
-          "type": "typing.Literal['proposed', 'evaluating', 'verified', 'certified', 'selected', 'deployed', 'operating', 'retired']"
+          "type": "literal('proposed','evaluating','verified','certified','selected','deployed','operating','retired')"
         }
       }
     },
@@ -924,23 +924,23 @@
       "fields": {
         "evidenceRefs": {
           "required": false,
-          "type": "<class 'list'>"
+          "type": "list"
         },
         "verdict": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "verificationId": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "verifiedAt": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         },
         "verifiedBy": {
           "required": true,
-          "type": "<class 'str'>"
+          "type": "str"
         }
       }
     }

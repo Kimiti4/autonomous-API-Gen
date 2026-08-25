@@ -3,33 +3,31 @@
 # IMPORTANT: the workflow builds with the REPOSITORY ROOT as context
 # (required because the dashboard depends on @esap/observation-client via a
 # file: link). All source paths below are therefore relative to the repo root.
+# Layer order: manifests+configs -> installs -> full sources -> builds.
 
 # ---- build stage -----------------------------------------------------------
 FROM node:20-alpine AS build
 
 WORKDIR /app
 
-# 1. Manifests only — maximizes layer-cache hits across source edits.
+# 1. Client manifests + compiler configs; install its dependencies.
+COPY observation-client/package.json observation-client/package-lock.json \
+     observation-client/tsconfig.json observation-client/tsconfig.build.json \
+     ./observation-client/
+RUN cd observation-client && npm ci --no-audit --no-fund
+
+# 2. Dashboard manifests; install (file: link target already exists above).
 COPY dashboard/package.json dashboard/package-lock.json ./dashboard/
-COPY observation-client/package.json observation-client/package-lock.json ./observation-client/
+RUN cd dashboard && npm ci --no-audit --no-fund
 
-# 2. Build the observation client first: the dashboard resolves its types and
-#    runtime entry points through the file: link, which requires dist/.
-RUN cd observation-client \
- && npm ci --no-audit --no-fund \
- && npm run build \
- && rm -rf node_modules
-
-# 3. Install dashboard dependencies (creates the file: symlink).
-RUN cd dashboard \
- && npm ci --no-audit --no-fund
-
-# 4. Overlay full sources (client dist already produced above survives the
-#    overlay because .dockerignore excludes stale host-side dist output).
+# 3. Overlay full sources (root .dockerignore excludes node_modules/dist so
+#    image-side state from steps 1-2 is preserved, not clobbered).
 COPY observation-client/ ./observation-client/
 COPY dashboard/ ./dashboard/
 
-RUN cd dashboard && npm run build
+# 4. Build client (produces dist/ consumed through the file: link), then app.
+RUN cd observation-client && npm run build \
+ && cd ../dashboard && npm run build
 
 # ---- runtime stage: static assets behind nginx ------------------------------
 FROM nginxinc/nginx-unprivileged:1.27-alpine

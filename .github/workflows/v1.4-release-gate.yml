@@ -1,0 +1,88 @@
+name: v1.4 Release Gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: v1.4-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  v14-fast:
+    name: v1.4 fast unit gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: autonomous-api/requirements*.txt
+      - name: Install platform dependencies
+        run: pip install -r autonomous-api/requirements.txt -r autonomous-api/requirements-dev.txt
+      - name: Run v1.4 unit gates
+        run: pytest tests/v14 -q
+
+  v14-integration-evidence:
+    name: v1.4 integration evidence chain (orchestrator)
+    needs: v14-fast
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: autonomous-api/requirements*.txt
+      - name: Install platform dependencies
+        run: pip install -r autonomous-api/requirements.txt -r autonomous-api/requirements-dev.txt
+      - name: Run v1.4 integration orchestrator
+        run: bash release/run-v1.4-gates.sh
+      - name: Capture run id
+        if: always()
+        id: runid
+        run: |
+          if [ -f release/evidence/.latest-run-id ]; then
+            echo "run_id=$(cat release/evidence/.latest-run-id)" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_id=unknown" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Archive evidence chain
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v1.4-evidence-${{ steps.runid.outputs.run_id }}
+          path: release/evidence/
+          retention-days: 90
+          if-no-files-found: error
+
+  v14-certification:
+    name: v1.4 certification (consume evidence)
+    if: github.ref == 'refs/heads/main'
+    needs: [v14-integration-evidence]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download integration evidence
+        uses: actions/download-artifact@v4
+        with:
+          pattern: v1.4-evidence-*
+          path: release/evidence-downloaded/
+      - name: Verify v1.4 certification manifest
+        run: |
+          set -euo pipefail
+          agg="$(find release/evidence-downloaded -name aggregate.yaml -print -quit)"
+          test -n "$agg" || { echo "FAIL: no aggregate.yaml" >&2; exit 1; }
+          grep -q '^  verdict: CERTIFIED$' "$agg" || { echo "FAIL: verdict not CERTIFIED" >&2; exit 1; }
+          grep -q '^  missing_evidence: \[\]$' "$agg" || { echo "FAIL: missing_evidence" >&2; exit 1; }
+          grep -q '^  failed_gates: \[\]$' "$agg" || { echo "FAIL: failed_gates" >&2; exit 1; }
+          echo "v1.4 certification verified"

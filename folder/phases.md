@@ -1795,3 +1795,103 @@ Phases 34–39 should therefore continue the pattern you established in Phase 31
 **the system may propose, generate, mutate, repair and evolve — but every consequential claim must be earned through an independently addressable evidence path.**
 
 That is what makes the eventual `"I want an Uber for boats."` test substantially more meaningful than a conventional autonomous coding benchmark.
+
+## POC v1.1 — Observation Boundary Certification Closure
+
+> Post-certification documentation, appended on the development line **after**
+> tag `v1.1.0` was cut. The certified commit `95c074f` and its tag are recorded
+> here unchanged; nothing below alters the frozen baseline.
+
+Status: CERTIFIED / RELEASED / FROZEN
+
+Tag: v1.1.0
+Commit: 95c074f
+CI run: 32804860877
+Evidence archive: v1.1-evidence-20260825T032359Z-2161
+
+Aggregate verdict: CERTIFIED
+Gates: 11/11
+Failed gates: 0
+Missing evidence: 0
+Working tree: CLEAN
+
+Published artifacts:
+
+```text
+ghcr.io/kimiti4/autonomous-api-gen/dashboard:v1.1.0     @ sha256:37b22b78…
+ghcr.io/kimiti4/autonomous-api-gen/platform-api:v1.1.0  @ sha256:ec535ba9…
+```
+
+Independent evidence-chain verification: PASS
+
+Certification dimensions:
+
+```text
+Contract integrity:              CERTIFIED
+Observation/event boundary:      CERTIFIED
+Sequence durability:             CERTIFIED
+Reducer equivalence:             CERTIFIED
+Snapshot integrity:              CERTIFIED
+Security boundary:               CERTIFIED
+Generated artifact integrity:    CERTIFIED
+Dashboard integration:           CERTIFIED
+Evidence chain:                  independently verified
+Aggregate release gate:          CERTIFIED
+Published artifacts:             server-accepted
+Frozen revision:                 v1.1.0
+```
+
+The aggregate verdict was reconstructed from archived evidence and the
+evidence hash chain was independently re-verified. Certification therefore
+does not rely solely upon the CI summary. The tag-triggered CI execution
+re-certified and re-released the frozen revision.
+
+### Defect remediation preserved as closure evidence
+
+```text
+b1911d0  corrected invalid GitHub Actions job-level environment expression
+1242789  isolated integration/legacy pytest collection boundaries
+6e42182  made contract schema rendering deterministic across Python versions
+e7a2ca6  corrected Docker build-context assumptions
+95c074f  corrected Docker dependency/source build ordering
+```
+
+### Architectural consequence
+
+POC v1.1 establishes the certified observation-boundary baseline:
+
+```text
+Canonical ISR
+      ↓
+Platform Observation + Accountability
+      ↓
+Observation Contract
+      ↓
+observation-client
+      ↓
+Dashboard presentation backend
+
+Independent certification plane:
+
+Truth → Evidence → Verification → Hash Chain → Aggregate Gate
+                                                    ↓
+                                               CERTIFIED
+                                                    ↓
+                                            Release Artifact
+```
+
+No presentation component is authoritative over ISR or platform state.
+
+### Freeze rule
+
+`v1.1.0` is immutable as an architectural baseline. Only critical,
+security, or release-blocking correctness defects may justify corrective
+work against this baseline. New capabilities and architectural changes
+must target v1.2 or later. Future architecture must preserve `v1.1.0`
+as the experimental control against which subsequent observation-boundary
+evolution is evaluated.
+
+**Invariant:** `v1.1.0` is the certified Observation Boundary baseline. The
+Dashboard, observation-client, synchronization/recovery machinery,
+accountability projections, and release evidence system are downstream
+consumers of platform truth and must not redefine it.

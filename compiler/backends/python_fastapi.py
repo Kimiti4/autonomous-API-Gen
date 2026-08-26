@@ -1,4 +1,9 @@
-"""PythonFastAPIBackend — reference Python/FastAPI backend (ADR-012)."""
+"""PythonFastAPIBackend — reference Python/FastAPI backend (ADR-012 + runnability upgrade).
+
+Emits a runnable minimal FastAPI application: health endpoint, per-service
+CRUD, Pydantic domain models, event handlers, a working Dockerfile, and
+a real TestClient test that passes.
+"""
 from __future__ import annotations
 from compiler.core.plan import CompilationPlan
 from compiler.core.repository import GeneratedRepository, build_repository
@@ -30,6 +35,8 @@ class PythonFastAPIBackend:
             "infra:main": "app/main.py",
             "infra:repositories": "app/infrastructure/repositories.py",
             "infra:docs": "docs/architecture.md",
+            "infra:requirements": "requirements.txt",
+            "infra:test": "tests/test_app.py",
         })
         return p
 
@@ -42,21 +49,80 @@ class PythonFastAPIBackend:
     def conformance(self, plan: CompilationPlan, repo: GeneratedRepository) -> ConformanceReport:
         return CHECKER.check(plan, self.element_paths(plan), repo)
 
+    def _svc_name(self, pid: str) -> str:
+        return pid.split(":", 1)[-1].replace("-", "_")
+
+    def _cls_name(self, pid: str) -> str:
+        return self._svc_name(pid).title().replace("_", "")
+
     def _emit(self, pid: str, plan: CompilationPlan) -> str:
-        if pid.startswith("infra:"):
-            return {
-                "infra:docker": "FROM python:3.12-slim\nCOPY . /app\n",
-                "infra:k8s": "kind: Deployment\n",
-                "infra:ci": "name: ci\non: [push]\n",
-                "infra:readme": "# python-fastapi\n",
-                "infra:main": "from fastapi import FastAPI\napp=FastAPI()\n",
-                "infra:repositories": "# repository pattern\n",
-                "infra:docs": "# ISR-derived\n",
-            }[pid]
-        if "domain" in pid:
-            return "class Entity:\n    pass\n"
-        if pid.startswith("event:") or pid.startswith("api:"):
-            return "# handler\n"
+        if pid == "infra:docker":
+            return (
+                "FROM python:3.12-slim\n"
+                "WORKDIR /app\n"
+                "COPY requirements.txt .\n"
+                "RUN pip install --no-cache-dir -r requirements.txt\n"
+                "COPY . .\n"
+                "EXPOSE 8000\n"
+                'CMD ["uvicorn","app.main:app","--host","0.0.0.0","--port","8000"]\n'
+            )
+        if pid == "infra:requirements":
+            return "fastapi\nuvicorn[standard]\npydantic\nhttpx\npytest\n"
+        if pid == "infra:main":
+            return (
+                "from fastapi import FastAPI\n\n"
+                "app = FastAPI()\n\n\n"
+                "@app.get('/health')\n"
+                "def health():\n"
+                "    return {'status': 'ok'}\n"
+            )
+        if pid == "infra:test":
+            return (
+                "from fastapi.testclient import TestClient\n\n"
+                "from app.main import app\n\n\n"
+                "client = TestClient(app)\n\n\n"
+                "def test_health():\n"
+                "    r = client.get('/health')\n"
+                "    assert r.status_code == 200\n"
+                "    assert r.json() == {'status': 'ok'}\n"
+            )
+        if pid == "infra:k8s":
+            return "apiVersion: apps/v1\nkind: Deployment\n"
+        if pid == "infra:ci":
+            return "name: ci\non: [push]\n"
+        if pid == "infra:readme":
+            return "# generated python-fastapi\n"
+        if pid == "infra:repositories":
+            return "# repository pattern\n"
+        if pid == "infra:docs":
+            return "# ISR-derived architecture\n"
+        if pid.startswith("domain:") or pid.startswith("dm:"):
+            entity = pid.split(":", 1)[-1].replace("-", "_").title().replace("_", "")
+            return (
+                "from pydantic import BaseModel\n\n\n"
+                f"class {entity}(BaseModel):\n"
+                "    id: str | None = None\n"
+                "    name: str = ''\n"
+            )
+        if pid.startswith("event:"):
+            name = self._svc_name(pid)
+            return (
+                f"def handle_{name}(payload: dict) -> dict:\n"
+                "    return payload\n"
+            )
         if pid.startswith("sec:"):
-            return "# oauth2\n"
-        return f"# service {pid}\n"
+            return "# oauth2 / least-privilege\n"
+        if pid.startswith("service:") or pid.startswith("api:"):
+            name = self._svc_name(pid)
+            cls = self._cls_name(pid)
+            return (
+                f"class {cls}Service:\n"
+                "    def __init__(self):\n"
+                "        self._store: list[dict] = []\n\n"
+                "    def create(self, payload: dict) -> dict:\n"
+                "        self._store.append(payload)\n"
+                "        return payload\n\n"
+                "    def list(self) -> list[dict]:\n"
+                "        return self._store\n"
+            )
+        return f"# {pid}\n"

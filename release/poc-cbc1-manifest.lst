@@ -28,5 +28,11 @@ tests/cbc1/test_plan_builder.py
 tests/cbc1/test_backend_class.py
 tests/cbc1/test_provenance_bundle.py
 tests/cbc1/test_verdict.py
+identity/core/eligibility.py
+identity/auth/mfa_state.py
+certification/feedback/__init__.py
+certification/feedback/rule.py
+release/gates/cbc1/check_no_direct_repair.py
+tests/identity/test_identity_certification.py
 release/gates/cbc1/check_certification_independence.py
 release/run-campaign-a.sh

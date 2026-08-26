@@ -24,6 +24,7 @@ REQUIRED_GATES=(
   b-full-stub-trial
   b-independent-verify
   b-cbc1-independence
+  b-no-direct-repair
 )
 
 now_iso() { date -u +%Y-%m-%dT%H:%M:%SZ; }
@@ -155,6 +156,9 @@ run_stage b-independent-verify \
 
 run_stage b-cbc1-independence \
   "cd '$REPO_ROOT' && python release/gates/cbc1/check_certification_independence.py"
+
+run_stage b-no-direct-repair \
+  "cd '$REPO_ROOT' && python release/gates/cbc1/check_no_direct_repair.py"
 
 # ================================================================ FINAL AGGREGATE
 write_aggregate

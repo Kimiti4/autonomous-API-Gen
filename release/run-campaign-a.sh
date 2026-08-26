@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 #
 # run-campaign-a.sh — Campaign A behavioral run (39 workloads × 2 backends = 78 trials).
-# Produces evidence ledger + aggregate.  Independent verifier rejects dishonest results.
+# Produces evidence ledger + aggregate.  Independent verifier + campaign verdict.
+#
+# Exit codes: 0=CERTIFIED, 1=NOT_CERTIFIED, 3=QUALIFIED_PARTIAL
 
 set -euo pipefail
 
@@ -28,16 +30,32 @@ print(f'Ledger: {count}/{expected} records, chain_valid={ok}')
 sys.exit(0 if ok and count == expected else 1)
 "
 
-echo "=== Independent campaign verification ==="
+echo "=== Campaign verdict ==="
 python -c "
-from certification.campaign.verify_campaign import verify_campaign
 import json, sys
-ok, matrix, taxonomy, problems = verify_campaign('release/evidence/cbc1-a-ledger.jsonl')
-print(json.dumps({'matrix': matrix, 'failure_taxonomy': taxonomy}, indent=2))
-if problems:
-    for p in problems:
-        print(f'  PROBLEM: {p}', file=sys.stderr)
-sys.exit(0 if ok else 1)
-"
-
-echo "=== Campaign A complete ==="
+with open('release/evidence/cbc1-a-aggregate.json') as f:
+    agg = json.load(f)
+verdict = agg.get('verdict', 'NOT_CERTIFIED')
+reason = agg.get('verdict_reason', '')
+total = agg.get('total_trials', 0)
+certified = agg.get('certified', 0)
+print(f'Verdict: {verdict}')
+print(f'Reason:  {reason}')
+print(f'Result:  {certified}/{total} trials certified')
+print()
+print('Category matrix:')
+for cat, backends in agg.get('category_matrix', {}).items():
+    print(f'  {cat}: {backends}')
+if agg.get('failure_taxonomy_independent'):
+    print()
+    print('Failure taxonomy (independent):')
+    for stage, count in agg['failure_taxonomy_independent'].items():
+        print(f'  {stage}: {count}')
+if agg.get('independent_verify_problems'):
+    print()
+    print('Independent verify problems:')
+    for p in agg['independent_verify_problems']:
+        print(f'  {p}')
+print()
+exit_codes = {'CERTIFIED': 0, 'NOT_CERTIFIED': 1, 'QUALIFIED_PARTIAL': 3}
+sys.exit(exit_codes.get(verdict, 1))

@@ -2,10 +2,14 @@
 from __future__ import annotations
 import json
 import os
-from certification.corpus.corpus import default_corpus, corpus_hash, classify_novelty
+from certification.corpus.corpus import (
+    Category, default_corpus, corpus_hash, classify_novelty,
+)
 from certification.evidence.ledger import EvidenceLedger
 from certification.campaign.runner import CampaignRunner, CampaignAggregator
 from certification.campaign.plan_builder import build_artifacts_for
+from certification.campaign.verify_campaign import verify_campaign
+from certification.campaign.verdict import compose_campaign_verdict, CampaignVerdict
 from compiler.composition import build_backend_registry
 
 
@@ -26,6 +30,7 @@ def run_campaign_a(
 
     corpus = default_corpus()
     ch = corpus_hash()
+    expected = len(corpus) * len(BACKENDS)
     seen_intents: set[str] = set()
     seen_archs: set[str] = set()
     trials = []
@@ -56,9 +61,33 @@ def run_campaign_a(
     summary["corpus_hash"] = ch
     summary["corpus_size"] = len(corpus)
     summary["total_trials"] = len(trials)
+
+    assert EvidenceLedger.verify(ledger_path), "Evidence chain broken"
+
+    ok, matrix, taxonomy, problems = verify_campaign(ledger_path)
+    coverage_complete = len(matrix) == len(Category) and all(
+        len(backends) == len(BACKENDS) for backends in matrix.values()
+    )
+    verdict, reason = compose_campaign_verdict(
+        trials=trials,
+        expected_trials=expected,
+        ledger_intact=ok,
+        integrity_problems=problems,
+        coverage_complete=coverage_complete,
+    )
+    summary["verdict"] = verdict.value
+    summary["verdict_reason"] = reason
+    summary["independent_verify_ok"] = ok
+    summary["independent_verify_problems"] = problems
+    summary["category_matrix"] = matrix
+    summary["failure_taxonomy_independent"] = taxonomy
+
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
 
-    assert EvidenceLedger.verify(ledger_path), "Evidence chain broken"
     return trials, summary
+
+
+if __name__ == "__main__":
+    run_campaign_a()

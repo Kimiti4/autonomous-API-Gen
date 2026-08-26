@@ -13,6 +13,7 @@ certification/campaign/runner.py
 certification/campaign/plan_builder.py
 certification/campaign/campaign_a.py
 certification/campaign/verify_campaign.py
+certification/campaign/verdict.py
 certification/evidence/__init__.py
 certification/evidence/ledger.py
 certification/provenance/__init__.py
@@ -26,5 +27,6 @@ tests/cbc1/test_campaign_a.py
 tests/cbc1/test_plan_builder.py
 tests/cbc1/test_backend_class.py
 tests/cbc1/test_provenance_bundle.py
+tests/cbc1/test_verdict.py
 release/gates/cbc1/check_certification_independence.py
 release/run-campaign-a.sh

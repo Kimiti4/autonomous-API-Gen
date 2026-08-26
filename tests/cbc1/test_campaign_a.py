@@ -1,4 +1,4 @@
-"""CBC-1 Campaign A gates — runnability, ledger, metrics, plan_builder, campaign A."""
+"""CBC-1 Campaign A gates — runnability, ledger, metrics, campaign A (78 trials)."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from certification.campaign.runner import CampaignRunner, CampaignAggregator
 from certification.campaign.campaign_a import run_campaign_a
 from certification.core.trial import Trial, TrialStage, TrialMetrics, compose_verdict
 from certification.core.metrics import compute
-from certification.corpus.corpus import Category, Workload, default_corpus
+from certification.corpus.corpus import Category, Workload, default_corpus, corpus_hash
 from certification.evidence.ledger import EvidenceLedger, GENESIS_HASH
 from isr.core.graph import Edge, EdgeType, ISRGraph, Node, NodeType
 from isr.core.identity import Provenance
@@ -149,28 +149,24 @@ def test_rust_backend_conforms():
 
 
 # ---------------------------------------------------------------------------
-# Plan builder — deterministic from intent
+# Plan builder — deterministic from workload
 # ---------------------------------------------------------------------------
 
 def test_plan_builder_deterministic():
-    p1, r1 = build_plan_for("test-intent", "api")
-    p2, r2 = build_plan_for("test-intent", "api")
-    assert p1.plan_id == p2.plan_id
+    w = default_corpus()[0]
+    p1, r1, rg1, g1 = build_plan_for(w)
+    p2, r2, rg2, g2 = build_plan_for(w)
+    assert p1.model_dump_json() == p2.model_dump_json()
     assert r1.content_hash == r2.content_hash
+    assert rg1 == rg2 and g1 == g2
 
 
-def test_plan_builder_different_intents():
-    p1, _ = build_plan_for("intent-a", "api")
-    p2, _ = build_plan_for("intent-b", "api")
+def test_plan_builder_different_workloads():
+    w1 = default_corpus()[0]
+    w2 = default_corpus()[-1]
+    p1, _, _, _ = build_plan_for(w1)
+    p2, _, _, _ = build_plan_for(w2)
     assert p1.plan_id != p2.plan_id
-
-
-def test_plan_builder_produces_valid_plan():
-    plan, rev = build_plan_for("crud-api-for-tasks", "crud_saas")
-    assert len(plan.services) == 1
-    assert len(plan.services[0].data_models) == 1
-    assert len(plan.services[0].published_events) == 1
-    assert len(plan.security) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -281,7 +277,7 @@ def test_metrics_complexity_counts_branches():
 
 
 # ---------------------------------------------------------------------------
-# Campaign A — full orchestrator (2 backends × 13 categories)
+# Campaign A — full orchestrator (39 workloads × 2 backends = 78 trials)
 # ---------------------------------------------------------------------------
 
 def test_campaign_a_runs_all_categories():
@@ -289,12 +285,14 @@ def test_campaign_a_runs_all_categories():
     ledger_path = os.path.join(d, "ledger.jsonl")
     agg_path = os.path.join(d, "aggregate.json")
     trials, summary = run_campaign_a(ledger_path, agg_path)
-    assert len(trials) == 26  # 13 categories × 2 backends
-    assert summary["total"] == 26
-    assert summary["certified"] == 26
+    assert len(trials) == 78
+    assert summary["total"] == 78
+    assert summary["corpus_size"] == 39
+    assert summary["total_trials"] == 78
+    assert summary["certified"] == 78
     assert summary["success_rate"] == 1.0
     assert EvidenceLedger.verify(ledger_path)
-    assert EvidenceLedger.count(ledger_path) == 26
+    assert EvidenceLedger.count(ledger_path) == 78
 
 
 def test_campaign_a_success_matrix():
@@ -308,7 +306,7 @@ def test_campaign_a_success_matrix():
     assert "banking" in matrix
     assert "streaming" in matrix
     for cat in matrix:
-        assert "template" in matrix[cat]
+        assert "novel_intent" in matrix[cat]
 
 
 def test_campaign_a_failure_taxonomy_empty():
@@ -318,3 +316,13 @@ def test_campaign_a_failure_taxonomy_empty():
         os.path.join(d, "agg.json"),
     )
     assert summary["failure_taxonomy"] == {}
+
+
+def test_campaign_a_corpus_hash_recorded():
+    d = tempfile.mkdtemp()
+    _, summary = run_campaign_a(
+        os.path.join(d, "ledger.jsonl"),
+        os.path.join(d, "agg.json"),
+    )
+    assert summary["corpus_hash"] == corpus_hash()
+    assert len(summary["corpus_hash"]) == 64

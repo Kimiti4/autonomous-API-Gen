@@ -60,6 +60,9 @@ class CampaignRunner:
         revision_id: str,
         backend: Any,
         backend_test_cmd: list[str] | None = None,
+        corpus_hash: str = "",
+        requirement_graph_hash: str = "",
+        genome_hash: str = "",
     ) -> Trial:
         trial_id = str(uuid.uuid4())
 
@@ -152,6 +155,7 @@ class CampaignRunner:
             test_passed=stage_results.get(TrialStage.TEST, False),
             runtime_passed=stage_results.get(TrialStage.RUNTIME, False),
             repo_content_hash=repo.content_hash,
+            files=repo.files,
         )
 
         verdict = compose_verdict(stage_results, evidence_present=True)
@@ -161,12 +165,13 @@ class CampaignRunner:
             intent=intent,
             category=category,
             novelty_class=novelty_class,
-            requirement_graph_hash="",
-            genome_hash="",
+            requirement_graph_hash=requirement_graph_hash,
+            genome_hash=genome_hash,
             isr_revision_id=revision_id,
             backend=backend.name,
             compiler_version="1.4.0",
             repo_hash=repo.content_hash,
+            corpus_hash=corpus_hash,
             stages=evidence,
             metrics=metrics,
             verdict=verdict,

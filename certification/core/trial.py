@@ -47,6 +47,7 @@ class Trial(BaseModel):
     backend: str
     compiler_version: str
     repo_hash: str
+    corpus_hash: str = ""
     stages: List[StageEvidence] = Field(default_factory=list)
     metrics: TrialMetrics = Field(default_factory=TrialMetrics)
     verdict: str = "NOT_CERTIFIED"

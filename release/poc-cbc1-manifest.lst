@@ -19,5 +19,6 @@ compiler/backends/rust_axum.py
 tests/cbc1/__init__.py
 tests/cbc1/test_cbc1_gates.py
 tests/cbc1/test_campaign_a.py
+tests/cbc1/test_plan_builder.py
 release/gates/cbc1/check_certification_independence.py
 release/run-campaign-a.sh

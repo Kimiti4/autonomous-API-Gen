@@ -45,9 +45,10 @@ class RealDockerStages:
             detail=out[:500],
         )
 
-    def run_tests(self, image: str, cmd: list[str]) -> StageExecution:
+    def run_tests(self, image: str, cmd: list[str], test_image: str = "") -> StageExecution:
+        target = test_image or image
         t0 = time.time()
-        rc, out = _run(["docker", "run", "--rm", image, *cmd])
+        rc, out = _run(["docker", "run", "--rm", target, *cmd])
         return StageExecution(
             stage=TrialStage.TEST,
             mode=ExecutionMode.REAL_DOCKER if rc in (0, 1) else ExecutionMode.FAILED,
@@ -73,12 +74,17 @@ class RealDockerStages:
 
     def probe(self, port: int, cid: str) -> StageExecution:
         t0 = time.time()
-        try:
-            import urllib.request
-            urllib.request.urlopen(f"http://localhost:{port}/health", timeout=10)
-            ok = True
-        except Exception:
-            ok = False
+        ok = False
+        last_err = ""
+        for _ in range(10):
+            try:
+                import urllib.request
+                urllib.request.urlopen(f"http://localhost:{port}/health", timeout=5)
+                ok = True
+                break
+            except Exception as e:
+                last_err = str(e)
+                time.sleep(1)
         _, stats = _run(["docker", "stats", "--no-stream", "--format",
                          "{{.CPUPerc}}/{{.MemUsage}}", cid])
         return StageExecution(
@@ -88,7 +94,7 @@ class RealDockerStages:
             duration_s=time.time() - t0,
             logs_hash=_h(stats),
             peak_resource=stats.strip() if ok else "",
-            detail="probe OK" if ok else "probe FAILED",
+            detail="probe OK" if ok else f"probe FAILED: {last_err}",
         )
 
     def destroy(self, cid: str) -> StageExecution:

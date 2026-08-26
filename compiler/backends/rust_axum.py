@@ -22,6 +22,10 @@ class RustAxumBackend:
             version=self.version, backend_class=BackendClass.BEHAVIORAL,
         )
 
+    def test_image(self, tag: str) -> str:
+        """Rust multi-stage: test in the build stage, not the slim runtime image."""
+        return f"{tag}-build"
+
     def element_paths(self, plan: CompilationPlan) -> dict[str, str]:
         p: dict[str, str] = {}
         for s in plan.services:
@@ -67,6 +71,7 @@ class RustAxumBackend:
                 "FROM rust:1.78-slim AS build\n"
                 "WORKDIR /app\n"
                 "COPY . .\n"
+                "RUN cargo test\n"
                 "RUN cargo build --release\n\n"
                 "FROM debian:bookworm-slim\n"
                 "COPY --from=build /app/target/release/generated /usr/local/bin/app\n"

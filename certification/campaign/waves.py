@@ -67,12 +67,15 @@ WAVES: dict[str, Wave] = {
 def expand_corpus(factor: int) -> list[Workload]:
     """Deterministically derive parameterized variants from the seed corpus.
 
-    factor=1 returns the original 39. factor>1 creates TEMPLATE-class
-    variants by rotating seeds and appending suffixed intents.
+    factor=0 returns empty. factor=1 returns the original 39.
+    factor>1 creates TEMPLATE-class variants by rotating seeds
+    and appending suffixed intents.
     """
     from certification.corpus.corpus import default_corpus
     base = default_corpus()
-    if factor <= 1:
+    if factor <= 0:
+        return []
+    if factor == 1:
         return list(base)
 
     out: list[Workload] = list(base)

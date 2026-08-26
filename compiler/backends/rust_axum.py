@@ -7,6 +7,7 @@ from __future__ import annotations
 from compiler.core.plan import CompilationPlan
 from compiler.core.repository import GeneratedRepository, build_repository
 from compiler.core.conformance import CHECKER, ConformanceReport
+from compiler.core.protocol import BackendClass, BackendIdentity
 
 
 class RustAxumBackend:
@@ -14,6 +15,12 @@ class RustAxumBackend:
     language = "rust"
     framework = "axum"
     version = "1.4.0"
+
+    def identity(self) -> BackendIdentity:
+        return BackendIdentity(
+            name=self.name, language=self.language, framework=self.framework,
+            version=self.version, backend_class=BackendClass.BEHAVIORAL,
+        )
 
     def element_paths(self, plan: CompilationPlan) -> dict[str, str]:
         p: dict[str, str] = {}

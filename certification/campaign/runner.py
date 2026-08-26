@@ -1,13 +1,18 @@
 """CampaignRunner — orchestrates CBC-1 trials and aggregates results."""
 from __future__ import annotations
+import hashlib
 import json
 import os
 import tempfile
 import uuid
 from typing import Any
+
 from compiler.core.plan import CompilationPlan
 from compiler.core.conformance import CHECKER
 from compiler.core.repository import GeneratedRepository, build_repository
+from compiler.core.protocol import (
+    BackendIdentity, eligible_for_behavioral_certification,
+)
 from certification.core.trial import (
     Trial,
     TrialStage,
@@ -15,7 +20,7 @@ from certification.core.trial import (
     compose_verdict,
 )
 from certification.core import metrics as M
-from certification.core.trial import TrialMetrics
+from certification.provenance.bundle import ProvenanceBundle
 
 
 def _now() -> str:
@@ -24,7 +29,6 @@ def _now() -> str:
 
 
 def _h(s: str) -> str:
-    import hashlib
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 
@@ -63,17 +67,11 @@ class CampaignRunner:
         corpus_hash: str = "",
         requirement_graph_hash: str = "",
         genome_hash: str = "",
+        workload: Any = None,
+        artifacts: Any = None,
     ) -> Trial:
         trial_id = str(uuid.uuid4())
-
-        repo = backend.compile(plan)
-
-        d = tempfile.mkdtemp(prefix="cbc1-")
-        for p, c in repo.files.items():
-            full = os.path.join(d, p)
-            os.makedirs(os.path.dirname(full), exist_ok=True)
-            with open(full, "w", encoding="utf-8") as f:
-                f.write(c)
+        ident: BackendIdentity = backend.identity()
 
         evidence: list[StageEvidence] = []
         stage_results: dict[TrialStage, bool] = {}
@@ -89,65 +87,77 @@ class CampaignRunner:
                 detail=detail,
             ))
 
-        # Structural + semantic via backend conformance
-        conf = backend.conformance(plan, repo)
-        _record(TrialStage.STRUCTURAL, conf.passed, f"missing={conf.missing}")
-        _record(TrialStage.SEMANTIC, conf.passed, f"semantic={conf.passed}")
+        repo = backend.compile(plan)
 
-        # Build
-        if self.builder:
-            tag = f"cbc1-{trial_id[:8]}"
-            b_ok, b_hash = self.builder.build(d, tag)
-            _record(TrialStage.BUILD, b_ok, f"build_hash={b_hash}")
+        d = tempfile.mkdtemp(prefix="cbc1-")
+        for p, c in repo.files.items():
+            full = os.path.join(d, p)
+            os.makedirs(os.path.dirname(full), exist_ok=True)
+            with open(full, "w", encoding="utf-8") as f:
+                f.write(c)
+
+        if not eligible_for_behavioral_certification(ident):
+            _record(TrialStage.STRUCTURAL, False,
+                    f"backend_class={ident.backend_class.value} below behavioral bar")
+            _record(TrialStage.SEMANTIC, False,
+                    f"backend_class={ident.backend_class.value} below behavioral bar")
+            for s in (TrialStage.BUILD, TrialStage.TEST, TrialStage.DEPLOY,
+                      TrialStage.RUNTIME, TrialStage.DESTROY, TrialStage.VERIFY):
+                _record(s, False, "skipped: not eligible")
+            verdict = "NOT_CERTIFIED"
         else:
-            _record(TrialStage.BUILD, True, "stub-build")
+            conf = backend.conformance(plan, repo)
+            _record(TrialStage.STRUCTURAL, conf.passed, f"missing={conf.missing}")
+            _record(TrialStage.SEMANTIC, conf.passed, f"semantic={conf.passed}")
 
-        # Test
-        if self.tester and backend_test_cmd:
-            image = f"cbc1-{trial_id[:8]}"
-            t_ok, t_hash = self.tester.run_tests(image, backend_test_cmd)
-            _record(TrialStage.TEST, t_ok, f"test_hash={t_hash}")
-        else:
-            _record(TrialStage.TEST, True, "stub-test")
+            if self.builder:
+                tag = f"cbc1-{trial_id[:8]}"
+                b_ok, b_hash = self.builder.build(d, tag)
+                _record(TrialStage.BUILD, b_ok, f"build_hash={b_hash}")
+            else:
+                _record(TrialStage.BUILD, True, "stub-build")
 
-        # Deploy
-        cid = ""
-        if self.deployer:
-            d_ok, cid = self.deployer.deploy(f"cbc1-{trial_id[:8]}", 8000 + hash(trial_id) % 1000)
-            _record(TrialStage.DEPLOY, d_ok, f"cid={cid}")
-        else:
-            _record(TrialStage.DEPLOY, True, "stub-deploy")
+            if self.tester and backend_test_cmd:
+                image = f"cbc1-{trial_id[:8]}"
+                t_ok, t_hash = self.tester.run_tests(image, backend_test_cmd)
+                _record(TrialStage.TEST, t_ok, f"test_hash={t_hash}")
+            else:
+                _record(TrialStage.TEST, True, "stub-test")
 
-        # Runtime
-        if self.prober:
-            port = 8000 + hash(trial_id) % 1000
-            r_ok = self.prober.probe(port)
-            _record(TrialStage.RUNTIME, r_ok, f"runtime_ok={r_ok}")
-        else:
-            _record(TrialStage.RUNTIME, True, "stub-runtime")
+            cid = ""
+            if self.deployer:
+                d_ok, cid = self.deployer.deploy(f"cbc1-{trial_id[:8]}", 8000 + hash(trial_id) % 1000)
+                _record(TrialStage.DEPLOY, d_ok, f"cid={cid}")
+            else:
+                _record(TrialStage.DEPLOY, True, "stub-deploy")
 
-        # Destroy
-        if self.destroyer and cid:
-            x_ok = self.destroyer.destroy(cid)
-            _record(TrialStage.DESTROY, x_ok, f"destroy_ok={x_ok}")
-        else:
-            _record(TrialStage.DESTROY, True, "stub-destroy")
+            if self.prober:
+                port = 8000 + hash(trial_id) % 1000
+                r_ok = self.prober.probe(port)
+                _record(TrialStage.RUNTIME, r_ok, f"runtime_ok={r_ok}")
+            else:
+                _record(TrialStage.RUNTIME, True, "stub-runtime")
 
-        # Independent verify (separate process)
-        if self.verifier:
-            import hashlib
-            plan_hash = hashlib.sha256(
-                json.dumps(sorted(backend.element_paths(plan).values())).encode("utf-8")
-            ).hexdigest()
-            plan_path = os.path.join(d, ".plan.json")
-            with open(plan_path, "w") as f:
-                json.dump({"expected_paths": list(backend.element_paths(plan).values())}, f)
-            v_ok = self.verifier.verify(d, plan_hash, plan_path)
-            _record(TrialStage.VERIFY, v_ok, f"verify_ok={v_ok}")
-        else:
-            _record(TrialStage.VERIFY, True, "stub-verify")
+            if self.destroyer and cid:
+                x_ok = self.destroyer.destroy(cid)
+                _record(TrialStage.DESTROY, x_ok, f"destroy_ok={x_ok}")
+            else:
+                _record(TrialStage.DESTROY, True, "stub-destroy")
 
-        # Metrics
+            if self.verifier:
+                plan_hash = hashlib.sha256(
+                    json.dumps(sorted(backend.element_paths(plan).values())).encode("utf-8")
+                ).hexdigest()
+                plan_path = os.path.join(d, ".plan.json")
+                with open(plan_path, "w") as fp:
+                    json.dump({"expected_paths": list(backend.element_paths(plan).values())}, fp)
+                v_ok = self.verifier.verify(d, plan_hash, plan_path)
+                _record(TrialStage.VERIFY, v_ok, f"verify_ok={v_ok}")
+            else:
+                _record(TrialStage.VERIFY, True, "stub-verify")
+
+            verdict = compose_verdict(stage_results, evidence_present=True)
+
         metrics = M.compute(
             repo_files_count=len(repo.files),
             stages=stage_results,
@@ -158,9 +168,7 @@ class CampaignRunner:
             files=repo.files,
         )
 
-        verdict = compose_verdict(stage_results, evidence_present=True)
-
-        return Trial(
+        trial = Trial(
             trial_id=trial_id,
             intent=intent,
             category=category,
@@ -168,7 +176,9 @@ class CampaignRunner:
             requirement_graph_hash=requirement_graph_hash,
             genome_hash=genome_hash,
             isr_revision_id=revision_id,
-            backend=backend.name,
+            backend=ident.name,
+            backend_class=ident.backend_class.value,
+            backend_version=ident.version,
             compiler_version="1.4.0",
             repo_hash=repo.content_hash,
             corpus_hash=corpus_hash,
@@ -176,6 +186,23 @@ class CampaignRunner:
             metrics=metrics,
             verdict=verdict,
         )
+
+        if artifacts and workload is not None:
+            conformance = backend.conformance(plan, repo)
+            bundle = ProvenanceBundle.emit(
+                trial=trial, plan=artifacts.plan, revision=artifacts.revision,
+                genome=artifacts.genome, requirement_graph=artifacts.requirement_graph,
+                backend_identity=ident, conformance=conformance,
+            )
+            bhash = ProvenanceBundle.bundle_hash(bundle)
+            trial = trial.model_copy(update={"bundle_hash": bhash})
+            for p, c in {**repo.files, **bundle}.items():
+                full = os.path.join(d, p)
+                os.makedirs(os.path.dirname(full), exist_ok=True)
+                with open(full, "w", encoding="utf-8") as fp:
+                    fp.write(c)
+
+        return trial
 
 
 class CampaignAggregator:

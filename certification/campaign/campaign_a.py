@@ -2,10 +2,10 @@
 from __future__ import annotations
 import json
 import os
-from certification.corpus.corpus import default_corpus, corpus_hash, classify_novelty, NoveltyClass
+from certification.corpus.corpus import default_corpus, corpus_hash, classify_novelty
 from certification.evidence.ledger import EvidenceLedger
 from certification.campaign.runner import CampaignRunner, CampaignAggregator
-from certification.campaign.plan_builder import build_plan_for
+from certification.campaign.plan_builder import build_artifacts_for
 from compiler.composition import build_backend_registry
 
 
@@ -33,18 +33,20 @@ def run_campaign_a(
         novelty = classify_novelty(w, seen_intents, seen_archs)
         seen_intents.add(w.intent)
         seen_archs.add(w.intent)
+        artifacts = build_artifacts_for(w)
         for bn in BACKENDS:
-            plan, revision, rg_hash, gen_hash = build_plan_for(w)
             trial = runner.run_trial(
                 intent=w.intent,
                 category=w.category.value,
                 novelty_class=novelty.value,
-                plan=plan,
-                revision_id=revision.revision_id,
+                plan=artifacts.plan,
+                revision_id=artifacts.revision.revision_id,
                 backend=reg.get(bn),
                 corpus_hash=ch,
-                requirement_graph_hash=rg_hash,
-                genome_hash=gen_hash,
+                requirement_graph_hash=artifacts.requirement_graph_hash,
+                genome_hash=artifacts.genome_hash,
+                workload=w,
+                artifacts=artifacts,
             )
             ledger.append(trial.model_dump())
             aggregator.add(trial)

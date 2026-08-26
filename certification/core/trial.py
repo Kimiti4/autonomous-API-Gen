@@ -45,9 +45,12 @@ class Trial(BaseModel):
     genome_hash: str
     isr_revision_id: str
     backend: str
+    backend_class: str = ""
+    backend_version: str = ""
     compiler_version: str
     repo_hash: str
     corpus_hash: str = ""
+    bundle_hash: str = ""
     stages: List[StageEvidence] = Field(default_factory=list)
     metrics: TrialMetrics = Field(default_factory=TrialMetrics)
     verdict: str = "NOT_CERTIFIED"

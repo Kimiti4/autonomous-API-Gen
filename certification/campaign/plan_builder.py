@@ -6,10 +6,14 @@ path: same workload ⇒ same plan + same candidate revision, always.
 """
 from __future__ import annotations
 
+import hashlib
+import json
+from dataclasses import dataclass
+
 from compiler.core.lowering import isr_to_plan
 from compiler.core.plan import CompilationPlan
 from evolution.core.construction import ReferenceGenomeConstructor
-from evolution.core.genome import genome_content_hash
+from evolution.core.genome import Genome, genome_content_hash
 from evolution.core.materialize import ReferenceGenomeMaterializer
 from genesis.mapper import ReferenceDeterministicMapper
 from isr.core.identity import Provenance, compute_content_hash
@@ -24,6 +28,25 @@ from ..corpus.corpus import Category, Workload
 
 FIXED_TS = "2026-01-01T00:00:00Z"
 MAPPING_SPEC = "map-1.0"
+
+
+def _canon(obj: object) -> str:
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"))
+
+
+def _sha(s: str) -> str:
+    return hashlib.sha256(s.encode("utf-8")).hexdigest()
+
+
+@dataclass(frozen=True)
+class PlanArtifacts:
+    plan: CompilationPlan
+    revision: ISRRevision
+    genome: Genome
+    requirement_graph: RequirementGraph
+    requirement_graph_hash: str
+    genome_hash: str
+    plan_hash: str
 
 CATEGORY_CONSTRAINTS = {
     Category.CRUD_SAAS:   "tenant isolation between customer workspaces",
@@ -92,7 +115,7 @@ def intent_to_requirement_graph(w: Workload) -> RequirementGraph:
     return RequirementGraph(schema_version="1.0", nodes=nodes, edges=edges)
 
 
-def build_plan_for(w: Workload) -> tuple[CompilationPlan, ISRRevision, str, str]:
+def build_artifacts_for(w: Workload) -> PlanArtifacts:
     rg = intent_to_requirement_graph(w)
     validate_requirement_graph(rg)
 
@@ -107,13 +130,26 @@ def build_plan_for(w: Workload) -> tuple[CompilationPlan, ISRRevision, str, str]
                               created_by="genesis", created_at=FIXED_TS))
 
     genome = ReferenceGenomeConstructor().construct(rev0)
-    genome_hash = genome_content_hash(genome)
+    gh = genome_content_hash(genome)
     candidate_graph = ReferenceGenomeMaterializer().materialize(genome)
     cand = ISRRevision.create(
-        system_id=system, revision_id=f"rev1:{genome_hash[:16]}",
+        system_id=system, revision_id=f"rev1:{gh[:16]}",
         schema_version="1.0", graph=candidate_graph,
         provenance=Provenance(parent_revision_id=rev0.revision_id,
-                              derivation_refs=[f"construct:{genome_hash[:16]}"],
+                              derivation_refs=[f"construct:{gh[:16]}"],
                               created_by="evolution_engine", created_at=FIXED_TS))
 
-    return isr_to_plan(cand), cand, g0, genome_hash
+    plan = isr_to_plan(cand)
+    rg_hash = _sha(_canon(rg.model_dump()))
+    plan_hash = _sha(_canon(plan.model_dump()))
+
+    return PlanArtifacts(
+        plan=plan, revision=cand, genome=genome, requirement_graph=rg,
+        requirement_graph_hash=rg_hash, genome_hash=gh, plan_hash=plan_hash,
+    )
+
+
+def build_plan_for(w: Workload) -> tuple[CompilationPlan, ISRRevision, str, str]:
+    """Backward-compatible wrapper.  Returns (plan, revision, rg_hash, genome_hash)."""
+    a = build_artifacts_for(w)
+    return a.plan, a.revision, a.requirement_graph_hash, a.genome_hash

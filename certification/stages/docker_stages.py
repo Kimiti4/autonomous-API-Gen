@@ -1,54 +1,106 @@
-"""Reference Docker implementations of each pipeline stage."""
+"""Real Docker stages — never STUB; any missing binary / nonzero exit → FAILED."""
 from __future__ import annotations
 import hashlib
+import os
 import subprocess
 import time
-import urllib.request
 
-
-def _run(cmd: list[str], timeout: int = 900) -> tuple[int, str]:
-    p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-    return p.returncode, p.stdout + p.stderr
+from certification.core.trial import TrialStage
+from certification.stages.execution_mode import ExecutionMode, StageExecution
 
 
 def _h(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 
-class DockerBuilder:
-    def build(self, repo_dir: str, tag: str) -> tuple[bool, str]:
-        rc, out = _run(["docker", "build", "-t", tag, repo_dir])
-        return rc == 0, _h(out)
+def _run(cmd: list[str], timeout: int = 900) -> tuple[int, str]:
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        return p.returncode, p.stdout + p.stderr
+    except FileNotFoundError:
+        return 127, "docker binary not found"
+    except subprocess.TimeoutExpired:
+        return 124, "command timed out"
 
 
-class DockerTestRunner:
-    def run_tests(self, image: str, cmd: list[str]) -> tuple[bool, str]:
+class RealDockerStages:
+    """Docker-backed stages that report REAL_DOCKER only when Docker
+    actually produced the artifact; any failure → FAILED (never STUB).
+    """
+
+    def build(self, repo_dir: str, tag: str) -> StageExecution:
+        t0 = time.time()
+        rc, out = _run(["docker", "build", "-q", "-t", tag, repo_dir])
+        digest = ""
+        if rc == 0:
+            rc2, ins = _run(["docker", "inspect", "--format", "{{.Id}}", tag])
+            digest = ins.strip() if rc2 == 0 else ""
+        return StageExecution(
+            stage=TrialStage.BUILD,
+            mode=ExecutionMode.REAL_DOCKER if rc == 0 else ExecutionMode.FAILED,
+            passed=rc == 0,
+            duration_s=time.time() - t0,
+            logs_hash=_h(out),
+            image_digest=digest,
+            detail=out[:500],
+        )
+
+    def run_tests(self, image: str, cmd: list[str]) -> StageExecution:
+        t0 = time.time()
         rc, out = _run(["docker", "run", "--rm", image, *cmd])
-        return rc == 0, _h(out)
+        return StageExecution(
+            stage=TrialStage.TEST,
+            mode=ExecutionMode.REAL_DOCKER if rc in (0, 1) else ExecutionMode.FAILED,
+            passed=rc == 0,
+            duration_s=time.time() - t0,
+            logs_hash=_h(out),
+            detail=out[:500],
+        )
 
-
-class DockerDeployer:
-    def deploy(self, image: str, port: int) -> tuple[bool, str]:
+    def deploy(self, image: str, port: int) -> StageExecution:
+        t0 = time.time()
         rc, out = _run(["docker", "run", "-d", "-p", f"{port}:8000", image])
-        cid = out.strip().splitlines()[-1] if rc == 0 else ""
-        return rc == 0, cid
+        cid = out.strip().splitlines()[-1] if rc == 0 and out.strip() else ""
+        return StageExecution(
+            stage=TrialStage.DEPLOY,
+            mode=ExecutionMode.REAL_DOCKER if rc == 0 else ExecutionMode.FAILED,
+            passed=rc == 0,
+            duration_s=time.time() - t0,
+            logs_hash=_h(out),
+            container_id=cid,
+            detail=out[:500],
+        )
 
+    def probe(self, port: int, cid: str) -> StageExecution:
+        t0 = time.time()
+        try:
+            import urllib.request
+            urllib.request.urlopen(f"http://localhost:{port}/health", timeout=10)
+            ok = True
+        except Exception:
+            ok = False
+        _, stats = _run(["docker", "stats", "--no-stream", "--format",
+                         "{{.CPUPerc}}/{{.MemUsage}}", cid])
+        return StageExecution(
+            stage=TrialStage.RUNTIME,
+            mode=ExecutionMode.REAL_DOCKER,
+            passed=ok,
+            duration_s=time.time() - t0,
+            logs_hash=_h(stats),
+            peak_resource=stats.strip() if ok else "",
+            detail="probe OK" if ok else "probe FAILED",
+        )
 
-class HttpRuntimeProber:
-    def probe(self, port: int, retries: int = 30, delay: float = 1.0) -> bool:
-        for _ in range(retries):
-            try:
-                with urllib.request.urlopen(
-                    f"http://127.0.0.1:{port}/health", timeout=2
-                ) as r:
-                    if r.status == 200:
-                        return True
-            except Exception:
-                time.sleep(delay)
-        return False
-
-
-class DockerDestroyer:
-    def destroy(self, container_id: str) -> bool:
-        rc, _ = _run(["docker", "rm", "-f", container_id])
-        return rc == 0
+    def destroy(self, cid: str) -> StageExecution:
+        t0 = time.time()
+        rc, out = _run(["docker", "rm", "-f", cid])
+        _, ps = _run(["docker", "ps", "-a", "-q", "--filter", f"id={cid}"])
+        gone = rc == 0 and ps.strip() == ""
+        return StageExecution(
+            stage=TrialStage.DESTROY,
+            mode=ExecutionMode.REAL_DOCKER if rc == 0 else ExecutionMode.FAILED,
+            passed=gone,
+            duration_s=time.time() - t0,
+            logs_hash=_h(out),
+            detail=out[:500],
+        )

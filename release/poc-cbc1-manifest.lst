@@ -34,5 +34,12 @@ certification/feedback/__init__.py
 certification/feedback/rule.py
 release/gates/cbc1/check_no_direct_repair.py
 tests/identity/test_identity_certification.py
+certification/stages/__init__.py
+certification/stages/execution_mode.py
+certification/stages/docker_stages.py
+certification/stages/stub_stages.py
+certification/campaign/waves.py
+certification/campaign/campaign_b.py
+tests/cbc1/test_campaign_b.py
 release/gates/cbc1/check_certification_independence.py
 release/run-campaign-a.sh

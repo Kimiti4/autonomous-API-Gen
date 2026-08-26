@@ -1,1 +1,1 @@
-"""certification.stages — replaceable pipeline stages."""
+"""Stages — execution mode tracking for CBC-1 trials."""

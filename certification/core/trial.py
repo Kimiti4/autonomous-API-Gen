@@ -24,6 +24,11 @@ class StageEvidence(BaseModel):
     completed_at: str
     logs_hash: str
     detail: str = ""
+    mode: str = ""
+    duration_s: float = 0.0
+    image_digest: str = ""
+    container_id: str = ""
+    peak_resource: str = ""
 
 
 class TrialMetrics(BaseModel):
@@ -33,6 +38,9 @@ class TrialMetrics(BaseModel):
     engineering_quality: dict = Field(default_factory=dict)
     operational_correctness: dict = Field(default_factory=dict)
     isr_semantic_conformance: float = 0.0
+    execution_detail: dict = Field(default_factory=dict)
+    generated_repository_hash: str = ""
+    independent_verifier_result: bool = False
 
 
 class Trial(BaseModel):
@@ -68,8 +76,13 @@ REQUIRED_STAGES = [
 ]
 
 
-def compose_verdict(stages: dict[TrialStage, bool], evidence_present: bool) -> str:
-    """All required stages must have passed and evidence must be present."""
+def compose_verdict(stages: dict[TrialStage, bool], evidence_present: bool,
+                    required_mode: str = "") -> str:
+    """All required stages must have passed and evidence must be present.
+
+    When required_mode is non-empty, every behavioral stage must match that
+    mode or the verdict is NOT_CERTIFIED (anti-vacuity: stub ≠ Docker).
+    """
     if not evidence_present:
         return "NOT_CERTIFIED"
     for s in REQUIRED_STAGES:

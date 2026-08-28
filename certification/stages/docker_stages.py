@@ -23,6 +23,29 @@ def _run(cmd: list[str], timeout: int = 900) -> tuple[int, str]:
         return 124, "command timed out"
 
 
+# Recognized transient infrastructure error signatures. A BOUNDED retry is
+# honest: each attempt is real, retries are recorded in the evidence, and a
+# failure after retries is still FAILED (never silently converted to passed).
+TRANSIENT_BUILD_MARKS = (
+    "failed to fetch", "i/o timeout", "network", "connection",
+    "eof", "unknown blob", "no such host", "timeout", "temporary failure",
+    "failed to solve",
+)
+TRANSIENT_DEPLOY_MARKS = (
+    "ports are not available", "bind", "address already in use",
+    "socket is already in use", "resource temporarily unavailable",
+)
+
+MAX_BUILD_ATTEMPTS = 2
+MAX_DEPLOY_ATTEMPTS = 2
+TRANSIENT_BACKOFF_S = 2.0
+
+
+def _transient(hay: str, marks: tuple[str, ...]) -> bool:
+    h = hay.lower()
+    return any(m in h for m in marks)
+
+
 class RealDockerStages:
     """Docker-backed stages that report REAL_DOCKER only when Docker
     actually produced the artifact; any failure → FAILED (never STUB).
@@ -30,11 +53,26 @@ class RealDockerStages:
 
     def build(self, repo_dir: str, tag: str) -> StageExecution:
         t0 = time.time()
-        rc, out = _run(["docker", "build", "-q", "-t", tag, repo_dir])
+        attempts = 0
+        out = ""
+        rc = -1
+        for attempt in range(1, MAX_BUILD_ATTEMPTS + 1):
+            attempts = attempt
+            rc, out = _run(["docker", "build", "-q", "-t", tag, repo_dir])
+            if rc == 0:
+                break
+            if attempt < MAX_BUILD_ATTEMPTS and _transient(out, TRANSIENT_BUILD_MARKS):
+                time.sleep(TRANSIENT_BACKOFF_S)
+                continue
+            break
+        retried = attempts > 1
         digest = ""
         if rc == 0:
             rc2, ins = _run(["docker", "inspect", "--format", "{{.Id}}", tag])
             digest = ins.strip() if rc2 == 0 else ""
+        detail = out[:500]
+        if retried:
+            detail = f"[retried {attempts}/{MAX_BUILD_ATTEMPTS} on transient] {detail}"
         return StageExecution(
             stage=TrialStage.BUILD,
             mode=ExecutionMode.REAL_DOCKER if rc == 0 else ExecutionMode.FAILED,
@@ -42,7 +80,7 @@ class RealDockerStages:
             duration_s=time.time() - t0,
             logs_hash=_h(out),
             image_digest=digest,
-            detail=out[:500],
+            detail=detail,
         )
 
     def run_tests(self, image: str, spec: "TestSpec", repo_dir: str = "", tag: str = "") -> StageExecution:
@@ -74,8 +112,23 @@ class RealDockerStages:
 
     def deploy(self, image: str, port: int) -> StageExecution:
         t0 = time.time()
-        rc, out = _run(["docker", "run", "-d", "-p", f"{port}:8000", image])
+        attempts = 0
+        out = ""
+        rc = -1
+        for attempt in range(1, MAX_DEPLOY_ATTEMPTS + 1):
+            attempts = attempt
+            rc, out = _run(["docker", "run", "-d", "-p", f"{port}:8000", image])
+            if rc == 0:
+                break
+            if attempt < MAX_DEPLOY_ATTEMPTS and _transient(out, TRANSIENT_DEPLOY_MARKS):
+                time.sleep(TRANSIENT_BACKOFF_S)
+                continue
+            break
+        retried = attempts > 1
         cid = out.strip().splitlines()[-1] if rc == 0 and out.strip() else ""
+        detail = out[:500]
+        if retried:
+            detail = f"[retried {attempts}/{MAX_DEPLOY_ATTEMPTS} on transient] {detail}"
         return StageExecution(
             stage=TrialStage.DEPLOY,
             mode=ExecutionMode.REAL_DOCKER if rc == 0 else ExecutionMode.FAILED,
@@ -83,7 +136,7 @@ class RealDockerStages:
             duration_s=time.time() - t0,
             logs_hash=_h(out),
             container_id=cid,
-            detail=out[:500],
+            detail=detail,
         )
 
     def probe(self, port: int, cid: str) -> StageExecution:
@@ -113,6 +166,17 @@ class RealDockerStages:
 
     def destroy(self, cid: str) -> StageExecution:
         t0 = time.time()
+        if not cid:
+            # Cascade: deploy did not produce a container — this is NOT a
+            # destroy attempt; mark it honestly as SKIPPED (never PASS).
+            return StageExecution(
+                stage=TrialStage.DESTROY,
+                mode=ExecutionMode.SKIPPED,
+                passed=False,
+                duration_s=time.time() - t0,
+                logs_hash=_h("cascade"),
+                detail="cascade: deploy did not produce a container",
+            )
         rc, out = _run(["docker", "rm", "-f", cid])
         _, ps = _run(["docker", "ps", "-a", "-q", "--filter", f"id={cid}"])
         gone = rc == 0 and ps.strip() == ""

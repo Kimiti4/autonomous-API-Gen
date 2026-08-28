@@ -514,7 +514,9 @@ def verify_campaign_b_mode(
 
             for s in t.get("stages", []):
                 stage_name = s.get("stage", "")
-                if not s.get("passed"):
+                # Cascade SKIPPED stages (e.g. destroy after failed deploy) are
+                # not independent failures — don't inflate the taxonomy.
+                if not s.get("passed") and s.get("mode") != ExecutionMode.SKIPPED.value:
                     taxonomy[stage_name] = taxonomy.get(stage_name, 0) + 1
 
             if t.get("verdict") == "CERTIFIED":

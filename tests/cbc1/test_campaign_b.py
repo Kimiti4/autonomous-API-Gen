@@ -361,6 +361,119 @@ def test_budget_enforces_max_trials():
     assert b.cleanup_required is True
 
 
+# ---------------------------------------------------------------------------
+# B13 — bounded transient retries + honest cascade (never silent pass)
+# ---------------------------------------------------------------------------
+
+def test_destroy_without_container_is_skipped_not_passed(monkeypatch):
+    from certification.stages.docker_stages import RealDockerStages
+    stages = RealDockerStages()
+    se = stages.destroy("")
+    assert se.stage == TrialStage.DESTROY
+    assert se.mode == ExecutionMode.SKIPPED
+    assert se.passed is False
+    assert "cascade" in se.detail
+
+
+def test_build_retries_once_on_transient_and_marks_detail(monkeypatch):
+    import certification.stages.docker_stages as ds
+    calls = {"n": 0}
+
+    def fake_run(cmd, timeout=900):
+        if cmd and cmd[0] == "docker" and cmd[1] == "build":
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return 1, "failed to fetch https://registry: i/o timeout"
+            return 0, "sha256:abc"
+        return 0, "inspect-ok"
+
+    monkeypatch.setattr(ds, "_run", fake_run)
+    stages = ds.RealDockerStages()
+    se = stages.build("/tmp/repo", "tag")
+    assert calls["n"] == 2
+    assert se.passed is True
+    assert se.mode == ExecutionMode.REAL_DOCKER
+    assert "[retried 2/2 on transient]" in se.detail
+
+
+def test_deploy_retries_once_on_transient_bind(monkeypatch):
+    import certification.stages.docker_stages as ds
+    calls = {"n": 0}
+
+    def fake_run(cmd, timeout=900):
+        if cmd and cmd[0] == "docker" and len(cmd) >= 2 and cmd[1] in ("run", "c"):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return 1, "ports are not available: bind: address already in use"
+            return 0, "abc123"
+        return 0, "x"
+
+    monkeypatch.setattr(ds, "_run", fake_run)
+    stages = ds.RealDockerStages()
+    se = stages.deploy("img", 8884)
+    assert calls["n"] == 2
+    assert se.passed is True
+    assert se.container_id == "abc123"
+    assert "[retried 2/2 on transient]" in se.detail
+
+
+def test_deploy_gives_up_honestly_after_retries(monkeypatch):
+    import certification.stages.docker_stages as ds
+    calls = {"n": 0}
+
+    def fake_run(cmd, timeout=900):
+        if cmd and cmd[0] == "docker" and len(cmd) >= 2 and cmd[1] in ("run", "c"):
+            calls["n"] += 1
+            return 1, "ports are not available: bind"
+
+    monkeypatch.setattr(ds, "_run", fake_run)
+    stages = ds.RealDockerStages()
+    se = stages.deploy("img", 8884)
+    assert calls["n"] == ds.MAX_DEPLOY_ATTEMPTS
+    assert se.passed is False
+    assert se.mode == ExecutionMode.FAILED
+
+
+def test_non_transient_error_is_not_retried(monkeypatch):
+    import certification.stages.docker_stages as ds
+    calls = {"n": 0}
+
+    def fake_run(cmd, timeout=900):
+        if cmd and cmd[0] == "docker" and cmd[1] == "build":
+            calls["n"] += 1
+            return 1, "Dockerfile:5 syntax error: unexpected token"
+        return 0, "x"
+
+    monkeypatch.setattr(ds, "_run", fake_run)
+    stages = ds.RealDockerStages()
+    se = stages.build("/tmp/repo", "tag")
+    assert calls["n"] == 1
+    assert se.passed is False
+    assert se.mode == ExecutionMode.FAILED
+
+
+def test_verify_taxonomy_ignores_cascade_skipped(tmp_path):
+    import json
+    from certification.evidence.ledger import EvidenceLedger
+    ledger = EvidenceLedger(str(tmp_path / "ledger.jsonl"))
+    trial = {
+        "trial_id": "t-x",
+        "category": "fintech",
+        "backend": "python-fastapi",
+        "verdict": "NOT_CERTIFIED",
+        "stages": [
+            {"stage": "deploy", "mode": "failed", "passed": False},
+            {"stage": "destroy", "mode": "skipped", "passed": False},
+        ],
+    }
+    ledger.append(trial)
+    _ok, matrix, taxonomy, problems = verify_campaign_b_mode(
+        str(tmp_path / "ledger.jsonl"), ExecutionMode.REAL_DOCKER,
+    )
+    assert taxonomy.get("destroy", 0) == 0
+    assert taxonomy.get("deploy", 0) == 1
+
+
 def test_budget_exhaustion_is_not_certified():
     b = CampaignBudget(max_trials=5, max_total_runtime_s=9999)
     # Simulate: ran 5 trials, budget is 5 → exhausted

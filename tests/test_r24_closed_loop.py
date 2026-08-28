@@ -49,9 +49,12 @@ from tiannara.application.evolution.mutation_operators import (
 )
 from tiannara.application.compiler.fastapi_hexagonal_backend import FastAPIHexagonalBackend
 
-pytestmark = pytest.mark.skipif(
-    not docker_available(), reason="R2.4.0b closed-loop gate requires Docker"
-)
+pytestmark = [
+    pytest.mark.skipif(
+        not docker_available(), reason="R2.4.0b closed-loop gate requires Docker"
+    ),
+    pytest.mark.docker_integration,
+]
 
 COROUTINE = "process_payment"
 

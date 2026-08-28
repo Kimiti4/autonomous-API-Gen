@@ -28,7 +28,8 @@ class StubStages:
             detail="stub-build",
         )
 
-    def run_tests(self, image: str, cmd: list[str]) -> StageExecution:
+    def run_tests(self, image: str, spec: "TestSpec", **kwargs) -> StageExecution:
+        from compiler.core.protocol import TestSpec
         t0 = time.time()
         return StageExecution(
             stage=TrialStage.TEST,
@@ -36,7 +37,7 @@ class StubStages:
             passed=True,
             duration_s=time.time() - t0,
             logs_hash=_h("stub-test"),
-            detail="stub-test",
+            detail=f"stub-test cmd={' '.join(spec.command)}",
         )
 
     def deploy(self, image: str, port: int) -> StageExecution:

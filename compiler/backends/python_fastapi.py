@@ -8,7 +8,7 @@ from __future__ import annotations
 from compiler.core.plan import CompilationPlan
 from compiler.core.repository import GeneratedRepository, build_repository
 from compiler.core.conformance import CHECKER, ConformanceReport
-from compiler.core.protocol import BackendClass, BackendIdentity
+from compiler.core.protocol import BackendClass, BackendIdentity, TestSpec
 
 
 class PythonFastAPIBackend:
@@ -22,6 +22,9 @@ class PythonFastAPIBackend:
             name=self.name, language=self.language, framework=self.framework,
             version=self.version, backend_class=BackendClass.BEHAVIORAL,
         )
+
+    def test_spec(self) -> TestSpec:
+        return TestSpec(command=["python", "-m", "pytest", "-q"], runs_in="runtime")
 
     def element_paths(self, plan: CompilationPlan) -> dict[str, str]:
         p: dict[str, str] = {}

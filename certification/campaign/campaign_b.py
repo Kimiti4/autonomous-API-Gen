@@ -34,6 +34,7 @@ from certification.core.trial import (
 from certification.core import metrics as M
 from certification.campaign.plan_builder import build_artifacts_for
 from certification.campaign.verdict import compose_campaign_verdict, CampaignVerdict
+from certification.campaign.waves import CampaignBudget
 from certification.evidence.ledger import EvidenceLedger
 from certification.provenance.bundle import ProvenanceBundle
 from certification.stages.execution_mode import (
@@ -50,13 +51,6 @@ def _now() -> str:
 
 def _h(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
-
-
-def _test_command_for(language: str) -> list[str]:
-    """Return the test command appropriate for the backend language."""
-    if language == "rust":
-        return ["cargo", "test"]
-    return ["python", "-m", "pytest", "-q"]
 
 
 @dataclass
@@ -167,21 +161,9 @@ class CampaignBRunner:
         se_build = self.stages.build(d, tag)
         _record_execution(se_build)
 
-        # Test: Rust validates tests during docker build (cargo test in build stage).
-        # Python runs tests in a separate container.
-        if ident.language == "rust":
-            # Tests already ran during build; if build passed, tests passed.
-            se_test = StageExecution(
-                stage=TrialStage.TEST,
-                mode=ExecutionMode.REAL_DOCKER if se_build.passed and se_build.mode == ExecutionMode.REAL_DOCKER else ExecutionMode.FAILED,
-                passed=se_build.passed and se_build.mode == ExecutionMode.REAL_DOCKER,
-                duration_s=0.0,
-                logs_hash=se_build.logs_hash,
-                detail="tests validated during docker build (cargo test)",
-            )
-        else:
-            test_cmd = _test_command_for(ident.language)
-            se_test = self.stages.run_tests(tag, test_cmd)
+        # Test: dispatch on backend's declared TestSpec (no hardcoded commands)
+        spec = backend.test_spec()
+        se_test = self.stages.run_tests(tag, spec, repo_dir=d, tag=tag)
         _record_execution(se_test)
 
         se_deploy = self.stages.deploy(tag, port)
@@ -346,15 +328,20 @@ def run_wave(
     wave_id: str,
     scale_override: int | None = None,
 ) -> tuple[str, dict]:
-    """Execute a Campaign B wave. Returns (verdict_string, aggregate_dict)."""
+    """Execute a Campaign B wave. Returns (verdict_string, aggregate_dict).
+
+    Resource exhaustion → NOT_CERTIFIED. Never silently skip trials.
+    """
+    import time as _time
     from certification.campaign.waves import (
-        WAVES, expand_corpus, ledger_path_for, aggregate_path_for,
+        WAVES, BUDGETS, expand_corpus, ledger_path_for, aggregate_path_for,
     )
 
     wave = WAVES.get(wave_id)
     if wave is None:
         return "NOT_CERTIFIED", {"error": f"unknown wave {wave_id}"}
 
+    budget = BUDGETS.get(wave_id, CampaignBudget(max_trials=9999))
     scale = scale_override if scale_override is not None else wave.scale_factor
     ledger_path = ledger_path_for(wave_id)
     agg_path = aggregate_path_for(wave_id)
@@ -401,11 +388,41 @@ def run_wave(
     )
     ch = __import__("certification.corpus.corpus", fromlist=["corpus_hash"]).corpus_hash()
     backends = runner.eligible_backends()
+    expected = len(corpus) * len(backends)
     trials: list[Trial] = []
+    campaign_start = _time.time()
 
     for w in corpus:
         artifacts = build_artifacts_for(w)
         for backend in backends:
+            # Budget enforcement: never silently skip trials
+            elapsed = _time.time() - campaign_start
+            if len(trials) >= budget.max_trials or elapsed >= budget.max_total_runtime_s:
+                violation = "max_trials" if len(trials) >= budget.max_trials else "max_total_runtime"
+                # Write aggregate with actual counts — never silently skip
+                certified_count = sum(1 for t in trials if t.verdict == "CERTIFIED")
+                reason = f"budget exhausted ({violation}): {len(trials)}/{expected} trials completed, {certified_count} certified"
+                summary = {
+                    "wave": wave_id,
+                    "scale_factor": scale,
+                    "total_trials": len(trials),
+                    "expected_trials": expected,
+                    "certified": certified_count,
+                    "corpus_hash": ch,
+                    "verdict": "NOT_CERTIFIED",
+                    "verdict_reason": reason,
+                    "required_mode": wave.required_mode.value,
+                    "budget_violation": violation,
+                    "budget": {
+                        "max_trials": budget.max_trials,
+                        "max_total_runtime_s": budget.max_total_runtime_s,
+                        "actual_runtime_s": round(elapsed, 1),
+                    },
+                }
+                with open(agg_path, "w", encoding="utf-8") as f:
+                    json.dump(summary, f, indent=2)
+                return "NOT_CERTIFIED", summary
+
             trial = runner.run_trial(
                 intent=w.intent,
                 category=w.category.value,
@@ -421,7 +438,6 @@ def run_wave(
             )
             trials.append(trial)
 
-    expected = len(corpus) * len(backends)
     assert EvidenceLedger.verify(ledger_path), "Evidence chain broken"
 
     ok, matrix, taxonomy, problems = verify_campaign_b_mode(
@@ -449,6 +465,12 @@ def run_wave(
         "independent_verify_problems": problems,
         "failure_taxonomy_independent": taxonomy,
         "category_matrix": matrix,
+        "budget": {
+            "max_trials": budget.max_trials,
+            "max_total_runtime_s": budget.max_total_runtime_s,
+            "actual_runtime_s": round(_time.time() - campaign_start, 1),
+            "budget_exhausted": len(trials) >= budget.max_trials,
+        },
     }
 
     with open(agg_path, "w", encoding="utf-8") as f:

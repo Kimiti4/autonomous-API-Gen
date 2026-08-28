@@ -26,7 +26,12 @@ include = [
 # package-name collisions caused by the multiple */tests/ directories
 # shipped across autonomous-api/, constitutional_architecture/, and generated/.
 testpaths = ["tests"]
-addopts = "--import-mode=importlib"
+# The canonical unit run EXCLUDES real-Docker integration gates; run them
+# explicitly with `pytest -m docker_integration`.
+addopts = "--import-mode=importlib -m 'not docker_integration'"
+markers = [
+    "docker_integration: real infrastructure gate (pulls/executes Docker). Excluded from the canonical unit run; opt in with -m docker_integration.",
+]
 # Make root-level packages (compiler, knowledge, civilization, learning, ...)
 # importable when invoking the pytest entry point directly.
 pythonpath = ["."]

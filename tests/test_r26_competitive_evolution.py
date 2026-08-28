@@ -113,6 +113,7 @@ def _scored(cid: str, feasible: bool, fitness: FitnessVector) -> ScoredCandidate
     return ScoredCandidate(cand, verdict, fitness, feasible)
 
 
+@pytest.mark.docker_integration
 @pytest.mark.skipif(not docker_available(), reason="R2.6 gate requires Docker")
 def test_r26_competitive_evolution_chooses_correct_repair(tmp_path):
     known_good_isr = _isr(resolving=True)

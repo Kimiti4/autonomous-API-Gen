@@ -1053,6 +1053,7 @@ def test_artifact_is_deterministic(cert_harness):
 
 # -- 9. Real-substrate (Docker) certification ---------------------------------------
 
+@pytest.mark.docker_integration
 @pytest.mark.skipif(
     not docker_available(), reason="R2.9.8 real-substrate certification requires Docker",
 )

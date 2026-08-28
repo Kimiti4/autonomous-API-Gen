@@ -267,6 +267,7 @@ def test_deceptive_control_absent_from_default_ensemble():
 
 # -- end-to-end (Docker-gated): autonomous repair round ----------------------
 
+@pytest.mark.docker_integration
 @pytest.mark.skipif(not docker_available(), reason="R2.9.2 gate requires Docker")
 def test_r29_2_autonomous_variation_repairs_defect_and_records(tmp_path):
     known_good_isr = _isr(resolving=True)

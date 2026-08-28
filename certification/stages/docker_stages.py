@@ -45,17 +45,31 @@ class RealDockerStages:
             detail=out[:500],
         )
 
-    def run_tests(self, image: str, cmd: list[str], test_image: str = "") -> StageExecution:
-        target = test_image or image
+    def run_tests(self, image: str, spec: "TestSpec", repo_dir: str = "", tag: str = "") -> StageExecution:
+        """Dispatch test execution based on the backend's TestSpec.
+
+        runs_in="runtime": run the toolchain in the runtime image.
+        runs_in="build": build the toolchain-bearing stage, execute tests inside it, then clean up.
+        """
+        from compiler.core.protocol import TestSpec
         t0 = time.time()
-        rc, out = _run(["docker", "run", "--rm", target, *cmd])
+        if spec.runs_in == "runtime":
+            rc, out = _run(["docker", "run", "--rm", image, *spec.command])
+        else:
+            # Build the toolchain-bearing stage, then execute tests inside it.
+            test_tag = f"{tag}-test"
+            rc, out = _run(["docker", "build", "--target", spec.build_target,
+                            "-t", test_tag, repo_dir])
+            if rc == 0:
+                rc, out = _run(["docker", "run", "--rm", test_tag, *spec.command])
+            _run(["docker", "rmi", "-f", test_tag])
         return StageExecution(
             stage=TrialStage.TEST,
             mode=ExecutionMode.REAL_DOCKER if rc in (0, 1) else ExecutionMode.FAILED,
             passed=rc == 0,
             duration_s=time.time() - t0,
             logs_hash=_h(out),
-            detail=out[:500],
+            detail=f"runs_in={spec.runs_in} cmd={' '.join(spec.command)} {out[:300]}",
         )
 
     def deploy(self, image: str, port: int) -> StageExecution:

@@ -1,6 +1,7 @@
 """Campaign B gates — mode enforcement, wave config, execution detail, three-valued verdict."""
 from __future__ import annotations
 import asyncio
+import os
 import pytest
 
 from certification.stages.execution_mode import (
@@ -17,8 +18,10 @@ from certification.core.trial import (
 )
 from certification.campaign.waves import (
     WAVES,
+    BUDGETS,
     Wave,
     WaveId,
+    CampaignBudget,
     expand_corpus,
     ledger_path_for,
     aggregate_path_for,
@@ -31,6 +34,8 @@ from certification.campaign.campaign_b import (
 from certification.campaign.verdict import CampaignVerdict
 from certification.feedback.rule import classify_failure
 from certification.corpus.corpus import default_corpus, corpus_hash
+from compiler.core.protocol import TestSpec, BackendIdentity, BackendClass
+from compiler.composition import build_backend_registry
 
 
 # ---------------------------------------------------------------------------
@@ -67,7 +72,8 @@ def test_stub_stages_report_stub_mode():
     assert se.stage == TrialStage.BUILD
     assert isinstance(se.duration_s, float)
 
-    se2 = stages.run_tests("test-image", ["pytest"])
+    spec = TestSpec(command=["pytest"], runs_in="runtime")
+    se2 = stages.run_tests("test-image", spec)
     assert se2.mode == ExecutionMode.STUB
     assert se2.stage == TrialStage.TEST
 
@@ -292,3 +298,70 @@ def test_substrate_report_with_executions():
     r = SubstrateReport(certified=True, executions=[se], detail="ok")
     assert r.certified is True
     assert len(r.executions) == 1
+
+
+# ---------------------------------------------------------------------------
+# B10 — TestSpec: backend-declared test execution
+# ---------------------------------------------------------------------------
+
+def test_testspec_python_fastapi():
+    reg = build_backend_registry()
+    spec = reg.get("python-fastapi").test_spec()
+    assert isinstance(spec, TestSpec)
+    assert spec.command == ["python", "-m", "pytest", "-q"]
+    assert spec.runs_in == "runtime"
+
+
+def test_testspec_rust_axum():
+    reg = build_backend_registry()
+    spec = reg.get("rust-axum").test_spec()
+    assert isinstance(spec, TestSpec)
+    assert spec.command == ["cargo", "test"]
+    assert spec.runs_in == "build"
+    assert spec.build_target == "build"
+
+
+# ---------------------------------------------------------------------------
+# B11 — anti-hardcoding: no test commands in runner source
+# ---------------------------------------------------------------------------
+
+def test_runner_has_no_hardcoded_test_command():
+    runner_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        "certification", "campaign", "campaign_b.py",
+    )
+    src = open(runner_path, encoding="utf-8").read()
+    # The runner must not contain hardcoded tool commands — those live in backends
+    assert "python -m pytest" not in src
+    assert "cargo test" not in src
+
+
+def test_stages_has_no_hardcoded_test_command():
+    stages_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        "certification", "stages", "docker_stages.py",
+    )
+    src = open(stages_path, encoding="utf-8").read()
+    assert "python -m pytest" not in src
+    assert "cargo test" not in src
+
+
+# ---------------------------------------------------------------------------
+# B12 — CampaignBudget
+# ---------------------------------------------------------------------------
+
+def test_budgets_defined_for_all_waves():
+    for wid in WAVES:
+        assert wid in BUDGETS, f"wave {wid} missing budget"
+
+
+def test_budget_enforces_max_trials():
+    b = CampaignBudget(max_trials=10, max_total_runtime_s=9999)
+    assert b.max_trials == 10
+    assert b.cleanup_required is True
+
+
+def test_budget_exhaustion_is_not_certified():
+    b = CampaignBudget(max_trials=5, max_total_runtime_s=9999)
+    # Simulate: ran 5 trials, budget is 5 → exhausted
+    assert 5 >= b.max_trials

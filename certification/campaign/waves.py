@@ -4,6 +4,10 @@ Each wave is a self-contained measurement. B0 proves the Docker substrate
 exists before any trials run. B1 is the 78-trial baseline directly
 comparable to Campaign A. B2–B4 scale upward only after the previous
 wave certifies.
+
+Resource budgets are hard operational safety boundaries. Resource exhaustion
+terminates a campaign as NOT_CERTIFIED — it must never silently reduce the
+denominator or convert unexecuted trials into passes.
 """
 from __future__ import annotations
 from dataclasses import dataclass
@@ -28,6 +32,20 @@ class Wave:
     purpose: str
     scale_factor: int
     required_mode: ExecutionMode
+
+
+@dataclass(frozen=True)
+class CampaignBudget:
+    """Hard resource boundaries for a campaign run.
+
+    Resource exhaustion → NOT_CERTIFIED. Never silently skip trials.
+    """
+    max_trials: int
+    max_concurrent_trials: int = 1
+    max_runtime_per_trial_s: int = 600
+    max_total_runtime_s: int = 7200
+    max_disk_mb: int = 10240
+    cleanup_required: bool = True
 
 
 WAVES: dict[str, Wave] = {
@@ -61,6 +79,14 @@ WAVES: dict[str, Wave] = {
         scale_factor=24,
         required_mode=ExecutionMode.REAL_DOCKER,
     ),
+}
+
+BUDGETS: dict[str, CampaignBudget] = {
+    WaveId.B0.value: CampaignBudget(max_trials=1, max_total_runtime_s=300),
+    WaveId.B1.value: CampaignBudget(max_trials=78, max_total_runtime_s=3600),
+    WaveId.B2.value: CampaignBudget(max_trials=312, max_total_runtime_s=21600),
+    WaveId.B3.value: CampaignBudget(max_trials=936, max_total_runtime_s=43200),
+    WaveId.B4.value: CampaignBudget(max_trials=1872, max_total_runtime_s=86400),
 }
 
 

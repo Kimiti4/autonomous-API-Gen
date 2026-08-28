@@ -5,7 +5,7 @@ A stub or structural backend can NEVER award behavioral certification.
 """
 from __future__ import annotations
 from enum import Enum
-from typing import Protocol, runtime_checkable
+from typing import Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict
 
@@ -33,6 +33,18 @@ class BackendIdentity(BaseModel):
     backend_class: BackendClass
 
 
+class TestSpec(BaseModel):
+    """Declares how a backend's generated repository tests execute.
+
+    The runner dispatches on this — never hardcodes a test command.
+    """
+    model_config = ConfigDict(frozen=True)
+    __test__ = False  # not a pytest test class
+    command: list[str]
+    runs_in: Literal["runtime", "build"] = "runtime"
+    build_target: str = "build"
+
+
 def eligible_for_behavioral_certification(identity: BackendIdentity) -> bool:
     return identity.backend_class in BEHAVIORAL_CLASSES
 
@@ -47,6 +59,7 @@ class CompilerBackend(Protocol):
     version: str
 
     def identity(self) -> BackendIdentity: ...
+    def test_spec(self) -> TestSpec: ...
     def element_paths(self, plan: CompilationPlan) -> dict[str, str]: ...
     def compile(self, plan: CompilationPlan) -> GeneratedRepository: ...
     def conformance(self, plan: CompilationPlan, repo: GeneratedRepository) -> ConformanceReport: ...

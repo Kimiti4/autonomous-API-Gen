@@ -206,6 +206,7 @@ def test_harness_runs_fastapi_in_docker_with_composed_build_phase(tmp_path, monk
 # --- gold-standard: real Docker, skipped when docker absent -----------------
 
 
+@pytest.mark.docker_integration
 @pytest.mark.skipif(
     DockerExecutionEnvironment.available() is False,
     reason="Docker not available; stubbed compose tests cover this path",

@@ -661,6 +661,7 @@ def test_ledger_chain_valid_across_evolution(repro_harness):
 
 # -- 9. Real execution (Docker-gated): semantic reproducibility under execution ----------
 
+@pytest.mark.docker_integration
 @pytest.mark.skipif(not docker_available(), reason="R2.9.7 real-substrate audit requires Docker")
 def test_semantic_reproducibility_under_real_execution(repro_harness, tmp_path):
     real_trajectory = repro_harness.run_evolution_real(tmp_path)

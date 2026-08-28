@@ -1,3 +1,1 @@
-"""
-Compiler backends.
-"""
+"""compiler.backends — concrete backend plugins."""

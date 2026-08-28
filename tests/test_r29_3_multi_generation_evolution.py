@@ -645,6 +645,7 @@ def test_isr_never_contaminated_by_evolution_state():
 
 # -- end-to-end (Docker-gated): real substrate convergence --------------------
 
+@pytest.mark.docker_integration
 @pytest.mark.skipif(not docker_available(), reason="R2.9.3 gate requires Docker")
 def test_r29_3_real_substrate_converges_in_one_generation(tmp_path):
     known_good_isr = _isr(resolving=True)

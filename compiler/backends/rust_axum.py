@@ -7,7 +7,7 @@ from __future__ import annotations
 from compiler.core.plan import CompilationPlan
 from compiler.core.repository import GeneratedRepository, build_repository
 from compiler.core.conformance import CHECKER, ConformanceReport
-from compiler.core.protocol import BackendClass, BackendIdentity
+from compiler.core.protocol import BackendClass, BackendIdentity, TestSpec
 
 
 class RustAxumBackend:
@@ -21,6 +21,9 @@ class RustAxumBackend:
             name=self.name, language=self.language, framework=self.framework,
             version=self.version, backend_class=BackendClass.BEHAVIORAL,
         )
+
+    def test_spec(self) -> TestSpec:
+        return TestSpec(command=["cargo", "test"], runs_in="build", build_target="build")
 
     def test_image(self, tag: str) -> str:
         """Rust multi-stage: test in the build stage, not the slim runtime image."""

@@ -185,6 +185,7 @@ def _docker_available() -> bool:
     return docker_available()
 
 
+@pytest.mark.docker_integration
 @pytest.mark.skipif(not _docker_available(), reason="docker + go toolchain required for runtime check")
 def test_go_backend_bundle_compiles_and_tests_under_docker(tmp_path):
     import subprocess

@@ -348,6 +348,16 @@ def run_wave(
 
     os.makedirs(os.path.dirname(ledger_path) or ".", exist_ok=True)
     if os.path.exists(ledger_path):
+        # A re-run is a NEW wave ledger, never a rewrite: archive the prior
+        # wave's ledger (and aggregate) so no evidence is ever destroyed.
+        import shutil as _shutil
+        from datetime import datetime as _dt
+        stamp = _dt.now().strftime("%Y%m%d-%H%M%S")
+        archive = f"{ledger_path}.archive-{stamp}"
+        _shutil.copy2(ledger_path, archive)
+        if os.path.exists(agg_path):
+            _shutil.copy2(agg_path, f"{agg_path}.archive-{stamp}")
+        print(f"Archived prior wave ledger -> {archive}")
         os.remove(ledger_path)
 
     ledger = EvidenceLedger(ledger_path)
@@ -456,6 +466,7 @@ def run_wave(
         "wave": wave_id,
         "scale_factor": scale,
         "total_trials": len(trials),
+        "expected_trials": expected,
         "certified": sum(1 for t in trials if t.verdict == "CERTIFIED"),
         "corpus_hash": ch,
         "verdict": verdict.value,

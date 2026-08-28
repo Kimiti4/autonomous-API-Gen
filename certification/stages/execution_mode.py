@@ -29,6 +29,9 @@ class StageExecution:
     container_id: str = ""
     peak_resource: str = ""
     detail: str = ""
+    retries: int = 0
+    retry_signatures: tuple[str, ...] = ()
+    failure_class: str = ""
 
 
 BEHAVIORAL_STAGES: frozenset[TrialStage] = frozenset({

@@ -35,6 +35,18 @@ TRANSIENT_DEPLOY_MARKS = (
     "ports are not available", "bind", "address already in use",
     "socket is already in use", "resource temporarily unavailable",
 )
+TRANSIENT_RUN_MARKS = (
+    "error waiting for container", "unexpected eof", "i/o timeout",
+    "cannot connect to the docker", "failed to fetch", "network",
+    "no matching manifest", "compression",
+)
+TRANSIENT_PROBE_MARKS = (
+    "remote end closed", "connection reset", "timed out", "timeout",
+    "temporarily unavailable", "connection aborted", "eof",
+)
+PRODUCT_PROBE_MARKS = (
+    "connection refused", "actively refused", "10061", "404", "500", "503",
+)
 
 MAX_BUILD_ATTEMPTS = 2
 MAX_DEPLOY_ATTEMPTS = 2
@@ -44,6 +56,15 @@ TRANSIENT_BACKOFF_S = 2.0
 def _transient(hay: str, marks: tuple[str, ...]) -> bool:
     h = hay.lower()
     return any(m in h for m in marks)
+
+
+def _match(hay: str, marks: tuple[str, ...]) -> str:
+    """Return the first recognized transient signature present in hay, or ''."""
+    h = hay.lower()
+    for m in marks:
+        if m in h:
+            return m
+    return ""
 
 
 class RealDockerStages:
@@ -56,12 +77,15 @@ class RealDockerStages:
         attempts = 0
         out = ""
         rc = -1
+        retry_signatures: list[str] = []
         for attempt in range(1, MAX_BUILD_ATTEMPTS + 1):
             attempts = attempt
             rc, out = _run(["docker", "build", "-q", "-t", tag, repo_dir])
             if rc == 0:
                 break
-            if attempt < MAX_BUILD_ATTEMPTS and _transient(out, TRANSIENT_BUILD_MARKS):
+            mark = _match(out, TRANSIENT_BUILD_MARKS)
+            if attempt < MAX_BUILD_ATTEMPTS and mark:
+                retry_signatures.append(mark)
                 time.sleep(TRANSIENT_BACKOFF_S)
                 continue
             break
@@ -73,6 +97,9 @@ class RealDockerStages:
         detail = out[:500]
         if retried:
             detail = f"[retried {attempts}/{MAX_BUILD_ATTEMPTS} on transient] {detail}"
+        failure_class = ""
+        if rc != 0:
+            failure_class = "infrastructure" if _transient(out, TRANSIENT_BUILD_MARKS) else "compiler"
         return StageExecution(
             stage=TrialStage.BUILD,
             mode=ExecutionMode.REAL_DOCKER if rc == 0 else ExecutionMode.FAILED,
@@ -81,6 +108,9 @@ class RealDockerStages:
             logs_hash=_h(out),
             image_digest=digest,
             detail=detail,
+            retries=attempts - 1,
+            retry_signatures=tuple(retry_signatures),
+            failure_class=failure_class,
         )
 
     def run_tests(self, image: str, spec: "TestSpec", repo_dir: str = "", tag: str = "") -> StageExecution:
@@ -101,6 +131,12 @@ class RealDockerStages:
             if rc == 0:
                 rc, out = _run(["docker", "run", "--rm", test_tag, *spec.command])
             _run(["docker", "rmi", "-f", test_tag])
+        failure_class = ""
+        if rc == 1:
+            failure_class = "product"
+        elif rc not in (0, 1):
+            # docker-level error (create/run) — infra transient vs toolchain.
+            failure_class = "infrastructure" if _transient(out, TRANSIENT_RUN_MARKS) else "compiler"
         return StageExecution(
             stage=TrialStage.TEST,
             mode=ExecutionMode.REAL_DOCKER if rc in (0, 1) else ExecutionMode.FAILED,
@@ -108,6 +144,7 @@ class RealDockerStages:
             duration_s=time.time() - t0,
             logs_hash=_h(out),
             detail=f"runs_in={spec.runs_in} cmd={' '.join(spec.command)} {out[:300]}",
+            failure_class=failure_class,
         )
 
     def deploy(self, image: str, port: int) -> StageExecution:
@@ -141,9 +178,22 @@ class RealDockerStages:
 
     def probe(self, port: int, cid: str) -> StageExecution:
         t0 = time.time()
+        if not cid:
+            # Cascade: deploy did not produce a container — probing is a
+            # phantom; mark honestly as SKIPPED (never PASS, never inflate).
+            return StageExecution(
+                stage=TrialStage.RUNTIME,
+                mode=ExecutionMode.SKIPPED,
+                passed=False,
+                duration_s=time.time() - t0,
+                logs_hash=_h("cascade-probe"),
+                detail="cascade: deploy did not produce a container",
+            )
         ok = False
         last_err = ""
+        attempts = 0
         for _ in range(10):
+            attempts += 1
             try:
                 import urllib.request
                 urllib.request.urlopen(f"http://localhost:{port}/health", timeout=5)
@@ -154,6 +204,12 @@ class RealDockerStages:
                 time.sleep(1)
         _, stats = _run(["docker", "stats", "--no-stream", "--format",
                          "{{.CPUPerc}}/{{.MemUsage}}", cid])
+        failure_class = ""
+        if not ok:
+            if _transient(last_err, TRANSIENT_PROBE_MARKS):
+                failure_class = "infrastructure"
+            elif _transient(last_err, PRODUCT_PROBE_MARKS):
+                failure_class = "product"
         return StageExecution(
             stage=TrialStage.RUNTIME,
             mode=ExecutionMode.REAL_DOCKER,
@@ -162,6 +218,9 @@ class RealDockerStages:
             logs_hash=_h(stats),
             peak_resource=stats.strip() if ok else "",
             detail="probe OK" if ok else f"probe FAILED: {last_err}",
+            retries=attempts - 1,
+            retry_signatures=tuple(["probe_connect"] * (attempts - 1)),
+            failure_class=failure_class,
         )
 
     def destroy(self, cid: str) -> StageExecution:
@@ -187,4 +246,5 @@ class RealDockerStages:
             duration_s=time.time() - t0,
             logs_hash=_h(out),
             detail=out[:500],
+            failure_class="" if rc == 0 else "infrastructure",
         )

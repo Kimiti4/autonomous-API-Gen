@@ -29,6 +29,9 @@ class StageEvidence(BaseModel):
     image_digest: str = ""
     container_id: str = ""
     peak_resource: str = ""
+    retries: int = 0
+    retry_signatures: List[str] = Field(default_factory=list)
+    failure_class: str = ""
 
 
 class TrialMetrics(BaseModel):

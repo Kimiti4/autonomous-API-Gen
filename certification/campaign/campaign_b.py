@@ -119,6 +119,9 @@ class CampaignBRunner:
                 image_digest=se.image_digest,
                 container_id=se.container_id,
                 peak_resource=se.peak_resource,
+                retries=se.retries,
+                retry_signatures=list(se.retry_signatures),
+                failure_class=se.failure_class,
             ))
             exec_details[se.stage.value] = {
                 "mode": se.mode.value,
@@ -126,6 +129,9 @@ class CampaignBRunner:
                 "duration_s": round(se.duration_s, 3),
                 "image_digest": se.image_digest,
                 "peak_resource": se.peak_resource,
+                "retries": se.retries,
+                "retry_signatures": list(se.retry_signatures),
+                "failure_class": se.failure_class,
             }
 
         # Structural + semantic: conformance check
@@ -454,6 +460,16 @@ def run_wave(
         ledger_path, wave.required_mode,
     )
 
+    from certification.campaign.amplification import (
+        compute_amplification, amplification_problems,
+    )
+    amp = compute_amplification(
+        trials, expected, wave.max_retry_rate,
+    )
+    amp_problems = amplification_problems(amp, wave.max_retry_rate)
+    if amp_problems:
+        problems = problems + amp_problems
+
     verdict, reason = compose_campaign_verdict(
         trials=trials,
         expected_trials=expected,
@@ -461,6 +477,8 @@ def run_wave(
         integrity_problems=problems,
         coverage_complete=True,
     )
+
+    from certification.campaign.decision import b3_decision
 
     summary: dict[str, Any] = {
         "wave": wave_id,
@@ -476,6 +494,9 @@ def run_wave(
         "independent_verify_problems": problems,
         "failure_taxonomy_independent": taxonomy,
         "category_matrix": matrix,
+        "amplification": amp.model_dump(),
+        "max_retry_rate": wave.max_retry_rate,
+        "decision": b3_decision(verdict.value, amp, wave.max_retry_rate),
         "budget": {
             "max_trials": budget.max_trials,
             "max_total_runtime_s": budget.max_total_runtime_s,
@@ -503,6 +524,7 @@ def verify_campaign_b_mode(
     problems: list[str] = []
     taxonomy: dict[str, int] = {}
     matrix: dict[str, dict[str, int]] = {}
+    ledger_trials: list[dict] = []
 
     with open(ledger_path, encoding="utf-8") as f:
         for line in f:
@@ -511,6 +533,7 @@ def verify_campaign_b_mode(
                 continue
             record = json.loads(line)
             t = record.get("trial", record)
+            ledger_trials.append(t)
 
             for s in t.get("stages", []):
                 stage_name = s.get("stage", "")
@@ -536,7 +559,22 @@ def verify_campaign_b_mode(
                 matrix.setdefault(cat, {}).setdefault(backend, 0)
                 matrix[cat][backend] += 1
 
+    # Retry-amplification honesty cross-check from the ledger (independent of
+    # the in-memory trials used for the summary).
+    from certification.campaign.amplification import (
+        compute_amplification, amplification_problems,
+    )
+    amp = compute_amplification(
+        ledger_trials, len(ledger_trials), required_max_retry_rate(),
+    )
+    problems = problems + amplification_problems(amp, required_max_retry_rate())
+
     return (not problems), matrix, taxonomy, problems
+
+
+def required_max_retry_rate() -> float:
+    """Honesty bound for retry amplification (0.2 everywhere in Campaign B)."""
+    return 0.2
 
 
 def _resolve_stages(mode: ExecutionMode) -> Any:

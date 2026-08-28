@@ -478,3 +478,166 @@ def test_budget_exhaustion_is_not_certified():
     b = CampaignBudget(max_trials=5, max_total_runtime_s=9999)
     # Simulate: ran 5 trials, budget is 5 → exhausted
     assert 5 >= b.max_trials
+
+
+# ---------------------------------------------------------------------------
+# B14 — retry amplification + B3 decision boundary
+# ---------------------------------------------------------------------------
+
+def _trial(stages):
+    return {"trial_id": "t", "category": "fintech",
+            "backend": "python-fastapi", "verdict": "CERTIFIED",
+            "stages": stages}
+
+
+def _stage(stage, passed=True, retries=0, sigs=(), fc="", mode="real_docker"):
+    return {"stage": stage, "passed": passed, "mode": mode,
+            "retries": retries, "retry_signatures": list(sigs),
+            "failure_class": fc}
+
+
+def test_amplification_plain_certified():
+    from certification.campaign.amplification import compute_amplification
+    amp = compute_amplification(
+        [_trial([_stage("build"), _stage("deploy")])], planned=1)
+    assert amp.planned_trials == 1
+    assert amp.actual_trials == 1
+    assert amp.stage_executions == 2
+    assert amp.retry_executions == 0
+    assert amp.retry_rate == 0.0
+    assert amp.cascade_skipped == 0
+    assert amp.infrastructure_failures == 0
+    assert amp.product_failures == 0
+    assert amp.unexplained_retries == 0
+
+
+def test_amplification_counts_retries_and_cascades():
+    from certification.campaign.amplification import compute_amplification
+    trials = [
+        _trial([
+            _stage("build", passed=True, retries=1, sigs=("failed to fetch",)),
+            _stage("deploy", passed=True),
+        ]),
+        _trial([
+            _stage("build", passed=True, retries=2, sigs=("network", "network")),
+            _stage("deploy", passed=False, fc="infrastructure",
+                   mode="failed", retries=1, sigs=("bind",)),
+            _stage("runtime", passed=False, mode="skipped"),
+            _stage("destroy", passed=False, mode="skipped"),
+        ]),
+    ]
+    amp = compute_amplification(trials, planned=2)
+    assert amp.stage_executions == 6
+    assert amp.retry_executions == 4
+    assert amp.retry_rate == round(4 / 6, 4)
+    assert amp.cascade_skipped == 2
+    assert amp.infrastructure_failures == 1
+    assert amp.unexplained_retries == 0
+
+
+def test_amplification_flags_unexplained_retries():
+    from certification.campaign.amplification import compute_amplification
+    amp = compute_amplification(
+        [_trial([_stage("build", passed=True, retries=1, sigs=())])], planned=1)
+    assert amp.unexplained_retries == 1
+
+
+def test_amplification_counts_product_failures():
+    from certification.campaign.amplification import compute_amplification
+    amp = compute_amplification(
+        [_trial([_stage("test", passed=False, fc="product", mode="failed")])],
+        planned=1)
+    assert amp.product_failures == 1
+
+
+def test_b3_decision_boundary():
+    from certification.campaign.decision import b3_decision
+    from certification.campaign.amplification import RetryAmplification
+    clean = RetryAmplification(planned_trials=936, actual_trials=936,
+                               stage_executions=5616,
+                               retry_executions=0, retry_rate=0.0,
+                               cascade_skipped=0, infrastructure_failures=0,
+                               product_failures=0, unexplained_retries=0)
+    assert b3_decision("CERTIFIED", clean) == "PROCEED to larger-scale campaign"
+    partial = clean.model_copy(update={"actual_trials": 935})
+    assert b3_decision("QUALIFIED_PARTIAL", partial) == (
+        "ANALYZE infra-transience + retry honesty; do NOT scale")
+    pdefect = clean.model_copy(update={"product_failures": 1})
+    assert b3_decision("CERTIFIED", pdefect) == "STOP scaling; fix product defect"
+    dishonest = clean.model_copy(update={"unexplained_retries": 2})
+    assert b3_decision("CERTIFIED", dishonest) == "NOT_CERTIFIED (retry dishonesty)"
+    hot = clean.model_copy(update={"retry_rate": 0.5})
+    assert b3_decision("CERTIFIED", hot) == "NOT_CERTIFIED (retry dishonesty)"
+
+
+def test_wave_carries_max_retry_rate():
+    assert WAVES["B3"].scale_factor == 12
+    assert WAVES["B3"].required_mode == ExecutionMode.REAL_DOCKER
+    assert WAVES["B3"].max_retry_rate == 0.2
+    assert BUDGETS["B3"].max_trials == 936
+    assert BUDGETS["B3"].max_total_runtime_s == 43200
+
+
+def test_b3_expansion_is_936_trials():
+    from compiler.composition import build_backend_registry
+    from compiler.core.protocol import eligible_for_behavioral_certification
+    from certification.campaign.waves import expand_corpus
+    reg = build_backend_registry()
+    backends = [
+        b for b in (reg.get(n) for n in reg.list_names())
+        if b is not None and eligible_for_behavioral_certification(b.identity())
+    ]
+    corpus = expand_corpus(12)
+    assert len(corpus) == 468
+    assert len(corpus) * len(backends) == 936
+
+
+def test_amplification_problems_enforced():
+    from certification.campaign.amplification import (
+        RetryAmplification, amplification_problems,
+    )
+    dirty = RetryAmplification(planned_trials=1, actual_trials=1,
+                               stage_executions=2,
+                               retry_executions=1, retry_rate=0.5,
+                               cascade_skipped=0, infrastructure_failures=0,
+                               product_failures=1, unexplained_retries=0)
+    ps = amplification_problems(dirty, 0.2)
+    assert any("retry_rate" in p for p in ps)
+    assert any("product failures" in p for p in ps)
+
+
+def test_probe_without_container_is_skipped_cascade():
+    import certification.stages.docker_stages as ds
+    stages = ds.RealDockerStages()
+    se = stages.probe(8884, "")
+    assert se.stage == TrialStage.RUNTIME
+    assert se.mode == ExecutionMode.SKIPPED
+    assert se.passed is False
+    assert "cascade" in se.detail
+
+
+def test_probe_records_connect_retries(monkeypatch):
+    import certification.stages.docker_stages as ds
+    import urllib.request
+    attempts = {"n": 0}
+
+    class _FakeResp:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+    def fake_urlopen(url, timeout=5):
+        attempts["n"] += 1
+        if attempts["n"] < 3:
+            raise ConnectionError("timed out")
+        return _FakeResp()
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(ds, "_run", lambda cmd, timeout=900: (0, "0.1%/1MB"))
+    stages = ds.RealDockerStages()
+    se = stages.probe(9999, "cid123")
+    assert se.passed is True
+    assert se.retries == 2
+    assert se.retry_signatures == ("probe_connect", "probe_connect")
+
+    # Dump used dict-traversal path via model_dump compatibility check
+    assert attempts["n"] == 3

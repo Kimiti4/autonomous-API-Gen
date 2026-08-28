@@ -32,6 +32,7 @@ class Wave:
     purpose: str
     scale_factor: int
     required_mode: ExecutionMode
+    max_retry_rate: float = 0.2
 
 
 @dataclass(frozen=True)

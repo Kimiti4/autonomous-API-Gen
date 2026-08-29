@@ -616,6 +616,52 @@ def test_probe_without_container_is_skipped_cascade():
     assert "cascade" in se.detail
 
 
+def test_runs_in_build_base_fetch_is_infrastructure_not_product(monkeypatch):
+    """A failed toolchain docker build (rust base fetch) must NOT be
+    classified 'product' — only a successfully-built toolchain whose test
+    run returned nonzero is a product failure."""
+    import certification.stages.docker_stages as ds
+    from compiler.core.protocol import TestSpec
+
+    def fake_run(cmd, timeout=900):
+        if cmd[0:2] == ["docker", "build"] and "--target" in cmd:
+            return 1, "failed to fetch rust:1.78-slim i/o timeout"
+        if cmd[0:2] == ["docker", "run"]:
+            raise AssertionError("test run must not be reached")
+        return 0, ""
+
+    monkeypatch.setattr(ds, "_run", fake_run)
+    stages = ds.RealDockerStages()
+    spec = TestSpec(command=["cargo", "test"], runs_in="build", build_target="tst")
+    se = stages.run_tests("img", spec, repo_dir="/tmp", tag="t")
+    assert se.passed is False
+    assert se.failure_class == "infrastructure"
+    assert "failed to fetch" in se.detail  # error TAIL captured, not truncated head
+
+
+def test_runs_in_build_cargo_assertion_is_product(monkeypatch):
+    """Toolchain builds OK, cargo test returns 1 → genuine product failure."""
+    import certification.stages.docker_stages as ds
+    from compiler.core.protocol import TestSpec
+    calls = {"n": 0}
+
+    def fake_run(cmd, timeout=900):
+        calls["n"] += 1
+        if cmd[0:2] == ["docker", "build"] and "--target" in cmd:
+            return 0, "built"
+        if cmd[0:2] == ["docker", "run"]:
+            return 1, "test inventory_add fails: assertion failed"
+        return 0, ""
+
+    monkeypatch.setattr(ds, "_run", fake_run)
+    stages = ds.RealDockerStages()
+    spec = TestSpec(command=["cargo", "test"], runs_in="build", build_target="tst")
+    se = stages.run_tests("img", spec, repo_dir="/tmp", tag="t")
+    assert se.passed is False
+    assert se.failure_class == "product"
+    assert "assertion failed" in se.detail
+
+
 def test_probe_records_connect_retries(monkeypatch):
     import certification.stages.docker_stages as ds
     import urllib.request

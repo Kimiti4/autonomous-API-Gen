@@ -118,32 +118,45 @@ class RealDockerStages:
 
         runs_in="runtime": run the toolchain in the runtime image.
         runs_in="build": build the toolchain-bearing stage, execute tests inside it, then clean up.
+
+        Classification is honest about WHICH command failed: a failed toolchain
+        docker build (e.g. base-image fetch) is infrastructure/compiler, never
+        silently "product"; only a successfully-built toolchain whose test run
+        returned nonzero is a product failure.  The failure detail carries the
+        ERROR TAIL (not head) so the reason is in the evidence.
         """
         from compiler.core.protocol import TestSpec
         t0 = time.time()
+        build_failed = False
         if spec.runs_in == "runtime":
             rc, out = _run(["docker", "run", "--rm", image, *spec.command])
         else:
             # Build the toolchain-bearing stage, then execute tests inside it.
             test_tag = f"{tag}-test"
-            rc, out = _run(["docker", "build", "--target", spec.build_target,
-                            "-t", test_tag, repo_dir])
-            if rc == 0:
+            rc_build, out_build = _run(["docker", "build", "--target", spec.build_target,
+                                        "-t", test_tag, repo_dir])
+            out = out_build
+            if rc_build == 0:
                 rc, out = _run(["docker", "run", "--rm", test_tag, *spec.command])
+            else:
+                build_failed = True
+                rc = rc_build  # docker build --target failed; tests never ran
             _run(["docker", "rmi", "-f", test_tag])
         failure_class = ""
-        if rc == 1:
+        if rc == 1 and not build_failed:
             failure_class = "product"
-        elif rc not in (0, 1):
-            # docker-level error (create/run) — infra transient vs toolchain.
+        elif rc != 0:
+            # docker-level error (toolchain build / create / run) — infra
+            # transient vs toolchain defect, from the actual tail text.
             failure_class = "infrastructure" if _transient(out, TRANSIENT_RUN_MARKS) else "compiler"
+        tail = out[-600:] if rc != 0 else out[:300]
         return StageExecution(
             stage=TrialStage.TEST,
             mode=ExecutionMode.REAL_DOCKER if rc in (0, 1) else ExecutionMode.FAILED,
             passed=rc == 0,
             duration_s=time.time() - t0,
             logs_hash=_h(out),
-            detail=f"runs_in={spec.runs_in} cmd={' '.join(spec.command)} {out[:300]}",
+            detail=f"runs_in={spec.runs_in} cmd={' '.join(spec.command)} {tail}",
             failure_class=failure_class,
         )
 

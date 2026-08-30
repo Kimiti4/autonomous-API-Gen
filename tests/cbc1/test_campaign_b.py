@@ -1,9 +1,10 @@
 """Campaign B gates — mode enforcement, wave config, execution detail, three-valued verdict."""
 from __future__ import annotations
+
 import asyncio
+import json
 import os
 import pytest
-
 from certification.stages.execution_mode import (
     ExecutionMode,
     StageExecution,
@@ -606,6 +607,94 @@ def test_amplification_problems_enforced():
     assert any("product failures" in p for p in ps)
 
 
+def test_ledger_resume_continues_same_chain(tmp_path):
+    """A resumed ledger must continue the SAME hash chain — prior records stay
+    byte-identical and the new records chain onto the old tail."""
+    import time as _t
+    from certification.evidence.ledger import EvidenceLedger
+    path = str(tmp_path / "ledger.jsonl")
+    lg = EvidenceLedger(path)
+    for i in range(3):
+        lg.append({"trial_id": f"seed-{i}", "intent": f"i{i}", "backend": "b"})
+    # Simulate interrupt + resume: new EvidenceLedger over the SAME file.
+    tail = EvidenceLedger(path)._tail_hash()
+    lg2 = EvidenceLedger(path)
+    assert lg2.prev == tail
+    lg2.append({"trial_id": "resumed-1", "intent": "j", "backend": "b"})
+    assert EvidenceLedger.verify(path)
+    counts = [json.loads(l)["trial"]["trial_id"] for l in open(path, encoding="utf-8") if l.strip()]
+    assert counts == ["seed-0", "seed-1", "seed-2", "resumed-1"]
+
+
+def _stub_resume_run(tmp_path, seed_records, expect_keys, md):
+    """Drive run_wave in resume+supplement mode with stub stages and a
+    scale_override small enough to terminate quickly, on tmp paths."""
+    import certification.campaign.campaign_b as cb
+    from certification.stages.stub_stages import StubStages
+    # SEED: write seed_records into the ledger path BEFORE run_wave.
+    from certification.evidence.ledger import EvidenceLedger
+    ledger_path = str(tmp_path / "w-ledger.jsonl")
+    agg_path = str(tmp_path / "w-aggregate.json")
+    lg = EvidenceLedger(ledger_path)
+    for rec in seed_records:
+        lg.append(rec)
+    # monkeypatch: resolve stub stages (no docker) + scale 1
+    md.setattr(cb, "_resolve_stages", lambda mode: StubStages())
+    return cb.run_wave(
+        "B3", scale_override=1, resume=True, supplement=True,
+        ledger_path=ledger_path, agg_path=agg_path,
+    ), ledger_path, agg_path
+
+
+def test_run_wave_resume_seeds_and_supplements(tmp_path, monkeypatch):
+    """Resume must keep the 2 seeded records, run the remaining planned
+    corpus×backend pairs, then supplement re-measures the failed seed keys —
+    totaling expected + supplements, with the failures still NOT_CERTIFIED."""
+    import certification.campaign.campaign_b as cb
+    from certification.evidence.ledger import EvidenceLedger
+    # The default corpus intent for scale=1; pick "project management SaaS".
+    from certification.corpus.corpus import default_corpus
+    first = default_corpus()[0]
+    seed_records = [
+        {"trial_id": "seed-a", "intent": first.intent, "category": first.category.value,
+         "backend": "python-fastapi", "verdict": "CERTIFIED",
+         "backend_class": "behavioral", "metrics": {}, "stages": []},
+        {"trial_id": "seed-b", "intent": first.intent, "category": first.category.value,
+         "backend": "rust-axum", "verdict": "NOT_CERTIFIED",
+         "backend_class": "behavioral", "metrics": {}, "stages": [{
+             "stage": "deploy", "passed": False, "mode": "failed",
+             "retries": 0, "retry_signatures": [], "failure_class": "infrastructure"}]},
+    ]
+    (verdict, summary), ledger_path, agg_path = _stub_resume_run(
+        tmp_path, seed_records, None, monkeypatch)
+    n = EvidenceLedger.count(ledger_path)
+    expected_planned = 78  # 39 intents × 2 backends
+    # planned window = 78 (2 seeds prepared, 76 run new) + 1 rust supplement
+    assert n == expected_planned + 1
+    assert summary["resumed_from"] == 2
+    assert summary["supplement_trials"] == 1
+    assert summary["planned_trials"] == 78
+    assert summary["expected_trials"] == 79
+    assert verdict == "QUALIFIED_PARTIAL" or verdict == "NOT_CERTIFIED"
+
+
+def test_resume_refuses_rewriting_broken_chain(tmp_path, monkeypatch):
+    """A corrupted prior ledger must NOT be resumed or rewritten."""
+    import certification.campaign.campaign_b as cb
+    from certification.stages.stub_stages import StubStages
+    ledger_path = str(tmp_path / "w-ledger.jsonl")
+    agg_path = str(tmp_path / "w-aggregate.json")
+    with open(ledger_path, "w", encoding="utf-8") as f:
+        f.write("{not-json\n")
+    monkeypatch.setattr(cb, "_resolve_stages", lambda mode: StubStages())
+    verdict, summary = cb.run_wave(
+        "B3", scale_override=1, resume=True, ledger_path=ledger_path,
+        agg_path=agg_path,
+    )
+    assert verdict == "NOT_CERTIFIED"
+    assert "hash chain broken" in summary["verdict_reason"]
+
+
 def test_probe_without_container_is_skipped_cascade():
     import certification.stages.docker_stages as ds
     stages = ds.RealDockerStages()
@@ -625,7 +714,11 @@ def test_runs_in_build_base_fetch_is_infrastructure_not_product(monkeypatch):
 
     def fake_run(cmd, timeout=900):
         if cmd[0:2] == ["docker", "build"] and "--target" in cmd:
-            return 1, "failed to fetch rust:1.78-slim i/o timeout"
+            # Exact registry EOF signature observed in the field.
+            return 1, ('failed to build: failed to solve: rust:1.78-slim: '
+                       'failed to resolve source metadata: failed to do '
+                       'request: Head "https://registry-1.docker.io/v2/'
+                       'library/rust/manifests/1.78-slim": EOF')
         if cmd[0:2] == ["docker", "run"]:
             raise AssertionError("test run must not be reached")
         return 0, ""
@@ -636,7 +729,7 @@ def test_runs_in_build_base_fetch_is_infrastructure_not_product(monkeypatch):
     se = stages.run_tests("img", spec, repo_dir="/tmp", tag="t")
     assert se.passed is False
     assert se.failure_class == "infrastructure"
-    assert "failed to fetch" in se.detail  # error TAIL captured, not truncated head
+    assert "EOF" in se.detail  # error TAIL captured, not truncated head
 
 
 def test_runs_in_build_cargo_assertion_is_product(monkeypatch):

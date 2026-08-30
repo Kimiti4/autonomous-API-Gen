@@ -20,7 +20,16 @@ def main():
     print(f"Required mode: {wave.required_mode.value}")
     print()
 
-    verdict, summary = run_wave(wave_id, scale_override=scale)
+    resume = os.environ.get("CBC1_RESUME", "") == "1"
+    supplement = os.environ.get("CBC1_SUPPLEMENT", "") == "1"
+    if resume:
+        print("Resume mode: continuing prior ledger on the same verified hash chain")
+    if supplement:
+        print("Supplement mode: re-measuring failed seed trials as new trials")
+
+    verdict, summary = run_wave(
+        wave_id, scale_override=scale, resume=resume, supplement=supplement,
+    )
     print(f"Verdict: {verdict}")
     print(f"Reason:  {summary.get('verdict_reason', '')}")
     print(f"Trials:  {summary.get('total_trials', 0)}")

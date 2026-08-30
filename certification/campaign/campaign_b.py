@@ -333,12 +333,25 @@ def certify_docker_substrate(runner: CampaignBRunner) -> SubstrateReport:
 def run_wave(
     wave_id: str,
     scale_override: int | None = None,
+    resume: bool = False,
+    supplement: bool = False,
+    ledger_path: str | None = None,
+    agg_path: str | None = None,
 ) -> tuple[str, dict]:
     """Execute a Campaign B wave. Returns (verdict_string, aggregate_dict).
+
+    resume=True continues an interrupted ledger ON THE SAME verified hash
+    chain (already-recorded trials are never re-run or rewritten).
+    supplement=True re-measures the failures recorded in the resumed seed as
+    independent NEW trials, growing the campaign window (original failures
+    stay NOT_CERTIFIED — they can never become CERTIFIED).
+
+    ledger_path/agg_path override the fixed wave paths (testability).
 
     Resource exhaustion → NOT_CERTIFIED. Never silently skip trials.
     """
     import time as _time
+    import types as _types
     from certification.campaign.waves import (
         WAVES, BUDGETS, expand_corpus, ledger_path_for, aggregate_path_for,
     )
@@ -349,10 +362,14 @@ def run_wave(
 
     budget = BUDGETS.get(wave_id, CampaignBudget(max_trials=9999))
     scale = scale_override if scale_override is not None else wave.scale_factor
-    ledger_path = ledger_path_for(wave_id)
-    agg_path = aggregate_path_for(wave_id)
+    if ledger_path is None:
+        ledger_path = ledger_path_for(wave_id)
+    if agg_path is None:
+        agg_path = aggregate_path_for(wave_id)
 
     os.makedirs(os.path.dirname(ledger_path) or ".", exist_ok=True)
+    prepared: set[tuple[str, str]] = set()
+    seed_trials: list[Any] = []
     if os.path.exists(ledger_path):
         # A re-run is a NEW wave ledger, never a rewrite: archive the prior
         # wave's ledger (and aggregate) so no evidence is ever destroyed.
@@ -360,11 +377,44 @@ def run_wave(
         from datetime import datetime as _dt
         stamp = _dt.now().strftime("%Y%m%d-%H%M%S")
         archive = f"{ledger_path}.archive-{stamp}"
-        _shutil.copy2(ledger_path, archive)
-        if os.path.exists(agg_path):
-            _shutil.copy2(agg_path, f"{agg_path}.archive-{stamp}")
-        print(f"Archived prior wave ledger -> {archive}")
-        os.remove(ledger_path)
+        if resume:
+            # Resume: continue the SAME verified hash chain (same records,
+            # bytes for bytes) from where an interrupted run stopped.  The
+            # prior ledger is still copied to archive as an independent object.
+            if not EvidenceLedger.verify(ledger_path):
+                agg = {
+                    "wave": wave_id,
+                    "verdict": "NOT_CERTIFIED",
+                    "verdict_reason": "resume refused: prior ledger hash chain broken",
+                    "total_trials": EvidenceLedger.count(ledger_path),
+                    "resumed_from": 0,
+                }
+                with open(agg_path, "w", encoding="utf-8") as f:
+                    json.dump(agg, f, indent=2)
+                return "NOT_CERTIFIED", agg
+            _shutil.copy2(ledger_path, archive)
+            print(f"Resuming: archiving prior ledger -> {archive}")
+            for line in open(ledger_path, encoding="utf-8"):
+                if not line.strip():
+                    continue
+                record = json.loads(line)
+                t = record.get("trial", record)
+                prepared.add((t.get("intent", ""), t.get("backend", "")))
+                # Lightweight seed view for verdict/amplification accounting —
+                # the authoritative bytes stay in the ledger file untouched.
+                seed_trials.append(_types.SimpleNamespace(
+                    intent=t.get("intent", ""),
+                    backend=t.get("backend", ""),
+                    verdict=t.get("verdict", "NOT_CERTIFIED"),
+                    backend_class=t.get("backend_class", ""),
+                    stages=t.get("stages", []),
+                ))
+        else:
+            _shutil.copy2(ledger_path, archive)
+            if os.path.exists(agg_path):
+                _shutil.copy2(agg_path, f"{agg_path}.archive-{stamp}")
+            print(f"Archived prior wave ledger -> {archive}")
+            os.remove(ledger_path)
 
     ledger = EvidenceLedger(ledger_path)
     runner = CampaignBRunner(
@@ -405,17 +455,34 @@ def run_wave(
     ch = __import__("certification.corpus.corpus", fromlist=["corpus_hash"]).corpus_hash()
     backends = runner.eligible_backends()
     expected = len(corpus) * len(backends)
-    trials: list[Trial] = []
+    trials: list[Trial] = list(seed_trials)
     campaign_start = _time.time()
 
+    def _budget_check(
+        running: list[Trial], planned_done: int,
+        phase_label: str,
+    ) -> tuple[bool, str]:
+        """Enforce hard campaign budgets; never silently drop or skip trials."""
+        elapsed = _time.time() - campaign_start
+        if elapsed >= budget.max_total_runtime_s:
+            return True, f"max_total_runtime ({budget.max_total_runtime_s}s)"
+        if phase_label == "planned" and planned_done >= budget.max_trials:
+            return True, "max_trials"
+        if phase_label == "supplement" and len(running) >= budget.max_trials:
+            # Planned window done; supplements are extra (clock-bound only).
+            pass
+        return False, ""
+
+    planned_run = 0
     for w in corpus:
         artifacts = build_artifacts_for(w)
         for backend in backends:
+            bkey = backend.identity().name
+            if (w.intent, bkey) in prepared:
+                continue
             # Budget enforcement: never silently skip trials
-            elapsed = _time.time() - campaign_start
-            if len(trials) >= budget.max_trials or elapsed >= budget.max_total_runtime_s:
-                violation = "max_trials" if len(trials) >= budget.max_trials else "max_total_runtime"
-                # Write aggregate with actual counts — never silently skip
+            exhausted, violation = _budget_check(trials, planned_run, "planned")
+            if exhausted:
                 certified_count = sum(1 for t in trials if t.verdict == "CERTIFIED")
                 reason = f"budget exhausted ({violation}): {len(trials)}/{expected} trials completed, {certified_count} certified"
                 summary = {
@@ -432,7 +499,7 @@ def run_wave(
                     "budget": {
                         "max_trials": budget.max_trials,
                         "max_total_runtime_s": budget.max_total_runtime_s,
-                        "actual_runtime_s": round(elapsed, 1),
+                        "actual_runtime_s": round(_time.time() - campaign_start, 1),
                     },
                 }
                 with open(agg_path, "w", encoding="utf-8") as f:
@@ -453,6 +520,47 @@ def run_wave(
                 artifacts=artifacts,
             )
             trials.append(trial)
+            planned_run += 1
+
+    # Supplemental re-measurements: re-run the exact failed (intent, backend)
+    # pairs from the resumed seed as independent new trials, so a substrate
+    # fix can be demonstrated against the SAME workloads that failed.  The
+    # original failed records stay NOT_CERTIFIED in the ledger (never
+    # rewritten, never dropped); the campaign window grows beyond planned.
+    supplement_runs: list[Trial] = []
+    if resume and supplement:
+        failed_seed_keys = [
+            (t.intent, t.backend) for t in seed_trials if t.verdict != "CERTIFIED"
+        ]
+        by_name = {b.identity().name: b for b in backends}
+        by_intent = {w.intent: w for w in corpus}
+        for intent, bname in failed_seed_keys:
+            w = by_intent.get(intent)
+            backend = by_name.get(bname)
+            if w is None or backend is None:
+                continue
+            exhausted, violation = _budget_check(
+                trials + supplement_runs, planned_run, "supplement",
+            )
+            if exhausted:
+                break
+            artifacts = build_artifacts_for(w)
+            trial = runner.run_trial(
+                intent=w.intent,
+                category=w.category.value,
+                novelty_class="template",
+                plan=artifacts.plan,
+                revision=artifacts.revision,
+                backend=backend,
+                corpus_hash=ch,
+                requirement_graph_hash=artifacts.requirement_graph_hash,
+                genome_hash=artifacts.genome_hash,
+                workload=w,
+                artifacts=artifacts,
+            )
+            supplement_runs.append(trial)
+    trials = trials + supplement_runs
+    expected_total = expected + len(supplement_runs)
 
     assert EvidenceLedger.verify(ledger_path), "Evidence chain broken"
 
@@ -464,7 +572,7 @@ def run_wave(
         compute_amplification, amplification_problems,
     )
     amp = compute_amplification(
-        trials, expected, wave.max_retry_rate,
+        trials, expected_total, wave.max_retry_rate,
     )
     amp_problems = amplification_problems(amp, wave.max_retry_rate)
     if amp_problems:
@@ -472,7 +580,7 @@ def run_wave(
 
     verdict, reason = compose_campaign_verdict(
         trials=trials,
-        expected_trials=expected,
+        expected_trials=expected_total,
         ledger_intact=ok,
         integrity_problems=problems,
         coverage_complete=True,
@@ -484,7 +592,10 @@ def run_wave(
         "wave": wave_id,
         "scale_factor": scale,
         "total_trials": len(trials),
-        "expected_trials": expected,
+        "expected_trials": expected_total,
+        "planned_trials": expected,
+        "resumed_from": len(seed_trials),
+        "supplement_trials": len(supplement_runs),
         "certified": sum(1 for t in trials if t.verdict == "CERTIFIED"),
         "corpus_hash": ch,
         "verdict": verdict.value,

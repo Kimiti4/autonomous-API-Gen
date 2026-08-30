@@ -47,13 +47,20 @@ class EvidenceLedger:
 
     @staticmethod
     def verify(path: str) -> bool:
-        """Verify the full hash chain from genesis."""
+        """Verify the full hash chain from genesis.
+
+        Returns False (never raises) on corrupt/malformed records — a broken
+        chain is a failed verification, not an exception the caller must catch.
+        """
         prev = GENESIS_HASH
         for line in open(path, encoding="utf-8"):
             line = line.strip()
             if not line:
                 continue
-            entry = json.loads(line)
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                return False
             if entry.get("prev_hash") != prev:
                 return False
             body = _canonical(entry.get("trial", {}))

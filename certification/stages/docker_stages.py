@@ -36,7 +36,7 @@ TRANSIENT_DEPLOY_MARKS = (
     "socket is already in use", "resource temporarily unavailable",
 )
 TRANSIENT_RUN_MARKS = (
-    "error waiting for container", "unexpected eof", "i/o timeout",
+    "error waiting for container", "unexpected eof", "eof", "i/o timeout",
     "cannot connect to the docker", "failed to fetch", "network",
     "no matching manifest", "compression",
 )

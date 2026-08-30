@@ -32,8 +32,19 @@ def main():
     )
     print(f"Verdict: {verdict}")
     print(f"Reason:  {summary.get('verdict_reason', '')}")
-    print(f"Trials:  {summary.get('total_trials', 0)}")
-    print(f"Certified: {summary.get('certified', 0)}/{summary.get('total_trials', 0)}")
+    print(f"Expected:  {summary.get('expected_trials', 0)}")
+    print(f"Planned:   {summary.get('planned_trials', 0)}   "
+          f"Resumed: {summary.get('resumed_trials', 0)}   "
+          f"Supplements: {summary.get('supplement_trials', 0)}")
+    print(f"Executed:  {summary.get('executed_trials', 0)}   "
+          f"Certified: {summary.get('certified_trials', 0)}   "
+          f"Failed: {summary.get('failed_trials', 0)}   "
+          f"Skipped: {summary.get('skipped_trials', 0)}")
+
+    if summary.get("port_preflight", {}).get("enabled"):
+        pf = summary["port_preflight"]
+        print(f"Port preflight: {'OK' if pf.get('ok') else 'FAILED'} "
+              f"window={pf.get('window')} evidence={pf.get('evidence_path')}")
 
     if summary.get("failure_taxonomy_independent"):
         print()

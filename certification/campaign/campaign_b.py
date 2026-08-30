@@ -154,7 +154,10 @@ class CampaignBRunner:
 
         # Behavioral stages: build → test → deploy → runtime → destroy → verify
         tag = f"cbc1-b-{trial_id[:8]}"
-        port = 8000 + hash(trial_id) % 1000
+        from certification.campaign.preflight import port_for_trial
+        base = getattr(self, "port_base", 8000)
+        span = getattr(self, "port_span", 1000)
+        port = port_for_trial(trial_id, base, span)
 
         # Materialize repo to disk for Docker build
         d = tempfile.mkdtemp(prefix="cbc1-b-")
@@ -423,6 +426,46 @@ def run_wave(
         required_mode=wave.required_mode,
     )
 
+    # Explicit execution-environment preparation: allocate a host TCP window
+    # free of OS-excluded ranges BEFORE running trials.  If the environment
+    # cannot provide capacity, the campaign stops honestly — it never silently
+    # reuses ports or retries into secrecy.  Evidence of the assessment is
+    # persisted as a first-class artifact (release/evidence/cbc1-<wave>-portpool.json).
+    port_pf: dict[str, Any] = {"enabled": False}
+    from certification.stages.docker_stages import RealDockerStages
+
+    if isinstance(runner.stages, RealDockerStages):
+        from certification.campaign.preflight import preflight_ports, DEFAULT_SPAN
+        alloc, pf_path = preflight_ports(wave_id, span=DEFAULT_SPAN)
+        port_pf = {
+            "enabled": True,
+            "evidence_path": pf_path,
+            "ok": alloc.ok,
+            "base": alloc.base,
+            "span": alloc.span,
+            "window": alloc.window,
+            "reason": alloc.reason,
+            "excluded_tcp_ranges": list(alloc.excluded_ranges),
+        }
+        if not alloc.ok:
+            agg = {
+                "wave": wave_id,
+                "verdict": "NOT_CERTIFIED",
+                "verdict_reason": f"port capacity insufficient: {alloc.reason}",
+                "port_preflight": port_pf,
+                "total_trials": 0,
+            }
+            with open(agg_path, "w", encoding="utf-8") as f:
+                json.dump(agg, f, indent=2)
+            print(f"Port preflight failed: {alloc.reason}")
+            return "NOT_CERTIFIED", agg
+        runner.port_base = alloc.base
+        runner.port_span = alloc.span
+        print(
+            f"Port preflight OK: host window {alloc.window[0]}..{alloc.window[1]} "
+            f"({alloc.window[1] - alloc.window[0] + 1} free ports) evidence={pf_path}"
+        )
+
     # B0: prove substrate first
     if wave_id == WaveId.B0.value or wave_id == "B0":
         rep = certify_docker_substrate(runner)
@@ -490,11 +533,19 @@ def run_wave(
                     "scale_factor": scale,
                     "total_trials": len(trials),
                     "expected_trials": expected,
+                    "planned_trials": expected,
+                    "resumed_trials": len(seed_trials),
+                    "supplement_trials": len(supplement_runs),
+                    "executed_trials": len(trials),
+                    "certified_trials": certified_count,
+                    "failed_trials": len(trials) - certified_count,
+                    "skipped_trials": max(0, expected - planned_run),
                     "certified": certified_count,
                     "corpus_hash": ch,
                     "verdict": "NOT_CERTIFIED",
                     "verdict_reason": reason,
                     "required_mode": wave.required_mode.value,
+                    "port_preflight": port_pf,
                     "budget_violation": violation,
                     "budget": {
                         "max_trials": budget.max_trials,
@@ -588,15 +639,30 @@ def run_wave(
 
     from certification.campaign.decision import b3_decision
 
+    certified_n = sum(1 for t in trials if t.verdict == "CERTIFIED")
+    # From the campaign's declared plan, not from a desired outcome:
+    #   planned_trials  = corpus x backends (the contract that must run)
+    #   resumed_trials  = records inherited from a verified prior ledger
+    #   supplement_trials = extra independent re-measurements beyond the plan
+    #   executed_trials = records actually in this window's ledger
+    executed_planned = len(trials) - len(seed_trials) - len(supplement_runs)
+    skipped_trials = max(0, expected - executed_planned)
+
     summary: dict[str, Any] = {
         "wave": wave_id,
         "scale_factor": scale,
-        "total_trials": len(trials),
+        "plan": "planned_trials = corpus x backends; expected = planned + supplements",
         "expected_trials": expected_total,
         "planned_trials": expected,
         "resumed_from": len(seed_trials),
+        "resumed_trials": len(seed_trials),
         "supplement_trials": len(supplement_runs),
-        "certified": sum(1 for t in trials if t.verdict == "CERTIFIED"),
+        "executed_trials": len(trials),
+        "certified_trials": certified_n,
+        "failed_trials": len(trials) - certified_n,
+        "skipped_trials": skipped_trials,
+        "total_trials": len(trials),
+        "certified": certified_n,
         "corpus_hash": ch,
         "verdict": verdict.value,
         "verdict_reason": reason,
@@ -605,6 +671,7 @@ def run_wave(
         "independent_verify_problems": problems,
         "failure_taxonomy_independent": taxonomy,
         "category_matrix": matrix,
+        "port_preflight": port_pf,
         "amplification": amp.model_dump(),
         "max_retry_rate": wave.max_retry_rate,
         "decision": b3_decision(verdict.value, amp, wave.max_retry_rate),

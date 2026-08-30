@@ -31,9 +31,16 @@ TRANSIENT_BUILD_MARKS = (
     "eof", "unknown blob", "no such host", "timeout", "temporary failure",
     "failed to solve",
 )
+# Deploy-stage transients.  These are SPECIFIC daemon/environment signatures:
+# bare "bind" is deliberately absent — a generic "bind: ..." string can be a
+# genuine application/runtime defect and must NOT be auto-labeled transient.
+# The Windows host-ported Docker signatures are matched verbatim.
 TRANSIENT_DEPLOY_MARKS = (
-    "ports are not available", "bind", "address already in use",
-    "socket is already in use", "resource temporarily unavailable",
+    "ports are not available",
+    "forbidden by its access permissions",
+    "address already in use",
+    "socket is already in use",
+    "resource temporarily unavailable",
 )
 TRANSIENT_RUN_MARKS = (
     "error waiting for container", "unexpected eof", "eof", "i/o timeout",
@@ -64,6 +71,18 @@ def _match(hay: str, marks: tuple[str, ...]) -> str:
     for m in marks:
         if m in h:
             return m
+    return ""
+
+
+def classify_deploy_failure(out: str) -> str:
+    """Deploy is a daemon/host operation: it reports the environment, not the
+    product.  Recognized transient signatures are infrastructure; anything else
+    stays honestly unclassified (""), never a product defect.
+
+    Pure function (no docker) so it is unit-testable.
+    """
+    if _transient(out, TRANSIENT_DEPLOY_MARKS):
+        return "infrastructure"
     return ""
 
 
@@ -165,12 +184,15 @@ class RealDockerStages:
         attempts = 0
         out = ""
         rc = -1
+        retry_signatures: list[str] = []
         for attempt in range(1, MAX_DEPLOY_ATTEMPTS + 1):
             attempts = attempt
             rc, out = _run(["docker", "run", "-d", "-p", f"{port}:8000", image])
             if rc == 0:
                 break
-            if attempt < MAX_DEPLOY_ATTEMPTS and _transient(out, TRANSIENT_DEPLOY_MARKS):
+            mark = _match(out, TRANSIENT_DEPLOY_MARKS)
+            if attempt < MAX_DEPLOY_ATTEMPTS and mark:
+                retry_signatures.append(mark)
                 time.sleep(TRANSIENT_BACKOFF_S)
                 continue
             break
@@ -179,6 +201,12 @@ class RealDockerStages:
         detail = out[:500]
         if retried:
             detail = f"[retried {attempts}/{MAX_DEPLOY_ATTEMPTS} on transient] {detail}"
+        # Deploy is a daemon/host operation: it reports the environment, not the
+        # product.  Recognized transient signatures are infrastructure; anything
+        # else stays honestly unclassified (""), never a product defect.
+        failure_class = ""
+        if rc != 0:
+            failure_class = classify_deploy_failure(out)
         return StageExecution(
             stage=TrialStage.DEPLOY,
             mode=ExecutionMode.REAL_DOCKER if rc == 0 else ExecutionMode.FAILED,
@@ -187,6 +215,9 @@ class RealDockerStages:
             logs_hash=_h(out),
             container_id=cid,
             detail=detail,
+            retries=attempts - 1,
+            retry_signatures=tuple(retry_signatures),
+            failure_class=failure_class,
         )
 
     def probe(self, port: int, cid: str) -> StageExecution:

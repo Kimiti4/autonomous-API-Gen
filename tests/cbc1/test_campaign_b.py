@@ -780,3 +780,178 @@ def test_probe_records_connect_retries(monkeypatch):
 
     # Dump used dict-traversal path via model_dump compatibility check
     assert attempts["n"] == 3
+
+
+def test_deploy_classifier_exact_windows_exclusion_is_infrastructure():
+    """The exact observed Windows exclude-port failure message MUST classify
+    as transient infrastructure (never product, never a compiler defect)."""
+    from certification.stages.docker_stages import (
+        classify_deploy_failure, MAX_DEPLOY_ATTEMPTS,
+    )
+    msg = ("docker: Error response from daemon: ports are not available: "
+           "exposing port TCP 0.0.0.0:8507 -> 127.0.0.1:0: listen tcp "
+           "0.0.0.0:8507: bind: An attempt was made to access a socket in a "
+           "way forbidden by its access permissions.\n")
+    assert classify_deploy_failure(msg) == "infrastructure"
+    assert MAX_DEPLOY_ATTEMPTS == 2  # bounded retry; no unbounded loop
+
+
+def test_deploy_classifier_does_not_blanket_bind():
+    """Specificity: a bare 'bind: ...' failure WITHOUT the daemon port-range
+    signatures must NOT be auto-labeled transient infrastructure."""
+    from certification.stages.docker_stages import classify_deploy_failure
+    # Generic "bind" (app/runtime defect style, no daemon signatures).
+    assert classify_deploy_failure("error: bind: Operation not permitted") == ""
+    assert classify_deploy_failure("docker: bind: Cannot assign requested address") == ""
+    # Generic port-in-use remains a recognized deploy transient.
+    assert classify_deploy_failure(
+        "docker: Error response from daemon: address already in use"
+    ) == "infrastructure"
+
+
+def test_transient_marks_specific_and_stable():
+    """Legacy signatures remain; the deploy marks stay specific (no bare
+    'bind'), with the Windows excluded-port phrases added verbatim."""
+    import certification.stages.docker_stages as ds
+    assert "unexpected eof" in ds.TRANSIENT_RUN_MARKS
+    assert "eof" in ds.TRANSIENT_RUN_MARKS
+    assert "i/o timeout" in ds.TRANSIENT_RUN_MARKS
+    assert "failed to fetch" in ds.TRANSIENT_BUILD_MARKS
+    assert "ports are not available" in ds.TRANSIENT_DEPLOY_MARKS
+    assert "forbidden by its access permissions" in ds.TRANSIENT_DEPLOY_MARKS
+    assert "address already in use" in ds.TRANSIENT_DEPLOY_MARKS
+    assert "bind" not in ds.TRANSIENT_DEPLOY_MARKS
+
+
+def test_deploy_records_retries_and_classifies(monkeypatch):
+    """A deploy stage that retries on a recognized signature records the
+    retries + signature and classifies the residual failure as infra."""
+    import certification.stages.docker_stages as ds
+    calls = {"n": 0}
+
+    def fake_run(cmd, timeout=900):
+        calls["n"] += 1
+        if calls["n"] < 2:
+            return 1, "ports are not available: exposing port TCP 0.0.0.0:8507"
+        return 1, "ports are not available: exposing port TCP 0.0.0.0:8507"
+
+    monkeypatch.setattr(ds, "_run", fake_run)
+    stages = ds.RealDockerStages()
+    se = stages.deploy("img", 8507)
+    assert se.passed is False
+    assert se.retries == 1
+    assert se.retry_signatures == ("ports are not available",)
+    assert se.failure_class == "infrastructure"
+    assert se.detail.startswith("[retried 2/2 on transient]")
+
+
+def test_amplification_recognized_signature_zero_unexplained():
+    from certification.campaign.amplification import compute_amplification
+    honest = [{
+        "verdict": "NOT_CERTIFIED", "backend_class": "behavioral",
+        "stages": [{
+            "stage": "deploy", "passed": False, "mode": "failed",
+            "retries": 1,
+            "retry_signatures": ["ports are not available"],
+            "failure_class": "infrastructure",
+        }],
+    }]
+    amp = compute_amplification(honest, 1)
+    assert amp.unexplained_retries == 0
+    assert amp.infrastructure_failures == 1
+    assert amp.product_failures == 0
+    assert amp.retry_executions == 1
+
+    dishonest = [{
+        "verdict": "NOT_CERTIFIED", "backend_class": "behavioral",
+        "stages": [{
+            "stage": "deploy", "passed": False, "mode": "failed",
+            "retries": 1, "retry_signatures": [],
+            "failure_class": "infrastructure",
+        }],
+    }]
+    amp2 = compute_amplification(dishonest, 1)
+    assert amp2.unexplained_retries == 1
+
+
+def test_taxonomy_records_deploy_infra_without_inflating_cascade(tmp_path):
+    """Failure taxonomy counts the failed deploy stage; cascade SKIPPED
+    destroy stages are not counted as independent failures."""
+    from certification.campaign.campaign_b import verify_campaign_b_mode
+    from certification.campaign.amplification import amplification_problems
+    from certification.stages.execution_mode import ExecutionMode
+    from certification.evidence.ledger import EvidenceLedger
+    path = str(tmp_path / "l.jsonl")
+    lg = EvidenceLedger(path)
+    lg.append({
+        "trial_id": "t1", "intent": "i", "backend": "python-fastapi",
+        "verdict": "NOT_CERTIFIED", "backend_class": "behavioral",
+        "stages": [
+            {"stage": "deploy", "passed": False, "mode": "failed",
+             "failure_class": "infrastructure",
+             "detail": "ports are not available ... forbidden"},
+            {"stage": "destroy", "passed": False, "mode": "skipped",
+             "failure_class": "", "detail": "cascade: deploy did not produce a container"},
+        ],
+    })
+    ok, matrix, taxonomy, problems = verify_campaign_b_mode(path, ExecutionMode.REAL_DOCKER)
+    assert taxonomy.get("deploy") == 1
+    assert taxonomy.get("destroy", 0) == 0  # cascade SKIPPED excluded
+    assert ok is True
+    assert problems == []
+
+
+def test_allocate_port_window_avoids_excluded():
+    from certification.campaign.preflight import allocate_port_window
+    a = allocate_port_window(
+        preferred=(8000, 8999), span=700, min_free=700,
+        excluded=[(8700, 8799)],
+    )
+    assert a.ok is True
+    assert a.base == 8000
+    assert a.window == (8000, 8699)
+
+
+def test_allocate_port_window_fails_cleanly_when_full():
+    from certification.campaign.preflight import allocate_port_window
+    a = allocate_port_window(
+        preferred=(8000, 8999), span=700, min_free=700,
+        excluded=[(8100, 8799)],
+    )
+    assert a.ok is False
+    assert "contiguous" in a.reason
+
+
+def test_preflight_persists_evidence(tmp_path, monkeypatch):
+    """The port preflight is an explicit, evidenced preparation step."""
+    import certification.campaign.preflight as pf
+    monkeypatch.setattr(pf, "query_excluded_tcp_ranges", lambda: [(8200, 8999)])
+    monkeypatch.setattr(
+        pf, "portpool_path_for",
+        lambda wave_id: str(tmp_path / f"cbc1-{wave_id}-portpool.json"),
+    )
+    alloc, path = pf.preflight_ports("B3", preferred=(8000, 8999), span=100, min_free=100)
+    import json
+    record = json.load(open(path, encoding="utf-8"))
+    assert record["wave"] == "B3"
+    assert record["excluded_tcp_ranges"] == [[8200, 8999]]
+    assert record["allocation"]["ok"] is True
+    assert record["allocation"]["base"] == 8000
+
+
+def test_run_wave_stops_honestly_when_port_capacity_insufficient(tmp_path, monkeypatch):
+    """If the environment cannot provide the required port capacity, the
+    campaign must fail/stop — NOT silently reuse ports or skip trials."""
+    import certification.campaign.campaign_b as cb
+    import certification.campaign.preflight as pf
+    from certification.evidence.ledger import EvidenceLedger
+    monkeypatch.setattr(pf, "query_excluded_tcp_ranges", lambda: [(0, 65535)])
+    ledger_path = str(tmp_path / "w-ledger.jsonl")
+    agg_path = str(tmp_path / "w-aggregate.json")
+    verdict, summary = cb.run_wave(
+        "B3", scale_override=1, ledger_path=ledger_path, agg_path=agg_path,
+    )
+    assert verdict == "NOT_CERTIFIED"
+    assert "port capacity insufficient" in summary["verdict_reason"]
+    assert summary["port_preflight"]["ok"] is False
+    assert EvidenceLedger.count(ledger_path) == 0

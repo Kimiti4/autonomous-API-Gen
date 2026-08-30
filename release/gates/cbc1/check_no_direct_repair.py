@@ -19,7 +19,7 @@ SCAN_DIRS = ["certification", "evolution", "compiler"]
 
 WRITE_MODES = {"w", "wb", "w+", "wt", "a", "ab", "a+", "at"}
 
-ALLOWED_PATH_CALLS = ("ledger_path_for", "aggregate_path_for", "bundle_path_for")
+ALLOWED_PATH_CALLS = ("ledger_path_for", "aggregate_path_for", "bundle_path_for", "portpool_path_for")
 EVIDENCE_LITERAL_PREFIXES = ("release/evidence", "evidence/", ".tiannara/")
 TEMP_FACTORY_CALLS = ("mkdtemp", "mkstemp", "TemporaryDirectory")
 

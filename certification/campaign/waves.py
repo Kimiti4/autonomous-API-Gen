@@ -124,3 +124,7 @@ def ledger_path_for(wave_id: str) -> str:
 
 def aggregate_path_for(wave_id: str) -> str:
     return f"release/evidence/cbc1-b-{wave_id}-aggregate.json"
+
+
+def portpool_path_for(wave_id: str) -> str:
+    return f"release/evidence/cbc1-{wave_id}-portpool.json"

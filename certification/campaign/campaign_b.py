@@ -535,7 +535,7 @@ def run_wave(
                     "expected_trials": expected,
                     "planned_trials": expected,
                     "resumed_trials": len(seed_trials),
-                    "supplement_trials": len(supplement_runs),
+                    "supplement_trials": 0,
                     "executed_trials": len(trials),
                     "certified_trials": certified_count,
                     "failed_trials": len(trials) - certified_count,

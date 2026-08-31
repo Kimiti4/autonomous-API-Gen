@@ -29,7 +29,7 @@ def _run(cmd: list[str], timeout: int = 900) -> tuple[int, str]:
 TRANSIENT_BUILD_MARKS = (
     "failed to fetch", "i/o timeout", "network", "connection",
     "eof", "unknown blob", "no such host", "timeout", "temporary failure",
-    "failed to solve",
+    "failed to solve", "timed out", "no such job", "deadline",
 )
 # Deploy-stage transients.  These are SPECIFIC daemon/environment signatures:
 # bare "bind" is deliberately absent — a generic "bind: ..." string can be a
@@ -86,6 +86,21 @@ def classify_deploy_failure(out: str) -> str:
     return ""
 
 
+def classify_build_failure(out: str) -> str:
+    """Build-stage classification.  Recognized daemon/BuildKit/environment
+    signals (registry fetch failure, BuildKit job loss, deadline/timeout) are
+    infrastructure; anything else that failed to build is honestly attributed
+    to the toolchain/Dockerfile (compiler) — never silently passed.
+
+    Pure function (no docker) so it is unit-testable.
+    """
+    if out == "command timed out":
+        return "infrastructure"
+    if _transient(out, TRANSIENT_BUILD_MARKS):
+        return "infrastructure"
+    return "compiler"
+
+
 class RealDockerStages:
     """Docker-backed stages that report REAL_DOCKER only when Docker
     actually produced the artifact; any failure → FAILED (never STUB).
@@ -118,7 +133,7 @@ class RealDockerStages:
             detail = f"[retried {attempts}/{MAX_BUILD_ATTEMPTS} on transient] {detail}"
         failure_class = ""
         if rc != 0:
-            failure_class = "infrastructure" if _transient(out, TRANSIENT_BUILD_MARKS) else "compiler"
+            failure_class = classify_build_failure(out)
         return StageExecution(
             stage=TrialStage.BUILD,
             mode=ExecutionMode.REAL_DOCKER if rc == 0 else ExecutionMode.FAILED,

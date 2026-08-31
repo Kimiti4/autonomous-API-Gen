@@ -823,6 +823,34 @@ def test_transient_marks_specific_and_stable():
     assert "bind" not in ds.TRANSIENT_DEPLOY_MARKS
 
 
+def test_build_classifier_field_signals_are_infrastructure():
+    """Exact BuildKit/daemon signals observed in the fresh B3 window MUST be
+    infrastructure, never 'compiler' (registry EOF, job loss, deadline, host
+    timeout) — and a genuine toolchain/Dockerfile error stays 'compiler'."""
+    from certification.stages.docker_stages import classify_build_failure
+    # docker _run subprocess timeout.
+    assert classify_build_failure("command timed out") == "infrastructure"
+    # BuildKit lost the build job (daemon restart/failure).
+    assert classify_build_failure(
+        "ERROR: failed to build: NotFound: forwarding Ping: no such job "
+        "mmxe393psyhwjel4xs1k3alhf"
+    ) == "infrastructure"
+    # BuildKit execution deadline exceeded.
+    assert classify_build_failure(
+        "ERROR: failed to build: failed to run Build function: "
+        "DeadlineExceeded: context deadline exceeded"
+    ) == "infrastructure"
+    # Registry fetch EOF (the historical mislabel class).
+    assert classify_build_failure(
+        "failed to solve: rust:1.78-slim: failed to resolve source metadata: "
+        "failed to do request: Head ... EOF"
+    ) == "infrastructure"
+    # A genuine toolchain compile error is a compiler-domain defect.
+    assert classify_build_failure(
+        "error[E0308]: mismatched types ... cargo build failed"
+    ) == "compiler"
+
+
 def test_deploy_records_retries_and_classifies(monkeypatch):
     """A deploy stage that retries on a recognized signature records the
     retries + signature and classifies the residual failure as infra."""

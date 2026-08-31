@@ -45,7 +45,7 @@ TRANSIENT_DEPLOY_MARKS = (
 TRANSIENT_RUN_MARKS = (
     "error waiting for container", "unexpected eof", "eof", "i/o timeout",
     "cannot connect to the docker", "failed to fetch", "network",
-    "no matching manifest", "compression",
+    "no matching manifest", "compression", "command timed out", "timed out",
 )
 TRANSIENT_PROBE_MARKS = (
     "remote end closed", "connection reset", "timed out", "timeout",
@@ -58,6 +58,10 @@ PRODUCT_PROBE_MARKS = (
 MAX_BUILD_ATTEMPTS = 2
 MAX_DEPLOY_ATTEMPTS = 2
 TRANSIENT_BACKOFF_S = 2.0
+# Startup readiness poll bound — independent of retry amplification.  A probe
+# may poll at most this many times (1s apart) waiting for a slow-starting
+# container; exceeding it is a startup/availability bound, not a retry model.
+MAX_STARTUP_POLLS = 10
 
 
 def _transient(hay: str, marks: tuple[str, ...]) -> bool:
@@ -251,7 +255,8 @@ class RealDockerStages:
         ok = False
         last_err = ""
         attempts = 0
-        for _ in range(10):
+        wait_start = time.time()
+        for _ in range(MAX_STARTUP_POLLS):
             attempts += 1
             try:
                 import urllib.request
@@ -261,6 +266,7 @@ class RealDockerStages:
             except Exception as e:
                 last_err = str(e)
                 time.sleep(1)
+        wait_s = time.time() - wait_start
         _, stats = _run(["docker", "stats", "--no-stream", "--format",
                          "{{.CPUPerc}}/{{.MemUsage}}", cid])
         failure_class = ""
@@ -277,8 +283,12 @@ class RealDockerStages:
             logs_hash=_h(stats),
             peak_resource=stats.strip() if ok else "",
             detail="probe OK" if ok else f"probe FAILED: {last_err}",
-            retries=attempts - 1,
-            retry_signatures=tuple(["probe_connect"] * (attempts - 1)),
+            # Readiness polls are WAITS, not retries: bounded independently via
+            # startup_polls/startup_wait_s, and excluded from retry_rate.
+            retries=0,
+            retry_signatures=(),
+            startup_polls=attempts - 1,
+            startup_wait_s=round(wait_s, 3),
             failure_class=failure_class,
         )
 

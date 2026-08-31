@@ -624,6 +624,8 @@ def run_wave(
     )
     amp = compute_amplification(
         trials, expected_total, wave.max_retry_rate,
+        max_startup_polls=wave.max_startup_polls,
+        max_startup_wait_s=wave.max_startup_wait_s,
     )
     amp_problems = amplification_problems(amp, wave.max_retry_rate)
     if amp_problems:

@@ -32,6 +32,12 @@ class StageExecution:
     retries: int = 0
     retry_signatures: tuple[str, ...] = ()
     failure_class: str = ""
+    # Startup readiness WAITS are distinct from retry amplification: they are
+    # the bounded number of health polls a slow-starting container consumed.
+    # They are recorded here (independently observable/bounded) and are NOT
+    # counted as retry_executions/retry_rate.
+    startup_polls: int = 0
+    startup_wait_s: float = 0.0
 
 
 BEHAVIORAL_STAGES: frozenset[TrialStage] = frozenset({

@@ -554,11 +554,13 @@ def test_amplification_counts_product_failures():
 def test_b3_decision_boundary():
     from certification.campaign.decision import b3_decision
     from certification.campaign.amplification import RetryAmplification
-    clean = RetryAmplification(planned_trials=936, actual_trials=936,
-                               stage_executions=5616,
-                               retry_executions=0, retry_rate=0.0,
-                               cascade_skipped=0, infrastructure_failures=0,
-                               product_failures=0, unexplained_retries=0)
+    clean = RetryAmplification(
+        planned_trials=936, actual_trials=936,
+        stage_executions=5616, retry_executions=0, retry_rate=0.0,
+        startup_polls=0, max_startup_polls=15, max_startup_wait_s=60.0,
+        startup_wait_s=0.0,
+        cascade_skipped=0, infrastructure_failures=0,
+        product_failures=0, unexplained_retries=0)
     assert b3_decision("CERTIFIED", clean) == "PROCEED to larger-scale campaign"
     partial = clean.model_copy(update={"actual_trials": 935})
     assert b3_decision("QUALIFIED_PARTIAL", partial) == (
@@ -569,12 +571,18 @@ def test_b3_decision_boundary():
     assert b3_decision("CERTIFIED", dishonest) == "NOT_CERTIFIED (retry dishonesty)"
     hot = clean.model_copy(update={"retry_rate": 0.5})
     assert b3_decision("CERTIFIED", hot) == "NOT_CERTIFIED (retry dishonesty)"
+    # Startup waiting is independently bounded; a healthy probe poll count
+    # must NOT trip the retry-dishonesty gate.
+    startup = clean.model_copy(update={"startup_polls": 700, "startup_wait_s": 700.0})
+    assert b3_decision("CERTIFIED", startup) == "PROCEED to larger-scale campaign"
 
 
 def test_wave_carries_max_retry_rate():
     assert WAVES["B3"].scale_factor == 12
     assert WAVES["B3"].required_mode == ExecutionMode.REAL_DOCKER
     assert WAVES["B3"].max_retry_rate == 0.2
+    assert WAVES["B3"].max_startup_polls == 15
+    assert WAVES["B3"].max_startup_wait_s == 60.0
     assert BUDGETS["B3"].max_trials == 936
     assert BUDGETS["B3"].max_total_runtime_s == 43200
 
@@ -600,11 +608,36 @@ def test_amplification_problems_enforced():
     dirty = RetryAmplification(planned_trials=1, actual_trials=1,
                                stage_executions=2,
                                retry_executions=1, retry_rate=0.5,
+                               startup_polls=0, max_startup_polls=15,
+                               max_startup_wait_s=60.0, startup_wait_s=0.0,
                                cascade_skipped=0, infrastructure_failures=0,
                                product_failures=1, unexplained_retries=0)
     ps = amplification_problems(dirty, 0.2)
     assert any("retry_rate" in p for p in ps)
     assert any("product failures" in p for p in ps)
+
+
+def test_startup_wait_bounded_independently():
+    """Startup polls excluded from retry_rate, but bounded by their own budget."""
+    from certification.campaign.amplification import (
+        RetryAmplification, amplification_problems,
+    )
+    # Healthy substrate: many startup polls, zero retry amplification.
+    healthy = RetryAmplification(
+        planned_trials=936, actual_trials=936,
+        stage_executions=5616, retry_executions=0, retry_rate=0.0,
+        startup_polls=700, max_startup_polls=750, max_startup_wait_s=900.0,
+        startup_wait_s=812.0,
+        cascade_skipped=0, infrastructure_failures=0,
+        product_failures=0, unexplained_retries=0)
+    ps = amplification_problems(healthy, 0.2)
+    assert ps == []  # waits within budget do not trip honesty
+
+    # Startup budget exceeded -> its own independent problem, not retry_rate.
+    overflow = healthy.model_copy(update={"startup_polls": 800})
+    ps2 = amplification_problems(overflow, 0.2)
+    assert any("startup_polls" in p for p in ps2)
+    assert not any("retry_rate" in p for p in ps2)
 
 
 def test_ledger_resume_continues_same_chain(tmp_path):
@@ -775,9 +808,11 @@ def test_probe_records_connect_retries(monkeypatch):
     stages = ds.RealDockerStages()
     se = stages.probe(9999, "cid123")
     assert se.passed is True
-    assert se.retries == 2
-    assert se.retry_signatures == ("probe_connect", "probe_connect")
-
+    # Readiness polls are WAITS, not retry amplification: they are recorded on
+    # startup_polls/startup_wait_s and excluded from retry_rate.
+    assert se.retries == 0
+    assert se.startup_polls == 2
+    assert se.startup_wait_s > 0
     # Dump used dict-traversal path via model_dump compatibility check
     assert attempts["n"] == 3
 

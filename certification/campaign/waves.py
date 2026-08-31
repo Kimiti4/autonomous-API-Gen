@@ -33,6 +33,8 @@ class Wave:
     scale_factor: int
     required_mode: ExecutionMode
     max_retry_rate: float = 0.2
+    max_startup_polls: int = 15
+    max_startup_wait_s: float = 60.0
 
 
 @dataclass(frozen=True)

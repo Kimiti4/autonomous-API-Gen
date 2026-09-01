@@ -183,9 +183,14 @@ class RealDockerStages:
         failure_class = ""
         if rc == 1 and not build_failed:
             failure_class = "product"
+        elif build_failed:
+            # The toolchain DOCKER BUILD (--target) itself failed before tests
+            # could run — classify with the BUILD classifier (daemon/registry/
+            # BuildKit signals), never a product defect.
+            failure_class = classify_build_failure(out)
         elif rc != 0:
-            # docker-level error (toolchain build / create / run) — infra
-            # transient vs toolchain defect, from the actual tail text.
+            # docker-level run error — infra transient vs toolchain defect,
+            # from the actual tail text.
             failure_class = "infrastructure" if _transient(out, TRANSIENT_RUN_MARKS) else "compiler"
         tail = out[-600:] if rc != 0 else out[:300]
         return StageExecution(

@@ -65,6 +65,12 @@ class Trial(BaseModel):
     stages: List[StageEvidence] = Field(default_factory=list)
     metrics: TrialMetrics = Field(default_factory=TrialMetrics)
     verdict: str = "NOT_CERTIFIED"
+    # Governed evolution lineage (backend-variant self-repair).  `origin` is
+    # "reference" for the congenital trials and "evolved" for candidates;
+    # `parent_trial_id` links an evolved trial to the immutable parent it
+    # derived from.  Defaults keep historical/reference records compatible.
+    origin: str = "reference"
+    parent_trial_id: str = ""
 
 
 REQUIRED_STAGES = [

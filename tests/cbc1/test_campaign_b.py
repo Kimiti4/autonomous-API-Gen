@@ -728,6 +728,31 @@ def test_resume_refuses_rewriting_broken_chain(tmp_path, monkeypatch):
     assert "hash chain broken" in summary["verdict_reason"]
 
 
+def test_runs_in_build_toolchain_build_failure_is_infrastructure(monkeypatch):
+    """When the runs_in=build toolchain docker build (--target) fails on a
+    registry/network signal, the TEST stage must be infrastructure, never
+    'compiler' (a failed source fetch is not a code defect)."""
+    import certification.stages.docker_stages as ds
+    from compiler.core.protocol import TestSpec
+
+    def fake_run(cmd, timeout=900):
+        if cmd[0:2] == ["docker", "build"] and "--target" in cmd:
+            return 1, (
+                "ERROR: failed to build: failed to solve: rust:1.78-slim: "
+                "failed to resolve source metadata: Head 'https://registry-1/"
+                "library/rust/manifests/1.78-slim': EOF"
+            )
+        return 0, ""
+
+    monkeypatch.setattr(ds, "_run", fake_run)
+    stages = ds.RealDockerStages()
+    spec = TestSpec(command=["cargo", "test"], runs_in="build", build_target="tst")
+    se = stages.run_tests("img", spec, repo_dir="/tmp", tag="t")
+    assert se.passed is False
+    assert se.failure_class == "infrastructure"
+    assert "failed to solve" in se.detail
+
+
 def test_probe_without_container_is_skipped_cascade():
     import certification.stages.docker_stages as ds
     stages = ds.RealDockerStages()

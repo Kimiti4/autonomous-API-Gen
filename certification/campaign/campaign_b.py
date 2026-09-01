@@ -97,6 +97,8 @@ class CampaignBRunner:
         genome_hash: str = "",
         workload: Any = None,
         artifacts: Any = None,
+        origin: str = "reference",
+        parent_trial_id: str = "",
     ) -> Trial:
         trial_id = str(uuid.uuid4())
         ident: BackendIdentity = backend.identity()
@@ -251,6 +253,8 @@ class CampaignBRunner:
             stages=evidence,
             metrics=metrics,
             verdict=verdict,
+            origin=origin,
+            parent_trial_id=parent_trial_id,
         )
 
         # Provenance bundle

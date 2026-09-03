@@ -130,4 +130,12 @@ infrastructure — do not treat their absence as a unit-suite regression:
   (per master prompt §13). Opt-out via `CBC1_INFRA_STORM=0`. See
   `certification/contracts/PHASE31_EXECUTION_CONTRACT.md` §1.5 and
   `tests/cbc1/test_infra_storm_ledger.py` for the contract and tests.
+- **100-project stratified corpus (`certification/corpus/stratified_corpus.py`).**
+  Phase 31's scale-up milestone (the spec's "Immediate Next Step"): 100
+  technology-free `CorpusIntent` entries stratified across the 13
+  `ProjectCategory` × 3 complexity tiers (4 simple + 2 moderate + 2 complex
+  per category = 8; 4 simple entries dropped to land at exactly 100,
+  documented). Reproducible (SHA-256 hash) and technology-leakage-free
+  (no postgres, fastapi, rust, etc.). See `tests/cbc1/test_stratified_corpus.py`
+  for the 17 contract tests.
 - Python: 3.14.0 is the interpreter on PATH for `python -m pytest`.

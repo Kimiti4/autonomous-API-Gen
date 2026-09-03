@@ -165,6 +165,7 @@ class GovernedRepair:
             intent_id=intent,
             isr_hash=isr_hash,
             genome_hash=genome_hash,
+            parent_backend_id=backend,
         )
 
         return RepairFeedback(

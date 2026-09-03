@@ -230,3 +230,75 @@ kinds arrive.
 > autonomously construct and evaluate a distinct implementation variant
 > **without modifying the constitutional ISR** and **without falsifying the
 > original evidence**.
+
+---
+
+## 12. Fullstack capability boundary (D10)
+
+Backend-variant evolution operates exclusively on **backend runtimes**.  The
+current Crown Bakery Corpus is entirely backend workloads: 13 categories, 39
+intents, two eligible behavioral backends (`python-fastapi`, `rust-axum`).  A
+canonical corpus scan shows **zero** frontend/fullstack marker signals, and the
+registered backend registry has no frontend implementation.
+
+The governed self-repair loop therefore spans only:
+
+- ISR → backend artifact → container runtime → HTTP behavioral probe
+- compile novelty (artifact) · container-image novelty · backend eligibility
+
+It explicitly does **NOT** cover:
+
+- web/SPA/mobile clients
+- integration with external UI frameworks
+- fullstack deployment topologies (frontend + backend in one bundle)
+- frontend behavioral probes (there are none to probe)
+
+This is a **documented capability boundary, not a failure**: the ISR -
+requirements graph contains no UI primitives, so the lowering pipeline cannot
+manufacture a frontend any more than it can manufacture a mobile app.  When the
+corpus later gains fullstack workloads, the same
+`FailureClassification → LearningSignal → EvolutionCandidate` mechanism
+extends to a `frontend_swap` / `fullstack_topology` variant kind without
+redesigning the evolution engine.  Fullstack availability is gated on the
+corpus/registry providing real frontend behavior to certify, never on the
+evolution loop itself.
+
+See also `docs/capability_boundaries/fullstack.md` for the boundary statement.
+
+---
+
+## 13. Observability
+
+The campaign evolution phase emits a structured, in-process event stream under
+`summary.evolution.events` (and the gate emits the same events via
+`RepairFeedback.as_record()`):
+
+| Event | Meaning |
+| ----- | ------- |
+| `feedback.classified`       | a failed trial was classified causally |
+| `learning.signal_emitted`   | a LearningSignal entered the ContinuousLearningEngine |
+| `evolution.decided`         | the policy accepted/rejected evolution |
+| `evolution.candidate_created` | a candidate object was materialized |
+| `evolution.novelty_check`   | artifact distinctness was measured |
+| `evolution.rejected_noop`   | candidate rejected for identical artifact |
+| `evolution.executed`        | candidate submitted as a NEW trial |
+| `evolution.parent_immutable`| parent record confirmed unchanged |
+| `evolution.certified`       | evolved trial independently certified |
+
+`summary.evolution.signal_count` / `insight_count` expose learning consumption.
+
+---
+
+## 14. Release gates (D9)
+
+The canonical gate set is `release/gates/cbc1/check_self_repair_gates.py`
+(`python release/gates/cbc1/check_self_repair_gates.py`).  It runs the ten
+named release gates in-process:
+
+CAUSAL_FAILURE_CLASSIFICATION · LEARNING_CONSUMPTION ·
+INFRASTRUCTURE_NO_EVOLUTION · BACKEND_ELIGIBILITY · EVOLUTION_LINEAGE ·
+ISR_PRESERVATION · ARTIFACT_NOVELTY · INDEPENDENT_TRIAL ·
+PARENT_IMMUTABILITY · NO_DIRECT_REPAIR
+
+These complement the existing static gates
+(`check_no_direct_repair.py`, `check_certification_independence.py`).

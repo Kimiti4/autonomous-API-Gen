@@ -30,6 +30,11 @@ TRANSIENT_BUILD_MARKS = (
     "failed to fetch", "i/o timeout", "network", "connection",
     "eof", "unknown blob", "no such host", "timeout", "temporary failure",
     "failed to solve", "timed out", "no such job", "deadline",
+    # Docker daemon unreachable (client cannot reach the engine pipe/socket) —
+    # e.g. "ERROR: failed to connect to the docker API at npipe:////./pipe/..." 
+    # and "cannot connect to the Docker daemon at unix:///var/run/docker.sock".
+    # This is a substrate/environment failure, NEVER a compiler defect.
+    "connect to the docker",
 )
 # Deploy-stage transients.  These are SPECIFIC daemon/environment signatures:
 # bare "bind" is deliberately absent — a generic "bind: ..." string can be a

@@ -113,6 +113,7 @@ def make_candidate(
     genome_hash: str,
     reason: str = "",
     parent_candidate_id: str | None = None,
+    parent_backend_id: str = "",
 ) -> EvolutionCandidate | None:
     """Materialize a candidate only when the policy accepted the evolution."""
     if not decision.accepted or not decision.alternate_backend_id:
@@ -125,4 +126,53 @@ def make_candidate(
         backend_id=decision.alternate_backend_id,
         reason=reason or decision.reason,
         parent_candidate_id=parent_candidate_id,
+        parent_backend_id=parent_backend_id,
     )
+
+
+class BackendSwapStrategy:
+    """The D5 operator: policy → candidate for backend-variant self-repair.
+
+    Decouples "should we and which backend?" (BackendSwapPolicy) from the
+    submission/execution concern.  Kept pure (no I/O, no ledger writes) so
+    it stays auditable and testable; the caller drives novelty/materialization
+    via `certification.feedback.execution`.
+    """
+
+    def __init__(self, policy: BackendSwapPolicy | None = None) -> None:
+        self.policy = policy or BackendSwapPolicy()
+
+    def propose(
+        self,
+        *,
+        classification: FailureClassification,
+        parent_trial_id: str,
+        intent_id: str,
+        isr_hash: str,
+        genome_hash: str,
+        failed_backend_id: str,
+        eligible_backend_ids: list[str],
+        attempted_backend_ids: frozenset[str] | set[str] = frozenset(),
+        supports_workload: set[str] | frozenset[str] | None = None,
+        reason: str = "",
+        parent_candidate_id: str | None = None,
+    ) -> tuple[EvolutionDecision, EvolutionCandidate | None]:
+        """Return (decision, candidate) — candidate only when accepted."""
+        decision = self.policy.should_evolve(
+            classification=classification,
+            failed_backend_id=failed_backend_id,
+            eligible_backend_ids=eligible_backend_ids,
+            attempted_backend_ids=attempted_backend_ids,
+            supports_workload=supports_workload,
+        )
+        candidate = make_candidate(
+            decision=decision,
+            parent_trial_id=parent_trial_id,
+            intent_id=intent_id,
+            isr_hash=isr_hash,
+            genome_hash=genome_hash,
+            reason=reason,
+            parent_candidate_id=parent_candidate_id,
+            parent_backend_id=failed_backend_id,
+        )
+        return decision, candidate

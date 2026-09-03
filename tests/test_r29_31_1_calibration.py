@@ -27,13 +27,13 @@ class CalibrationReadinessHarness:
     """31.1 calibration over the frozen R2.10.9 campaign wiring (same
     corpus, same seed derivation, same declared stub)."""
 
-    def __init__(self) -> None:
-        self._base = CampaignReadinessHarness()
+    def __init__(self, base: CampaignReadinessHarness, calibration_report) -> None:
+        self._base = base
         self.calibration = CalibrationHarness(
             self._base.harness, self._base.corpus, self._base.ledger
         )
         self.config = self._base.config
-        self._report: CalibrationReport | None = None
+        self._report: CalibrationReport | None = calibration_report
 
     def run(self) -> CalibrationReport:
         if self._report is None:
@@ -51,8 +51,9 @@ class CalibrationReadinessHarness:
 
 
 @pytest.fixture(scope="module")
-def calibration_harness() -> CalibrationReadinessHarness:
-    return CalibrationReadinessHarness()
+def calibration_harness(calibrated_wiring) -> CalibrationReadinessHarness:
+    base, calibration_report = calibrated_wiring
+    return CalibrationReadinessHarness(base, calibration_report)
 
 
 def test_baseline_established_across_all_categories(calibration_harness):

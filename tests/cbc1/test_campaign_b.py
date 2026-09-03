@@ -905,6 +905,23 @@ def test_build_classifier_field_signals_are_infrastructure():
         "failed to solve: rust:1.78-slim: failed to resolve source metadata: "
         "failed to do request: Head ... EOF"
     ) == "infrastructure"
+    # Docker daemon UNREACHABLE (client cannot reach the engine).  Observed
+    # verbatim across the fresh B3 window as 869 build failures that were
+    # FALSELY classified 'compiler' and drove futile backend evolution: the
+    # daemon was down, not the compiler.  Must be infrastructure, never
+    # actionably 'compiler'.  Both the Windows named-pipe and the Unix socket
+    # forms must match.
+    assert classify_build_failure(
+        "ERROR: failed to connect to the docker API at "
+        "npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is "
+        "correct and if the daemon is running: open "
+        "//./pipe/dockerDesktopLinuxEngine: The system cannot find the file "
+        "specified."
+    ) == "infrastructure"
+    assert classify_build_failure(
+        "Cannot connect to the Docker daemon at "
+        "unix:///var/run/docker.sock. Is the docker daemon running?"
+    ) == "infrastructure"
     # A genuine toolchain compile error is a compiler-domain defect.
     assert classify_build_failure(
         "error[E0308]: mismatched types ... cargo build failed"

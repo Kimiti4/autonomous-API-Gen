@@ -36,12 +36,9 @@ class TaxonomyReadinessHarness:
     """31.3 over the frozen R2.10.9 wiring, with the 31.1 declared-stub
     assumption carried from the recorded calibration report."""
 
-    def __init__(self) -> None:
-        self._base = CampaignReadinessHarness()
-        calibration = CalibrationHarness(
-            self._base.harness, self._base.corpus, self._base.ledger
-        )
-        self.calibration_report = calibration.run(self._base.config)
+    def __init__(self, base: CampaignReadinessHarness, calibration_report) -> None:
+        self._base = base
+        self.calibration_report = calibration_report
         self.classifier = TaxonomyClassifier()
         self.injector = FailureInjector(
             intent_pipeline=self._base.intent_pipeline,
@@ -100,8 +97,9 @@ class TaxonomyReadinessHarness:
 
 
 @pytest.fixture(scope="module")
-def validation_harness() -> TaxonomyReadinessHarness:
-    return TaxonomyReadinessHarness()
+def validation_harness(calibrated_wiring) -> TaxonomyReadinessHarness:
+    base, calibration_report = calibrated_wiring
+    return TaxonomyReadinessHarness(base, calibration_report)
 
 
 def test_each_class_exercised_with_real_evidence(validation_harness):

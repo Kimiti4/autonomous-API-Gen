@@ -34,6 +34,28 @@ DEFAULT_PREFERRED = (8000, 9999)
 DEFAULT_SPAN = 1000
 DEFAULT_MIN_FREE = 936  # B3 scale 12: 468 intents x 2 backends
 
+# Operator override for the host port window.  Windows Hyper-V/WSL sometimes
+# reserves large blocks inside the preferred 8000..9999 (ports the daemon will
+# refuse to bind).  When this happens the campaign can be run with an explicit
+# override (CBC1_PORT_LO / CBC1_PORT_HI) — a documented exception, recorded in
+# the portpool evidence as `preferred`.  Unset = the B3 default 8000..9999.
+def resolve_preferred_range() -> Range:
+    lo = os.environ.get("CBC1_PORT_LO", "")
+    hi = os.environ.get("CBC1_PORT_HI", "")
+    if lo and hi:
+        try:
+            lo_i, hi_i = int(lo), int(hi)
+        except ValueError:
+            raise SystemExit(
+                "invalid CBC1_PORT_LO/CBC1_PORT_HI (expected integers)"
+            )
+        if lo_i < 1024 or hi_i - lo_i + 1 < DEFAULT_SPAN:
+            raise SystemExit(
+                "CBC1_PORT_LO/CBC1_PORT_HI must span >= 1000 ports above 1024"
+            )
+        return (lo_i, hi_i)
+    return DEFAULT_PREFERRED
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -156,7 +178,7 @@ def allocate_port_window(
 
 def preflight_ports(
     wave_id: str,
-    preferred: Range = DEFAULT_PREFERRED,
+    preferred: Range | None = None,
     span: int = DEFAULT_SPAN,
     min_free: int = DEFAULT_MIN_FREE,
 ) -> tuple[PortAllocation, str]:
@@ -166,6 +188,8 @@ def preflight_ports(
     assessment and the chosen window so the campaign's port strategy is
     auditable — preparation is a first-class artifact, not a hidden retry.
     """
+    if preferred is None:
+        preferred = resolve_preferred_range()
     excluded = query_excluded_tcp_ranges()
     alloc = allocate_port_window(
         preferred=preferred, span=span, min_free=min_free, excluded=excluded,

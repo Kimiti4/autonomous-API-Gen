@@ -277,7 +277,7 @@ class CampaignReadinessHarness:
         return RECIPE.content_hash
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def campaign_harness() -> CampaignReadinessHarness:
     return CampaignReadinessHarness()
 

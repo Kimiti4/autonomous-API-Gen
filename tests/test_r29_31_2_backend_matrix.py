@@ -33,12 +33,9 @@ class MatrixReadinessHarness:
     """31.2 over the frozen R2.10.9 wiring, with the 31.1 declared-stub
     assumption carried from the recorded calibration report."""
 
-    def __init__(self) -> None:
-        self._base = CampaignReadinessHarness()
-        calibration = CalibrationHarness(
-            self._base.harness, self._base.corpus, self._base.ledger
-        )
-        self.calibration_report = calibration.run(self._base.config)
+    def __init__(self, base: CampaignReadinessHarness, calibration_report) -> None:
+        self._base = base
+        self.calibration_report = calibration_report
         self.matrix = MatrixHarness(
             intent_pipeline=self._base.intent_pipeline,
             registry=self._base.registry,
@@ -67,8 +64,9 @@ class MatrixReadinessHarness:
 
 
 @pytest.fixture(scope="module")
-def matrix_harness() -> MatrixReadinessHarness:
-    return MatrixReadinessHarness()
+def matrix_harness(calibrated_wiring) -> MatrixReadinessHarness:
+    base, calibration_report = calibrated_wiring
+    return MatrixReadinessHarness(base, calibration_report)
 
 
 def test_all_182_cases_disposed(matrix_harness):

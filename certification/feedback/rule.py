@@ -69,16 +69,20 @@ _EVOLVE_ELIGIBLE_DOMAINS = frozenset({
 class FailureClassification:
     """A trial failure, classified by DETECTED CAUSE (not mere stage).
 
-    - `stage`:         the TrialStage that failed
-    - `cause`:         the detected causal class (infrastructure/compiler/...)
+    - `stage`:          the TrialStage that failed
+    - `cause`:          the detected causal class (infrastructure/compiler/...)
     - `feedback_domain`: the ISR/genome evolution surface to feed back to
     - `repair_eligible`: whether governed evolution may propose a candidate
-    - `cause_mark`:    the specific transient signature matched (evidence), if any
+    - `reason`:         human-readable justification for the classification
+    - `evidence_ref`:   reference to the observed evidence (signature/detail)
+    - `cause_mark`:     the specific transient signature matched, if any
     """
     stage: str
     cause: str = CAUSE_UNKNOWN
     feedback_domain: str = DOMAIN_GENOME
     repair_eligible: bool = False
+    reason: str = ""
+    evidence_ref: str = ""
     cause_mark: str = ""
 
     def as_record(self) -> dict:
@@ -87,6 +91,8 @@ class FailureClassification:
             "cause": self.cause,
             "feedback_domain": self.feedback_domain,
             "repair_eligible": self.repair_eligible,
+            "reason": self.reason,
+            "evidence_ref": self.evidence_ref,
             "cause_mark": self.cause_mark,
         }
 
@@ -121,6 +127,12 @@ def analyze_failure(
             cause=cause,
             feedback_domain=domain,
             repair_eligible=False,
+            reason=(
+                f"{stage} failed without a detected causal failure_class; "
+                f"mapped conservatively to domain '{domain}' — no evolution without "
+                "a causal signal"
+            ),
+            evidence_ref=f"stage={stage};failure_class=<empty>",
             cause_mark="",
         )
     else:
@@ -128,12 +140,31 @@ def analyze_failure(
 
     domain = _CAUSE_TO_DOMAIN.get(cause, _known_domain(stage))
     eligible = domain in _EVOLVE_ELIGIBLE_DOMAINS
+    mark = _detect_cause_mark(cause, detail)
+    reason = {
+        CAUSE_INFRASTRUCTURE: (
+            f"{stage} failed from an infrastructure cause "
+            f"(signature={mark or '<detail>'}) — LEARN-ONLY, never evolve"
+        ),
+        CAUSE_COMPILER: (
+            f"{stage} failed from a genuine toolchain/compiler defect "
+            "(lowering domain) — evolution-eligible"
+        ),
+        CAUSE_PRODUCT: (
+            f"{stage} failed behaviorally (product domain) — evolution-eligible"
+        ),
+    }.get(cause, f"{stage} failed with unrecognized cause — not evolution-eligible")
     return FailureClassification(
         stage=stage,
         cause=cause,
         feedback_domain=domain,
         repair_eligible=eligible,
-        cause_mark=_detect_cause_mark(cause, detail),
+        reason=reason,
+        evidence_ref=(
+            f"stage={stage};cause={cause}"
+            + (f";signature={mark}" if mark else "")
+        ),
+        cause_mark=mark,
     )
 
 

@@ -388,3 +388,245 @@ def test_trial_model_defaults_to_reference_origin():
     assert t.parent_trial_id == ""
 
 
+# ---------------------------------------------------------------------------
+# D3 expanded contract — parent_backend_id, provenance, created_at
+# ---------------------------------------------------------------------------
+
+def test_candidate_contract_full_lineage():
+    from certification.feedback.policy import BackendSwapPolicy, make_candidate
+    base = build_artifacts_for(default_corpus()[0])
+    cls = analyze_failure(stage="runtime", failure_class="product", detail="")
+    d = BackendSwapPolicy().should_evolve(
+        classification=cls,
+        failed_backend_id="rust-axum",
+        eligible_backend_ids=["python-fastapi", "rust-axum"],
+    )
+    cand = make_candidate(
+        decision=d, parent_trial_id="p1", intent_id=default_corpus()[0].intent,
+        isr_hash=base.revision.content_hash, genome_hash=base.genome_hash,
+        parent_candidate_id="c0", parent_backend_id="rust-axum",
+    )
+    lin = cand.lineage()
+    assert lin["parent_backend_id"] == "rust-axum"
+    assert lin["parent_candidate_id"] == "c0"
+    assert lin["provenance"] == "campaign_b.governed_repair"
+    assert "created_at" in lin and lin["created_at"]
+    # ISR immutability at materialization time.
+    assert cand.isr_hash == base.revision.content_hash
+    assert cand.genome_hash == base.genome_hash
+
+
+# ---------------------------------------------------------------------------
+# D5 — BackendSwapStrategy operator
+# ---------------------------------------------------------------------------
+
+def test_backend_swap_strategy_proposes_on_behavioral_failure():
+    from certification.feedback.policy import BackendSwapStrategy
+    from certification.feedback.candidate import EvolutionCandidate
+    strategy = BackendSwapStrategy()
+    cls = analyze_failure(stage="runtime", failure_class="product", detail="")
+    decision, cand = strategy.propose(
+        classification=cls,
+        parent_trial_id="p1", intent_id="i",
+        isr_hash="ISR", genome_hash="G",
+        failed_backend_id="rust-axum",
+        eligible_backend_ids=["python-fastapi", "rust-axum"],
+    )
+    assert decision.accepted is True
+    assert isinstance(cand, EvolutionCandidate)
+    assert cand.backend_id == "python-fastapi"
+    assert cand.parent_backend_id == "rust-axum"
+
+
+def test_backend_swap_strategy_rejects_infrastructure():
+    from certification.feedback.policy import BackendSwapStrategy
+    strategy = BackendSwapStrategy()
+    cls = analyze_failure(
+        stage="build", failure_class="infrastructure",
+        detail="failed to solve: rust:1.78-slim",
+    )
+    decision, cand = strategy.propose(
+        classification=cls,
+        parent_trial_id="p1", intent_id="i",
+        isr_hash="ISR", genome_hash="G",
+        failed_backend_id="rust-axum",
+        eligible_backend_ids=["python-fastapi", "rust-axum"],
+    )
+    assert decision.accepted is False
+    assert cand is None
+
+
+# ---------------------------------------------------------------------------
+# D7 — artifact-novelty baseline contract (deterministic reality check)
+# ---------------------------------------------------------------------------
+
+def test_d7_baseline_artifact_contract():
+    """Baseline: python-fastapi and rust-axum compile the same workload into
+    two DIFFERENT repositories — the anti-vacuity floor for backend evolution."""
+    from compiler.composition import build_backend_registry
+    from compiler.core.protocol import eligible_for_behavioral_certification
+
+    base = build_artifacts_for(default_corpus()[0])
+    reg = build_backend_registry()
+    be = [reg.get(n) for n in reg.list_names()
+          if reg.get(n) and eligible_for_behavioral_certification(reg.get(n).identity())]
+    byid = {b.identity().name: b for b in be}
+
+    py = byid["python-fastapi"].compile(base.plan)
+    rust = byid["rust-axum"].compile(base.plan)
+
+    py_no = {p for p in py.files if p.endswith((".py", "requirements.txt", "Dockerfile"))}
+    # Both emit a heterogeneous artifact set for the same ISR.
+    assert py.content_hash != rust.content_hash
+    assert py.files != rust.files
+    # The two backends both target real behavioral certification (D7 floor).
+    assert len(py.files) > 0 and len(rust.files) > 0
+    assert py_no  # python backend emits python runtime files
+
+
+# ---------------------------------------------------------------------------
+# Mirror-gate: the canonical gate set (D9) passes inside the unit suite
+# ---------------------------------------------------------------------------
+
+def test_release_self_repair_gates_all_pass():
+    import os
+    import sys
+
+    gates_dir = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        "release", "gates", "cbc1",
+    )
+    if gates_dir not in sys.path:
+        sys.path.insert(0, gates_dir)
+    import check_self_repair_gates as gates
+
+    results = gates.run_all()
+    assert len(results) == len(gates.GATE_NAMES)
+    failed = {n: r for n, r in results.items() if not r[0]}
+    assert not failed, f"gates failed: {failed}"
+
+
+# ---------------------------------------------------------------------------
+# CANONICAL CONTROLLED INTEGRATION SCENARIO
+#   T1 (rust) FAILED behaviorally  -> learn -> candidate -> T2 (python) CERTIFIED
+#   Parent immutable, ISR preserved, independent identity, NO infra flakiness.
+# ---------------------------------------------------------------------------
+
+def test_controlled_integration_t1_failed_to_t2_certified():
+    from certification.feedback.repair import GovernedRepair
+    from certification.feedback.execution import prepare_evolved_trial, run_evolved_trial
+    from certification.core.trial import Trial, TrialMetrics, TrialStage, StageEvidence
+    from learning.engine import ContinuousLearningEngine
+    from compiler.composition import build_backend_registry
+    from compiler.core.protocol import eligible_for_behavioral_certification
+
+    workload = default_corpus()[0]
+    artifacts = build_artifacts_for(workload)
+    reg = build_backend_registry()
+    be = [reg.get(n) for n in reg.list_names()
+          if reg.get(n) and eligible_for_behavioral_certification(reg.get(n).identity())]
+    byid = {b.identity().name: b for b in be}
+
+    engine = ContinuousLearningEngine()
+    repair = GovernedRepair(learning_engine=engine)
+
+    def _notes(stage):
+        return StageEvidence(
+            stage=stage, passed=False, started_at="t", completed_at="t",
+            logs_hash="h", detail="GET /items empty while /live 200",
+            mode="REAL_DOCKER", failure_class="product",
+        )
+
+    t1 = Trial(
+        trial_id="T1", intent=workload.intent, category=workload.category.value,
+        novelty_class="template",
+        requirement_graph_hash=artifacts.revision.content_hash,
+        genome_hash=artifacts.genome_hash, isr_revision_id="rev",
+        backend="rust-axum", compiler_version="1.4.0",
+        repo_hash=byid["rust-axum"].compile(artifacts.plan).content_hash,
+        metrics=TrialMetrics(), verdict="NOT_CERTIFIED",
+        stages=[
+            StageEvidence(stage=TrialStage.STRUCTURAL, passed=True, started_at="t",
+                          completed_at="t", logs_hash="h", mode="REAL_DOCKER"),
+            StageEvidence(stage=TrialStage.SEMANTIC, passed=True, started_at="t",
+                          completed_at="t", logs_hash="h", mode="REAL_DOCKER"),
+            StageEvidence(stage=TrialStage.BUILD, passed=True, started_at="t",
+                          completed_at="t", logs_hash="h", mode="REAL_DOCKER"),
+            StageEvidence(stage=TrialStage.TEST, passed=True, started_at="t",
+                          completed_at="t", logs_hash="h", mode="REAL_DOCKER"),
+            StageEvidence(stage=TrialStage.DEPLOY, passed=True, started_at="t",
+                          completed_at="t", logs_hash="h", mode="REAL_DOCKER"),
+            _notes(TrialStage.RUNTIME),
+        ],
+    )
+    import json
+    parent_snapshot = json.dumps(t1.model_dump(), sort_keys=True)
+
+    # Controlled behavioral failure: classify, learn, decide — no infra noise.
+    feedback = repair.evaluate_failure(
+        trial_id=t1.trial_id, intent=workload.intent, backend=t1.backend,
+        stage="runtime", failure_class="product",
+        detail="GET /items returned empty list while /live was 200",
+        isr_hash=t1.requirement_graph_hash, genome_hash=t1.genome_hash,
+        eligible_backend_ids=list(byid.keys()),
+    )
+    assert feedback.classification.repair_eligible is True
+    assert feedback.classification.cause == "product"
+    assert engine.report()["signal_count"] == 1  # D2: signal consumed
+    assert feedback.decision.accepted is True
+    candidate = feedback.candidate
+    assert candidate is not None
+    assert candidate.backend_id == "python-fastapi"
+    assert candidate.parent_backend_id == "rust-axum"
+    assert candidate.isr_hash == t1.requirement_graph_hash
+    assert candidate.genome_hash == t1.genome_hash
+
+    # Anti-vacuity: distinct artifact for the SAME workload.
+    novelty, alternate = prepare_evolved_trial(
+        candidate=candidate, runner=None, base_artifacts=artifacts,
+        backend_map=byid, failed_backend_id=t1.backend,
+    )
+    assert novelty.distinct is True
+
+    # Independent execution through the NORMAL pipeline as a NEW trial.
+    class _Probe:
+        def __init__(self, backend):
+            self.backend = backend
+
+        def run_trial(self, **kwargs):
+            assert kwargs.get("origin") == "evolved"
+            assert kwargs.get("parent_trial_id") == "T1"
+            t = byid[self.backend.identity().name].compile(kwargs["plan"])
+            return Trial(
+                trial_id="T2", intent=kwargs["intent"],
+                category=kwargs["category"], novelty_class="template",
+                requirement_graph_hash=t1.requirement_graph_hash,
+                genome_hash=t1.genome_hash, isr_revision_id="rev",
+                backend=self.backend.identity().name, compiler_version="1.4.0",
+                repo_hash=t.content_hash, metrics=TrialMetrics(),
+                verdict="CERTIFIED", origin="evolved",
+                parent_trial_id="T1",
+            )
+
+    probe = _Probe(alternate)
+    t2 = run_evolved_trial(
+        runner=probe, candidate=candidate, base_artifacts=artifacts,
+        alternate=alternate, workload=workload,
+    )
+
+    # Independent certification + lineage.
+    assert t2.trial_id != t1.trial_id
+    assert t2.origin == "evolved"
+    assert t2.parent_trial_id == "T1"
+    assert t2.backend != t1.backend
+    assert t2.requirement_graph_hash == t1.requirement_graph_hash
+    assert t2.genome_hash == t1.genome_hash
+    assert t2.verdict == "CERTIFIED"
+
+    # PARENT IMMUTABILITY: evaluate_failure/execution never rewrote T1.
+    assert json.dumps(t1.model_dump(), sort_keys=True) == parent_snapshot
+    assert t1.verdict == "NOT_CERTIFIED"
+    # NO DIRECT REPAIR: the parent's compiled artifact is untouched.
+    assert byid["rust-axum"].compile(artifacts.plan).content_hash == t1.repo_hash
+
+

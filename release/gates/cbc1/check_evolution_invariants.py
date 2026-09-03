@@ -13,7 +13,13 @@ This gate is a runtime check of the feedback/evolution package, executed
 in-process (no docker required).
 """
 from __future__ import annotations
+import os
 import sys
+
+# Bootstrap: workspace root one level up from release/gates/cbc1.
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 
 
 def main() -> int:

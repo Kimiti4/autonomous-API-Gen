@@ -12,10 +12,17 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 
 VARIANT_KIND_BACKEND_SWAP = "backend_swap"
 ORIGIN_EVOLVED = "evolved"
 ORIGIN_REFERENCE = "reference"
+
+PROVENANCE_GOVERNED_REPAIR = "campaign_b.governed_repair"
+
+
+def _utcnow() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 @dataclass(frozen=True)
@@ -24,6 +31,10 @@ class EvolutionCandidate:
 
     Never rewrites the parent trial — it is a NEW trial with its own identity,
     keeping the exact parent lineage.
+
+    D3 contract: carries the full lineage (parent_trial_id, parent_backend_id,
+    parent_candidate_id when chained), the constitutional hashes it preserves,
+    the selected alternate backend, and provenance metadata.
     """
     parent_trial_id: str
     intent_id: str
@@ -35,6 +46,10 @@ class EvolutionCandidate:
     origin: str = ORIGIN_EVOLVED
     reason: str = ""
     parent_candidate_id: str | None = None
+    # D3 additions — audit context.
+    parent_backend_id: str = ""
+    provenance: str = PROVENANCE_GOVERNED_REPAIR
+    created_at: str = field(default_factory=_utcnow)
 
     def lineage(self) -> dict:
         return {
@@ -44,8 +59,11 @@ class EvolutionCandidate:
             "intent_id": self.intent_id,
             "isr_hash": self.isr_hash,
             "genome_hash": self.genome_hash,
+            "parent_backend_id": self.parent_backend_id,
             "backend_id": self.backend_id,
             "variant_kind": self.variant_kind,
             "origin": self.origin,
+            "provenance": self.provenance,
             "reason": self.reason,
+            "created_at": self.created_at,
         }

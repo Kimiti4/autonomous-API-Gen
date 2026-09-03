@@ -26,11 +26,16 @@ include = [
 # package-name collisions caused by the multiple */tests/ directories
 # shipped across autonomous-api/, constitutional_architecture/, and generated/.
 testpaths = ["tests"]
-# The canonical unit run EXCLUDES real-Docker integration gates; run them
-# explicitly with `pytest -m docker_integration`.
-addopts = "--import-mode=importlib -m 'not docker_integration'"
+# The canonical unit run EXCLUDES real-Docker integration gates AND the
+# expensive Phase 31 certification harness (scale 26/100/500 + full matrix +
+# taxonomy + fresh calibration), which can take 20+ minutes per file.
+#   - Tier A (fast, default): `pytest`            — unit/contract + cbc1 gates
+#   - Tier B (integration):   `pytest -m "not certification"` + docker_integration opt-in
+#   - Tier C (certification): `pytest -m certification`      — authoritative release gate
+addopts = "--import-mode=importlib -m 'not docker_integration and not certification'"
 markers = [
     "docker_integration: real infrastructure gate (pulls/executes Docker). Excluded from the canonical unit run; opt in with -m docker_integration.",
+    "certification: expensive Phase 31 certification harness (scale ramp + matrix + taxonomy + fresh calibration). Excluded from the canonical unit run; the authoritative release gate runs `pytest -m certification`.",
 ]
 # Make root-level packages (compiler, knowledge, civilization, learning, ...)
 # importable when invoking the pytest entry point directly.

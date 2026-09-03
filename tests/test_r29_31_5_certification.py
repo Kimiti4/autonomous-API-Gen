@@ -24,13 +24,10 @@ import inspect
 
 import pytest
 
-from tiannara.application.campaign.backend_matrix import MatrixHarness
-from tiannara.application.campaign.calibration import CalibrationHarness
 from tiannara.application.campaign.certification import (
     CertificationArtifact,
     CertificationConfig,
     CertificationDimension,
-    CertificationEvidence,
     CertificationHarness,
     CertificationVerdict,
     DimensionVerdict,
@@ -43,23 +40,15 @@ from tiannara.application.campaign.corpus import (
     CorpusIntent,
     ProjectCategory,
 )
-from tiannara.application.campaign.failure_taxonomy_validation import (
-    FailureInjector,
-    INJECTION_ASSUMPTIONS,
-    TaxonomyClassifier,
-    TaxonomyValidationHarness,
-)
 from tiannara.application.campaign.harness import target_for
-from tiannara.application.campaign.scale_ramp import (
-    CorpusBuilder,
-    ScaleRampHarness,
-    SCALE_LEVELS,
-)
+from tiannara.application.campaign.scale_ramp import CorpusBuilder
 from tiannara.application.evolution.ledger import EventType
 
 from .test_r29_10_1_capability_audit import RECIPE
 from .test_r29_10_9_campaign_readiness import CampaignReadinessHarness
 from .test_r29_31_4_scale_ramp import RERUN_SUBSET
+
+pytestmark = pytest.mark.certification
 
 RECIPE_HASH = "317b62a84dc1c4c0ee4a0e43c732a8d2d8b2f7b3c6b0404712a0fc5d6bb74613"
 
@@ -85,70 +74,27 @@ def novel_intent() -> CorpusIntent:
 
 class CertificationRig:
     """The full 31.1-31.4 evidence chain on ONE ledger, plus the
-    certification machinery. The ramp dominates the runtime (the real
-    26 -> 100 -> 500 climb); everything else is assembled from it."""
+    certification machinery.
 
-    def __init__(self) -> None:
-        self.base = CampaignReadinessHarness()
-        calibration = CalibrationHarness(
-            self.base.harness, self.base.corpus, self.base.ledger
-        )
-        self.calibration = calibration.run(self.base.config)
-        self.matrix = MatrixHarness(
-            intent_pipeline=self.base.intent_pipeline,
-            registry=self.base.registry,
-            evaluator=self.base.evaluator,
-            verifier=self.base.verifier,
-            conformance_registry=self.base.conformance_registry,
-            ledger=self.base.ledger,
-            declared_assumptions=self.calibration.declared_assumptions,
-        ).run(self.base.corpus, self.base.config)
-        injector = FailureInjector(
-            intent_pipeline=self.base.intent_pipeline,
-            registry=self.base.registry,
-            evaluator=self.base.evaluator,
-            verifier=self.base.verifier,
-            conformance_registry=self.base.conformance_registry,
-            ledger=self.base.ledger,
-        )
-        self.taxonomy = TaxonomyValidationHarness(
-            classifier=TaxonomyClassifier(),
-            injector=injector,
-            ledger=self.base.ledger,
-            declared_assumptions=(
-                self.calibration.declared_assumptions + INJECTION_ASSUMPTIONS
-            ),
-        ).run(
-            self.base.corpus,
-            ("react", "fastapi", "postgres", "terraform",
-             "cicd", "pytest", "markdown"),
-            self.base.config,
-        )
-        self.ramp = ScaleRampHarness(
-            campaign_harness=self.base.harness,
-            intent_pipeline=self.base.intent_pipeline,
-            registry=self.base.registry,
-            evaluator=self.base.evaluator,
-            verifier=self.base.verifier,
-            conformance_registry=self.base.conformance_registry,
-            ledger=self.base.ledger,
-            corpus_builder=CorpusBuilder(self.base.corpus),
-            taxonomy_classifier=TaxonomyClassifier(),
-            rerun_subset=RERUN_SUBSET,
-            declared_assumptions=self.calibration.declared_assumptions,
-            scale_levels=SCALE_LEVELS,
-            reachable_top=500,
-            level_budget_seconds=300,
-        ).run(self.base.config)
-        self.evidence = CertificationEvidence(
-            self.calibration, self.matrix, self.taxonomy, self.ramp
-        )
+    The certification CONSUMES the authoritative evidence produced once by the
+    shared ``phase31_evidence`` bundle (built by the certification fixture),
+    rather than regenerating calibration + matrix + taxonomy + scale-ramp. The
+    certifier independently verifies the chain — it never rebuilds the
+    evidence its verification depends on."""
+
+    def __init__(self, base: CampaignReadinessHarness, evidence) -> None:
+        self.base = base
+        self.calibration = evidence.calibration
+        self.matrix = evidence.matrix
+        self.taxonomy = evidence.taxonomy
+        self.ramp = evidence.ramp
         self.novelty_check = NoveltyGroundingCheck(
             self.base.intent_pipeline, self.base.compilation, self.base.verifier
         )
         self.novel = novel_intent()
         self._artifact: CertificationArtifact | None = None
         self._novelty_result = None
+        self.evidence = evidence
 
     def make_certifier(self, canary_baseline=None) -> CertificationHarness:
         return CertificationHarness(
@@ -179,8 +125,8 @@ class CertificationRig:
 
 
 @pytest.fixture(scope="module")
-def certification_rig() -> CertificationRig:
-    return CertificationRig()
+def certification_rig(phase31_base, phase31_evidence) -> CertificationRig:
+    return CertificationRig(phase31_base, phase31_evidence)
 
 
 def test_no_certified_verdict_before_final_gate(certification_rig):

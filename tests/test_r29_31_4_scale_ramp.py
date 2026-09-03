@@ -30,15 +30,14 @@ from tiannara.application.campaign.scale_ramp import (
 from .test_r29_10_1_capability_audit import RECIPE
 from .test_r29_10_9_campaign_readiness import CampaignReadinessHarness
 
+pytestmark = pytest.mark.certification
+
 RECIPE_HASH = "317b62a84dc1c4c0ee4a0e43c732a8d2d8b2f7b3c6b0404712a0fc5d6bb74613"
 
 
 @pytest.fixture(scope="module")
-def base_wiring():
-    base = CampaignReadinessHarness()
-    calibration = CalibrationHarness(
-        base.harness, base.corpus, base.ledger
-    ).run(base.config)
+def base_wiring(calibrated_wiring):
+    base, calibration = calibrated_wiring
     return base, calibration
 
 
@@ -72,14 +71,10 @@ def make_ramp(
 
 
 @pytest.fixture(scope="module")
-def scale_ramp_harness(base_wiring):
-    base, calibration = base_wiring
-    return make_ramp(
-        base,
-        calibration,
-        campaign_id="dry-run-1",
-        corpus_builder=CorpusBuilder(base.corpus),
-    )
+def scale_ramp_harness(phase31_base, phase31_ramp):
+    """Consumes the shared Phase 31 scale-ramp evidence instead of re-running
+    the expensive 26/100/500 campaign climb."""
+    return EvidenceProbe(phase31_ramp, phase31_base)
 
 
 class DriftingBuilder(CorpusBuilder):
@@ -152,6 +147,24 @@ class ScaleProbe:
     def run(self):
         if self._report is None:
             self._report = self._ramp.run(self._config)
+        return self._report
+
+    def matrix_summary(self):
+        return self._base.matrix_summary()
+
+    def recipe_isr_hash(self):
+        return self._base.recipe_isr_hash()
+
+
+class EvidenceProbe:
+    """A probe over SHARED Phase 31 evidence: it returns the already-produced
+    ramp report instead of re-running the expensive campaign ramp."""
+
+    def __init__(self, ramp_report, base) -> None:
+        self._report = ramp_report
+        self._base = base
+
+    def run(self):
         return self._report
 
     def matrix_summary(self):

@@ -24,18 +24,54 @@ python -m pytest
 What this does (configured in `pyproject.toml` under `[tool.pytest.ini_options]`):
 
 - `testpaths = ["tests"]` — runs the project unit suite only.
-- `addopts = "--import-mode=importlib"` — avoids the
+- `addopts = "--import-mode=importlib -m 'not docker_integration and not certification'"` — avoids the
   `ModuleNotFoundError: No module named 'tests.test_*'` collection collisions
   caused by the multiple `*/tests/` packages across `autonomous-api/`,
-  `constitutional_architecture/`, and `generated/`.
+  `constitutional_architecture/`, and `generated/`, and excludes the
+  real-Docker integration gates and the expensive Phase 31 certification
+  harness from the canonical run.
 - `pythonpath = ["."]` — puts the workspace root on `sys.path` so root-level
   packages (`compiler`, `knowledge`, `learning`, …) import cleanly when pytest
   is invoked directly.
 
-Expected result on a clean checkout: **1058 passed** (includes the Phase 26
-Continuous Learning Infrastructure suite, the Phase 28 Cryptographic Evidence
-Signing + Durable Version Repository suites, and the Phase 31 Stratified
-Calibration Harness — `tiannara/` — suite).
+### Test tiers
+
+The suite is split into three scheduling tiers so the normal development loop
+stays fast while the authoritative release gate still runs the full evidence.
+
+- **Tier A — fast unit/contract (default).** `python -m pytest` runs only the
+  fast suite: classifiers, policies, contracts, ledger invariants, lineage,
+  serialization, gates, and the `tests/cbc1/` self-repair suite. Expected:
+  **~2786 passed** in ~12 minutes (markers `certification` and
+  `docker_integration` are deselected).
+- **Tier C — certification (expensive, explicit).**
+  `python -m pytest -m certification` runs the authoritative Phase 31
+  certification harness — scale ramp 26/100/500, full 7-backend matrix, full
+  failure-taxonomy validation, fresh calibration. Last verified: **40/40
+  passed in 33 min**. MUST NOT be weakened to speed the suite up. **The
+  release pipeline runs this complete suite before any new B3 wave.**
+- **Tier B — integration.** Real-Docker gates are opt-in with
+  `python -m pytest -m docker_integration`.
+
+### Phase 31 execution contract
+
+The Phase 31 certification tier follows the no-workload-reduction contract in
+[`certification/contracts/PHASE31_EXECUTION_CONTRACT.md`](certification/contracts/PHASE31_EXECUTION_CONTRACT.md).
+Key points:
+
+  - Calibration + matrix + taxonomy + scale-ramp are produced exactly **once
+    per session** as immutable evidence, via session-scoped fixtures in
+    `tests/conftest.py` (`phase31_base`, `phase31_calibration`,
+    `phase31_matrix`, `phase31_taxonomy`, `phase31_ramp`, `phase31_evidence`).
+  - The certification (`test_r29_31_5_certification.py`) CONSUMES the shared
+    evidence bundle — it never rebuilds the campaign. The canary RE-RUN
+    remains mandatory (reproducibility proof) and the novelty check remains
+    live.
+  - Permitted optimizations: fixture/evidence reuse, layer/artifact caching,
+    process isolation, test scheduling.
+  - Forbidden optimizations: workload reduction (fewer scale levels /
+    backends), evidence substitution, skipped stages, weakened assertions,
+    mutable state reuse, hidden parallelism on shared ledgers/ports.
 
 ### Integration / out-of-suite tests
 

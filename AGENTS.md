@@ -53,26 +53,6 @@ stays fast while the authoritative release gate still runs the full evidence.
 - **Tier B — integration.** Real-Docker gates are opt-in with
   `python -m pytest -m docker_integration`.
 
-### Phase 31 execution contract
-
-The Phase 31 certification tier follows the no-workload-reduction contract in
-[`certification/contracts/PHASE31_EXECUTION_CONTRACT.md`](certification/contracts/PHASE31_EXECUTION_CONTRACT.md).
-Key points:
-
-  - Calibration + matrix + taxonomy + scale-ramp are produced exactly **once
-    per session** as immutable evidence, via session-scoped fixtures in
-    `tests/conftest.py` (`phase31_base`, `phase31_calibration`,
-    `phase31_matrix`, `phase31_taxonomy`, `phase31_ramp`, `phase31_evidence`).
-  - The certification (`test_r29_31_5_certification.py`) CONSUMES the shared
-    evidence bundle — it never rebuilds the campaign. The canary RE-RUN
-    remains mandatory (reproducibility proof) and the novelty check remains
-    live.
-  - Permitted optimizations: fixture/evidence reuse, layer/artifact caching,
-    process isolation, test scheduling.
-  - Forbidden optimizations: workload reduction (fewer scale levels /
-    backends), evidence substitution, skipped stages, weakened assertions,
-    mutable state reuse, hidden parallelism on shared ledgers/ports.
-
 ### Integration / out-of-suite tests
 
 The following are **not** part of the canonical run and require extra
@@ -97,6 +77,9 @@ infrastructure — do not treat their absence as a unit-suite regression:
 - The `learning/` package (Phase 26) converts telemetry into governed
   evolutionary feedback; it must **not** mutate the ISR directly — output flows
   through governance and the Evolution Engine.
+- **`.md` policy.** Only commit `.md` files that document how to use the
+  system (developer guide, runbook, how-to). Internal analysis, contracts,
+  and spec/status documents are kept in the working tree but not tracked.
 
 ## Notes
 
@@ -127,9 +110,10 @@ infrastructure — do not treat their absence as a unit-suite regression:
   separate, hash-chained JSONL ledger (`cbc1-{wave}-infra-storm.jsonl`) that
   captures every infrastructure-classified trial failure during a Campaign B
   wave. It is LEARN-ONLY — never feeds the certifier, never auto-evolves
-  (per master prompt §13). Opt-out via `CBC1_INFRA_STORM=0`. See
-  `certification/contracts/PHASE31_EXECUTION_CONTRACT.md` §1.5 and
-  `tests/cbc1/test_infra_storm_ledger.py` for the contract and tests.
+  (per master prompt §13). Opt-out via `CBC1_INFRA_STORM=0`. The contract
+  is enforced by `tests/cbc1/test_infra_storm_ledger.py` (12 tests:
+  schema, content-addressability, chain integrity, resume, tampering,
+  summary aggregation, file independence, no verdict reverse-references).
 - **100-project stratified corpus (`certification/corpus/stratified_corpus.py`).**
   Phase 31's scale-up milestone (the spec's "Immediate Next Step"): 100
   technology-free `CorpusIntent` entries stratified across the 13

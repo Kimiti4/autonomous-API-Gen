@@ -36,6 +36,7 @@ from certification.campaign.plan_builder import build_artifacts_for
 from certification.campaign.verdict import compose_campaign_verdict, CampaignVerdict
 from certification.campaign.waves import CampaignBudget
 from certification.evidence.ledger import EvidenceLedger
+from certification.evidence.infra_storm import GENESIS_HASH, InfraStormLedger
 from certification.provenance.bundle import ProvenanceBundle
 from certification.stages.execution_mode import (
     ExecutionMode,
@@ -430,6 +431,51 @@ def run_wave(
         required_mode=wave.required_mode,
     )
 
+    # Infra-storm ledger: a SEPARATE hash-chained file that captures
+    # infrastructure-classified failures OFF the verdict chain so the signal
+    # is preserved (LEARN-ONLY) without ever feeding the certifier.
+    # Disabled by setting CBC1_INFRA_STORM=0 (default: enabled).
+    infra_storm_path = ledger_path.rsplit("-ledger.jsonl", 1)[0] + "-infra-storm.jsonl"
+    infra_storm_resumed = False
+    if os.path.exists(infra_storm_path):
+        if resume:
+            # Resume: continue the SAME infra-storm hash chain from where
+            # the prior wave stopped.  Verify it is intact; if not, refuse.
+            if not InfraStormLedger.verify(infra_storm_path):
+                agg = {
+                    "wave": wave_id,
+                    "verdict": "NOT_CERTIFIED",
+                    "verdict_reason": "resume refused: prior infra-storm ledger chain broken",
+                }
+                with open(agg_path, "w", encoding="utf-8") as f:
+                    json.dump(agg, f, indent=2)
+                return "NOT_CERTIFIED", agg
+            infra_storm_resumed = True
+        else:
+            # Fresh wave: archive the prior infra-storm ledger so the chain
+            # anchor is explicit (we are not modifying it; we are renaming it).
+            import shutil as _shutil2
+            from datetime import datetime as _dt2
+            _stamp2 = _dt2.now().strftime("%Y%m%d-%H%M%S")
+            _shutil2.copy2(
+                infra_storm_path,
+                f"{infra_storm_path}.archive-{_stamp2}",
+            )
+            os.remove(infra_storm_path)
+    infra_storm: InfraStormLedger | None = None
+    if os.environ.get("CBC1_INFRA_STORM", "1") == "1":
+        infra_storm = InfraStormLedger(infra_storm_path)
+    infra_storm_summary: dict[str, Any] = {
+        "enabled": infra_storm is not None,
+        "ledger_path": infra_storm_path if infra_storm is not None else None,
+        "schema_id": "tiannara.infra_storm.record",
+        "schema_version": "1.0.0",
+        "resumed": infra_storm_resumed,
+        "chain_verified_at_open": (
+            InfraStormLedger.verify(infra_storm_path) if infra_storm is not None else None
+        ),
+    }
+
     # Explicit execution-environment preparation: allocate a host TCP window
     # free of OS-excluded ranges BEFORE running trials.  If the environment
     # cannot provide capacity, the campaign stops honestly — it never silently
@@ -439,14 +485,19 @@ def run_wave(
     from certification.stages.docker_stages import RealDockerStages
 
     if isinstance(runner.stages, RealDockerStages):
-        from certification.campaign.preflight import preflight_ports, DEFAULT_SPAN
-        alloc, pf_path = preflight_ports(wave_id, span=DEFAULT_SPAN)
+        from certification.campaign.preflight import (
+            preflight_ports, DEFAULT_SPAN, resolve_preferred_range,
+        )
+        preferred = resolve_preferred_range()
+        alloc, pf_path = preflight_ports(wave_id, preferred=preferred, span=DEFAULT_SPAN)
         port_pf = {
             "enabled": True,
             "evidence_path": pf_path,
             "ok": alloc.ok,
             "base": alloc.base,
             "span": alloc.span,
+            "preferred": list(preferred),
+            "override": preferred != (8000, 9999),
             "window": alloc.window,
             "reason": alloc.reason,
             "excluded_tcp_ranges": list(alloc.excluded_ranges),
@@ -617,6 +668,181 @@ def run_wave(
     trials = trials + supplement_runs
     expected_total = expected + len(supplement_runs)
 
+    # ---- Governed evolution phase (backend-variant self-repair) ----
+    # Gated behind CBC1_EVOLVE=1: applies to a fresh wave.  For each failed,
+    # CAUSALLY-ACTIONABLE planned trial, we learn from it and — when the policy
+    # accepts an eligible alternate behavioral backend — execute it as a NEW
+    # independent evolved trial through the NORMAL pipeline (origin=evolved,
+    # parent_trial_id=<immutable parent>, variant_kind=backend_swap).
+    # Infrastructure/registry/port failures are LEARN-ONLY (never evolve).
+    evolved_runs: list[Trial] = []
+    evolution: dict[str, Any] = {"enabled": False}
+    if os.environ.get("CBC1_EVOLVE", "") == "1" and isinstance(runner.stages, RealDockerStages):
+        evolution["enabled"] = True
+        from certification.feedback.repair import GovernedRepair
+        from certification.feedback.execution import prepare_evolved_trial, run_evolved_trial
+        from learning.engine import ContinuousLearningEngine
+
+        # D2 — PRODUCTION learning consumption: every failed, causally-classified
+        # trial emits a LearningSignal into a REAL ContinuousLearningEngine.  The
+        # engine is never passed as None on the campaign path.
+        learning_engine = ContinuousLearningEngine()
+        repair = GovernedRepair(learning_engine=learning_engine)
+        evolution_events: list[dict[str, Any]] = []
+        by_name = {b.identity().name: b for b in backends}
+        eligible_names = list(by_name.keys())
+        parent_to_candidate: dict[str, str] = {}
+        for t in list(trials):
+            if t.verdict == "CERTIFIED":
+                continue
+            # Find the first independent (non-cascade) failing behavioral stage.
+            causal = None
+            for s in t.stages:
+                if not s.passed and s.mode != ExecutionMode.SKIPPED.value and s.stage != TrialStage.STRUCTURAL and s.stage != TrialStage.SEMANTIC:
+                    causal = s
+                    break
+            if causal is None:
+                continue
+            try:
+                decision_feedback = repair.evaluate_failure(
+                    trial_id=t.trial_id,
+                    intent=t.intent,
+                    backend=t.backend,
+                    stage=causal.stage,
+                    failure_class=causal.failure_class or "",
+                    detail=causal.detail or "",
+                    isr_hash=t.requirement_graph_hash,
+                    genome_hash=t.genome_hash,
+                    eligible_backend_ids=eligible_names,
+                )
+            except Exception:  # noqa: BLE001 — never crash the wave on a repair decision
+                continue
+            evolution_events.append({
+                "event": "feedback.classified",
+                "trial_id": t.trial_id,
+                "backend_id": t.backend,
+                "classification": decision_feedback.classification.as_record(),
+            })
+            # Mirror infrastructure-classified failures to the SEPARATE
+            # infra-storm ledger (LEARN-ONLY, never feeds the certifier).
+            # Per master prompt §13: "Never evolve a workload because Docker
+            # failed."  The infra-storm ledger preserves the signal without
+            # crossing the policy boundary.
+            if infra_storm is not None and (
+                decision_feedback.classification.cause == "infrastructure"
+                or decision_feedback.classification.feedback_domain == "infrastructure"
+            ):
+                infra_storm.record(
+                    source_wave=wave_id,
+                    trial_id=t.trial_id,
+                    intent=t.intent,
+                    backend=t.backend,
+                    stage=causal.stage,
+                    cause=decision_feedback.classification.cause,
+                    feedback_domain=decision_feedback.classification.feedback_domain,
+                    cause_mark=decision_feedback.classification.cause_mark,
+                    detail_excerpt=causal.detail or "",
+                    retry_signatures=causal.retry_signatures or (),
+                    repair_eligible=decision_feedback.classification.repair_eligible,
+                )
+            if decision_feedback.signal is not None:
+                evolution_events.append({
+                    "event": "learning.signal_emitted",
+                    "trial_id": t.trial_id,
+                    "signal_type": decision_feedback.signal.signal_type.value,
+                    "signal_id": decision_feedback.signal.id or "",
+                    "severity": decision_feedback.signal.severity.value,
+                })
+            evolution_events.append({
+                "event": "evolution.decided",
+                "trial_id": t.trial_id,
+                "decision": decision_feedback.decision.as_record(),
+            })
+            if decision_feedback.candidate is None:
+                continue
+            cand = decision_feedback.candidate
+            evolution_events.append({
+                "event": "evolution.candidate_created",
+                "trial_id": t.trial_id,
+                "candidate_id": cand.candidate_id,
+                "alternate_backend_id": cand.backend_id,
+            })
+            if cand.backend_id in parent_to_candidate.values():
+                continue  # backend already chosen as alternate for an earlier parent
+            w = next((x for x in corpus if x.intent == t.intent), None)
+            if w is None:
+                continue
+            artifacts = build_artifacts_for(w)
+            novelty, alternate = prepare_evolved_trial(
+                candidate=cand, runner=runner, base_artifacts=artifacts,
+                backend_map=by_name, failed_backend_id=t.backend,
+            )
+            evolution_events.append({
+                "event": "evolution.novelty_check",
+                "trial_id": t.trial_id,
+                "candidate_id": cand.candidate_id,
+                "distinct": novelty.distinct,
+                "parent_artifact_hash": novelty.parent_artifact_hash,
+                "candidate_artifact_hash": novelty.candidate_artifact_hash,
+            })
+            if alternate is None:
+                evolution["rejected_noop"] = evolution.get("rejected_noop", 0) + 1
+                evolution_events.append({
+                    "event": "evolution.rejected_noop",
+                    "trial_id": t.trial_id,
+                    "candidate_id": cand.candidate_id,
+                })
+                continue
+            exhausted, violation = _budget_check(
+                trials + evolved_runs, planned_run, "supplement",
+            )
+            if exhausted:
+                break
+            evolved_trial = run_evolved_trial(
+                runner=runner, candidate=cand, base_artifacts=artifacts,
+                alternate=alternate, workload=w,
+            )
+            evolved_runs.append(evolved_trial)
+            parent_to_candidate[cand.parent_trial_id] = cand.backend_id
+            evolution.setdefault("candidates", [])
+            evolution["candidates"].append({
+                "parent_trial_id": cand.parent_trial_id,
+                "candidate_id": cand.candidate_id,
+                "backend": cand.backend_id,
+                "origin": "evolved",
+                "variant_kind": cand.variant_kind,
+                "novelty": novelty.distinct,
+                "parent_immutable": True,
+            })
+            evolution_events.append({
+                "event": "evolution.parent_immutable",
+                "trial_id": t.trial_id,
+                "candidate_id": cand.candidate_id,
+            })
+            evolution_events.append({
+                "event": "evolution.executed",
+                "trial_id": t.trial_id,
+                "candidate_trial_id": evolved_trial.trial_id,
+                "backend_id": cand.backend_id,
+            })
+            if evolved_trial.verdict == "CERTIFIED":
+                evolution_events.append({
+                    "event": "evolution.certified",
+                    "trial_id": t.trial_id,
+                    "candidate_trial_id": evolved_trial.trial_id,
+                    "backend_id": cand.backend_id,
+                })
+    trials = trials + evolved_runs
+    expected_total = expected + len(supplement_runs) + len(evolved_runs)
+    evolution["evolved_trials"] = len(evolved_runs)
+    evolution["evolved_certified"] = sum(
+        1 for t in evolved_runs if t.verdict == "CERTIFIED"
+    )
+    if evolution["enabled"]:
+        evolution["signal_count"] = learning_engine.report().get("signal_count", 0)
+        evolution["insight_count"] = learning_engine.report().get("insight_count", 0)
+        evolution["events"] = evolution_events
+
     assert EvidenceLedger.verify(ledger_path), "Evidence chain broken"
 
     ok, matrix, taxonomy, problems = verify_campaign_b_mode(
@@ -663,6 +889,8 @@ def run_wave(
         "resumed_from": len(seed_trials),
         "resumed_trials": len(seed_trials),
         "supplement_trials": len(supplement_runs),
+        "evolved_trials": len(evolved_runs),
+        "evolved_certified": evolution.get("evolved_certified", 0),
         "executed_trials": len(trials),
         "certified_trials": certified_n,
         "failed_trials": len(trials) - certified_n,
@@ -678,9 +906,27 @@ def run_wave(
         "failure_taxonomy_independent": taxonomy,
         "category_matrix": matrix,
         "port_preflight": port_pf,
+        "evolution": evolution,
         "amplification": amp.model_dump(),
         "max_retry_rate": wave.max_retry_rate,
         "decision": b3_decision(verdict.value, amp, wave.max_retry_rate),
+        "infra_storm": {
+            **infra_storm_summary,
+            "record_count": infra_storm._count if infra_storm is not None else 0,
+            "tail_hash": infra_storm.prev_hash if infra_storm is not None else GENESIS_HASH,
+            "chain_verified_at_close": (
+                InfraStormLedger.verify(infra_storm_path) if infra_storm is not None else None
+            ),
+            "by_cause": (
+                dict(infra_storm._causes) if infra_storm is not None else {}
+            ),
+            "by_stage": (
+                dict(infra_storm._stages) if infra_storm is not None else {}
+            ),
+            "by_backend": (
+                dict(infra_storm._backends) if infra_storm is not None else {}
+            ),
+        },
         "budget": {
             "max_trials": budget.max_trials,
             "max_total_runtime_s": budget.max_total_runtime_s,

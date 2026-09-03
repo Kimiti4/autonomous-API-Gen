@@ -15,6 +15,52 @@ substitution, skipped stages, weakened assertions, mutable state reuse).
 
 ---
 
+## 1.5 — The infra-storm side-channel (LEARN-ONLY, off the verdict chain)
+
+A separate, hash-chained JSONL ledger —
+`release/evidence/cbc1-{wave}-infra-storm.jsonl` — captures every
+**infrastructure-classified** trial failure during a Campaign B wave.
+
+It exists because:
+
+  - Infrastructure failures (registry network outages, Docker daemon
+    failures, port exhaustion) are the dominant failure mode in
+    real-Docker waves.
+  - Per the master prompt §13, these failures are **LEARN-ONLY** — they
+    must not trigger evolution candidates.
+  - But the signal is valuable for post-wave platform engineering
+    (e.g. "registry instability caused N% of NOT_CERTIFIED trials").
+  - And the signal must NOT pollute the verdict ledger, because the
+    verdict ledger feeds the certification chain.
+
+Design rules (see
+[`certification/evidence/infra_storm.py`](../evidence/infra_storm.py)
+for the implementation):
+
+  1. **Separate file.** `cbc1-{wave}-infra-storm.jsonl` is never written
+     to by the verdict ledger, and the verdict ledger is never written
+     to by the infra-storm ledger.
+  2. **Independent hash chain.** SHA-256 of `prev_hash + canonical(body)`,
+     same primitive as `EvidenceLedger`, but a separate chain head.
+  3. **Content-addressable schema.** Every record carries `schema_id`
+     (`tiannara.infra_storm.record`), `schema_version`, `record_hash`,
+     `cause`, `feedback_domain`, `cause_mark`, `retry_signatures`.
+  4. **One-way correlation only.** Records carry `trial_id` so an
+     auditor can look up the parent trial in the verdict ledger by id.
+     The verdict ledger does NOT carry any reference to the
+     infra-storm ledger.
+  5. **Never feeds the certifier.** `CertificationHarness`,
+     `CertificationRig`, and the Phase 31.5 certification event read
+     only the verdict ledger.
+  6. **Never auto-evolves.** A record in the infra-storm ledger is
+     by construction `repair_eligible=False`. It is a learn signal,
+     not an action.
+  7. **Optional, opt-out.** `CBC1_INFRA_STORM=0` disables the side
+     channel (default: enabled). The verdict ledger's behavior is
+     identical in both modes.
+
+---
+
 ## 1. Invariant — certification semantics are non-negotiable
 
 The following are locked. They are not subject to performance

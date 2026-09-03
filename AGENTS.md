@@ -123,4 +123,11 @@ infrastructure — do not treat their absence as a unit-suite regression:
   baseline evolution engine, local/git-over-HTTPS repository publisher,
   env-based settings, CLI composition root). GitHub/Docker/workflow-engine are
   plug-in ports; see `folder/31.md` Closure Record.
+- **Infra-storm side-channel (`certification/evidence/infra_storm.py`).** A
+  separate, hash-chained JSONL ledger (`cbc1-{wave}-infra-storm.jsonl`) that
+  captures every infrastructure-classified trial failure during a Campaign B
+  wave. It is LEARN-ONLY — never feeds the certifier, never auto-evolves
+  (per master prompt §13). Opt-out via `CBC1_INFRA_STORM=0`. See
+  `certification/contracts/PHASE31_EXECUTION_CONTRACT.md` §1.5 and
+  `tests/cbc1/test_infra_storm_ledger.py` for the contract and tests.
 - Python: 3.14.0 is the interpreter on PATH for `python -m pytest`.

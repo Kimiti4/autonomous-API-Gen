@@ -3,10 +3,24 @@ from __future__ import annotations
 import hashlib
 import os
 import subprocess
+import sys
 import time
 
 from certification.core.trial import TrialStage
 from certification.stages.execution_mode import ExecutionMode, StageExecution
+
+
+# Suppress the console window that every `docker` CLI invocation would
+# otherwise pop up on the host.  Without CREATE_NO_WINDOW, each subprocess.run
+# opens a brief console window for the child process — which is the
+# "resources\bin\docker.exe keeps popping up" behavior observed during a
+# 12-hr wave (~1000 windows total).  We only need the data the child
+# produces; the window is noise.  CREATE_NO_WINDOW is Windows-only;
+# attribute the flag on non-Windows hosts where it is unsupported.
+def _popen_kwargs() -> dict:
+    if sys.platform == "win32":
+        return {"creationflags": subprocess.CREATE_NO_WINDOW}
+    return {}
 
 
 def _h(s: str) -> str:
@@ -15,7 +29,10 @@ def _h(s: str) -> str:
 
 def _run(cmd: list[str], timeout: int = 900) -> tuple[int, str]:
     try:
-        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        p = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=timeout,
+            **_popen_kwargs(),
+        )
         return p.returncode, p.stdout + p.stderr
     except FileNotFoundError:
         return 127, "docker binary not found"

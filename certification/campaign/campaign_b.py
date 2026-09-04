@@ -285,9 +285,18 @@ def _run_independent_verify(
         "sys.exit(0)"
     )
     try:
-        p = subprocess.run(
+        # CREATE_NO_WINDOW on Windows so the host does not see a brief console
+        # window for every trial's independent-verification subprocess.  Each
+        # B3 trial would otherwise produce ~6 visible console windows per run
+        # (build, test, deploy, runtime, destroy, verify) — a 936-trial wave
+        # would flash 5000+ windows in 12 hours.  The subprocess output is
+        # captured; the window is noise.
+        import subprocess as _sp
+        import sys as _sys
+        _popen_kw = {"creationflags": _sp.CREATE_NO_WINDOW} if _sys.platform == "win32" else {}
+        p = _sp.run(
             ["python", "-c", verify_script],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True, text=True, timeout=30, **_popen_kw,
         )
         return p.returncode == 0, p.stdout + p.stderr
     except Exception as e:

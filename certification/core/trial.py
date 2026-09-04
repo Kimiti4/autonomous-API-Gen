@@ -44,6 +44,14 @@ class TrialMetrics(BaseModel):
     execution_detail: dict = Field(default_factory=dict)
     generated_repository_hash: str = ""
     independent_verifier_result: bool = False
+    # Cost / energy fitness axis (Phase 31 spec §"Cross-Cutting Gaps" #4).
+    # `cost_efficiency` is the [0, 1] monotonic transformation of
+    # wall_clock_total_s that Pareto dominance can rank on; the raw
+    # `wall_clock_total_s` and `peak_cpu_pct` / `peak_mem_mib` live in
+    # `operational_correctness` for audit. `wall_clock_reference_s` is
+    # the documented reference budget the axis was scaled against.
+    cost_efficiency: float = 0.0
+    wall_clock_reference_s: float = 60.0
 
 
 class Trial(BaseModel):

@@ -166,6 +166,7 @@ class CampaignRunner:
             runtime_passed=stage_results.get(TrialStage.RUNTIME, False),
             repo_content_hash=repo.content_hash,
             files=repo.files,
+            stage_evidence=evidence,
         )
 
         trial = Trial(

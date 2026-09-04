@@ -229,6 +229,7 @@ class CampaignBRunner:
             runtime_passed=stage_results.get(TrialStage.RUNTIME, False),
             repo_content_hash=repo.content_hash,
             files=repo.files,
+            stage_evidence=evidence,
         )
         # Extend metrics with execution detail
         metrics = metrics.model_copy(update={
@@ -870,6 +871,17 @@ def run_wave(
     if amp_problems:
         problems = problems + amp_problems
 
+    # Cost / energy aggregate (Phase 31 spec §Cross-Cutting Gaps #4).
+    # Computed from the same in-memory trials; surfaced per-backend so the
+    # campaign verdict can carry the cost story, not just the pass/fail story.
+    # Three independent dimensions are reported, never collapsed.
+    # NOTE: seed_trials are SimpleNamespace (verdict-only view inherited
+    # from the resumed ledger); they have no metrics, so they contribute
+    # to trial_count but not to the cost/energy sums. The author's
+    # metrics live in the resumed ledger and can be re-loaded by an
+    # auditor via EvidenceLedger.read if needed.
+    cost_energy_aggregate = _compute_cost_energy_aggregate(trials)
+
     verdict, reason = compose_campaign_verdict(
         trials=trials,
         expected_trials=expected_total,
@@ -917,6 +929,7 @@ def run_wave(
         "port_preflight": port_pf,
         "evolution": evolution,
         "amplification": amp.model_dump(),
+        "cost_energy": cost_energy_aggregate,
         "max_retry_rate": wave.max_retry_rate,
         "decision": b3_decision(verdict.value, amp, wave.max_retry_rate),
         "infra_storm": {
@@ -1023,6 +1036,101 @@ def _resolve_stages(mode: ExecutionMode) -> Any:
     else:
         from certification.stages.stub_stages import StubStages
         return StubStages()
+
+
+def _compute_cost_energy_aggregate(trials: list) -> dict:
+    """Per-backend cost/energy aggregate for a wave.
+
+    Three independent dimensions are reported, never collapsed:
+      - mean_wall_clock_s       (audit raw, from operational_correctness)
+      - mean_cost_efficiency     (fitness axis on TrialMetrics)
+      - peak_cpu_pct_max / peak_mem_mib_max  (audit raw, from probe)
+
+    Seed trials (SimpleNamespace views inherited from a resumed ledger)
+    contribute to trial_count but not to sums; their metrics live in the
+    ledger and are re-loadable by an auditor.
+
+    Returns:
+        {
+            "by_backend": {
+                <backend>: {
+                    "trial_count": int,
+                    "mean_wall_clock_s": float,
+                    "mean_cost_efficiency": float,
+                    "peak_cpu_pct_max": float,
+                    "peak_mem_mib_max": float,
+                    "wall_clock_reference_s": float,
+                },
+                ...
+            },
+            "wall_clock_reference_s": float,
+            "note": str,
+        }
+    """
+    ce_by_backend: dict[str, dict[str, float]] = {}
+    wall_clock_reference_s = 60.0
+    for t in trials:
+        b = getattr(t, "backend", "?")
+        m = getattr(t, "metrics", None)
+        if m is None:
+            # Seed trial (SimpleNamespace view from a resumed ledger) — has
+            # no metrics. Count it but do NOT include it in the cost/energy
+            # sums. The divisor (metric_trial_count) below excludes these.
+            ce_by_backend.setdefault(b, {
+                "trial_count": 0,
+                "metric_trial_count": 0,
+                "wall_clock_total_s_sum": 0.0,
+                "cost_efficiency_sum": 0.0,
+                "peak_cpu_pct_max": 0.0,
+                "peak_mem_mib_max": 0.0,
+            })["trial_count"] += 1
+            continue
+        wall_clock_reference_s = getattr(m, "wall_clock_reference_s", 60.0)
+        op = m.operational_correctness or {}
+        slot = ce_by_backend.setdefault(b, {
+            "trial_count": 0,
+            "metric_trial_count": 0,
+            "wall_clock_total_s_sum": 0.0,
+            "cost_efficiency_sum": 0.0,
+            "peak_cpu_pct_max": 0.0,
+            "peak_mem_mib_max": 0.0,
+        })
+        slot["trial_count"] += 1
+        slot["metric_trial_count"] += 1
+        slot["wall_clock_total_s_sum"] += float(op.get("wall_clock_total_s", 0.0) or 0.0)
+        slot["cost_efficiency_sum"] += float(getattr(m, "cost_efficiency", 0.0) or 0.0)
+        slot["peak_cpu_pct_max"] = max(
+            slot["peak_cpu_pct_max"],
+            float(op.get("peak_cpu_pct", 0.0) or 0.0),
+        )
+        mem = op.get("peak_mem_mib", None)
+        if mem is not None:
+            slot["peak_mem_mib_max"] = max(slot["peak_mem_mib_max"], float(mem))
+    for slot in ce_by_backend.values():
+        n = slot["metric_trial_count"]
+        slot["trial_count"] = slot["trial_count"]  # keep total
+        if n > 0:
+            slot["mean_wall_clock_s"] = round(slot.pop("wall_clock_total_s_sum") / n, 3)
+            slot["mean_cost_efficiency"] = round(slot.pop("cost_efficiency_sum") / n, 4)
+            slot["peak_cpu_pct_max"] = round(slot["peak_cpu_pct_max"], 3)
+            slot["peak_mem_mib_max"] = round(slot["peak_mem_mib_max"], 3)
+            slot["wall_clock_reference_s"] = wall_clock_reference_s
+        else:
+            slot["mean_wall_clock_s"] = 0.0
+            slot["mean_cost_efficiency"] = 0.0
+            slot["peak_cpu_pct_max"] = 0.0
+            slot["peak_mem_mib_max"] = 0.0
+            slot["wall_clock_reference_s"] = wall_clock_reference_s
+        slot.pop("metric_trial_count", None)
+    return {
+        "by_backend": ce_by_backend,
+        "wall_clock_reference_s": wall_clock_reference_s,
+        "note": (
+            "Three independent dimensions (mean wall-clock, mean cost-efficiency, "
+            "peak resource). No single aggregate score; Pareto dominance is the "
+            "ranking primitive."
+        ),
+    }
 
 
 # Import WaveId at module level for the B0 check

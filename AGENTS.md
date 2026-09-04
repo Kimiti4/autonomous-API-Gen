@@ -139,6 +139,16 @@ infrastructure — do not treat their absence as a unit-suite regression:
   escalation emits an immutable `EscalationEvent` (schema
   `tiannara.escalation.event`, policy version `1.0.0`) for the evidence
   chain. Enforced by `tests/cbc1/test_escalation_policy.py` (24 tests).
+- **Certification Governance registry (`certification/governance/registry.py`).**
+  Phase 31 gap #5 — cross-phase attempts/verdicts tracking: "Tracks
+  attempts, verdicts, regressions across phases; makes the whole program
+  auditable." Append-only hash-chained JSONL ledger (separate from the
+  wave verdict ledger) at `release/evidence/cbc1-governance.jsonl`
+  (gitignored). Records carry schema_id (`tiannara.governance.attempt`,
+  version 1.0.0), phase_id, attempt_id, verdict, evidence_refs, metrics.
+  `detect_regressions()` returns a list of CERTIFIED -> later-NOT_CERTIFIED
+  findings with before/after diffs and metric deltas. Enforced by
+  `tests/cbc1/test_governance_registry.py` (19 tests).
 - Python: 3.14.0 is the interpreter on PATH for `python -m pytest`.
 
 ## Launching Campaign B waves

@@ -122,6 +122,23 @@ infrastructure — do not treat their absence as a unit-suite regression:
   documented). Reproducible (SHA-256 hash) and technology-leakage-free
   (no postgres, fastapi, rust, etc.). See `tests/cbc1/test_stratified_corpus.py`
   for the 17 contract tests.
+- **Cost / energy fitness axis (`certification/core/metrics.py`).**
+  Phase 31 gap #4 — "a system that passes at 100x the compute cost fails
+  in reality." The `TrialMetrics` carries `cost_efficiency` (a [0,1]
+  monotonic axis scaled against a 60s reference) and the raw audit fields
+  `wall_clock_total_s`, `peak_cpu_pct`, `peak_mem_mib` in
+  `operational_correctness`. Three independent dimensions, never collapsed.
+  Enforced by `tests/cbc1/test_cost_energy_axis.py` (13 tests) and
+  `tests/cbc1/test_cost_energy_aggregate.py` (5 tests).
+- **Escalation policy (`certification/governance/escalation_policy.py`).**
+  Phase 31 gap #6 — the constitutional missing piece: "Defines the
+  conditions under which autonomy yields to human judgment." Six triggers
+  (low confidence, policy conflict, high-stakes op, retry exhausted,
+  evidence corrupted, unknown schema), all data-driven. Default state is
+  autonomous; ESCALATE only fires on a documented condition. Every
+  escalation emits an immutable `EscalationEvent` (schema
+  `tiannara.escalation.event`, policy version `1.0.0`) for the evidence
+  chain. Enforced by `tests/cbc1/test_escalation_policy.py` (24 tests).
 - Python: 3.14.0 is the interpreter on PATH for `python -m pytest`.
 
 ## Launching Campaign B waves

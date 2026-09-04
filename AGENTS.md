@@ -123,3 +123,29 @@ infrastructure — do not treat their absence as a unit-suite regression:
   (no postgres, fastapi, rust, etc.). See `tests/cbc1/test_stratified_corpus.py`
   for the 17 contract tests.
 - Python: 3.14.0 is the interpreter on PATH for `python -m pytest`.
+
+## Launching Campaign B waves
+
+The B waves require a contiguous 1000-port host window. The default is
+`8000..9999`, but Windows Hyper-V/WSL frequently reserves large blocks in
+this range (e.g. 8081-8280, 8883-8884, 8976-9075) so the preflight may
+hard-stop with `NOT_CERTIFIED: port capacity insufficient`.
+
+If the default window is exhausted on the host, override with two env vars:
+
+```bash
+CBC1_PORT_LO=11000 CBC1_PORT_HI=11999 bash release/launch_b3_v2.sh
+```
+
+The preflight honors `CBC1_PORT_LO` / `CBC1_PORT_HI` (must be integers,
+span ≥ 1000, base ≥ 1024) and records the override in
+`release/evidence/cbc1-B3-portpool.json` (`preferred` field).
+
+To find a clean window on the host:
+
+```bash
+netsh interface ipv4 show excludedportrange protocol=tcp
+```
+
+Then pick a 1000-port range that does not intersect the listed
+exclusions.

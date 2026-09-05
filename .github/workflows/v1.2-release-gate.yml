@@ -156,7 +156,9 @@ jobs:
       - name: Build + push platform-api
         uses: docker/build-push-action@v5
         with:
-          context: .
+          # autonomous-api/Dockerfile uses context-relative COPY paths
+          # (app/, src/), matching the v1.1 precedent (PLATFORM_DIR context).
+          context: ./autonomous-api
           file: autonomous-api/Dockerfile
           push: true
           tags: ${{ steps.api-meta.outputs.tags }}

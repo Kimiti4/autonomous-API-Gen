@@ -59,3 +59,4 @@ if agg.get('independent_verify_problems'):
 print()
 exit_codes = {'CERTIFIED': 0, 'NOT_CERTIFIED': 1, 'QUALIFIED_PARTIAL': 3}
 sys.exit(exit_codes.get(verdict, 1))
+"

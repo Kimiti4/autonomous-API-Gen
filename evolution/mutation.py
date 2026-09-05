@@ -12,9 +12,9 @@ from .errors import MutationError
 from .models import MutationOperationType, MutationSpec
 from .utils import deep_copy
 
-from constitutional_architecture.governance.governance_design_fitness import (
-    baseline_governance_design,
-)
+# R1-D.3 F-C10-01 fix: canonical equivalent of the constitutional
+# baseline_governance_design. The constitutional import has been removed.
+from .core.governance_design import baseline_governance_design
 
 
 def _split_path(path: str) -> list[str]:

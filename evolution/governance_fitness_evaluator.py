@@ -24,22 +24,19 @@ Integration contract (dimension-set consistency):
     governance objectives feed Pareto selection/ranking, not the binary
     proposal pass/fail gate.
 
-The substantive scoring heuristics and the stable objective vocabulary are
-reused directly from ``constitutional_architecture.governance`` (DRY); only the
-candidate-isr -> design adapter is new here.
+The substantive scoring heuristics and the stable objective vocabulary live in
+``evolution.core.governance_fitness`` (canonical; R1-D.3 migration of F-C10-02);
+only the candidate-isr -> design adapter is new here.
 """
 from __future__ import annotations
 
 from typing import Any
 
-from constitutional_architecture.governance.governance_design_fitness import (
+from .core.governance_fitness import (
+    ALL_OBJECTIVES,
     GovernanceDesignFitness,
     design_objectives,
 )
-from constitutional_architecture.governance.governance_fitness import (
-    ALL_OBJECTIVES,
-)
-from constitutional_architecture.governance.schemas import GovernanceDesignISR
 
 from .fitness import FitnessEvaluator
 from .models import (
@@ -69,10 +66,9 @@ def governance_objectives_for(
     if not isinstance(design_dict, dict) or not design_dict:
         return fail_closed_governance_objectives()
     try:
-        design = GovernanceDesignISR(**design_dict)
+        return design_objectives(design_dict, dimension)
     except Exception:
         return fail_closed_governance_objectives()
-    return design_objectives(design, dimension)
 
 
 class GovernanceAwareFitnessEvaluator(FitnessEvaluator):

@@ -116,3 +116,15 @@ The audit required the following fields for EIR. All are now part of the canonic
 ---
 
 *End of D06. Cross-references: D01 (registry), D03 (ISR), D04 (ArchitectureCandidate), D05 (EvolutionOperation).*
+
+---
+
+# Part II: R1-D.3 D3-05 review
+
+**Review authority:** R1-D.3 master prompt D3-05. Reviewed against `folder/R1_D3_EVOLUTION_SEMANTIC_COMPARISON.md` (D3-03 §9: 14 MIGRATE, 1 RETAIN, 1 FIX).
+
+**Verdict: contract confirmed without structural change.** All 22 required fields (§3) remain correct. The forward reference in §12–14 ("formalized in R1-D.3 as a new `evolution/core/record.py`") is superseded by decision D-D3-01 (`folder/R1_D3_EVOLUTION_MIGRATION_MAP.md` §2.6): no new module — the record surface is `EvolutionEvent` + `EvolutionHistoryRepository` (hash-chained, append-only) + `CandidateEvaluationRecord`, verified by `tests/r1d3/test_evolution_contracts.py::TestLineage`. The canonical record fields map onto `EvolutionEvent.details` + history; the mapping is documented in `folder/R1_D3_CANONICAL_EVOLUTION_INTEGRATION_REPORT.md` (D3-11 §2).
+
+---
+
+*End of Part II.*

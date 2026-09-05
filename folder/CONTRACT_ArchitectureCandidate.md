@@ -121,3 +121,15 @@ ArchitectureCandidate
 ---
 
 *End of D04. Cross-references: D01 (registry), D02 (RequirementGraph), D03 (ISR), D05 (EvolutionOperation), D06 (EvolutionRecord), D07 (CompilerIR references ArchitectureCandidate).*
+
+---
+
+# Part II: R1-D.3 D3-06 review
+
+**Review authority:** R1-D.3 master prompt D3-06. Reviewed against `folder/R1_D3_EVOLUTION_SEMANTIC_COMPARISON.md` (D3-03 §2: 3 MIGRATE, 1 MIGRATE SELECTED, 2 RETAIN, 1 DEFER).
+
+**Verdict: contract confirmed without structural change.** The `Genome` (`evolution/core/genome.py`) remains the de facto ArchitectureCandidate; formalization as a separate typed module is deferred to avoid a parallel representation (audit §39). The `ReferenceGenomeConstructor` (`evolution/core/construction.py:10`) is the deterministic ISR → Genome boundary, verified by lineage tests. No Genome field changes in R1-D.3.
+
+---
+
+*End of Part II.*

@@ -119,3 +119,47 @@ The existing genuine crossover in `evolution/core/operations.py:74-104` is the c
 ---
 
 *End of D05. Cross-references: D01 (registry), D03 (ISR), D04 (ArchitectureCandidate), D06 (EvolutionRecord).*
+
+---
+
+# Part II: R1-D.3 D3-04 refinement
+
+**Refinement authority:** R1-D.3 master prompt. The D3-03 semantic comparison identified MIGRATE actions for D05. This refinement extends D05 Part I with the missing fields. The original D05 is unchanged.
+
+## 16. Refined fields (D3-04)
+
+### 16.1 Verification relationship (added)
+
+| Field | Required? | Classification |
+|---|---|---|
+| `verification_relationship: list[str]` (VerificationResult IDs) | yes (for operations that produce verifiable candidates) | **semantic** (cross-contract; D14) |
+
+The EvolutionOperation references the VerificationResult(s) that establish the candidate's verification status. This is the cross-contract link (D14) between Evolution and Verification.
+
+### 16.2 Environment (added)
+
+| Field | Required? | Classification |
+|---|---|---|
+| `environment: dict[str, str]` (e.g., engine version, toolchain, OS) | yes | **observational metadata** |
+
+### 16.3 Actor/origin (added)
+
+| Field | Required? | Classification |
+|---|---|---|
+| `actor: str` (e.g., "evolution_engine", "agent:architect") | yes | **observational metadata** |
+
+## 17. Constitutional `transformations=[]` defect (R1-D.3 finding)
+
+**The constitutional EIR at `constitutional_architecture/engine/evolution_loop.py:107-114` constructs an EIR with `transformations=[]` despite the engine having performed mutations.** This violates the D06 contract INV-B04 (the audit-required fields must be populated for `OPERATION_OK`). The R1-D.3 fix is to populate `transformations` from the actual mutations performed. The canonical contract is **not** changed by this defect; the constitutional implementation is.
+
+## 18. Cross-references
+
+- D3-01: `folder/R1_D3_EVOLUTION_INVENTORY.md`
+- D3-02: `folder/R1_D3_EVOLUTION_EXECUTION_GRAPH.md`
+- D3-03: `folder/R1_D3_EVOLUTION_SEMANTIC_COMPARISON.md`
+- D06 (R1-B Part I + D3-05 Part II): `folder/CONTRACT_EvolutionRecord_EIR.md`
+- D3-05: `folder/R1_D3_EVOLUTION_MIGRATION_MAP.md` (next)
+
+---
+
+*End of Part II. The D05 contract is refined with `verification_relationship`, `environment`, and `actor` fields. The constitutional `transformations=[]` defect is documented. The canonical EvolutionOperation is preserved.*

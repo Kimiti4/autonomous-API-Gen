@@ -5,10 +5,23 @@ CRUD, Pydantic domain models, event handlers, a working Dockerfile, and
 a real TestClient test that passes.
 """
 from __future__ import annotations
+
+import re
+
 from compiler.core.plan import CompilationPlan
 from compiler.core.repository import GeneratedRepository, build_repository
 from compiler.core.conformance import CHECKER, ConformanceReport
 from compiler.core.protocol import BackendClass, BackendIdentity, TestSpec
+
+
+def _sanitize_identifier(raw: str) -> str:
+    """Lowering boundary: ISR-derived names may carry characters that are
+    illegal in backend identifiers and file paths (e.g. ':'). Collapse every
+    run of non-identifier characters to a single underscore (VS-01)."""
+    cleaned = re.sub(r"[^0-9A-Za-z_]+", "_", raw).strip("_")
+    if cleaned and cleaned[0].isdigit():
+        cleaned = "_" + cleaned
+    return cleaned or "unnamed"
 
 
 class PythonFastAPIBackend:
@@ -29,12 +42,12 @@ class PythonFastAPIBackend:
     def element_paths(self, plan: CompilationPlan) -> dict[str, str]:
         p: dict[str, str] = {}
         for s in plan.services:
-            n = s.name
+            n = _sanitize_identifier(s.name)
             p[s.id] = f"app/application/{n}.py"
             for mp in s.data_models:
-                p[mp.id] = f"app/domain/{mp.entity_name}.py"
+                p[mp.id] = f"app/domain/{_sanitize_identifier(mp.entity_name)}.py"
             for ev in s.published_events + s.consumed_events:
-                p[ev.id] = f"app/events/{ev.name}.py"
+                p[ev.id] = f"app/events/{_sanitize_identifier(ev.name)}.py"
         for sp in plan.security:
             p[sp.policy_id] = "app/core/security.py"
         p.update({
@@ -60,7 +73,7 @@ class PythonFastAPIBackend:
         return CHECKER.check(plan, self.element_paths(plan), repo)
 
     def _svc_name(self, pid: str) -> str:
-        return pid.split(":", 1)[-1].replace("-", "_")
+        return _sanitize_identifier(pid.split(":", 1)[-1])
 
     def _cls_name(self, pid: str) -> str:
         return self._svc_name(pid).title().replace("_", "")
@@ -107,7 +120,7 @@ class PythonFastAPIBackend:
         if pid == "infra:docs":
             return "# ISR-derived architecture\n"
         if pid.startswith("domain:") or pid.startswith("dm:"):
-            entity = pid.split(":", 1)[-1].replace("-", "_").title().replace("_", "")
+            entity = _sanitize_identifier(pid.split(":", 1)[-1]).title().replace("_", "")
             return (
                 "from pydantic import BaseModel\n\n\n"
                 f"class {entity}(BaseModel):\n"

@@ -41,8 +41,31 @@ FORBIDDEN_IMPLEMENTATION_TERMS: Sequence[str] = (
     "vue",
 )
 
+# Testing mechanism terms — migrated from
+# constitutional_architecture/isr/semantics/testing_anchor.py:24.
+# A requirement-ref is a SEMANTIC OBLIGATION, not a test mechanism. The
+# canonical ISR enforces this: a ref_id that names a test framework is a
+# contract violation, not a feature. See folder/R1_D1_ISR_MIGRATION_MAP.md M-01.
+TESTING_MECHANISM_TERMS: Sequence[str] = (
+    "pytest",
+    "playwright",
+    "selenium",
+    "junit",
+    "testng",
+    "mocha",
+    "jest",
+    "rspec",
+    "xunit",
+    "nunit",
+)
+
 _LEAKAGE_RE = re.compile(
     r"\b(?:" + "|".join(re.escape(t) for t in FORBIDDEN_IMPLEMENTATION_TERMS) + r")\b",
+    re.IGNORECASE,
+)
+
+_TESTING_RE = re.compile(
+    r"\b(?:" + "|".join(re.escape(t) for t in TESTING_MECHANISM_TERMS) + r")\b",
     re.IGNORECASE,
 )
 
@@ -108,6 +131,17 @@ def validate_invariants(graph: ISRGraph) -> None:
             chain(_mapping_strings(node.properties), [node.type.value]),
         )
 
+    # 3a. R1-D.1 M-01 + M-02: testing-mechanism check on all node properties.
+    # A requirement-ref is a semantic obligation, not a test mechanism.
+    # The testing-mechanism check applies to ALL node types (not just
+    # REQUIREMENT_REF) because the semantic principle is general: the
+    # canonical ISR is technology-neutral and mechanism-neutral.
+    for node in graph.nodes.values():
+        _check_testing_mechanism(
+            f"node:{node.id}",
+            list(_mapping_strings(node.properties)) + [node.type.value],
+        )
+
     # 4. Determinism seed: sorted-node schema is stable; invariants assume
     #    sorted iteration for deterministic error messages (addresses G1/G3).
 
@@ -134,4 +168,26 @@ def _check_leakage(entity_id: str, strings: Sequence[str]) -> None:
             raise ISRInvariantViolation(
                 f"Implementation leakage in '{entity_id}': "
                 f"'{match}' is a compiler backend concern, not an ISR primitive"
+            )
+
+
+def _check_testing_mechanism(entity_id: str, strings: Sequence[str]) -> None:
+    """R1-D.1 M-02: a canonical ISR node is a semantic obligation, not a
+    testing mechanism. If any string value in the node's properties
+    (or its type label) names a test framework, it is a contract violation.
+
+    This is distinct from FORBIDDEN_IMPLEMENTATION_TERMS: those are
+    technology-stack terms (e.g. fastapi, postgres). TESTING_MECHANISM_TERMS
+    are test-framework terms (e.g. pytest, playwright). The constitutional
+    ISR distinguishes "implementation" from "testing" because conflating
+    them turns the ISR into a test manifest. The canonical ISR preserves
+    that distinction.
+    """
+    for s in strings:
+        if _TESTING_RE.search(s):
+            match = _TESTING_RE.search(s).group().lower()
+            raise ISRInvariantViolation(
+                f"Testing-mechanism contamination in '{entity_id}': "
+                f"'{match}' is a test framework, not an ISR semantic. "
+                f"Requirements are semantic obligations, not test files."
             )

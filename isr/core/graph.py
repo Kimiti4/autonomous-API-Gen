@@ -15,6 +15,12 @@ class NodeType(str, Enum):
     API = "api"
     DATA_MODEL = "data_model"
     EVENT = "event"
+    # R1-D.1 M-03 (security-by-design): SECURITY_POLICY is a semantic
+    # obligation supplied by evolution/architecture selection, NOT a
+    # finding produced by a scanner post-implementation. The threat is
+    # authored in the ISR; certification is its CONSUMER, never its author.
+    # The ownership boundary is structural: the certification package has
+    # no construction surface for SECURITY_POLICY.
     SECURITY_POLICY = "security_policy"
     INFRASTRUCTURE_TARGET = "infrastructure_target"
     REQUIREMENT_REF = "requirement_ref"
@@ -28,6 +34,9 @@ class EdgeType(str, Enum):
     PUBLISHES = "publishes"  # service -> event
     CONSUMED_BY = "consumed_by"  # event -> service
     DEPENDS_ON = "depends_on"  # service -> service
+    # R1-D.1 M-03 (security-by-design): SECURED_BY expresses a semantic
+    # security obligation — source (SERVICE or API) is secured by target
+    # (SECURITY_POLICY). The edge is the security spine of the ISR.
     SECURED_BY = "secured_by"  # service|api -> security_policy
 
 

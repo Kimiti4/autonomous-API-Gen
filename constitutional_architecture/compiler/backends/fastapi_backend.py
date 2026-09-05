@@ -82,7 +82,6 @@ class FastAPIBackend(CompilerBackend):
             if f.path.endswith('Dockerfile'):
                 atype = ArtifactType.DOCKER
             artifacts.append(Artifact(path=f.path, content=f.content, artifact_type=atype, backend='fastapi'))
-        self.write_files()
         return BackendResult(artifacts=artifacts, diagnostics=[])
 
     def generate(self, backend_ir: dict) -> List[GeneratedFile]:

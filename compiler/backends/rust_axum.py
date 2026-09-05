@@ -4,23 +4,10 @@ Emits a runnable minimal Axum application: health endpoint, multi-stage
 Dockerfile, Cargo.toml with proper deps, and a test that passes.
 """
 from __future__ import annotations
-
-import re
-
 from compiler.core.plan import CompilationPlan
 from compiler.core.repository import GeneratedRepository, build_repository
 from compiler.core.conformance import CHECKER, ConformanceReport
 from compiler.core.protocol import BackendClass, BackendIdentity, TestSpec
-
-
-def _sanitize_identifier(raw: str) -> str:
-    """Lowering boundary: ISR-derived names may carry characters that are
-    illegal in backend identifiers and file paths (e.g. ':'). Collapse every
-    run of non-identifier characters to a single underscore (VS-01)."""
-    cleaned = re.sub(r"[^0-9A-Za-z_]+", "_", raw).strip("_")
-    if cleaned and cleaned[0].isdigit():
-        cleaned = "_" + cleaned
-    return cleaned or "unnamed"
 
 
 class RustAxumBackend:
@@ -45,12 +32,12 @@ class RustAxumBackend:
     def element_paths(self, plan: CompilationPlan) -> dict[str, str]:
         p: dict[str, str] = {}
         for s in plan.services:
-            n = _sanitize_identifier(s.name)
+            n = s.name
             p[s.id] = f"src/application/{n}.rs"
             for mp in s.data_models:
-                p[mp.id] = f"src/domain/{_sanitize_identifier(mp.entity_name)}.rs"
+                p[mp.id] = f"src/domain/{mp.entity_name}.rs"
             for ev in s.published_events + s.consumed_events:
-                p[ev.id] = f"src/events/{_sanitize_identifier(ev.name)}.rs"
+                p[ev.id] = f"src/events/{ev.name}.rs"
         for sp in plan.security:
             p[sp.policy_id] = "src/core/security.rs"
         p.update({
@@ -127,7 +114,7 @@ class RustAxumBackend:
         if pid == "infra:docs":
             return "# ISR-derived architecture\n"
         if pid.startswith("domain:") or pid.startswith("dm:"):
-            entity = _sanitize_identifier(pid.split(":", 1)[-1]).title().replace("_", "")
+            entity = pid.split(":", 1)[-1].replace("-", "_").title().replace("_", "")
             return (
                 "#[derive(serde::Serialize, serde::Deserialize)]\n"
                 f"pub struct {entity} {{\n"
@@ -136,7 +123,7 @@ class RustAxumBackend:
                 "}\n"
             )
         if pid.startswith("event:"):
-            name = _sanitize_identifier(pid.split(":", 1)[-1])
+            name = pid.split(":", 1)[-1].replace("-", "_")
             return (
                 f"pub fn handle_{name}(payload: serde_json::Value) -> serde_json::Value {{\n"
                 "    payload\n"
@@ -145,7 +132,7 @@ class RustAxumBackend:
         if pid.startswith("sec:"):
             return "// oauth2 / least-privilege\n"
         if pid.startswith("service:") or pid.startswith("api:"):
-            name = _sanitize_identifier(pid.split(":", 1)[-1]).title().replace("_", "")
+            name = pid.split(":", 1)[-1].replace("-", "_").title().replace("_", "")
             return (
                 f"pub struct {name}Service;\n\n"
                 f"impl {name}Service {{\n"

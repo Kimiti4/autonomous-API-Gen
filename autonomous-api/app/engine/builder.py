@@ -33,11 +33,7 @@ async def startup():
 
 
 def generate_database_file(genome: Genome) -> str:
-    defaults = {
-        "sqlite": "sqlite:///./generated.db",
-        "mysql": "mysql+pymysql://user:password@localhost/app",
-        "postgres": "postgresql+psycopg2://user:password@localhost/app",
-    }
+    defaults = {"sqlite": "sqlite:///./generated.db", "mysql": "mysql+pymysql://user:password@localhost/app", "postgres": "postgresql+psycopg2://user:password@localhost/app"}
     connect_args = '{"check_same_thread": False}' if genome.database == "sqlite" else "{}"
     return f'''import os
 from sqlalchemy import create_engine
@@ -55,8 +51,7 @@ def init_db():
 def generate_security_file(genome: Genome) -> str:
     return '''import os
 import hmac
-import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer, HTTPBasic, HTTPBasicCredentials
 AUTH_MODE = os.getenv("AUTH_MODE", "''' + genome.auth + '''")
 API_KEY = os.getenv("API_KEY")
@@ -73,6 +68,7 @@ def require_auth(credentials: HTTPAuthorizationCredentials = Depends(bearer), ap
     if AUTH_MODE in {"jwt", "oauth2"}:
         if not credentials or not JWT_SECRET: raise HTTPException(status_code=401, detail="Authentication required")
         try:
+            import jwt
             jwt.decode(credentials.credentials, JWT_SECRET, algorithms=["HS256"])
             return "bearer"
         except Exception:
@@ -154,13 +150,7 @@ def build_genome_output(genome: Genome, output_dir: str = "output/generated_api"
     os.makedirs(output_dir, exist_ok=True)
     services_dir = os.path.join(output_dir, "services")
     os.makedirs(services_dir, exist_ok=True)
-    files = {
-        "main.py": generate_main_app(genome),
-        "database.py": generate_database_file(genome),
-        "security.py": generate_security_file(genome),
-        "requirements.txt": generate_requirements(genome),
-        "Dockerfile": generate_dockerfile(genome),
-    }
+    files = {"main.py": generate_main_app(genome), "database.py": generate_database_file(genome), "security.py": generate_security_file(genome), "requirements.txt": generate_requirements(genome), "Dockerfile": generate_dockerfile(genome)}
     for path, content in files.items():
         with open(os.path.join(output_dir, path), "w") as f: f.write(content)
     with open(os.path.join(services_dir, "models.py"), "w") as f: f.write(generate_models_file(genome))

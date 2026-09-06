@@ -3,21 +3,16 @@ from app.engine.genome import Genome
 
 
 def generate_main_app(genome: Genome) -> str:
-    """Generate a runnable FastAPI application with real shared infrastructure."""
     services_imports = "\n".join(f"from services.{svc} import router as {svc}_router" for svc in genome.services)
     services_includes = "\n".join(f'app.include_router({svc}_router, prefix="/api/{genome.api_version}/{svc}", tags=["{svc}"])' for svc in genome.services)
     cors_code = """
 from fastapi.middleware.cors import CORSMiddleware
 _allowed_origins = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "").split(",") if origin.strip()]
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_allowed_origins,
-    allow_credentials=True,
+app.add_middleware(CORSMiddleware, allow_origins=_allowed_origins, allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Accept", "X-API-Key"],
-)
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-API-Key"])
 """ if genome.cors_enabled else ""
-    return f'''"""Generated API architecture. All candidates are expected to run in an isolated environment."""
+    return f'''"""Generated API architecture."""
 import os
 from fastapi import FastAPI
 from database import init_db
@@ -38,17 +33,16 @@ async def startup():
 
 
 def generate_database_file(genome: Genome) -> str:
-    if genome.database == "sqlite":
-        default_url = "sqlite:///./generated.db"
-    elif genome.database == "mysql":
-        default_url = "mysql+pymysql://user:password@localhost/app"
-    else:
-        default_url = "postgresql+psycopg2://user:password@localhost/app"
+    defaults = {
+        "sqlite": "sqlite:///./generated.db",
+        "mysql": "mysql+pymysql://user:password@localhost/app",
+        "postgres": "postgresql+psycopg2://user:password@localhost/app",
+    }
     connect_args = '{"check_same_thread": False}' if genome.database == "sqlite" else "{}"
     return f'''import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
-DATABASE_URL = os.getenv("DATABASE_URL", "{default_url}")
+DATABASE_URL = os.getenv("DATABASE_URL", "{defaults[genome.database]}")
 engine = create_engine(DATABASE_URL, connect_args={connect_args}, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 Base = declarative_base()
@@ -59,13 +53,11 @@ def init_db():
 
 
 def generate_security_file(genome: Genome) -> str:
-    """Generate real environment-backed authentication dependencies."""
     return '''import os
 import hmac
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer, HTTPBasic, HTTPBasicCredentials
-
 AUTH_MODE = os.getenv("AUTH_MODE", "''' + genome.auth + '''")
 API_KEY = os.getenv("API_KEY")
 JWT_SECRET = os.getenv("JWT_SECRET")
@@ -74,28 +66,22 @@ BASIC_PASSWORD = os.getenv("BASIC_PASSWORD")
 bearer = HTTPBearer(auto_error=False)
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 basic = HTTPBasic(auto_error=False)
-
-
 def require_auth(credentials: HTTPAuthorizationCredentials = Depends(bearer), api_key: str | None = Depends(api_key_header), basic_credentials: HTTPBasicCredentials | None = Depends(basic)):
     if AUTH_MODE == "api_key":
-        if API_KEY and api_key and hmac.compare_digest(api_key, API_KEY):
-            return "api-key"
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+        if API_KEY and api_key and hmac.compare_digest(api_key, API_KEY): return "api-key"
+        raise HTTPException(status_code=401, detail="Authentication required")
     if AUTH_MODE in {"jwt", "oauth2"}:
-        if not credentials or not JWT_SECRET:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+        if not credentials or not JWT_SECRET: raise HTTPException(status_code=401, detail="Authentication required")
         try:
             jwt.decode(credentials.credentials, JWT_SECRET, algorithms=["HS256"])
             return "bearer"
         except Exception:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+            raise HTTPException(status_code=401, detail="Invalid token")
     if AUTH_MODE == "basic":
-        if not basic_credentials or not BASIC_USER or not BASIC_PASSWORD:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
-        if hmac.compare_digest(basic_credentials.username, BASIC_USER) and hmac.compare_digest(basic_credentials.password, BASIC_PASSWORD):
-            return basic_credentials.username
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials", headers={"WWW-Authenticate": "Basic"})
-    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unsupported authentication mode")
+        if not basic_credentials or not BASIC_USER or not BASIC_PASSWORD: raise HTTPException(status_code=401, detail="Authentication required")
+        if hmac.compare_digest(basic_credentials.username, BASIC_USER) and hmac.compare_digest(basic_credentials.password, BASIC_PASSWORD): return basic_credentials.username
+        raise HTTPException(status_code=401, detail="Invalid credentials", headers={"WWW-Authenticate": "Basic"})
+    raise HTTPException(status_code=500, detail="Unsupported authentication mode")
 '''
 
 
@@ -127,10 +113,8 @@ class {cls}Payload(BaseModel):
     description: str | None = None
 def get_db():
     db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    try: yield db
+    finally: db.close()
 @router.get("/")
 def list_items(db: Session = Depends(get_db)):
     items = db.query({cls}Item).all()
@@ -138,13 +122,11 @@ def list_items(db: Session = Depends(get_db)):
 @router.get("/{{item_id}}")
 def get_item(item_id: int, db: Session = Depends(get_db)):
     item = db.get({cls}Item, item_id)
-    if item is None:
-        raise HTTPException(status_code=404, detail="Item not found")
+    if item is None: raise HTTPException(status_code=404, detail="Item not found")
     return {{"id": item.id, "name": item.name, "description": item.description}}
 @router.post("/", status_code=201)
 def create_item(payload: {cls}Payload, db: Session = Depends(get_db)):
-    item = {cls}Item(name=payload.name, description=payload.description)
-    db.add(item); db.commit(); db.refresh(item)
+    item = {cls}Item(name=payload.name, description=payload.description); db.add(item); db.commit(); db.refresh(item)
     return {{"id": item.id, "name": item.name, "description": item.description}}
 @router.put("/{{item_id}}")
 def update_item(item_id: int, payload: {cls}Payload, db: Session = Depends(get_db)):
@@ -172,16 +154,19 @@ def build_genome_output(genome: Genome, output_dir: str = "output/generated_api"
     os.makedirs(output_dir, exist_ok=True)
     services_dir = os.path.join(output_dir, "services")
     os.makedirs(services_dir, exist_ok=True)
-    with open(os.path.join(output_dir, "main.py"), "w") as f: f.write(generate_main_app(genome))
-    with open(os.path.join(output_dir, "database.py"), "w") as f: f.write(generate_database_file(genome))
-    with open(os.path.join(output_dir, "security.py"), "w") as f: f.write(generate_security_file(genome))
+    files = {
+        "main.py": generate_main_app(genome),
+        "database.py": generate_database_file(genome),
+        "security.py": generate_security_file(genome),
+        "requirements.txt": generate_requirements(genome),
+        "Dockerfile": generate_dockerfile(genome),
+    }
+    for path, content in files.items():
+        with open(os.path.join(output_dir, path), "w") as f: f.write(content)
     with open(os.path.join(services_dir, "models.py"), "w") as f: f.write(generate_models_file(genome))
     with open(os.path.join(services_dir, "__init__.py"), "w") as f: f.write("")
     for service in genome.services:
         with open(os.path.join(services_dir, f"{service}.py"), "w") as f: f.write(generate_service_file(service, genome))
-    with open(os.path.join(output_dir, "requirements.txt"), "w") as f: f.write(generate_requirements(genome))
-    with open(os.path.join(output_dir, "Dockerfile"), "w") as f: f.write(generate_dockerfile(genome))
-    with open(os.path.join(output_dir, "README.md"), "w") as f: f.write(generate_readme(genome))
     return output_dir
 
 

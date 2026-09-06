@@ -26,24 +26,36 @@ def _runtime_score(health_ok: bool, openapi_ok: bool, auth_boundary_ok: bool, cr
 
 
 def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: str = "output/candidates") -> dict[str, Any]:
-    """Build a candidate and collect observed build, HTTP, auth, and CRUD evidence."""
+    """Build a candidate and collect observed evidence.
+
+    Runtime mode is fail-closed: a build or probe failure never falls back to
+    synthetic fitness. Static scoring is available only when explicitly asked
+    for with ``use_docker=False``.
+    """
     genome_hash = _hash_genome(genome)
     candidate_dir = os.path.join(output_dir, genome_hash[:16])
-    build_genome_output(genome, candidate_dir)
     evidence = {
         "candidate_id": genome.genome_id,
         "genome_hash": genome_hash,
         "artifact_path": candidate_dir,
-        "evaluation_mode": "static",
-        "build_ok": True,
+        "evaluation_mode": "static" if not use_docker else "runtime_failed",
+        "build_ok": False,
         "health_ok": False,
         "openapi_ok": False,
         "auth_boundary_ok": False,
         "crud_ok": False,
-        "runtime_score": None,
-        "static_score": calculate_fitness(genome),
+        "runtime_score": 0.0 if use_docker else None,
+        "static_score": calculate_fitness(genome) if not use_docker else None,
         "error": None,
     }
+    try:
+        build_genome_output(genome, candidate_dir)
+        evidence["build_ok"] = True
+    except Exception as exc:
+        evidence["error"] = f"candidate build failed: {exc}"
+        logger.error("Candidate build failed", exc_info=True)
+        return evidence
+
     if not use_docker:
         return evidence
 
@@ -62,8 +74,7 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
             },
         )
         if not success:
-            evidence["build_ok"] = False
-            evidence["error"] = error
+            evidence["error"] = error or "candidate container failed to start"
             return evidence
 
         base = f"http://127.0.0.1:{port}"
@@ -86,16 +97,13 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
                     headers["Authorization"] = "Bearer " + jwt.encode({"sub": "evaluator"}, "evaluator-test-secret", algorithm="HS256")
                 elif genome.auth == "basic":
                     auth_kwargs["auth"] = ("evaluator", "evaluator-password")
-                created = client.post(
-                    service_url,
-                    json={"name": "evaluator", "description": "runtime probe"},
-                    headers=headers,
-                    **auth_kwargs,
-                )
+                created = client.post(service_url, json={"name": "evaluator", "description": "runtime probe"}, headers=headers, **auth_kwargs)
                 evidence["crud_ok"] = created.status_code == 201
 
         evidence["evaluation_mode"] = "runtime"
         evidence["runtime_score"] = _runtime_score(evidence["health_ok"], evidence["openapi_ok"], evidence["auth_boundary_ok"], evidence["crud_ok"])
+        if evidence["runtime_score"] < 1.0:
+            evidence["error"] = evidence["error"] or "runtime contract probes did not fully pass"
         return evidence
     except Exception as exc:
         logger.error("Candidate runtime evaluation failed", exc_info=True)

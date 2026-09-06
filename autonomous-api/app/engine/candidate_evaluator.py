@@ -22,32 +22,15 @@ def _hash_genome(genome: Genome) -> str:
 
 
 def _runtime_score(health_ok: bool, openapi_ok: bool, auth_boundary_ok: bool, crud_ok: bool) -> float:
-    """Score only directly observed runtime properties."""
-    return round(
-        (0.30 if health_ok else 0.0)
-        + (0.25 if openapi_ok else 0.0)
-        + (0.20 if auth_boundary_ok else 0.0)
-        + (0.25 if crud_ok else 0.0),
-        3,
-    )
+    return round((0.30 if health_ok else 0.0) + (0.25 if openapi_ok else 0.0) + (0.20 if auth_boundary_ok else 0.0) + (0.25 if crud_ok else 0.0), 3)
 
 
-def evaluate_candidate(
-    genome: Genome,
-    *,
-    use_docker: bool = True,
-    output_dir: str = "output/candidates",
-) -> dict[str, Any]:
-    """Generate and execute a candidate, returning explicit evidence.
-
-    ``use_docker=False`` is an explicitly labelled static evaluation and is
-    never presented as observed runtime fitness.
-    """
+def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: str = "output/candidates") -> dict[str, Any]:
+    """Build a candidate and collect observed build, HTTP, auth, and CRUD evidence."""
     genome_hash = _hash_genome(genome)
     candidate_dir = os.path.join(output_dir, genome_hash[:16])
     build_genome_output(genome, candidate_dir)
-
-    evidence: dict[str, Any] = {
+    evidence = {
         "candidate_id": genome.genome_id,
         "genome_hash": genome_hash,
         "artifact_path": candidate_dir,
@@ -61,15 +44,12 @@ def evaluate_candidate(
         "static_score": calculate_fitness(genome),
         "error": None,
     }
-
     if not use_docker:
         return evidence
 
     runner = DockerRunner()
     container_name = f"evo-eval-{genome_hash[:12]}"
     try:
-        # SQLite is used only inside the disposable evaluator container so a
-        # candidate never depends on an external database during probing.
         success, port, error = runner.build_and_run(
             candidate_dir,
             container_name=container_name,
@@ -90,7 +70,6 @@ def evaluate_candidate(
         with httpx.Client(timeout=10.0) as client:
             health = client.get(f"{base}/health")
             evidence["health_ok"] = health.status_code == 200
-
             openapi = client.get(f"{base}/openapi.json")
             evidence["openapi_ok"] = openapi.status_code == 200 and isinstance(openapi.json(), dict)
 
@@ -98,22 +77,25 @@ def evaluate_candidate(
                 service_url = f"{base}/api/{genome.api_version}/{genome.services[0]}/"
                 anonymous = client.get(service_url)
                 evidence["auth_boundary_ok"] = anonymous.status_code in {401, 403}
-
+                headers = {}
+                auth_kwargs = {}
                 if genome.auth == "api_key":
-                    created = client.post(
-                        service_url,
-                        json={"name": "evaluator", "description": "runtime probe"},
-                        headers={"X-API-Key": "evaluator-test-key"},
-                    )
-                    evidence["crud_ok"] = created.status_code == 201
+                    headers["X-API-Key"] = "evaluator-test-key"
+                elif genome.auth in {"jwt", "oauth2"}:
+                    import jwt
+                    headers["Authorization"] = "Bearer " + jwt.encode({"sub": "evaluator"}, "evaluator-test-secret", algorithm="HS256")
+                elif genome.auth == "basic":
+                    auth_kwargs["auth"] = ("evaluator", "evaluator-password")
+                created = client.post(
+                    service_url,
+                    json={"name": "evaluator", "description": "runtime probe"},
+                    headers=headers,
+                    **auth_kwargs,
+                )
+                evidence["crud_ok"] = created.status_code == 201
 
         evidence["evaluation_mode"] = "runtime"
-        evidence["runtime_score"] = _runtime_score(
-            evidence["health_ok"],
-            evidence["openapi_ok"],
-            evidence["auth_boundary_ok"],
-            evidence["crud_ok"],
-        )
+        evidence["runtime_score"] = _runtime_score(evidence["health_ok"], evidence["openapi_ok"], evidence["auth_boundary_ok"], evidence["crud_ok"])
         return evidence
     except Exception as exc:
         logger.error("Candidate runtime evaluation failed", exc_info=True)
@@ -123,16 +105,6 @@ def evaluate_candidate(
         runner.stop_container(container_name)
 
 
-async def evaluate_candidate_async(
-    genome: Genome,
-    *,
-    use_docker: bool = True,
-    output_dir: str = "output/candidates",
-) -> dict[str, Any]:
+async def evaluate_candidate_async(genome: Genome, *, use_docker: bool = True, output_dir: str = "output/candidates") -> dict[str, Any]:
     """Run blocking build/runtime checks off the event loop."""
-    return await asyncio.to_thread(
-        evaluate_candidate,
-        genome,
-        use_docker=use_docker,
-        output_dir=output_dir,
-    )
+    return await asyncio.to_thread(evaluate_candidate, genome, use_docker=use_docker, output_dir=output_dir)

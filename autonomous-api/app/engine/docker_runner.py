@@ -1,125 +1,63 @@
 import subprocess
 import random
 import time
-import os
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict
 from app.core.logger import logger
 
 
 class DockerRunner:
-    """Manages Docker container lifecycle for generated APIs"""
-    
+    """Manages Docker container lifecycle for generated APIs."""
+
     def __init__(self):
-        self.containers = {}  # Track running containers
-    
-    def build_and_run(self, build_dir: str, container_name: str = None) -> Tuple[bool, int, str]:
-        """
-        Build Docker image and run container.
-        
-        Returns:
-            Tuple of (success, port, error_message)
-        """
+        self.containers = {}
+
+    def build_and_run(self, build_dir: str, container_name: str = None, environment: Optional[Dict[str, str]] = None) -> Tuple[bool, int, str]:
+        """Build and run a generated API with optional environment variables."""
         if not container_name:
             container_name = f"evo-api-{random.randint(1000, 9999)}"
-        
         port = random.randint(8001, 9000)
-        
+        environment = environment or {}
         try:
-            # Build the image
-            logger.info(f"Building Docker image in {build_dir}")
-            build_result = subprocess.run(
-                ["docker", "build", "-t", container_name, build_dir],
-                capture_output=True,
-                text=True,
-                timeout=300  # 5 minute timeout
-            )
-            
+            build_result = subprocess.run(["docker", "build", "-t", container_name, build_dir], capture_output=True, text=True, timeout=300)
             if build_result.returncode != 0:
-                error_msg = f"Docker build failed: {build_result.stderr}"
-                logger.error(error_msg)
-                return False, 0, error_msg
-            
-            logger.info(f"Docker image built successfully: {container_name}")
-            
-            # Run the container
-            logger.info(f"Running container on port {port}")
-            run_result = subprocess.run(
-                [
-                    "docker", "run", "-d",
-                    "--name", container_name,
-                    "-p", f"{port}:8000",
-                    container_name
-                ],
-                capture_output=True,
-                text=True,
-                timeout=60
-            )
-            
+                return False, 0, f"Docker build failed: {build_result.stderr}"
+            run_command = ["docker", "run", "-d", "--name", container_name, "-p", f"{port}:8000"]
+            for key, value in environment.items():
+                run_command.extend(["-e", f"{key}={value}"])
+            run_command.append(container_name)
+            run_result = subprocess.run(run_command, capture_output=True, text=True, timeout=60)
             if run_result.returncode != 0:
-                error_msg = f"Docker run failed: {run_result.stderr}"
-                logger.error(error_msg)
-                return False, 0, error_msg
-            
-            container_id = run_result.stdout.strip()
-            self.containers[container_name] = {
-                "id": container_id,
-                "port": port,
-                "build_dir": build_dir
-            }
-            
-            logger.info(f"Container started: {container_name} on port {port}")
-            
-            # Wait for container to be ready
+                return False, 0, f"Docker run failed: {run_result.stderr}"
+            self.containers[container_name] = {"id": run_result.stdout.strip(), "port": port, "build_dir": build_dir}
             time.sleep(3)
-            
             return True, port, ""
-            
         except subprocess.TimeoutExpired:
-            error_msg = "Docker operation timed out"
-            logger.error(error_msg)
-            return False, 0, error_msg
+            return False, 0, "Docker operation timed out"
         except Exception as e:
-            error_msg = f"Docker error: {str(e)}"
-            logger.error(error_msg, exc_info=True)
-            return False, 0, error_msg
-    
+            logger.error("Docker error", exc_info=True)
+            return False, 0, f"Docker error: {e}"
+
     def test_api(self, port: int, timeout: int = 10) -> bool:
-        """Test if API is responding on given port"""
+        """Test if API is responding on given port."""
         import httpx
-        
         try:
             with httpx.Client(timeout=timeout) as client:
-                response = client.get(f"http://localhost:{port}/")
-                return response.status_code == 200
-        except Exception as e:
-            logger.warning(f"API test failed on port {port}: {str(e)}")
+                return client.get(f"http://localhost:{port}/").status_code == 200
+        except Exception:
             return False
-    
+
     def stop_container(self, container_name: str) -> bool:
-        """Stop and remove a container"""
+        """Stop and remove a container."""
         try:
-            subprocess.run(
-                ["docker", "stop", container_name],
-                capture_output=True,
-                timeout=30
-            )
-            subprocess.run(
-                ["docker", "rm", container_name],
-                capture_output=True,
-                timeout=30
-            )
-            
-            if container_name in self.containers:
-                del self.containers[container_name]
-            
-            logger.info(f"Container stopped: {container_name}")
+            subprocess.run(["docker", "stop", container_name], capture_output=True, timeout=30)
+            subprocess.run(["docker", "rm", container_name], capture_output=True, timeout=30)
+            self.containers.pop(container_name, None)
             return True
-            
         except Exception as e:
-            logger.error(f"Failed to stop container {container_name}: {str(e)}")
+            logger.error(f"Failed to stop container {container_name}: {e}")
             return False
-    
+
     def cleanup_all(self):
-        """Stop all tracked containers"""
+        """Stop all tracked containers."""
         for container_name in list(self.containers.keys()):
             self.stop_container(container_name)

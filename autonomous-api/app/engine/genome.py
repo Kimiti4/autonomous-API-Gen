@@ -84,16 +84,19 @@ class Genome:
         self.timeout_config = {"connect_timeout": rng.uniform(5.0, 30.0), "read_timeout": rng.uniform(10.0, 60.0), "write_timeout": rng.uniform(10.0, 60.0), "request_timeout": rng.uniform(30.0, 120.0)}
         self.backends = self._generate_backends(rng); self.middleware = self._generate_middleware(rng); self.security_policies = self._generate_security_policies(rng)
 
-    def _generate_backends(self, rng):
+    def _generate_backends(self, rng=None):
+        rng = rng or random
         result = []
         if self.cache_enabled: result.append({"type": "cache", "implementation": rng.choice(["redis", "memcached"]), "connection_pool_size": rng.randint(5, 20)})
         if len(self.services) > 3: result.append({"type": "message_queue", "implementation": rng.choice(["rabbitmq", "kafka"]), "partitions": rng.randint(1, 8)})
         return result
 
-    def _generate_middleware(self, rng):
+    def _generate_middleware(self, rng=None):
+        rng = rng or random
         return rng.sample(["auth", "caching", "logging", "tracing", "rate_limiting", "circuit_breaker", "retry", "compression", "cors", "security_headers"], rng.randint(2, 6))
 
-    def _generate_security_policies(self, rng):
+    def _generate_security_policies(self, rng=None):
+        rng = rng or random
         policies = []
         if self.auth == "jwt": policies.append({"type": "jwt_validation", "algorithm": rng.choice(["HS256", "RS256"]), "expiration_minutes": rng.randint(60, 1440)})
         if self.rate_limiting: policies.append({"type": "rate_limiting", "requests_per_minute": rng.randint(10, 100), "burst_size": rng.randint(5, 50)})
@@ -102,8 +105,7 @@ class Genome:
     def encode(self):
         return {"genome_id": self.genome_id, "services": self.services, "auth": self.auth, "database": self.database, "cache_enabled": self.cache_enabled, "rate_limiting": self.rate_limiting, "cors_enabled": self.cors_enabled, "logging_level": self.logging_level, "api_version": self.api_version, "security_score": self.security_score, "openapi_version": self.openapi_version, "health_endpoints": self.health_endpoints, "metrics_endpoints": self.metrics_endpoints, "tracing_enabled": self.tracing_enabled, "circuit_breaker": self.circuit_breaker, "retry_policy": self.retry_policy, "timeout_config": self.timeout_config, "backends": self.backends, "middleware": self.middleware, "security_policies": self.security_policies, "metrics": self.metrics.__dict__, "blueprints_used": self.blueprints_used, "policies_applied": self.policies_applied, "deployment_target": self.deployment_target, "lineage": self.lineage}
 
-    def decode(self, data):
-        self._load({**self.encode(), **data})
+    def decode(self, data): self._load({**self.encode(), **data})
 
     def get_production_score(self):
         weights = {"openapi_completeness": .10, "auth_coverage": .15, "migration_safety": .08, "observability_coverage": .12, "latency_estimate": .10, "error_budget_estimate": .10, "dependency_risk": .10, "cloud_cost_estimate": .05, "test_coverage_score": .10, "security_score": .10}

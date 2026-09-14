@@ -2,6 +2,9 @@ import os
 from app.engine.genome import Genome
 
 
+SUPPORTED_AUTH = {"jwt", "api_key", "basic"}
+
+
 def generate_main_app(genome: Genome) -> str:
     services_imports = "\n".join(f"from services.{svc} import router as {svc}_router" for svc in genome.services)
     services_includes = "\n".join(f'app.include_router({svc}_router, prefix="/api/{genome.api_version}/{svc}", tags=["{svc}"])' for svc in genome.services)
@@ -12,6 +15,11 @@ app.add_middleware(CORSMiddleware, allow_origins=_allowed_origins, allow_credent
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "Accept", "X-API-Key"])
 """ if genome.cors_enabled else ""
+    health_code = '''
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+''' if genome.health_endpoints else ""
     return f'''"""Generated API architecture."""
 import os
 from fastapi import FastAPI
@@ -23,9 +31,7 @@ app = FastAPI(title="Evolved API System", version="{genome.api_version}", descri
 @app.get("/")
 async def root():
     return {{"message": "Evolved API System", "version": "{genome.api_version}", "services": {genome.services}}}
-@app.get("/health")
-async def health_check():
-    return {{"status": "healthy"}}
+{health_code}
 @app.on_event("startup")
 async def startup():
     init_db()
@@ -49,6 +55,8 @@ def init_db():
 
 
 def generate_security_file(genome: Genome) -> str:
+    if genome.auth not in SUPPORTED_AUTH:
+        raise ValueError(f"Unsupported authentication capability: {genome.auth}")
     return '''import os
 import hmac
 from fastapi import Depends, HTTPException
@@ -65,7 +73,7 @@ def require_auth(credentials: HTTPAuthorizationCredentials = Depends(bearer), ap
     if AUTH_MODE == "api_key":
         if API_KEY and api_key and hmac.compare_digest(api_key, API_KEY): return "api-key"
         raise HTTPException(status_code=401, detail="Authentication required")
-    if AUTH_MODE in {"jwt", "oauth2"}:
+    if AUTH_MODE == "jwt":
         if not credentials or not JWT_SECRET: raise HTTPException(status_code=401, detail="Authentication required")
         try:
             import jwt
@@ -142,7 +150,7 @@ def generate_requirements(genome: Genome) -> str:
     packages = ["fastapi>=0.100.0", "uvicorn>=0.23.0", "pydantic>=2.0.0", "sqlalchemy>=2.0.0"]
     if genome.database == "postgres": packages.append("psycopg2-binary>=2.9.0")
     elif genome.database == "mysql": packages.append("pymysql>=1.0.0")
-    if genome.auth in {"jwt", "oauth2"}: packages.append("PyJWT>=2.8.0")
+    if genome.auth == "jwt": packages.append("PyJWT>=2.8.0")
     return "\n".join(packages) + "\n"
 
 

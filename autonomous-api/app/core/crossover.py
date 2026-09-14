@@ -1,35 +1,38 @@
+import copy
 import random
 from app.engine.genome import Genome
 
 
+# These fields are runtime/derived state rather than evolvable genes.
+_NON_GENES = {"genome_id", "metrics"}
+
+
 def crossover(parent1: Genome, parent2: Genome) -> Genome:
+    """Perform uniform crossover across the complete evolvable genome.
+
+    Every persisted gene is inherited from one of the parents. Runtime identity
+    and measured production metrics are not inherited. This prevents crossover
+    from silently regenerating unrelated genes and makes lineage meaningful.
     """
-    Perform crossover between two parent genomes to create a child.
-    Uses uniform crossover for most genes.
-    """
+    p1 = parent1.encode()
+    p2 = parent2.encode()
+
     child_data = {}
-    
-    # Services: take first half from parent1, second half from parent2
-    all_services = list(set(parent1.services + parent2.services))
-    random.shuffle(all_services)
-    num_services = random.randint(2, min(5, len(all_services)))
-    child_data["services"] = all_services[:num_services]
-    
-    # Auth: randomly choose from parents
-    child_data["auth"] = random.choice([parent1.auth, parent2.auth])
-    
-    # Database: randomly choose from parents
-    child_data["database"] = random.choice([parent1.database, parent2.database])
-    
-    # Boolean features: 50% chance from each parent
-    child_data["cache_enabled"] = random.choice([parent1.cache_enabled, parent2.cache_enabled])
-    child_data["rate_limiting"] = random.choice([parent1.rate_limiting, parent2.rate_limiting])
-    child_data["cors_enabled"] = random.choice([parent1.cors_enabled, parent2.cors_enabled])
-    
-    # Logging and version: randomly choose
-    child_data["logging_level"] = random.choice([parent1.logging_level, parent2.logging_level])
-    child_data["api_version"] = random.choice([parent1.api_version, parent2.api_version])
-    
-    child_data["security_score"] = 1.0
-    
-    return Genome(genome_data=child_data)
+    for field in p1.keys() | p2.keys():
+        if field in _NON_GENES:
+            continue
+        if field not in p1:
+            value = p2[field]
+        elif field not in p2:
+            value = p1[field]
+        else:
+            value = p1[field] if random.random() < 0.5 else p2[field]
+        child_data[field] = copy.deepcopy(value)
+
+    child = Genome(genome_data=child_data)
+    child.metrics = type(child.metrics)()
+    child.lineage = {
+        "operator": "uniform_crossover",
+        "parent_ids": [parent1.genome_id, parent2.genome_id],
+    }
+    return child

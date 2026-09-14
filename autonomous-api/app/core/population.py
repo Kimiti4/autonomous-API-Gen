@@ -1,49 +1,52 @@
 from typing import List
 from app.engine.genome import Genome
+from app.engine.fitness import pareto_front_analysis
 
 
 class Population:
-    """Manages a population of genomes for evolution"""
-    
+    """Manages a population of genomes for evolutionary search."""
+
     def __init__(self, size: int = 10, genomes: List[Genome] = None):
-        if genomes:
-            self.individuals = genomes
-        else:
-            self.individuals = [Genome() for _ in range(size)]
-    
+        if size < 1 and not genomes:
+            raise ValueError("population size must be positive")
+        self.individuals = genomes if genomes is not None else [Genome() for _ in range(size)]
+
     def size(self) -> int:
         return len(self.individuals)
-    
+
     def get_best(self, fitness_scores: List[float]) -> Genome:
-        """Get the genome with highest fitness"""
         if not fitness_scores:
             return self.individuals[0]
-        
-        best_idx = fitness_scores.index(max(fitness_scores))
-        return self.individuals[best_idx]
-    
+        return self.individuals[fitness_scores.index(max(fitness_scores))]
+
     def select_parents(self, fitness_scores: List[float], num_parents: int = 2) -> List[Genome]:
-        """Tournament selection of parents based on fitness"""
+        """Select parents from the current Pareto front, then scalar-rank ties.
+
+        The scalar fitness remains a deterministic tie-breaker, but dominance
+        across security, performance, cost, and complexity now determines the
+        primary candidate set.
+        """
         if len(fitness_scores) != len(self.individuals):
             raise ValueError("Fitness scores length must match population size")
-        
-        # Create list of (genome, fitness) pairs
-        paired = list(zip(self.individuals, fitness_scores))
-        
-        # Sort by fitness (descending)
-        paired.sort(key=lambda x: x[1], reverse=True)
-        
-        # Select top individuals as parents
-        parents = [p[0] for p in paired[:num_parents]]
-        return parents
-    
+        if num_parents < 1:
+            raise ValueError("num_parents must be positive")
+
+        analysis = pareto_front_analysis(self.individuals)
+        front_ids = {genome.genome_id for genome, _ in analysis["pareto_front"]}
+        ranked = sorted(
+            enumerate(self.individuals),
+            key=lambda item: (item[1].genome_id in front_ids, fitness_scores[item[0]]),
+            reverse=True,
+        )
+        return [genome for _, genome in ranked[:min(num_parents, len(ranked))]]
+
     def replace(self, new_individuals: List[Genome]):
-        """Replace current population with new individuals"""
+        if not new_individuals:
+            raise ValueError("population cannot be empty")
         self.individuals = new_individuals
-    
+
     def to_dict(self) -> dict:
-        """Convert population to dictionary for serialization"""
         return {
             "size": self.size(),
-            "individuals": [g.encode() for g in self.individuals]
+            "individuals": [g.encode() for g in self.individuals],
         }

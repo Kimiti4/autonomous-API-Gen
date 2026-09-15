@@ -23,6 +23,14 @@ IMPLEMENTED_AUTH = {"jwt", "api_key", "basic"}
 SUPPORTED_DATABASES = {"postgres", "mysql", "sqlite"}
 
 
+def _valid_request_timeout(config: dict[str, Any]) -> bool:
+    try:
+        value = float(config.get("request_timeout", 0))
+    except (TypeError, ValueError):
+        return False
+    return value > 0
+
+
 def assess_genome(genome: Genome) -> list[CapabilityResult]:
     results: list[CapabilityResult] = []
 
@@ -39,12 +47,14 @@ def assess_genome(genome: Genome) -> list[CapabilityResult]:
     add("rate_limiting", genome.rate_limiting, genome.rate_limiting, "A generated process-local request limiter is emitted when selected.")
     add("metrics_endpoints", genome.metrics_endpoints, genome.metrics_endpoints, "A generated Prometheus-compatible /metrics endpoint is emitted when selected.")
     add("tracing", genome.tracing_enabled, genome.tracing_enabled, "OpenTelemetry ASGI instrumentation, SDK provider and trace-id response propagation are generated when selected.")
+    timeout_requested = bool(genome.timeout_config)
+    timeout_implemented = timeout_requested and _valid_request_timeout(genome.timeout_config)
+    add("timeout_config", timeout_requested, timeout_implemented, "A positive request_timeout is lowered into fail-closed request middleware; connect/read/write values are not independently applicable to the generated inbound-only API.")
 
     unsupported = {
         "cache": genome.cache_enabled,
         "circuit_breaker": genome.circuit_breaker,
         "retry_policy": bool(genome.retry_policy),
-        "timeout_config": bool(genome.timeout_config),
         "backends": bool(genome.backends),
         "middleware": bool(genome.middleware),
         "security_policies": bool(genome.security_policies),
@@ -54,7 +64,6 @@ def assess_genome(genome: Genome) -> list[CapabilityResult]:
         "cache": "No cache implementation is emitted by builder.py.",
         "circuit_breaker": "No circuit-breaker implementation is emitted by builder.py.",
         "retry_policy": "Retry policy is represented but not lowered into generated request execution.",
-        "timeout_config": "Timeout configuration is represented but not lowered into generated request execution.",
         "backends": "Backend descriptors are represented but external cache/queue backends are not generated.",
         "middleware": "Arbitrary middleware selections are represented but not lowered.",
         "security_policies": "Security-policy descriptors are not independently lowered into enforcement code.",

@@ -53,6 +53,23 @@ def inspect_artifact(genome: Genome, artifact_dir: str) -> dict[str, Any]:
         tracing_checks = {"selection_fidelity": "OpenTelemetryMiddleware" not in main_text}
         tracing_ok = tracing_checks["selection_fidelity"]
     results["tracing"] = _result("tracing", contract["tracing"].requested, tracing_ok, tracing_checks)
+    if genome.timeout_config:
+        try:
+            timeout_value = float(genome.timeout_config.get("request_timeout", 0))
+            timeout_checks = {
+                "middleware": "request_timeout_middleware" in main_text,
+                "wait_for": "asyncio.wait_for" in main_text,
+                "configured_value": f"REQUEST_TIMEOUT_SECONDS = {timeout_value!r}" in main_text,
+                "timeout_response": 'status_code=504' in main_text and '"Request timed out"' in main_text,
+            }
+            timeout_ok = timeout_value > 0 and all(timeout_checks.values())
+        except (TypeError, ValueError):
+            timeout_checks = {"valid_configuration": False}
+            timeout_ok = False
+        results["timeout_config"] = _result("timeout_config", contract["timeout_config"].requested, timeout_ok, timeout_checks, contract["timeout_config"].reason)
+    else:
+        timeout_checks = {"selection_fidelity": "request_timeout_middleware" not in main_text}
+        results["timeout_config"] = _result("timeout_config", False, timeout_checks["selection_fidelity"], timeout_checks)
 
     for item in contract.values():
         if item.name not in results and item.requested:

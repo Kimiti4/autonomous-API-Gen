@@ -1,0 +1,22 @@
+{
+  "diagnosis": {
+    "category": "dependency_failure",
+    "confidence": 0.88,
+    "diagnostics": [
+      "internal/domain/repositories.go:5:22: undefined: OrderModel",
+      "internal/domain/repositories.go:6:16: undefined: OrderModel",
+      "internal/domain/repositories.go:7:20: undefined: OrderModel"
+    ],
+    "evidence_hash": "ccdb7ffdc613c4fde53f439e7c7777e72156c8901b197edf41da7d14034a43eb",
+    "severity": "high"
+  },
+  "gate": {
+    "command": "go build ./... && go test ./...",
+    "duration_s": 557.8,
+    "executor": "docker(golang:1.22-alpine) warm-cache GOCACHE=/go",
+    "exit_code": 1,
+    "passed": false,
+    "stderr_tail": "and/internal/domain\ninternal/domain/repositories.go:5:22: undefined: OrderModel\ninternal/domain/repositories.go:6:16: undefined: OrderModel\ninternal/domain/repositories.go:7:20: undefined: OrderModel\n",
+    "stdout_tail": ""
+  }
+}

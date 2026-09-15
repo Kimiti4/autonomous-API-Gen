@@ -1,0 +1,29 @@
+{
+  "green": {
+    "O1_health": {
+      "body": "{\"status\":\"ok\"}",
+      "ms": 20.2,
+      "status": 200
+    },
+    "O2_readiness": {
+      "body": "{\"status\":\"ready\"}",
+      "ms": 12.5,
+      "status": 200
+    },
+    "O3_create": {
+      "body": "{\"id\":\"ord-1\"}\n",
+      "ms": 16.2,
+      "status": 201
+    },
+    "O4_list": {
+      "body": "[{\"id\":\"ord-1\"}]\n",
+      "ms": 26.3,
+      "status": 200
+    },
+    "O5_404": {
+      "body": "404 page not found\n",
+      "ms": 23.4,
+      "status": 404
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "healthy": true,
+  "launch_rc": 0,
+  "oracle": {
+    "O1_health": {
+      "body": "{\"status\":\"ok\"}",
+      "ms": 127.7,
+      "status": 200
+    },
+    "O2_readiness": {
+      "body": "{\"status\":\"ready\"}",
+      "ms": 35.5,
+      "status": 200
+    },
+    "O3_create": {
+      "body": "{\"id\":\"ord-1\"}\n",
+      "ms": 50.9,
+      "status": 201
+    },
+    "O4_list": {
+      "body": "[{\"id\":\"ord-1\"}]\n",
+      "ms": 65.8,
+      "status": 200
+    },
+    "O5_404": {
+      "body": "404 page not found\n",
+      "ms": 3.8,
+      "status": 404
+    }
+  }
+}

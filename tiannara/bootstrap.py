@@ -15,7 +15,7 @@ from .application.publisher.publisher_orchestrator import (
     PublishingIdentity,
 )
 from .infrastructure.backends.minimal_container_backend import MinimalContainerBackend
-from .application.compiler import FastAPIHexagonalBackend
+from .application.compiler import FastAPIHexagonalBackend, GoHexagonalBackend
 from .infrastructure.config.settings import PlatformSettings
 from .infrastructure.evolution.baseline_evolution_engine import BaselineEvolutionEngine
 from .infrastructure.intent.structured_intent_compiler import StructuredIntentCompiler
@@ -31,6 +31,7 @@ def build_harness() -> tuple[StratifiedCalibrationHarness, PlatformSettings]:
     backends = {
         "minimal-container": MinimalContainerBackend(),
         "fastapi_hexagonal": FastAPIHexagonalBackend(),
+        "go_hexagonal": GoHexagonalBackend(),
     }
     pipeline = ExecutionPipeline(
         intent_compiler=StructuredIntentCompiler(),

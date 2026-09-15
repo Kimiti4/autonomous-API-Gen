@@ -1,0 +1,16 @@
+{
+  "build_exit": 1,
+  "file": "internal\\domain\\models.go",
+  "gate": {
+    "command": "go build ./... && go test ./...",
+    "duration_s": 557.8,
+    "executor": "docker(golang:1.22-alpine) warm-cache GOCACHE=/go",
+    "exit_code": 1,
+    "passed": false,
+    "stderr_tail": "and/internal/domain\ninternal/domain/repositories.go:5:22: undefined: OrderModel\ninternal/domain/repositories.go:6:16: undefined: OrderModel\ninternal/domain/repositories.go:7:20: undefined: OrderModel\n",
+    "stdout_tail": ""
+  },
+  "post_hash": "7610639d7a96a0b2eea179ae4da7ed5b4220f0ca93588aebc1b61fd0d9827d24",
+  "pre_hash": "0e8b1a47acc85dbf574c7e72a0e6d3c8337fdd4f06aa9123dbaa9381086beeaf",
+  "stderr_tail": "# github.com/tiannara/order_management_system_create_list_and/internal/domain\ninternal/domain/repositories.go:5:22: undefined: OrderModel\ninternal/domain/repositories.go:6:16: undefined: OrderModel\ninternal/domain/repositories.go:7:20: undefined: OrderModel\n"
+}

@@ -1,0 +1,73 @@
+{
+  "gate": "VS-D44",
+  "title": "Multi-Backend & Real Executor Validation",
+  "date": "2026-09-15",
+  "baseline_head": "f73ef9e",
+  "decision": "PASS_WITH_BOUNDED_UNKNOWN",
+  "mode": "analytical/experimental/evidence-based/bounded/non-production/non-deployment",
+  "prep_reference": "docs/observatory/OBSERVATORY_D44_PREP.md",
+  "authorized_decisions": {
+    "D1": "register existing GoHexagonalBackend in pipeline backend resolution (additive)",
+    "D2": "Docker Desktop + golang:1.22-alpine real Go toolchain",
+    "D3": "HUMAN-DIRECTED selection target_backend=go_hexagonal; _CATEGORY_BACKENDS unchanged",
+    "experiment": "Full fault -> REAL rebuild -> re-oracle"
+  },
+  "phases": [
+    {"seq": 0, "phase": "start", "event_id": "evt-governance-a14514f204c51b4e25038d4c"},
+    {"seq": 1, "phase": "P1_compile", "event_id": "evt-evidence-01fd90b40c15ca61bec69d95", "backend": "go_hexagonal"},
+    {"seq": 2, "phase": "P2_tiannara_gate_good", "event_id": "evt-evidence-5322d33e72751899f0f7df34", "passed": true, "exit_code": 0, "duration_s": 827.2, "executor": "DockerExecutionEnvironment cold"},
+    {"seq": 3, "phase": "P2b_baseline_live", "event_id": "evt-evidence-ceec9a5a47c2cbdfa6c13605", "build_exit": 0, "oracle": {"O1_health": 200, "O2_readiness": 200, "O3_create": 201, "O4_list": 200, "O5_404": 404}},
+    {"seq": 4, "phase": "P3_fault_inject", "event_id": "evt-evolution-8550dd6132eaeffd3ac83259", "file": "internal/domain/models.go", "pre_hash": "0e8b1a47acc85dbf574c7e72a0e6d3c8337fdd4f06aa9123dbaa9381086beeaf", "post_hash": "7610639d7a96a0b2eea179ae4da7ed5b4220f0ca93588aebc1b61fd0d9827d24"},
+    {"seq": 5, "phase": "P4/P4b_real_build_and_gate_faulted", "event_id": "evt-evidence-376e2376f28016eae7fd9db3", "build_exit": 1, "gate_passed": false, "gate_exit": 1, "diagnostics_tail": "internal/domain/repositories.go:5:22: undefined: OrderModel"},
+    {"seq": 6, "phase": "P5_relaunch_faulted_service_down", "event_id": "evt-runtime-b2e749a482c26222666bf6b6", "oracle": {"O1_health": null, "O2_readiness": null, "O3_create": null, "O4_list": null, "O5_404": null}, "probe_error": "RemoteDisconnected: Remote end closed connection without response"},
+    {"seq": 7, "phase": "P6_tiannara_diagnosis", "event_id": "evt-evolution-c4bc114fe131db3244f9e8a5", "category": "dependency_failure", "severity": "high", "confidence": 0.88},
+    {"seq": 8, "phase": "P7_bounded_restore", "event_id": "evt-evolution-72b91f30439ea7afe6f266b9", "method": "pipeline re-materialization", "restored_matches_pre_fault": true},
+    {"seq": 9, "phase": "P8_rebuild_and_gate_restored", "event_id": "evt-evidence-2ad144006fc2bbb8fe21acca", "build_exit": 0, "gate_passed": true, "gate_exit": 0, "duration_s": 328.9},
+    {"seq": 10, "phase": "P8_re_oracle_after_repair", "event_id": "evt-evidence-a3bb1d094cffd29f1668bffb", "oracle": {"O1_health": 200, "O2_readiness": 200, "O3_create": 201, "O4_list": 200, "O5_404": 404}},
+    {"seq": 11, "phase": "P9_summary", "event_id": "evt-governance-61601505bac6b6f9450a622e"}
+  ],
+  "chain": {"file": "observatory/evidence/d44-evidence-canonical.jsonl", "seed": "tiannara-d44-chain-v1", "records": 12, "integrity": "OK"},
+  "predicate_verdicts": [
+    {"predicate": "BACKEND-01/P1_second_backend_build_launch_real_workload", "verdict": "DEMONSTRATED"},
+    {"predicate": "EXEC_real_executor_build_launch_http_oracle", "verdict": "DEMONSTRATED"},
+    {"predicate": "P2_tiannara_gate_truthfulness_authentic", "verdict": "DEMONSTRATED"},
+    {"predicate": "P3_expected_vs_observed_oracle", "verdict": "DEMONSTRATED"},
+    {"predicate": "P4_real_diagnosis_failure_classification", "verdict": "DEMONSTRATED"},
+    {"predicate": "P5_bounded_deterministic_repair", "verdict": "DEMONSTRATED"},
+    {"predicate": "EPISTEMIC_statuses_from_observed_runtime", "verdict": "DEMONSTRATED"},
+    {"predicate": "PROVENANCE_attributable_tamper_evident_chain", "verdict": "DEMONSTRATED"},
+    {"predicate": "OBSERVATORY_LIVE_lifecycle_visible", "verdict": "DEMONSTRATED"},
+    {"predicate": "TIANNARA_EXECUTION_LIVE_real_go_process", "verdict": "DEMONSTRATED"},
+    {"predicate": "AUTONOMY_above_A5_adaptive_mutation", "verdict": "NOT_DEMONSTRATED"}
+  ],
+  "bounded_unknowns": [
+    "single representative cell, not the 1040-cell matrix (D45 gate)",
+    "backend selection was human-directed; Tiannara campaign policy still never selects go autonomously",
+    "P4b/P8 gates used a recorded warm-cache performance variant (byte-identical command/image); cold gate at P2 was authentic (827.2s)",
+    "exactly one of six declared failure categories exercised (dependency_failure)",
+    "repair is deterministic re-materialization, not adaptive evolutionary mutation",
+    "runtime realism ceiling: in-memory single-node net/http; Go stdlib only"
+  ],
+  "constraints_compliance": {"no_deploy": true, "no_d45": true, "no_credentials": true, "no_cert_mutation": true, "no_gate_weakening": true, "commit_push_only_on_explicit_authorization": true},
+  "source_changes": [
+    "tiannara/bootstrap.py (register go_hexagonal in backends dict)",
+    "tiannara/application/compiler/__init__.py (export GoHexagonalBackend)",
+    "tiannara/application/compiler/go_hexagonal_backend.py (compile() port adapter + _system_model())"
+  ],
+  "evidence_files": [
+    "observatory/evidence/d44-evidence-canonical.jsonl",
+    "observatory/evidence/d44/oracle_green.json",
+    "observatory/evidence/d44/baseline.json",
+    "observatory/evidence/d44/faulted.json",
+    "observatory/evidence/d44/relaunch_faulted.json",
+    "observatory/evidence/d44/oracle_after_fault.json",
+    "observatory/evidence/d44/diagnosis.json",
+    "observatory/evidence/d44/restored.json",
+    "observatory/evidence/d44/reoracle.json",
+    "observatory/evidence/d44/oracle_after_restore.json",
+    "docs/observatory/OBSERVATORY_D44_PREP.md",
+    "docs/observatory/OBSERVATORY_D44_PREP.json",
+    "docs/observatory/OBSERVATORY_D44_MULTI_BACKEND_EXECUTOR.md"
+  ],
+  "next_gates": ["CI/evidence closure of pulled lowerers (consume real GitHub Actions evidence)", "timeout lowerer", "retry lowerer", "circuit-breaker lowerer", "cache", "backend abstraction", "middleware/security-policy lowering"]
+}

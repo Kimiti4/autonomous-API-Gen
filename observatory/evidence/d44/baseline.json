@@ -1,0 +1,35 @@
+{
+  "build_exit": 0,
+  "build_stderr_tail": "",
+  "build_stdout_tail": "?   \tgithub.com/tiannara/order_management_system_create_list_and/cmd/server\t[no test files]\n?   \tgithub.com/tiannara/order_management_system_create_list_and/internal/application\t[no test files]\nok  \tgithub.com/tiannara/order_management_system_create_list_and/internal/api\t(cached)\n?   \tgithub.com/tiannara/order_management_system_create_list_and/internal/domain\t[no test files]\n?   \tgithub.com/tiannara/order_management_system_create_list_and/internal/infrastructure\t[no test files]\n",
+  "container_id": "9fb2ac79b201",
+  "healthy": true,
+  "launch_rc": 0,
+  "oracle": {
+    "O1_health": {
+      "body": "{\"status\":\"ok\"}",
+      "ms": 20.2,
+      "status": 200
+    },
+    "O2_readiness": {
+      "body": "{\"status\":\"ready\"}",
+      "ms": 12.5,
+      "status": 200
+    },
+    "O3_create": {
+      "body": "{\"id\":\"ord-1\"}\n",
+      "ms": 16.2,
+      "status": 201
+    },
+    "O4_list": {
+      "body": "[{\"id\":\"ord-1\"}]\n",
+      "ms": 26.3,
+      "status": 200
+    },
+    "O5_404": {
+      "body": "404 page not found\n",
+      "ms": 23.4,
+      "status": 404
+    }
+  }
+}

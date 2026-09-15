@@ -1,0 +1,123 @@
+{
+  "record_id": "D44-PREP",
+  "gate": "VS-D44",
+  "status": "PREP_COMPLETE",
+  "parent": "D43",
+  "decision_required": "go/no-go for full D44 experiment (per VS-D44 section 39)",
+  "date": "2026-09-15",
+  "authorization": {
+    "prep": "authorized by user (choose: Authorize D44-PREP first)",
+    "experiment": "NOT AUTHORIZED"
+  },
+  "baseline": {
+    "commit": "f73ef9e",
+    "branch": "main",
+    "tree": "clean",
+    "origin": "in sync"
+  },
+  "live_surface": {
+    "observatory_api": "alive on :8000",
+    "frontend": "alive on :3000",
+    "mode": "OBSERVATORY_LIVE (API + SSE)"
+  },
+  "host_toolchain_survey": {
+    "go": {"installed": false},
+    "rust": {"installed": true, "version": "1.94.1"},
+    "elixir": {"installed": true, "version": "1.18.4", "otp": 28},
+    "node": {"installed": true, "version": "24.11.1", "npm": "11.12.1"},
+    "python": {"installed": true, "version": "3.14.0"},
+    "docker": {"cli": "v29.7.2", "daemon_running": false},
+    "git": "2.53.0"
+  },
+  "executor_classification": [
+    {
+      "executor": "LocalExecutionEnvironment",
+      "condition": "test_command=None (default via bootstrap.py:63/67, cli/main.py:178)",
+      "behavior": "hardcoded TestRunResult(passed=True, exit_code=0, total_tests=1, failed_tests=0); no process spawned; local_environment.py:23-24",
+      "class": "SIMULATION/HARNESS",
+      "source_gate": true
+    },
+    {
+      "executor": "LocalExecutionEnvironment",
+      "condition": "explicit test_command",
+      "behavior": "real subprocess; exit-code-only; total_tests hardcoded=1; no service launch; no HTTP oracle",
+      "class": "PARTIAL_REAL_EXECUTOR"
+    },
+    {
+      "executor": "DockerExecutionEnvironment",
+      "condition": "daemon up (docker_environment.py:56); currently available()=False",
+      "behavior": "real docker run in declared runtime_image, timeout + log capture; build/test-command gate only; no live-workload oracle",
+      "class": "PARTIAL_REAL_EXECUTOR"
+    },
+    {
+      "executor": "REAL_EXECUTOR",
+      "condition": "required for D44 P1/P2; created as isolated experiment scaffolding",
+      "behavior": "build in declared toolchain/image -> launch server process -> independent HTTP oracle (O1-O6) -> real exit codes/logs",
+      "class": "REAL_EXECUTOR",
+      "source_gate": false
+    }
+  ],
+  "registry_state": {
+    "compiler_registry_registered": ["minimal-container", "fastapi_hexagonal"],
+    "dormant_backend": "go_hexagonal (GoHexagonalBackend, application/compiler/go_hexagonal_backend.py, 525 lines, complete stdlib-only Go: go.mod/domain/application/infrastructure/api/cmd/tests/Dockerfile/compose/CI/README)",
+    "build_profile": {"language": "go", "build": ["go", "build", "./..."], "test": ["go", "test", "./..."], "runtime_image": "golang:1.22-alpine"},
+    "registration": "NEVER IMPORTED/REGISTERED via bootstrap.py:31-34 (only minimal-container + fastapi_hexagonal)",
+    "realizer_registry": "backend_capability_registry.py: fastapi + postgres (Phase 22), not harness-wired",
+    "go_build_executed_ever": false,
+    "test_coverage": "source-shape only (tests/test_go_hexagonal_backend.py, tests/test_go_verifier.py)"
+  },
+  "selection_policy": {
+    "source": "application/campaign/harness.py:120-135 _CATEGORY_BACKENDS",
+    "mapping": "all 13 ProjectCategory -> fastapi/postgres (fixed harness policy)",
+    "pipeline_resolution": "execution_pipeline.py:37-42 target_backend; ValueError on unknown backend",
+    "d44_default": "HUMAN-DIRECTED selection via target_backend=go_hexagonal; no _CATEGORY_BACKENDS edit"
+  },
+  "oracle_design": {
+    "purpose": "independent functional check from outside Tiannara (antidote to simulated pass)",
+    "probes": {
+      "O1": {"call": "GET /health", "expected": "200 {\"status\":\"ok\"}"},
+      "O2": {"call": "GET /readiness", "expected": "200 {\"status\":\"ready\"}"},
+      "O3": {"call": "POST /{entities} JSON create", "expected": "201 echoed entity"},
+      "O4": {"call": "GET /{entities}/list", "expected": "200 array contains created record"},
+      "O5": {"call": "GET /nonexistent-route", "expected": "404 (negative control)"},
+      "O6": {"call": "O3-O4 repeat with distinct payload", "expected": "consistent CRUD round-trip"}
+    }
+  },
+  "failure_mechanism": {
+    "requirement": "deterministic, reversible, attributable; exactly one declared failure-mode category",
+    "design": "green baseline O1-O6 -> stop server -> single diff-visible fault in generated artifact (e.g. delete internal/domain/models.go or corrupt go.mod) -> REAL rebuild/relaunch -> service unavailable/timeout/5xx -> Tiannara detects and diagnoses -> restore artifact (reversible) -> bounded diagnostic evidence",
+    "category": "pinned from D44 section 15 taxonomy at execution (intent: service-runtime observable failure)",
+    "attributable": "injected change is the only artifact diff (pre/post hash)"
+  },
+  "experiment_plan": {
+    "scale": "one representative category + one intent; NO 1040-cell matrix",
+    "path": "intent -> Tiannara pipeline (go_hexagonal) -> REAL build (golang:1.22-alpine) -> REAL launch -> oracle O1-O6 -> induced fault -> REAL rebuild/relaunch -> re-oracle -> repair/diagnosis -> Observatory API/SSE lifecycle -> ledger provenance -> STOP report",
+    "decision_vocabulary": ["PASS", "PASS WITH BOUNDED UNKNOWN", "PARTIAL", "HOLD", "FAIL", "STOP"],
+    "liveness_distinction": ["OBSERVATORY_LIVE", "TIANNARA_EXECUTION_LIVE"],
+    "autonomy_target": "A2/A3 realism, A5/A6 only if bounded self-repair completes; no A7/A8"
+  },
+  "open_decisions_for_go_no_go": [
+    {
+      "id": "D1",
+      "question": "Allow minimal registration of existing GoHexagonalBackend into pipeline backend resolution (1-line addition to bootstrap.py backends dict)?",
+      "recommendation": "YES - adds capability, changes no verdict/default; alternative = direct class invocation (weaker attribution, harness-bypass risk)"
+    },
+    {
+      "id": "D2",
+      "question": "Real Go toolchain: start Docker Desktop (golang:1.22-alpine) vs install host Go vs accept PARTIAL vs author brand-new backend?",
+      "recommendation": "Start Docker Desktop; fallback host Go install; authoring new backend = largest lift"
+    },
+    {
+      "id": "D3",
+      "question": "Confirm HUMAN-DIRECTED selection attribution (target_backend=go_hexagonal, no _CATEGORY_BACKENDS edit)?",
+      "recommendation": "YES - minimal-surprise honest default"
+    }
+  ],
+  "non_goals": [
+    "No production deployment",
+    "No D45 or beyond",
+    "No credentials/tokens",
+    "No commit/push without explicit authorization",
+    "No weakening of gates/suite; certification/ verdict history untouched"
+  ]
+}

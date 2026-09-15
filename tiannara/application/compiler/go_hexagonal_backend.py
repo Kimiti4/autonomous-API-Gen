@@ -25,21 +25,28 @@ its verification contract from the backend rather than hardcoding it.
 """
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from tiannara.application.compiler.build_profile import BackendBuildProfile
+from tiannara.application.compiler.writer import write_bundle
 from tiannara.domain.models.backend_declaration import (
     ArtifactKind,
     BackendCapabilityDeclaration,
 )
+from tiannara.domain.models.bundle import SystemDeploymentBundle
 from tiannara.domain.models.capability_manifest import (
     BundleCapability,
     CapabilityManifest,
 )
 from tiannara.domain.models.compilation import CompilationResult
+from tiannara.domain.models.genome import Genome
+from tiannara.domain.models.isr import IntermediateSoftwareRepresentation
 from tiannara.domain.models.system_model import (
     AbstractFieldType,
+    DataModelSpec as TypedDataModelSpec,
     FieldSpec,
+    RequirementsReference,
     SystemModel,
 )
 
@@ -103,6 +110,57 @@ class GoHexagonalBackend:
             capabilities=list(self._manifest().capabilities),
             quality_profile=0.80,
             metadata={"language": "go", "framework": "net/http", "style": "hexagonal"},
+        )
+
+    def _system_model(self, isr: IntermediateSoftwareRepresentation) -> SystemModel:
+        typed = isr.system_model()
+        if typed is not None:
+            return typed
+        data_models: list[TypedDataModelSpec] = []
+        for legacy in isr.data_models:
+            fields = [
+                FieldSpec(name="id", type=AbstractFieldType.IDENTIFIER, required=True)
+            ]
+            for field_name, _type_str in legacy.fields.items():
+                if field_name == "id":
+                    continue
+                fields.append(
+                    FieldSpec(name=field_name, type=AbstractFieldType.TEXT, required=True)
+                )
+            data_models.append(
+                TypedDataModelSpec(
+                    id=f"dm-{legacy.name}",
+                    name=legacy.name,
+                    owning_service_id="primary",
+                    fields=fields,
+                )
+            )
+        return SystemModel(
+            system_name=isr.system_name,
+            problem_statement=getattr(isr.intent, "statement", "") or isr.system_name,
+            requirements_ref=RequirementsReference(
+                graph_id="legacy", graph_hash=isr.content_hash()
+            ),
+            data_models=data_models,
+        )
+
+    def compile(
+        self,
+        isr: IntermediateSoftwareRepresentation,
+        genome: Genome,
+        output_dir: str,
+    ) -> SystemDeploymentBundle:
+        """CompilerBackend port adapter: materialize ``generate`` to ``output_dir``."""
+        model = self._system_model(isr)
+        result = self.generate(model)
+        write_bundle(result, output_dir)
+        return SystemDeploymentBundle(
+            project_id=isr.system_id,
+            backend_name=self.name,
+            isr_hash=isr.content_hash(),
+            path=Path(output_dir),
+            artifacts=result.file_paths(),
+            capability_manifest=result.capability_manifest,
         )
 
     def generate(self, system_model: SystemModel) -> CompilationResult:

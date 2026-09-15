@@ -1,0 +1,13 @@
+{
+  "build_exit": 0,
+  "gate": {
+    "command": "go build ./... && go test ./...",
+    "duration_s": 328.9,
+    "executor": "docker(golang:1.22-alpine) warm-cache GOCACHE=/go",
+    "exit_code": 0,
+    "passed": true,
+    "stderr_tail": "",
+    "stdout_tail": "ture\t[no test files]\n?   \tgithub.com/tiannara/order_management_system_create_list_and/cmd/server\t[no test files]\nok  \tgithub.com/tiannara/order_management_system_create_list_and/internal/api\t(cached)\n"
+  },
+  "stderr_tail": ""
+}

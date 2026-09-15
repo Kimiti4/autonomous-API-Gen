@@ -1,0 +1,29 @@
+{
+  "after_fault": {
+    "O1_health": {
+      "error": "RemoteDisconnected: Remote end closed connection without response",
+      "ms": 1652.5,
+      "status": null
+    },
+    "O2_readiness": {
+      "error": "RemoteDisconnected: Remote end closed connection without response",
+      "ms": 17.8,
+      "status": null
+    },
+    "O3_create": {
+      "error": "RemoteDisconnected: Remote end closed connection without response",
+      "ms": 17.6,
+      "status": null
+    },
+    "O4_list": {
+      "error": "RemoteDisconnected: Remote end closed connection without response",
+      "ms": 13.7,
+      "status": null
+    },
+    "O5_404": {
+      "error": "RemoteDisconnected: Remote end closed connection without response",
+      "ms": 18.6,
+      "status": null
+    }
+  }
+}

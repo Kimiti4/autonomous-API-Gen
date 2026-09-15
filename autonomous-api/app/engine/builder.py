@@ -1,4 +1,5 @@
 import os
+
 from app.engine.genome import Genome
 
 
@@ -15,18 +16,60 @@ app.add_middleware(CORSMiddleware, allow_origins=_allowed_origins, allow_credent
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "Accept", "X-API-Key"])
 """ if genome.cors_enabled else ""
+    rate_limit_code = """
+from collections import defaultdict, deque
+from time import monotonic
+from fastapi import Request
+from fastapi.responses import JSONResponse
+_RATE_LIMIT_WINDOW = 60.0
+_RATE_LIMIT_MAX = max(1, int(os.getenv("RATE_LIMIT_REQUESTS_PER_MINUTE", "60")))
+_rate_limit_hits = defaultdict(deque)
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    if request.url.path == "/metrics":
+        return await call_next(request)
+    now = monotonic()
+    key = request.client.host if request.client else "unknown"
+    hits = _rate_limit_hits[key]
+    while hits and now - hits[0] >= _RATE_LIMIT_WINDOW:
+        hits.popleft()
+    if len(hits) >= _RATE_LIMIT_MAX:
+        return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded"})
+    hits.append(now)
+    return await call_next(request)
+""" if genome.rate_limiting else ""
+    metrics_code = """
+from collections import Counter
+_metrics_requests = Counter()
+@app.middleware("http")
+async def metrics_middleware(request: Request, call_next):
+    response = await call_next(request)
+    _metrics_requests[(request.method, request.url.path, response.status_code)] += 1
+    return response
+@app.get("/metrics")
+async def metrics():
+    lines = ["# HELP http_requests_total Total HTTP requests", "# TYPE http_requests_total counter"]
+    for (method, path, status), count in sorted(_metrics_requests.items()):
+        safe_path = path.replace('\\"', '\\\\"')
+        lines.append(f'http_requests_total{{method="{method}",path="{safe_path}",status="{status}"}} {count}')
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse("\\n".join(lines) + "\\n", media_type="text/plain; version=0.0.4")
+""" if genome.metrics_endpoints else ""
     health_code = '''
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
 ''' if genome.health_endpoints else ""
+    request_import = "from fastapi import Request\n" if genome.metrics_endpoints or genome.rate_limiting else ""
     return f'''"""Generated API architecture."""
 import os
 from fastapi import FastAPI
+{request_import}{services_imports}
 from database import init_db
-{services_imports}
 app = FastAPI(title="Evolved API System", version="{genome.api_version}", description="Generated API architecture")
 {cors_code}
+{rate_limit_code}
+{metrics_code}
 {services_includes}
 @app.get("/")
 async def root():

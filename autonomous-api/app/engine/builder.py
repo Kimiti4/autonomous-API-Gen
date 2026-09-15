@@ -66,9 +66,6 @@ _tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 trace.set_tracer_provider(_tracer_provider)
 _tracer = trace.get_tracer("evolved-api")
 """ if genome.tracing_enabled else ""
-    otel_middleware_code = """
-app.add_middleware(OpenTelemetryMiddleware, excluded_urls="metrics")
-""" if genome.tracing_enabled else ""
     tracing_probe_code = """
 @app.middleware("http")
 async def tracing_probe_middleware(request: Request, call_next):
@@ -79,12 +76,28 @@ async def tracing_probe_middleware(request: Request, call_next):
         response.headers["X-Trace-ID"] = format(context.trace_id, "032x")
     return response
 """ if genome.tracing_enabled else ""
+    timeout_code = ""
+    if genome.timeout_config:
+        timeout_value = float(genome.timeout_config.get("request_timeout", 0))
+        if timeout_value <= 0:
+            raise ValueError("timeout_config.request_timeout must be greater than zero")
+        timeout_code = f"""
+import asyncio
+from fastapi.responses import JSONResponse
+REQUEST_TIMEOUT_SECONDS = {timeout_value!r}
+@app.middleware("http")
+async def request_timeout_middleware(request: Request, call_next):
+    try:
+        return await asyncio.wait_for(call_next(request), timeout=REQUEST_TIMEOUT_SECONDS)
+    except asyncio.TimeoutError:
+        return JSONResponse(status_code=504, content={{"detail": "Request timed out"}})
+"""
     health_code = '''
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
 ''' if genome.health_endpoints else ""
-    request_import = "from fastapi import Request\n" if genome.metrics_endpoints or genome.rate_limiting or genome.tracing_enabled else ""
+    request_import = "from fastapi import Request\n" if genome.metrics_endpoints or genome.rate_limiting or genome.tracing_enabled or genome.timeout_config else ""
     return f'''"""Generated API architecture."""
 import os
 from fastapi import FastAPI
@@ -96,7 +109,8 @@ app = FastAPI(title="Evolved API System", version="{genome.api_version}", descri
 {tracing_probe_code}
 {rate_limit_code}
 {metrics_code}
-{otel_middleware_code}
+{timeout_code}
+{otel_middleware_code if genome.tracing_enabled else ""}
 {services_includes}
 @app.get("/")
 async def root():

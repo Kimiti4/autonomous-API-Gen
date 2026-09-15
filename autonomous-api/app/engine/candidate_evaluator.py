@@ -56,23 +56,12 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
     genome_hash = _hash_genome(genome)
     candidate_dir = os.path.join(output_dir, genome_hash[:16])
     evidence: dict[str, Any] = {
-        "candidate_id": genome.genome_id,
-        "genome_hash": genome_hash,
-        "artifact_path": candidate_dir,
-        "evaluation_mode": "static" if not use_docker else "runtime_failed",
-        "build_ok": False,
-        "health_ok": False,
-        "openapi_ok": False,
-        "auth_boundary_ok": False,
-        "crud_ok": False,
-        "crud_checks": {},
-        "contract_ok": False,
-        "artifact_capabilities": {},
-        "capability_evidence": {},
-        "runtime_capabilities": {},
-        "runtime_score": 0.0 if use_docker else None,
-        "static_score": calculate_fitness(genome) if not use_docker else None,
-        "error": None,
+        "candidate_id": genome.genome_id, "genome_hash": genome_hash, "artifact_path": candidate_dir,
+        "evaluation_mode": "static" if not use_docker else "runtime_failed", "build_ok": False,
+        "health_ok": False, "openapi_ok": False, "auth_boundary_ok": False, "crud_ok": False,
+        "crud_checks": {}, "contract_ok": False, "artifact_capabilities": {}, "capability_evidence": {},
+        "runtime_capabilities": {}, "runtime_score": 0.0 if use_docker else None,
+        "static_score": calculate_fitness(genome) if not use_docker else None, "error": None,
     }
     try:
         build_genome_output(genome, candidate_dir)
@@ -90,16 +79,10 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
     container_name = f"evo-eval-{genome_hash[:12]}"
     try:
         success, port, error = runner.build_and_run(
-            candidate_dir,
-            container_name=container_name,
-            environment={
-                "DATABASE_URL": "sqlite:///./generated.db",
-                "API_KEY": "evaluator-test-key",
-                "JWT_SECRET": "evaluator-test-secret",
-                "BASIC_USER": "evaluator",
-                "BASIC_PASSWORD": "evaluator-password",
-                "RATE_LIMIT_REQUESTS_PER_MINUTE": "3",
-            },
+            candidate_dir, container_name=container_name,
+            environment={"DATABASE_URL": "sqlite:///./generated.db", "API_KEY": "evaluator-test-key",
+                         "JWT_SECRET": "evaluator-test-secret", "BASIC_USER": "evaluator",
+                         "BASIC_PASSWORD": "evaluator-password", "RATE_LIMIT_REQUESTS_PER_MINUTE": "100"},
         )
         if not success:
             evidence["error"] = error or "candidate container failed to start"
@@ -135,13 +118,12 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
 
             if genome.metrics_endpoints:
                 metrics = client.get(f"{base}/metrics")
-                body = metrics.text
-                evidence["runtime_capabilities"]["metrics_endpoints"] = metrics.status_code == 200 and "http_requests_total" in body
+                evidence["runtime_capabilities"]["metrics_endpoints"] = metrics.status_code == 200 and "http_requests_total" in metrics.text
+
+            # Rate limiting is probed last because the limiter intentionally
+            # affects every request from the evaluator's source address.
             if genome.rate_limiting:
-                # The generated limiter is configured to three requests/minute
-                # for deterministic evaluation. Use the public root endpoint so
-                # the probe does not depend on authentication semantics.
-                statuses = [client.get(f"{base}/").status_code for _ in range(4)]
+                statuses = [client.get(f"{base}/").status_code for _ in range(101)]
                 evidence["runtime_capabilities"]["rate_limiting"] = statuses[-1] == 429 and statuses.count(429) >= 1
 
             artifact_summary = evidence["capability_evidence"]

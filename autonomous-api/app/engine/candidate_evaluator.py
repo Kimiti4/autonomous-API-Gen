@@ -120,6 +120,11 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
                 metrics = client.get(f"{base}/metrics")
                 evidence["runtime_capabilities"]["metrics_endpoints"] = metrics.status_code == 200 and "http_requests_total" in metrics.text
 
+            if genome.tracing_enabled:
+                traced = client.get(f"{base}/")
+                trace_id = traced.headers.get("X-Trace-ID", "")
+                evidence["runtime_capabilities"]["tracing"] = traced.status_code == 200 and len(trace_id) == 32 and all(char in "0123456789abcdef" for char in trace_id)
+
             # Rate limiting is probed last because the limiter intentionally
             # affects every request from the evaluator's source address.
             if genome.rate_limiting:
@@ -129,8 +134,10 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
             artifact_summary = evidence["capability_evidence"]
             requested = set(artifact_summary.get("requested", []))
             failed = set(artifact_summary.get("failed_or_unverified", []))
-            runtime_failed = {name for name in requested if name in {"metrics_endpoints", "rate_limiting"} and not evidence["runtime_capabilities"].get(name, False)}
-            evidence["contract_ok"] = not failed and not runtime_failed
+            runtime_verified = set(evidence["runtime_capabilities"])
+            runtime_required = {name for name in requested if name in {"metrics_endpoints", "rate_limiting", "tracing"}}
+            runtime_failed = {name for name in runtime_required if not evidence["runtime_capabilities"].get(name, False)}
+            evidence["contract_ok"] = not failed and runtime_required.issubset(runtime_verified) and not runtime_failed
 
         evidence["evaluation_mode"] = "runtime"
         evidence["runtime_score"] = _runtime_score(evidence["health_ok"], evidence["openapi_ok"], evidence["auth_boundary_ok"], evidence["crud_ok"], evidence["contract_ok"])

@@ -41,7 +41,7 @@ def test_crossover_preserves_all_evolvable_genes():
     child_data = child.encode()
 
     for field in child_data:
-        if field in {"genome_id", "metrics"}:
+        if field in {"genome_id", "metrics", "lineage"}:
             continue
         assert child_data[field] in (p1[field], p2[field])
 

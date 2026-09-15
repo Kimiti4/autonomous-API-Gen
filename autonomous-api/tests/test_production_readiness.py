@@ -58,6 +58,7 @@ def test_production_readiness_endpoint_returns_gate_report():
 
     response = client.post(
         "/production/readiness",
+        headers={"X-API-Key": "test-admin-key"},
         json={
             "deployment_target": "docker_compose",
             "genome": {

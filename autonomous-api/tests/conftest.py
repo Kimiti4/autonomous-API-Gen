@@ -13,6 +13,10 @@ import asyncio
 import os
 from pathlib import Path
 
+# Configure the control-plane auth key before any `from app.main import app`,
+# so protected control endpoints (e.g. /production/readiness) are testable.
+os.environ.setdefault("ADMIN_API_KEY", "test-admin-key")
+
 import pytest_asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine

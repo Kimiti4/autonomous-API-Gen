@@ -52,7 +52,7 @@ class Genome:
         self.cache_enabled = data.get("cache_enabled", False)
         self.rate_limiting = data.get("rate_limiting", False)
         self.cors_enabled = data.get("cors_enabled", True)
-        self.logging_level = data.get("logging_level", "INFO")
+        self.logging_level = data.get("logging_level", "")
         self.api_version = data.get("api_version", "v1")
         self.security_score = data.get("security_score", 1.0)
         self.openapi_version = data.get("openapi_version", "3.0.0")

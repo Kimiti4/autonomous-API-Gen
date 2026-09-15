@@ -64,8 +64,10 @@ from opentelemetry.instrumentation.asgi import OpenTelemetryMiddleware
 _tracer_provider = TracerProvider(resource=Resource.create({"service.name": "evolved-api"}))
 _tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 trace.set_tracer_provider(_tracer_provider)
-app.add_middleware(OpenTelemetryMiddleware, excluded_urls="metrics")
 _tracer = trace.get_tracer("evolved-api")
+""" if genome.tracing_enabled else ""
+    otel_middleware_code = """
+app.add_middleware(OpenTelemetryMiddleware, excluded_urls="metrics")
 """ if genome.tracing_enabled else ""
     tracing_probe_code = """
 @app.middleware("http")
@@ -94,6 +96,7 @@ app = FastAPI(title="Evolved API System", version="{genome.api_version}", descri
 {tracing_probe_code}
 {rate_limit_code}
 {metrics_code}
+{otel_middleware_code}
 {services_includes}
 @app.get("/")
 async def root():
@@ -171,7 +174,7 @@ def generate_models_file(genome: Genome) -> str:
 def generate_service_file(service_name: str, genome: Genome) -> str:
     cls = service_name.capitalize()
     auth_import = "from security import require_auth\n" if genome.auth else ""
-    auth_dep = ", dependencies=[Depends(require_auth)]" if genome.auth else ""
+    auth_dep = "(dependencies=[Depends(require_auth)])" if genome.auth else ""
     return f'''from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session

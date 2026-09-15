@@ -12,7 +12,6 @@ def _genome(**overrides):
         "cache_enabled": False,
         "rate_limiting": False,
         "cors_enabled": True,
-        "logging_level": "INFO",
         "api_version": "v1",
         "security_score": 1.0,
         "openapi_version": "3.0.0",
@@ -47,7 +46,9 @@ def test_health_selection_must_match_generated_artifact(tmp_path):
     genome = _genome(health_endpoints=False)
     build_genome_output(genome, str(tmp_path))
     evidence = inspect_artifact(genome, str(tmp_path))
-    assert evidence["health_endpoints"]["verified"]
+    assert not evidence["health_endpoints"]["requested"]
+    assert not evidence["health_endpoints"]["verified"]
+    assert evidence["health_endpoints"]["checks"]["selection_fidelity"]
 
 
 def test_rate_limiting_and_metrics_are_lowered(tmp_path):
@@ -65,15 +66,16 @@ def test_disabled_metrics_and_rate_limiting_are_not_emitted(tmp_path):
     evidence = inspect_artifact(genome, str(tmp_path))
     assert not evidence["rate_limiting"]["requested"]
     assert not evidence["metrics_endpoints"]["requested"]
-    assert evidence["health_endpoints"]["verified"]
+    assert not evidence["health_endpoints"]["requested"]
+    assert evidence["health_endpoints"]["checks"]["selection_fidelity"]
 
 
 def test_unsupported_requested_capability_never_becomes_verified(tmp_path):
-    genome = _genome(tracing_enabled=True)
+    genome = _genome(circuit_breaker=True)
     build_genome_output(genome, str(tmp_path))
     evidence = inspect_artifact(genome, str(tmp_path))
-    assert not evidence["tracing"]["verified"]
-    assert "tracing" in summarize(evidence)["failed_or_unverified"]
+    assert not evidence["circuit_breaker"]["verified"]
+    assert "circuit_breaker" in summarize(evidence)["failed_or_unverified"]
 
 
 def test_oauth2_is_not_mislabeled_as_supported_authentication(tmp_path):

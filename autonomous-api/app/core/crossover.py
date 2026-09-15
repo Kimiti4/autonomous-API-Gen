@@ -4,7 +4,7 @@ from app.engine.genome import Genome
 
 
 # These fields are runtime/derived state rather than evolvable genes.
-_NON_GENES = {"genome_id", "metrics"}
+_NON_GENES = {"genome_id", "metrics", "lineage"}
 
 
 def crossover(parent1: Genome, parent2: Genome) -> Genome:

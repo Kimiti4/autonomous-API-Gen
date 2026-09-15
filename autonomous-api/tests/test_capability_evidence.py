@@ -85,3 +85,27 @@ def test_oauth2_is_not_mislabeled_as_supported_authentication(tmp_path):
     except ValueError:
         return
     raise AssertionError("unsupported OAuth2 generation must fail closed")
+
+
+def test_timeout_is_lowered_and_disabled_timeout_is_absent(tmp_path):
+    genome = _genome(timeout_config={"request_timeout": 0.5})
+    build_genome_output(genome, str(tmp_path))
+    evidence = inspect_artifact(genome, str(tmp_path))
+    assert evidence["timeout_config"]["verified"]
+    assert evidence["timeout_config"]["checks"]["wait_for"]
+
+    disabled = _genome(timeout_config={})
+    disabled_dir = tmp_path / "disabled"
+    build_genome_output(disabled, str(disabled_dir))
+    disabled_evidence = inspect_artifact(disabled, str(disabled_dir))
+    assert not disabled_evidence["timeout_config"]["requested"]
+    assert disabled_evidence["timeout_config"]["checks"]["selection_fidelity"]
+
+
+def test_invalid_timeout_is_rejected_during_generation(tmp_path):
+    genome = _genome(timeout_config={"request_timeout": 0})
+    try:
+        build_genome_output(genome, str(tmp_path))
+    except ValueError:
+        return
+    raise AssertionError("non-positive request timeout must fail closed")

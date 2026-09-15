@@ -66,6 +66,9 @@ _tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 trace.set_tracer_provider(_tracer_provider)
 _tracer = trace.get_tracer("evolved-api")
 """ if genome.tracing_enabled else ""
+    otel_middleware_code = """
+app.add_middleware(OpenTelemetryMiddleware, excluded_urls="metrics")
+""" if genome.tracing_enabled else ""
     tracing_probe_code = """
 @app.middleware("http")
 async def tracing_probe_middleware(request: Request, call_next):
@@ -91,6 +94,12 @@ async def request_timeout_middleware(request: Request, call_next):
         return await asyncio.wait_for(call_next(request), timeout=REQUEST_TIMEOUT_SECONDS)
     except asyncio.TimeoutError:
         return JSONResponse(status_code=504, content={{"detail": "Request timed out"}})
+@app.get("/__capability_probe__/timeout")
+async def timeout_capability_probe():
+    if os.getenv("CAPABILITY_EVIDENCE_MODE") != "1":
+        return JSONResponse(status_code=404, content={{"detail": "Not found"}})
+    await asyncio.sleep(REQUEST_TIMEOUT_SECONDS * 2)
+    return {{"completed": True}}
 """
     health_code = '''
 @app.get("/health")

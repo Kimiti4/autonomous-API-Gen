@@ -74,7 +74,7 @@ def implementation_report(genome: Genome) -> dict[str, Any]:
         "coverage": round(len(implemented) / len(requested), 3) if requested else 1.0,
         "requested": [r.name for r in requested],
         "implemented": [r.name for r in implemented],
-        "unmapped": [r.name for r in implemented if False],
+        "unmapped": [r.name for r in unmapped],
         "details": {r.name: {"requested": r.requested, "implemented": r.implemented, "reason": r.reason} for r in results},
     }
 

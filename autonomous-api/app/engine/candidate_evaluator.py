@@ -82,7 +82,8 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
             candidate_dir, container_name=container_name,
             environment={"DATABASE_URL": "sqlite:///./generated.db", "API_KEY": "evaluator-test-key",
                          "JWT_SECRET": "evaluator-test-secret", "BASIC_USER": "evaluator",
-                         "BASIC_PASSWORD": "evaluator-password", "RATE_LIMIT_REQUESTS_PER_MINUTE": "100"},
+                         "BASIC_PASSWORD": "evaluator-password", "RATE_LIMIT_REQUESTS_PER_MINUTE": "100",
+                         "CAPABILITY_EVIDENCE_MODE": "1"},
         )
         if not success:
             evidence["error"] = error or "candidate container failed to start"
@@ -125,6 +126,15 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
                 trace_id = traced.headers.get("X-Trace-ID", "")
                 evidence["runtime_capabilities"]["tracing"] = traced.status_code == 200 and len(trace_id) == 32 and all(char in "0123456789abcdef" for char in trace_id)
 
+            if genome.timeout_config:
+                timeout_seconds = float(genome.timeout_config["request_timeout"])
+                probe_timeout = max(1.0, timeout_seconds + 2.0)
+                try:
+                    timed = client.get(f"{base}/__capability_probe__/timeout", timeout=probe_timeout)
+                    evidence["runtime_capabilities"]["timeout_config"] = timed.status_code == 504 and timed.json().get("detail") == "Request timed out"
+                except httpx.TimeoutException:
+                    evidence["runtime_capabilities"]["timeout_config"] = False
+
             # Rate limiting is probed last because the limiter intentionally
             # affects every request from the evaluator's source address.
             if genome.rate_limiting:
@@ -135,7 +145,7 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
             requested = set(artifact_summary.get("requested", []))
             failed = set(artifact_summary.get("failed_or_unverified", []))
             runtime_verified = set(evidence["runtime_capabilities"])
-            runtime_required = {name for name in requested if name in {"metrics_endpoints", "rate_limiting", "tracing"}}
+            runtime_required = {name for name in requested if name in {"metrics_endpoints", "rate_limiting", "tracing", "timeout_config"}}
             runtime_failed = {name for name in runtime_required if not evidence["runtime_capabilities"].get(name, False)}
             evidence["contract_ok"] = not failed and runtime_required.issubset(runtime_verified) and not runtime_failed
 

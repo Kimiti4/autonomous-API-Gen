@@ -50,3 +50,17 @@ def test_oauth2_is_not_mislabeled_as_jwt_implementation():
     genome = Genome({"services": ["users"], "auth": "oauth2", "database": "postgres"})
     report = implementation_report(genome)
     assert "authentication" in report["unmapped"]
+
+
+def test_positive_request_timeout_is_implemented():
+    genome = Genome({"services": ["users"], "auth": "api_key", "database": "sqlite", "timeout_config": {"request_timeout": 0.5}})
+    report = implementation_report(genome)
+    assert "timeout_config" not in report["unmapped"]
+    assert report["details"]["timeout_config"]["implemented"] is True
+
+
+def test_invalid_request_timeout_fails_closed():
+    genome = Genome({"services": ["users"], "auth": "api_key", "database": "sqlite", "timeout_config": {"request_timeout": 0}})
+    report = implementation_report(genome)
+    assert "timeout_config" in report["unmapped"]
+    assert report["details"]["timeout_config"]["implemented"] is False

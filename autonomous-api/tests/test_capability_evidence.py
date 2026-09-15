@@ -34,7 +34,6 @@ def test_supported_capabilities_require_artifact_evidence(tmp_path):
     genome = _genome()
     build_genome_output(genome, str(tmp_path))
     evidence = inspect_artifact(genome, str(tmp_path))
-
     assert evidence["services"]["verified"]
     assert evidence["database"]["verified"]
     assert evidence["authentication"]["verified"]
@@ -51,16 +50,30 @@ def test_health_selection_must_match_generated_artifact(tmp_path):
     assert evidence["health_endpoints"]["verified"]
 
 
-def test_unsupported_requested_capability_never_becomes_verified(tmp_path):
-    genome = _genome(rate_limiting=True, metrics_endpoints=True, tracing_enabled=True)
+def test_rate_limiting_and_metrics_are_lowered(tmp_path):
+    genome = _genome(rate_limiting=True, metrics_endpoints=True)
     build_genome_output(genome, str(tmp_path))
     evidence = inspect_artifact(genome, str(tmp_path))
-    summary = summarize(evidence)
+    assert evidence["rate_limiting"]["verified"]
+    assert evidence["metrics_endpoints"]["verified"]
+    assert summarize(evidence)["failed_or_unverified"] == []
 
-    assert not evidence["rate_limiting"]["verified"]
-    assert not evidence["metrics_endpoints"]["verified"]
+
+def test_disabled_metrics_and_rate_limiting_are_not_emitted(tmp_path):
+    genome = _genome(rate_limiting=False, metrics_endpoints=False, health_endpoints=False)
+    build_genome_output(genome, str(tmp_path))
+    evidence = inspect_artifact(genome, str(tmp_path))
+    assert not evidence["rate_limiting"]["requested"]
+    assert not evidence["metrics_endpoints"]["requested"]
+    assert evidence["health_endpoints"]["verified"]
+
+
+def test_unsupported_requested_capability_never_becomes_verified(tmp_path):
+    genome = _genome(tracing_enabled=True)
+    build_genome_output(genome, str(tmp_path))
+    evidence = inspect_artifact(genome, str(tmp_path))
     assert not evidence["tracing"]["verified"]
-    assert set(["rate_limiting", "metrics_endpoints", "tracing"]).issubset(summary["failed_or_unverified"])
+    assert "tracing" in summarize(evidence)["failed_or_unverified"]
 
 
 def test_oauth2_is_not_mislabeled_as_supported_authentication(tmp_path):

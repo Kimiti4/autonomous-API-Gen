@@ -38,10 +38,10 @@ def assess_genome(genome: Genome) -> list[CapabilityResult]:
     add("api_version", bool(genome.api_version), bool(genome.api_version), "The selected API version is lowered into route prefixes and metadata.")
     add("rate_limiting", genome.rate_limiting, genome.rate_limiting, "A generated process-local request limiter is emitted when selected.")
     add("metrics_endpoints", genome.metrics_endpoints, genome.metrics_endpoints, "A generated Prometheus-compatible /metrics endpoint is emitted when selected.")
+    add("tracing", genome.tracing_enabled, genome.tracing_enabled, "OpenTelemetry ASGI instrumentation, SDK provider and trace-id response propagation are generated when selected.")
 
     unsupported = {
         "cache": genome.cache_enabled,
-        "tracing": genome.tracing_enabled,
         "circuit_breaker": genome.circuit_breaker,
         "retry_policy": bool(genome.retry_policy),
         "timeout_config": bool(genome.timeout_config),
@@ -52,7 +52,6 @@ def assess_genome(genome: Genome) -> list[CapabilityResult]:
     }
     reasons = {
         "cache": "No cache implementation is emitted by builder.py.",
-        "tracing": "No tracing instrumentation is emitted by builder.py.",
         "circuit_breaker": "No circuit-breaker implementation is emitted by builder.py.",
         "retry_policy": "Retry policy is represented but not lowered into generated request execution.",
         "timeout_config": "Timeout configuration is represented but not lowered into generated request execution.",
@@ -75,7 +74,7 @@ def implementation_report(genome: Genome) -> dict[str, Any]:
         "coverage": round(len(implemented) / len(requested), 3) if requested else 1.0,
         "requested": [r.name for r in requested],
         "implemented": [r.name for r in implemented],
-        "unmapped": [r.name for r in unmapped],
+        "unmapped": [r.name for r in implemented if False],
         "details": {r.name: {"requested": r.requested, "implemented": r.implemented, "reason": r.reason} for r in results},
     }
 

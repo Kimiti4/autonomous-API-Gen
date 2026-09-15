@@ -55,12 +55,34 @@ async def metrics():
     from fastapi.responses import PlainTextResponse
     return PlainTextResponse("\\n".join(lines) + "\\n", media_type="text/plain; version=0.0.4")
 """ if genome.metrics_endpoints else ""
+    tracing_code = """
+from opentelemetry import trace
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor, ConsoleSpanExporter
+from opentelemetry.instrumentation.asgi import OpenTelemetryMiddleware
+_tracer_provider = TracerProvider(resource=Resource.create({"service.name": "evolved-api"}))
+_tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
+trace.set_tracer_provider(_tracer_provider)
+app.add_middleware(OpenTelemetryMiddleware, excluded_urls="metrics")
+_tracer = trace.get_tracer("evolved-api")
+""" if genome.tracing_enabled else ""
+    tracing_probe_code = """
+@app.middleware("http")
+async def tracing_probe_middleware(request: Request, call_next):
+    response = await call_next(request)
+    span = trace.get_current_span()
+    context = span.get_span_context()
+    if context.is_valid:
+        response.headers["X-Trace-ID"] = format(context.trace_id, "032x")
+    return response
+""" if genome.tracing_enabled else ""
     health_code = '''
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
 ''' if genome.health_endpoints else ""
-    request_import = "from fastapi import Request\n" if genome.metrics_endpoints or genome.rate_limiting else ""
+    request_import = "from fastapi import Request\n" if genome.metrics_endpoints or genome.rate_limiting or genome.tracing_enabled else ""
     return f'''"""Generated API architecture."""
 import os
 from fastapi import FastAPI
@@ -68,6 +90,8 @@ from fastapi import FastAPI
 from database import init_db
 app = FastAPI(title="Evolved API System", version="{genome.api_version}", description="Generated API architecture")
 {cors_code}
+{tracing_code}
+{tracing_probe_code}
 {rate_limit_code}
 {metrics_code}
 {services_includes}
@@ -194,6 +218,8 @@ def generate_requirements(genome: Genome) -> str:
     if genome.database == "postgres": packages.append("psycopg2-binary>=2.9.0")
     elif genome.database == "mysql": packages.append("pymysql>=1.0.0")
     if genome.auth == "jwt": packages.append("PyJWT>=2.8.0")
+    if genome.tracing_enabled:
+        packages.extend(["opentelemetry-api>=1.25.0", "opentelemetry-sdk>=1.25.0", "opentelemetry-instrumentation-asgi>=0.46b0"])
     return "\n".join(packages) + "\n"
 
 

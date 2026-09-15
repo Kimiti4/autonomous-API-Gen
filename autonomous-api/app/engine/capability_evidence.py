@@ -40,6 +40,19 @@ def inspect_artifact(genome: Genome, artifact_dir: str) -> dict[str, Any]:
     results["rate_limiting"] = _result("rate_limiting", contract["rate_limiting"].requested, rate_ok, {"selection_fidelity": rate_ok})
     metrics_ok = ("http_requests_total" in main_text and '@app.get("/metrics")' in main_text) if genome.metrics_endpoints else '@app.get("/metrics")' not in main_text
     results["metrics_endpoints"] = _result("metrics_endpoints", contract["metrics_endpoints"].requested, metrics_ok, {"selection_fidelity": metrics_ok})
+    if genome.tracing_enabled:
+        tracing_checks = {
+            "opentelemetry_api": "from opentelemetry import trace" in main_text,
+            "tracer_provider": "TracerProvider" in main_text,
+            "asgi_instrumentation": "OpenTelemetryMiddleware" in main_text,
+            "trace_id_header": 'response.headers["X-Trace-ID"]' in main_text,
+            "requirements": "opentelemetry-sdk" in requirements_text and "opentelemetry-instrumentation-asgi" in requirements_text,
+        }
+        tracing_ok = all(tracing_checks.values())
+    else:
+        tracing_checks = {"selection_fidelity": "OpenTelemetryMiddleware" not in main_text}
+        tracing_ok = tracing_checks["selection_fidelity"]
+    results["tracing"] = _result("tracing", contract["tracing"].requested, tracing_ok, tracing_checks)
 
     for item in contract.values():
         if item.name not in results and item.requested:

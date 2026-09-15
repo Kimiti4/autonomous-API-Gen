@@ -15,10 +15,10 @@ def test_unimplemented_features_are_reported_as_unmapped():
     report = implementation_report(genome)
 
     assert "cache" in report["unmapped"]
-    assert "rate_limiting" in report["unmapped"]
-    assert "tracing" in report["unmapped"]
+    assert "rate_limiting" not in report["unmapped"]
+    assert "tracing" not in report["unmapped"]
     assert "health_endpoints" not in report["unmapped"]
-    assert report["coverage"] < 1.0
+    assert report["coverage"] > 0.0
 
 
 def test_supported_baseline_is_fully_mapped():

@@ -23,26 +23,11 @@ def _hash_genome(genome: Genome) -> str:
 
 
 def _runtime_score(health_ok: bool, openapi_ok: bool, auth_boundary_ok: bool, crud_ok: bool, contract_ok: bool) -> float:
-    return round(
-        (0.20 if health_ok else 0.0)
-        + (0.20 if openapi_ok else 0.0)
-        + (0.20 if auth_boundary_ok else 0.0)
-        + (0.30 if crud_ok else 0.0)
-        + (0.10 if contract_ok else 0.0),
-        3,
-    )
+    return round((0.20 if health_ok else 0.0) + (0.20 if openapi_ok else 0.0) + (0.20 if auth_boundary_ok else 0.0) + (0.30 if crud_ok else 0.0) + (0.10 if contract_ok else 0.0), 3)
 
 
 def _verify_crud(client: httpx.Client, service_url: str, headers: dict[str, str], auth_kwargs: dict[str, Any]) -> tuple[bool, dict[str, bool]]:
-    checks = {
-        "create": False,
-        "list": False,
-        "read": False,
-        "update": False,
-        "delete": False,
-        "not_found": False,
-        "validation": False,
-    }
+    checks = {"create": False, "list": False, "read": False, "update": False, "delete": False, "not_found": False, "validation": False}
     created = client.post(service_url, json={"name": "evaluator", "description": "runtime probe"}, headers=headers, **auth_kwargs)
     checks["create"] = created.status_code == 201
     if not checks["create"]:
@@ -51,39 +36,23 @@ def _verify_crud(client: httpx.Client, service_url: str, headers: dict[str, str]
     item_id = payload.get("id")
     if not isinstance(item_id, int):
         return False, checks
-
     listed = client.get(service_url, headers=headers, **auth_kwargs)
     checks["list"] = listed.status_code == 200 and any(item.get("id") == item_id for item in listed.json().get("items", []))
-
     fetched = client.get(f"{service_url}{item_id}", headers=headers, **auth_kwargs)
     checks["read"] = fetched.status_code == 200 and fetched.json().get("id") == item_id
-
-    updated = client.put(
-        f"{service_url}{item_id}",
-        json={"name": "evaluator-updated", "description": "updated probe"},
-        headers=headers,
-        **auth_kwargs,
-    )
+    updated = client.put(f"{service_url}{item_id}", json={"name": "evaluator-updated", "description": "updated probe"}, headers=headers, **auth_kwargs)
     checks["update"] = updated.status_code == 200 and updated.json().get("name") == "evaluator-updated"
-
     missing = client.get(f"{service_url}999999999", headers=headers, **auth_kwargs)
     checks["not_found"] = missing.status_code == 404
-
     invalid = client.post(service_url, json={"description": "missing required name"}, headers=headers, **auth_kwargs)
     checks["validation"] = invalid.status_code == 422
-
     deleted = client.delete(f"{service_url}{item_id}", headers=headers, **auth_kwargs)
     checks["delete"] = deleted.status_code == 204
     return all(checks.values()), checks
 
 
 def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: str = "output/candidates") -> dict[str, Any]:
-    """Build a candidate and collect observed artifact/runtime evidence.
-
-    Runtime mode is fail-closed: a build or probe failure never falls back to
-    synthetic fitness. Static scoring is available only when explicitly asked
-    for with ``use_docker=False``.
-    """
+    """Build a candidate and collect artifact plus runtime capability evidence."""
     genome_hash = _hash_genome(genome)
     candidate_dir = os.path.join(output_dir, genome_hash[:16])
     evidence: dict[str, Any] = {
@@ -100,6 +69,7 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
         "contract_ok": False,
         "artifact_capabilities": {},
         "capability_evidence": {},
+        "runtime_capabilities": {},
         "runtime_score": 0.0 if use_docker else None,
         "static_score": calculate_fitness(genome) if not use_docker else None,
         "error": None,
@@ -113,7 +83,6 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
         evidence["error"] = f"candidate build failed: {exc}"
         logger.error("Candidate build failed", exc_info=True)
         return evidence
-
     if not use_docker:
         return evidence
 
@@ -129,6 +98,7 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
                 "JWT_SECRET": "evaluator-test-secret",
                 "BASIC_USER": "evaluator",
                 "BASIC_PASSWORD": "evaluator-password",
+                "RATE_LIMIT_REQUESTS_PER_MINUTE": "3",
             },
         )
         if not success:
@@ -138,8 +108,7 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
         base = f"http://127.0.0.1:{port}"
         with httpx.Client(timeout=10.0) as client:
             health = client.get(f"{base}/health")
-            evidence["health_ok"] = (health.status_code == 200) if genome.health_endpoints else health.status_code == 404
-
+            evidence["health_ok"] = health.status_code == 200 if genome.health_endpoints else health.status_code == 404
             openapi = client.get(f"{base}/openapi.json")
             if openapi.status_code == 200:
                 spec = openapi.json()
@@ -164,15 +133,27 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
                     auth_kwargs["auth"] = ("evaluator", "evaluator-password")
                 evidence["crud_ok"], evidence["crud_checks"] = _verify_crud(client, service_url, headers, auth_kwargs)
 
-            artifact_verified = evidence["capability_evidence"].get("failed_or_unverified", [])
-            evidence["contract_ok"] = not artifact_verified
+            if genome.metrics_endpoints:
+                metrics = client.get(f"{base}/metrics")
+                body = metrics.text
+                evidence["runtime_capabilities"]["metrics_endpoints"] = metrics.status_code == 200 and "http_requests_total" in body
+            if genome.rate_limiting:
+                # The generated limiter is configured to three requests/minute
+                # for deterministic evaluation. Use the public root endpoint so
+                # the probe does not depend on authentication semantics.
+                statuses = [client.get(f"{base}/").status_code for _ in range(4)]
+                evidence["runtime_capabilities"]["rate_limiting"] = statuses[-1] == 429 and statuses.count(429) >= 1
+
+            artifact_summary = evidence["capability_evidence"]
+            requested = set(artifact_summary.get("requested", []))
+            failed = set(artifact_summary.get("failed_or_unverified", []))
+            runtime_failed = {name for name in requested if name in {"metrics_endpoints", "rate_limiting"} and not evidence["runtime_capabilities"].get(name, False)}
+            evidence["contract_ok"] = not failed and not runtime_failed
 
         evidence["evaluation_mode"] = "runtime"
-        evidence["runtime_score"] = _runtime_score(
-            evidence["health_ok"], evidence["openapi_ok"], evidence["auth_boundary_ok"], evidence["crud_ok"], evidence["contract_ok"]
-        )
+        evidence["runtime_score"] = _runtime_score(evidence["health_ok"], evidence["openapi_ok"], evidence["auth_boundary_ok"], evidence["crud_ok"], evidence["contract_ok"])
         if evidence["runtime_score"] < 1.0:
-            evidence["error"] = evidence["error"] or "runtime contract probes did not fully pass"
+            evidence["error"] = evidence["error"] or "runtime capability or contract probes did not fully pass"
         return evidence
     except Exception as exc:
         logger.error("Candidate runtime evaluation failed", exc_info=True)
@@ -183,5 +164,4 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
 
 
 async def evaluate_candidate_async(genome: Genome, *, use_docker: bool = True, output_dir: str = "output/candidates") -> dict[str, Any]:
-    """Run blocking build/runtime checks off the event loop."""
     return await asyncio.to_thread(evaluate_candidate, genome, use_docker=use_docker, output_dir=output_dir)

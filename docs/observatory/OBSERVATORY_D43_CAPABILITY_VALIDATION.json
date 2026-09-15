@@ -1,0 +1,34 @@
+{
+  "gate": "VS-D43",
+  "title": "General Software Autonomy Capability Validation & Live Observatory",
+  "date": "2026-09-13",
+  "baseline_head": "ba952d4",
+  "decision": "PASS_WITH_BOUNDED_UNKNOWN",
+  "mode": "analytical/experimental/evidence-based/bounded/non-production/non-deployment/non-destructive",
+  "experiments": {
+    "EXP-1": {"status": "PASS", "cells_total": 16, "cells_pass": 16, "duration_s": 87.29, "method": "ISR->FastAPIHexagonalBackend->write_bundle->compile()->independent pytest"},
+    "EXP-2": {"status": "NOT_DEMONSTRATED", "registry_backends": ["fastapi_hexagonal"], "pipeline_backends": ["fastapi_hexagonal", "minimal-container"], "finding": "language-general code output not demonstrated beyond Python/FastAPI; Elixir output inert"},
+    "EXP-3": {"status": "PASS_WITH_BOUND", "repair_detected": true, "repair_attempts": 1, "repaired": true, "fitness": {"build": 1.0, "scan": 1.0, "test": 1.0, "verification": 1.0}, "bound": {"harness_simulated_runtime_pass": true, "independent_pytest_rc": 1}},
+    "EXP-4": {"status": "PASS", "missing_transcript_refusal_rc": 1, "tampered_ledger_rc": 1, "unknown_preserved": "UNKNOWN"},
+    "EXP-5": {"status": "PASS", "testshop": {"rc": 0}, "monolithshop": {"rc": 0}},
+    "FRONTEND_LIVE": {"status": "PASS", "evidence_count": 97, "recent_event_count": 195, "sse_push_proof": "evt-runtime-0f301d60f2621057934b60a4", "no_mock_data": true}
+  },
+  "capability_matrix": [
+    {"capability": "intent_to_working_fastapi_service", "demonstrated": true, "autonomy_level": "A4", "evidence": "EXP-1"},
+    {"capability": "bounded_repair", "demonstrated": true, "autonomy_level": "A4", "evidence": "EXP-3"},
+    {"capability": "hermetic_intent_reasoning", "demonstrated": true, "autonomy_level": "A3", "evidence": "EXP-4"},
+    {"capability": "integrity_enforcement", "demonstrated": true, "autonomy_level": "A3", "evidence": "EXP-4"},
+    {"capability": "honest_unknown_handling", "demonstrated": true, "autonomy_level": "A3", "evidence": "EXP-4"},
+    {"capability": "language_general_code_output", "demonstrated": false, "autonomy_level": "A0-A2", "evidence": "EXP-2"},
+    {"capability": "real_runtime_validation", "demonstrated": false, "autonomy_level": "A3", "evidence": "EXP-3 bound"},
+    {"capability": "live_observability", "demonstrated": true, "autonomy_level": null, "evidence": "Frontend/SSE"}
+  ],
+  "category_reconciliation": {"authoritative": "13 categories x 80 cells = 1040 (contracted population)", "variation_axes": 10, "constituent_metrics": 8, "prompt_formula_note": "13x10x8 is a misreading; code computes 13 x 80; no reconstruction performed"},
+  "constraints_compliance": {"no_commits": true, "no_pushes": true, "no_deploys": true, "no_cert_mutation": true, "no_weak_security": true},
+  "bounded_unknowns": ["language_generality_beyond_python_fastapi", "real_runtime_verification_simulated_by_default", "live_llm_intent_provider_unavailable"],
+  "next_options": ["D44: second backend + real executor", "D45: 1040-cell matrix light", "HOLD: freeze envelope"],
+  "evidence_files": [
+    "observatory/evidence/d43-evidence-canonical.jsonl",
+    "docs/observatory/OBSERVATORY_D43_CAPABILITY_VALIDATION.md"
+  ]
+}

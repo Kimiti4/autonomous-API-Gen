@@ -19,6 +19,8 @@ htmlcov/
 build/
 dist/
 *.egg-info/
+.next/
+*.tsbuildinfo
 
 # Release evidence is produced per orchestrator run; CI archives its own copy
 # as workflow artifacts. Local run output is never committed.

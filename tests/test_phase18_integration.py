@@ -265,6 +265,9 @@ def test_cli_factory_subcommand_end_to_end(tmp_path, monkeypatch):
 
     transcript_path = _seed_transcript(tmp_path)
     out_root = tmp_path / "cli-out"
+    # Writer isolation (D42): the CLI defaults --ledger to the tracked
+    # evidence/factory.jsonl; pin it to scratch so the suite never appends
+    # to authoritative evidence as a side effect.
     rc = main(
         [
             "factory",
@@ -275,6 +278,8 @@ def test_cli_factory_subcommand_end_to_end(tmp_path, monkeypatch):
             str(out_root),
             "--max-repair-attempts",
             "2",
+            "--ledger",
+            str(tmp_path / "factory-evidence.jsonl"),
         ]
     )
 

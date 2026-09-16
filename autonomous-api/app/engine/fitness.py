@@ -17,6 +17,8 @@ def _calculate_performance_score(genome: Genome) -> float:
         score += 0.1
     if verified_feature(genome, "timeout_config"):
         score += 0.1
+    if verified_feature(genome, "retry_policy"):
+        score += 0.1
     return min(score, 1.0)
 
 

@@ -142,6 +142,26 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
                 except Exception:
                     evidence["runtime_capabilities"]["retry_policy"] = False
 
+            if genome.circuit_breaker:
+                try:
+                    first = client.get(f"{base}/__capability_probe__/circuit-breaker")
+                    second = client.get(f"{base}/__capability_probe__/circuit-breaker")
+                    opened = client.get(f"{base}/__capability_probe__/circuit-breaker")
+                    if first.status_code == 503 and second.status_code == 503 and opened.status_code == 503:
+                        body = opened.json()
+                        import time
+                        time.sleep(0.15)
+                        recovered = client.get(f"{base}/__capability_probe__/circuit-breaker")
+                        evidence["runtime_capabilities"]["circuit_breaker"] = (
+                            body.get("detail") == "Circuit open"
+                            and recovered.status_code == 200
+                            and recovered.json().get("recovered") is True
+                        )
+                    else:
+                        evidence["runtime_capabilities"]["circuit_breaker"] = False
+                except Exception:
+                    evidence["runtime_capabilities"]["circuit_breaker"] = False
+
             # Rate limiting is probed last because the limiter intentionally
             # affects every request from the evaluator's source address.
             if genome.rate_limiting:
@@ -152,7 +172,7 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
             requested = set(artifact_summary.get("requested", []))
             failed = set(artifact_summary.get("failed_or_unverified", []))
             runtime_verified = set(evidence["runtime_capabilities"])
-            runtime_required = {name for name in requested if name in {"metrics_endpoints", "rate_limiting", "tracing", "timeout_config", "retry_policy"}}
+            runtime_required = {name for name in requested if name in {"metrics_endpoints", "rate_limiting", "tracing", "timeout_config", "retry_policy", "circuit_breaker"}}
             runtime_failed = {name for name in runtime_required if not evidence["runtime_capabilities"].get(name, False)}
             evidence["contract_ok"] = not failed and runtime_required.issubset(runtime_verified) and not runtime_failed
 

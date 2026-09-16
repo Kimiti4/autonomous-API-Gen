@@ -31,6 +31,17 @@ def _valid_request_timeout(config: dict[str, Any]) -> bool:
     return value > 0
 
 
+def _valid_retry_policy(config: dict[str, Any]) -> bool:
+    try:
+        attempts = int(config.get("max_attempts", 0))
+        base_delay = float(config.get("base_delay", 0))
+        max_delay = float(config.get("max_delay", 0))
+        multiplier = float(config.get("backoff_multiplier", 0))
+    except (TypeError, ValueError):
+        return False
+    return attempts >= 2 and base_delay >= 0 and max_delay >= base_delay and multiplier >= 1
+
+
 def assess_genome(genome: Genome) -> list[CapabilityResult]:
     results: list[CapabilityResult] = []
 
@@ -50,11 +61,13 @@ def assess_genome(genome: Genome) -> list[CapabilityResult]:
     timeout_requested = bool(genome.timeout_config)
     timeout_implemented = timeout_requested and _valid_request_timeout(genome.timeout_config)
     add("timeout_config", timeout_requested, timeout_implemented, "A positive request_timeout is lowered into fail-closed request middleware; connect/read/write values are not independently applicable to the generated inbound-only API.")
+    retry_requested = bool(genome.retry_policy)
+    retry_implemented = retry_requested and _valid_retry_policy(genome.retry_policy)
+    add("retry_policy", retry_requested, retry_implemented, "A bounded exponential retry middleware is lowered for idempotent requests and retries only transient 502/503/504 responses.")
 
     unsupported = {
         "cache": genome.cache_enabled,
         "circuit_breaker": genome.circuit_breaker,
-        "retry_policy": bool(genome.retry_policy),
         "backends": bool(genome.backends),
         "middleware": bool(genome.middleware),
         "security_policies": bool(genome.security_policies),
@@ -63,7 +76,6 @@ def assess_genome(genome: Genome) -> list[CapabilityResult]:
     reasons = {
         "cache": "No cache implementation is emitted by builder.py.",
         "circuit_breaker": "No circuit-breaker implementation is emitted by builder.py.",
-        "retry_policy": "Retry policy is represented but not lowered into generated request execution.",
         "backends": "Backend descriptors are represented but external cache/queue backends are not generated.",
         "middleware": "Arbitrary middleware selections are represented but not lowered.",
         "security_policies": "Security-policy descriptors are not independently lowered into enforcement code.",

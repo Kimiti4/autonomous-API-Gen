@@ -101,6 +101,24 @@ def inspect_artifact(genome: Genome, artifact_dir: str) -> dict[str, Any]:
         circuit_checks = {"selection_fidelity": "CircuitBreakerMiddleware" not in main_text}
         circuit_ok = circuit_checks["selection_fidelity"]
     results["circuit_breaker"] = _result("circuit_breaker", contract["circuit_breaker"].requested, circuit_ok, circuit_checks, contract["circuit_breaker"].reason)
+    if genome.cache_enabled:
+        cache_checks = {
+            "middleware": "class ResponseCacheMiddleware" in main_text,
+            "registered": "app.add_middleware(ResponseCacheMiddleware)" in main_text,
+            "ttl": "CACHE_TTL_SECONDS" in main_text,
+            "bounded_capacity": "CACHE_MAX_ENTRIES" in main_text and "popitem(last=False)" in main_text,
+            "cache_key": "def _cache_key(scope)" in main_text and "query_string" in main_text,
+            "safe_identity": "sha256(identity).hexdigest()" in main_text,
+            "anonymous_only": 'if headers.get(b"authorization") or headers.get(b"x-api-key")' in main_text,
+            "get_head_only": 'if method not in {"GET", "HEAD"}' in main_text,
+            "mutation_invalidation": 'if method in {"POST", "PUT", "PATCH", "DELETE"}' in main_text and "_cache_store.clear()" in main_text,
+            "probe": '@app.get("/__capability_probe__/cache")' in main_text,
+        }
+        cache_ok = all(cache_checks.values())
+    else:
+        cache_checks = {"selection_fidelity": "ResponseCacheMiddleware" not in main_text}
+        cache_ok = cache_checks["selection_fidelity"]
+    results["cache"] = _result("cache", contract["cache"].requested, cache_ok, cache_checks, contract["cache"].reason)
 
     for item in contract.values():
         if item.name not in results and item.requested:

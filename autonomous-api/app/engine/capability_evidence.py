@@ -72,11 +72,12 @@ def inspect_artifact(genome: Genome, artifact_dir: str) -> dict[str, Any]:
         results["timeout_config"] = _result("timeout_config", False, timeout_checks["selection_fidelity"], timeout_checks)
     if genome.retry_policy:
         retry_checks = {
-            "middleware": "retry_policy_middleware" in main_text,
+            "middleware": "class RetryPolicyMiddleware" in main_text,
+            "registered": "app.add_middleware(RetryPolicyMiddleware)" in main_text,
             "retryable_statuses": "RETRYABLE_STATUS_CODES" in main_text and "502, 503, 504" in main_text,
             "bounded_attempts": "RETRY_MAX_ATTEMPTS" in main_text,
             "backoff": "RETRY_BACKOFF_MULTIPLIER" in main_text and "RETRY_MAX_DELAY" in main_text,
-            "idempotent_only": 'request.method not in {"GET", "HEAD", "OPTIONS"}' in main_text,
+            "idempotent_only": 'scope.get("method") not in {"GET", "HEAD", "OPTIONS"}' in main_text,
             "probe": '@app.get("/__capability_probe__/retry")' in main_text,
         }
         retry_ok = all(retry_checks.values())

@@ -86,7 +86,7 @@ jobs:
               "timeout_config": {"request_timeout": 5.0},
               "cache_enabled": False,
               "circuit_breaker": False,
-              "retry_policy": {},
+              "retry_policy": {"max_attempts": 3, "base_delay": 0.01, "max_delay": 0.05, "backoff_multiplier": 2},
               "backends": [],
               "middleware": [],
               "security_policies": [],

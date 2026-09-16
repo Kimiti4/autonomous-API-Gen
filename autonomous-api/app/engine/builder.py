@@ -112,24 +112,55 @@ async def timeout_capability_probe():
             raise ValueError("retry_policy requires max_attempts >= 2, base_delay >= 0, max_delay >= base_delay, and backoff_multiplier >= 1")
         retry_code = f"""
 import asyncio
+from fastapi.responses import JSONResponse
 RETRY_MAX_ATTEMPTS = {max_attempts!r}
 RETRY_BASE_DELAY = {base_delay!r}
 RETRY_MAX_DELAY = {max_delay!r}
 RETRY_BACKOFF_MULTIPLIER = {multiplier!r}
 RETRYABLE_STATUS_CODES = frozenset({{502, 503, 504}})
-@app.middleware("http")
-async def retry_policy_middleware(request: Request, call_next):
-    if request.method not in {{"GET", "HEAD", "OPTIONS"}}:
-        return await call_next(request)
-    delay = RETRY_BASE_DELAY
-    for attempt in range(RETRY_MAX_ATTEMPTS):
-        response = await call_next(request)
-        if response.status_code not in RETRYABLE_STATUS_CODES or attempt == RETRY_MAX_ATTEMPTS - 1:
-            return response
-        if delay > 0:
-            await asyncio.sleep(min(delay, RETRY_MAX_DELAY))
-            delay = min(delay * RETRY_BACKOFF_MULTIPLIER, RETRY_MAX_DELAY)
-    return response
+class RetryPolicyMiddleware:
+    def __init__(self, app: object) -> None:
+        self.app = app
+
+    async def __call__(self, scope: dict, receive: object, send: object) -> None:
+        if scope.get("type") != "http" or scope.get("method") not in {{"GET", "HEAD", "OPTIONS"}}:
+            await self.app(scope, receive, send)
+            return
+        chunks = []
+        more_body = True
+        while more_body:
+            message = await receive()
+            if message.get("type") != "http.request":
+                break
+            chunks.append(message.get("body", b""))
+            more_body = message.get("more_body", False)
+        body = b"".join(chunks)
+
+        async def replay_receive():
+            yield {{"type": "http.request", "body": body, "more_body": False}}
+            yield {{"type": "http.disconnect"}}
+
+        delay = RETRY_BASE_DELAY
+        for attempt in range(RETRY_MAX_ATTEMPTS):
+            state = {{"status": 0, "headers": [], "body": bytearray()}}
+
+            async def capture_send(message):
+                if message.get("type") == "http.response.start":
+                    state["status"] = message.get("status", 0)
+                    state["headers"] = message.get("headers", [])
+                elif message.get("type") == "http.response.body":
+                    state["body"] += message.get("body", b"")
+
+            await self.app(dict(scope), replay_receive().__aiter__().__anext__, capture_send)
+            if state["status"] not in RETRYABLE_STATUS_CODES or attempt == RETRY_MAX_ATTEMPTS - 1:
+                break
+            if delay > 0:
+                await asyncio.sleep(min(delay, RETRY_MAX_DELAY))
+                delay = min(delay * RETRY_BACKOFF_MULTIPLIER, RETRY_MAX_DELAY)
+
+        await send({{"type": "http.response.start", "status": state["status"], "headers": state["headers"]}})
+        await send({{"type": "http.response.body", "body": bytes(state["body"]), "more_body": False}})
+app.add_middleware(RetryPolicyMiddleware)
 _retry_probe_attempts = 0
 @app.get("/__capability_probe__/retry")
 async def retry_capability_probe():

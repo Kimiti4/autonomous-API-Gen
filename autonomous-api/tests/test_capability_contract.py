@@ -64,3 +64,27 @@ def test_invalid_request_timeout_fails_closed():
     report = implementation_report(genome)
     assert "timeout_config" in report["unmapped"]
     assert report["details"]["timeout_config"]["implemented"] is False
+
+
+def test_valid_retry_policy_is_implemented():
+    genome = Genome({
+        "services": ["users"],
+        "auth": "api_key",
+        "database": "sqlite",
+        "retry_policy": {"max_attempts": 3, "base_delay": 0.01, "max_delay": 0.05, "backoff_multiplier": 2},
+    })
+    report = implementation_report(genome)
+    assert "retry_policy" not in report["unmapped"]
+    assert report["details"]["retry_policy"]["implemented"] is True
+
+
+def test_invalid_retry_policy_fails_closed():
+    genome = Genome({
+        "services": ["users"],
+        "auth": "api_key",
+        "database": "sqlite",
+        "retry_policy": {"max_attempts": 1, "base_delay": 0.01, "max_delay": 0.05, "backoff_multiplier": 2},
+    })
+    report = implementation_report(genome)
+    assert "retry_policy" in report["unmapped"]
+    assert report["details"]["retry_policy"]["implemented"] is False

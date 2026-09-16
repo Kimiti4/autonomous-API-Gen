@@ -5,6 +5,7 @@ import asyncio
 import hashlib
 import json
 import os
+import time
 from typing import Any
 
 import httpx
@@ -83,6 +84,7 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
             environment={"DATABASE_URL": "sqlite:///./generated.db", "API_KEY": "evaluator-test-key",
                          "JWT_SECRET": "evaluator-test-secret", "BASIC_USER": "evaluator",
                          "BASIC_PASSWORD": "evaluator-password", "RATE_LIMIT_REQUESTS_PER_MINUTE": "100",
+                         "CACHE_TTL_SECONDS": "0.08", "CACHE_MAX_ENTRIES": "16",
                          "CAPABILITY_EVIDENCE_MODE": "1"},
         )
         if not success:
@@ -149,7 +151,6 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
                     opened = client.get(f"{base}/__capability_probe__/circuit-breaker")
                     if first.status_code == 503 and second.status_code == 503 and opened.status_code == 503:
                         body = opened.json()
-                        import time
                         time.sleep(0.15)
                         recovered = client.get(f"{base}/__capability_probe__/circuit-breaker")
                         evidence["runtime_capabilities"]["circuit_breaker"] = (
@@ -162,6 +163,31 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
                 except Exception:
                     evidence["runtime_capabilities"]["circuit_breaker"] = False
 
+            if genome.cache_enabled:
+                try:
+                    first = client.get(f"{base}/__capability_probe__/cache")
+                    second = client.get(f"{base}/__capability_probe__/cache")
+                    hit_ok = (
+                        first.status_code == 200
+                        and second.status_code == 200
+                        and first.json().get("handler_hits") == 1
+                        and second.json().get("handler_hits") == 1
+                    )
+                    invalidated = client.post(f"{base}/__capability_probe__/cache/invalidate")
+                    third = client.get(f"{base}/__capability_probe__/cache")
+                    invalidation_ok = (
+                        invalidated.status_code == 200
+                        and invalidated.json().get("invalidated") is True
+                        and third.status_code == 200
+                        and third.json().get("handler_hits") == 2
+                    )
+                    time.sleep(0.10)
+                    expired = client.get(f"{base}/__capability_probe__/cache")
+                    ttl_ok = expired.status_code == 200 and expired.json().get("handler_hits") == 3
+                    evidence["runtime_capabilities"]["cache"] = hit_ok and invalidation_ok and ttl_ok
+                except Exception:
+                    evidence["runtime_capabilities"]["cache"] = False
+
             # Rate limiting is probed last because the limiter intentionally
             # affects every request from the evaluator's source address.
             if genome.rate_limiting:
@@ -172,7 +198,7 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
             requested = set(artifact_summary.get("requested", []))
             failed = set(artifact_summary.get("failed_or_unverified", []))
             runtime_verified = set(evidence["runtime_capabilities"])
-            runtime_required = {name for name in requested if name in {"metrics_endpoints", "rate_limiting", "tracing", "timeout_config", "retry_policy", "circuit_breaker"}}
+            runtime_required = {name for name in requested if name in {"metrics_endpoints", "rate_limiting", "tracing", "timeout_config", "retry_policy", "circuit_breaker", "cache"}}
             runtime_failed = {name for name in runtime_required if not evidence["runtime_capabilities"].get(name, False)}
             evidence["contract_ok"] = not failed and runtime_required.issubset(runtime_verified) and not runtime_failed
 

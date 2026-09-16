@@ -253,14 +253,98 @@ async def circuit_breaker_capability_probe():
         return JSONResponse(status_code=503, content={"attempts": _circuit_probe_attempts})
     return {"attempts": _circuit_probe_attempts, "recovered": True}
 """
+    cache_code = ""
+    if genome.cache_enabled:
+        cache_code = """
+from collections import OrderedDict
+from hashlib import sha256
+from time import monotonic
+from fastapi.responses import Response
+CACHE_TTL_SECONDS = max(0.0, float(os.getenv("CACHE_TTL_SECONDS", "30")))
+CACHE_MAX_ENTRIES = max(1, int(os.getenv("CACHE_MAX_ENTRIES", "256")))
+_cache_store = OrderedDict()
+_cache_lock = asyncio.Lock()
+
+def _cache_key(scope):
+    query = scope.get("query_string", b"").decode("utf-8", errors="replace")
+    headers = {k.lower(): v for k, v in scope.get("headers", [])}
+    identity = headers.get(b"authorization", b"") or headers.get(b"x-api-key", b"")
+    identity_hash = sha256(identity).hexdigest() if identity else "anonymous"
+    return (scope.get("method"), scope.get("path"), query, identity_hash)
+
+class ResponseCacheMiddleware:
+    def __init__(self, app: object) -> None:
+        self.app = app
+
+    async def __call__(self, scope: dict, receive: object, send: object) -> None:
+        method = scope.get("method")
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+        if method in {"POST", "PUT", "PATCH", "DELETE"}:
+            async with _cache_lock:
+                _cache_store.clear()
+            await self.app(scope, receive, send)
+            return
+        if method not in {"GET", "HEAD"}:
+            await self.app(scope, receive, send)
+            return
+        headers = {k.lower(): v for k, v in scope.get("headers", [])}
+        if headers.get(b"authorization") or headers.get(b"x-api-key"):
+            await self.app(scope, receive, send)
+            return
+        key = _cache_key(scope)
+        now = monotonic()
+        async with _cache_lock:
+            entry = _cache_store.get(key)
+            if entry and now - entry["created_at"] < CACHE_TTL_SECONDS:
+                _cache_store.move_to_end(key)
+                await send({"type": "http.response.start", "status": entry["status"], "headers": entry["headers"]})
+                await send({"type": "http.response.body", "body": entry["body"], "more_body": False})
+                return
+            if entry:
+                _cache_store.pop(key, None)
+
+        state = {"status": 0, "headers": [], "body": bytearray()}
+        async def capture_send(message):
+            if message.get("type") == "http.response.start":
+                state["status"] = message.get("status", 0)
+                state["headers"] = message.get("headers", [])
+            elif message.get("type") == "http.response.body":
+                state["body"] += message.get("body", b"")
+        await self.app(scope, receive, capture_send)
+        if state["status"] == 200:
+            async with _cache_lock:
+                _cache_store[key] = {"created_at": monotonic(), "status": state["status"], "headers": state["headers"], "body": bytes(state["body"])}
+                _cache_store.move_to_end(key)
+                while len(_cache_store) > CACHE_MAX_ENTRIES:
+                    _cache_store.popitem(last=False)
+        await send({"type": "http.response.start", "status": state["status"], "headers": state["headers"]})
+        await send({"type": "http.response.body", "body": bytes(state["body"]), "more_body": False})
+app.add_middleware(ResponseCacheMiddleware)
+_cache_probe_hits = 0
+@app.get("/__capability_probe__/cache")
+async def cache_capability_probe():
+    global _cache_probe_hits
+    if os.getenv("CAPABILITY_EVIDENCE_MODE") != "1":
+        return JSONResponse(status_code=404, content={"detail": "Not found"})
+    _cache_probe_hits += 1
+    return {"handler_hits": _cache_probe_hits}
+@app.post("/__capability_probe__/cache/invalidate")
+async def cache_invalidation_probe():
+    if os.getenv("CAPABILITY_EVIDENCE_MODE") != "1":
+        return JSONResponse(status_code=404, content={"detail": "Not found"})
+    return {"invalidated": True}
+"""
     health_code = '''
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
 ''' if genome.health_endpoints else ""
-    request_import = "from fastapi import Request\n" if genome.metrics_endpoints or genome.rate_limiting or genome.tracing_enabled or genome.timeout_config or genome.retry_policy else ""
+    request_import = "from fastapi import Request\n" if genome.metrics_endpoints or genome.rate_limiting or genome.tracing_enabled or genome.timeout_config or genome.retry_policy or genome.cache_enabled else ""
     return f'''"""Generated API architecture."""
 import os
+import asyncio
 from fastapi import FastAPI
 {request_import}{services_imports}
 from database import init_db
@@ -273,6 +357,7 @@ app = FastAPI(title="Evolved API System", version="{genome.api_version}", descri
 {timeout_code}
 {retry_code}
 {circuit_breaker_code}
+{cache_code}
 {otel_middleware_code if genome.tracing_enabled else ""}
 {services_includes}
 @app.get("/")

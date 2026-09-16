@@ -1,5 +1,3 @@
-import os
-
 from app.engine.genome import Genome
 
 
@@ -489,17 +487,12 @@ def generate_requirements(genome: Genome) -> str:
 
 
 def build_genome_output(genome: Genome, output_dir: str = "output/generated_api") -> str:
-    os.makedirs(output_dir, exist_ok=True)
-    services_dir = os.path.join(output_dir, "services")
-    os.makedirs(services_dir, exist_ok=True)
-    files = {"main.py": generate_main_app(genome), "database.py": generate_database_file(genome), "security.py": generate_security_file(genome), "requirements.txt": generate_requirements(genome), "Dockerfile": generate_dockerfile(genome)}
-    for path, content in files.items():
-        with open(os.path.join(output_dir, path), "w") as f: f.write(content)
-    with open(os.path.join(services_dir, "models.py"), "w") as f: f.write(generate_models_file(genome))
-    with open(os.path.join(services_dir, "__init__.py"), "w") as f: f.write("")
-    for service in genome.services:
-        with open(os.path.join(services_dir, f"{service}.py"), "w") as f: f.write(generate_service_file(service, genome))
-    return output_dir
+    # Committed Genome -> validated architecture request -> backend boundary.
+    # The generator never interprets the architecture directly; lowering is a
+    # compiler-backend concern (see app/engine/backends.py).
+    from app.engine.backends import compile_and_materialize
+
+    return compile_and_materialize(genome.encode(), output_dir=output_dir)
 
 
 def generate_dockerfile(genome: Genome) -> str:

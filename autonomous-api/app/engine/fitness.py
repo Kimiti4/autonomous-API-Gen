@@ -10,7 +10,7 @@ COMPONENT_WEIGHTS = {
     "performance": 0.15,
     "best_practices": 0.10,
     "database_quality": 0.05,
-    "production_metrics": 0.45,
+    "production_metrics": 0.30,
 }
 
 
@@ -54,8 +54,9 @@ def _calculate_database_score(genome: Genome) -> float:
 
 
 def _weighted_total(component_scores: dict[str, float]) -> float:
-    """Combine components with weights that sum to exactly 1.0."""
-    return sum(component_scores[name] * COMPONENT_WEIGHTS[name] for name in COMPONENT_WEIGHTS)
+    """Combine the historical weights after normalizing their 0.85 total to 1.0."""
+    weight_sum = sum(COMPONENT_WEIGHTS.values())
+    return sum(component_scores[name] * COMPONENT_WEIGHTS[name] for name in COMPONENT_WEIGHTS) / weight_sum
 
 
 def calculate_fitness(genome: Genome) -> float:
@@ -81,11 +82,14 @@ def calculate_production_fitness(genome: Genome) -> dict:
         "database_quality": _calculate_database_score(genome),
         "production_metrics": production_metrics["production_score"],
     }
+    raw_weight_sum = sum(COMPONENT_WEIGHTS.values())
+    normalized_weights = {name: round(weight / raw_weight_sum, 6) for name, weight in COMPONENT_WEIGHTS.items()}
     return {
         "total_fitness": round(_weighted_total(component_scores), 3),
         "component_scores": component_scores,
-        "weights": COMPONENT_WEIGHTS.copy(),
-        "weight_sum": round(sum(COMPONENT_WEIGHTS.values()), 3),
+        "weights": normalized_weights,
+        "weight_sum": round(sum(normalized_weights.values()), 6),
+        "raw_weight_sum": round(raw_weight_sum, 6),
         "production_metrics": production_metrics,
         "capability_report": implementation_report(genome),
         "recommendations": production_metrics.get("recommendations", []),

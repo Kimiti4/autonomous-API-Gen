@@ -71,11 +71,11 @@ def test_disabled_metrics_and_rate_limiting_are_not_emitted(tmp_path):
 
 
 def test_unsupported_requested_capability_never_becomes_verified(tmp_path):
-    genome = _genome(circuit_breaker=True)
+    genome = _genome(cache_enabled=True)
     build_genome_output(genome, str(tmp_path))
     evidence = inspect_artifact(genome, str(tmp_path))
-    assert not evidence["circuit_breaker"]["verified"]
-    assert "circuit_breaker" in summarize(evidence)["failed_or_unverified"]
+    assert not evidence["cache"]["verified"]
+    assert "cache" in summarize(evidence)["failed_or_unverified"]
 
 
 def test_oauth2_is_not_mislabeled_as_supported_authentication(tmp_path):

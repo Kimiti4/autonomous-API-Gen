@@ -80,7 +80,12 @@ class Genome:
         self.cache_enabled = rng.choice([True, False]); self.rate_limiting = rng.choice([True, False]); self.cors_enabled = rng.choice([True, False])
         self.logging_level = rng.choice(["DEBUG", "INFO", "WARNING", "ERROR"]); self.api_version = rng.choice(["v1", "v2", "v3"]); self.security_score = 1.0
         self.openapi_version = rng.choice(["3.0.0", "3.1.0"]); self.health_endpoints = rng.choice([True, False]); self.metrics_endpoints = rng.choice([True, False]); self.tracing_enabled = rng.choice([True, False]); self.circuit_breaker = rng.choice([True, False])
-        self.retry_policy = {"max_attempts": rng.randint(2, 5), "base_delay": rng.uniform(0.1, 2.0), "max_delay": rng.uniform(5.0, 30.0), "backoff_multiplier": rng.uniform(1.5, 3.0)}
+        # Keep retry genomes internally valid so mutation/evolution cannot create
+        # a configuration that the retry lowerer is required to reject.
+        max_attempts = rng.randint(2, 5)
+        base_delay = rng.uniform(0.1, 2.0)
+        max_delay = rng.uniform(max(base_delay, 5.0), 30.0)
+        self.retry_policy = {"max_attempts": max_attempts, "base_delay": base_delay, "max_delay": max_delay, "backoff_multiplier": rng.uniform(1.5, 3.0)}
         self.timeout_config = {"connect_timeout": rng.uniform(5.0, 30.0), "read_timeout": rng.uniform(10.0, 60.0), "write_timeout": rng.uniform(10.0, 60.0), "request_timeout": rng.uniform(30.0, 120.0)}
         self.backends = self._generate_backends(rng); self.middleware = self._generate_middleware(rng); self.security_policies = self._generate_security_policies(rng)
 

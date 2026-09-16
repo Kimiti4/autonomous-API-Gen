@@ -4,6 +4,16 @@ from app.engine.production_analyzers import ProductionFitnessScorer
 from app.engine.capability_contract import implementation_report, verified_feature
 
 
+COMPONENT_WEIGHTS = {
+    "security": 0.15,
+    "architecture": 0.10,
+    "performance": 0.15,
+    "best_practices": 0.10,
+    "database_quality": 0.05,
+    "production_metrics": 0.45,
+}
+
+
 def _calculate_performance_score(genome: Genome) -> float:
     """Score only performance capabilities that the builder actually implements."""
     score = 0.0
@@ -43,22 +53,22 @@ def _calculate_database_score(genome: Genome) -> float:
     return db_scores.get(genome.database, 0.5) if verified_feature(genome, "database") else 0.0
 
 
+def _weighted_total(component_scores: dict[str, float]) -> float:
+    """Combine components with weights that sum to exactly 1.0."""
+    return sum(component_scores[name] * COMPONENT_WEIGHTS[name] for name in COMPONENT_WEIGHTS)
+
+
 def calculate_fitness(genome: Genome) -> float:
     """Calculate scalar evolutionary fitness with fail-closed capability accounting."""
-    fitness = 0.0
-    security = calculate_security_score(genome) if verified_feature(genome, "authentication") else 0.0
-    fitness += security * 0.15
-
-    architecture_score = min(len(genome.services) / 6.0, 1.0) if verified_feature(genome, "services") else 0.0
-    fitness += architecture_score * 0.10
-    fitness += _calculate_performance_score(genome) * 0.15
-    fitness += _calculate_best_practices_score(genome) * 0.10
-    fitness += _calculate_database_score(genome) * 0.05
-
-    production_metrics = ProductionFitnessScorer().score_genome(genome)
-    production_score = production_metrics["production_score"]
-    fitness += production_score * 0.30
-    return round(fitness, 3)
+    component_scores = {
+        "security": calculate_security_score(genome) if verified_feature(genome, "authentication") else 0.0,
+        "architecture": min(len(genome.services) / 6.0, 1.0) if verified_feature(genome, "services") else 0.0,
+        "performance": _calculate_performance_score(genome),
+        "best_practices": _calculate_best_practices_score(genome),
+        "database_quality": _calculate_database_score(genome),
+        "production_metrics": ProductionFitnessScorer().score_genome(genome)["production_score"],
+    }
+    return round(_weighted_total(component_scores), 3)
 
 
 def calculate_production_fitness(genome: Genome) -> dict:
@@ -71,17 +81,11 @@ def calculate_production_fitness(genome: Genome) -> dict:
         "database_quality": _calculate_database_score(genome),
         "production_metrics": production_metrics["production_score"],
     }
-    total_fitness = sum(score * weight for score, weight in [
-        (component_scores["security"], 0.15),
-        (component_scores["architecture"], 0.10),
-        (component_scores["performance"], 0.15),
-        (component_scores["best_practices"], 0.10),
-        (component_scores["database_quality"], 0.05),
-        (component_scores["production_metrics"], 0.30),
-    ])
     return {
-        "total_fitness": round(total_fitness, 3),
+        "total_fitness": round(_weighted_total(component_scores), 3),
         "component_scores": component_scores,
+        "weights": COMPONENT_WEIGHTS.copy(),
+        "weight_sum": round(sum(COMPONENT_WEIGHTS.values()), 3),
         "production_metrics": production_metrics,
         "capability_report": implementation_report(genome),
         "recommendations": production_metrics.get("recommendations", []),
@@ -107,8 +111,16 @@ def pareto_front_analysis(genomes: list) -> dict:
 
     pareto_front = []
     for i, (genome1, scores1) in enumerate(objective_scores):
-        if not any(i != j and all(scores2[obj] >= scores1[obj] for obj in objectives)
-                   for j, (_, scores2) in enumerate(objective_scores)):
+        dominated = False
+        for j, (_, scores2) in enumerate(objective_scores):
+            if i == j:
+                continue
+            at_least_as_good = all(scores2[obj] >= scores1[obj] for obj in objectives)
+            strictly_better = any(scores2[obj] > scores1[obj] for obj in objectives)
+            if at_least_as_good and strictly_better:
+                dominated = True
+                break
+        if not dominated:
             pareto_front.append((genome1, scores1))
     return {"pareto_front": pareto_front, "total_genomes": len(genomes), "pareto_count": len(pareto_front), "objectives": objectives}
 

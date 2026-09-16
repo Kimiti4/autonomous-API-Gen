@@ -85,6 +85,22 @@ def inspect_artifact(genome: Genome, artifact_dir: str) -> dict[str, Any]:
         retry_checks = {"selection_fidelity": "retry_policy_middleware" not in main_text}
         retry_ok = retry_checks["selection_fidelity"]
     results["retry_policy"] = _result("retry_policy", contract["retry_policy"].requested, retry_ok, retry_checks, contract["retry_policy"].reason)
+    if genome.circuit_breaker:
+        circuit_checks = {
+            "middleware": "class CircuitBreakerMiddleware" in main_text,
+            "registered": "app.add_middleware(CircuitBreakerMiddleware)" in main_text,
+            "states": 'self.state = "CLOSED"' in main_text and 'self.state = "OPEN"' in main_text and 'self.state = "HALF_OPEN"' in main_text,
+            "threshold": "CIRCUIT_FAILURE_THRESHOLD" in main_text,
+            "cooldown": "CIRCUIT_COOLDOWN_SECONDS" in main_text,
+            "transient_statuses": "CIRCUIT_TRANSIENT_STATUS_CODES" in main_text,
+            "fail_fast": '"Circuit open"' in main_text,
+            "probe": '@app.get("/__capability_probe__/circuit-breaker")' in main_text,
+        }
+        circuit_ok = all(circuit_checks.values())
+    else:
+        circuit_checks = {"selection_fidelity": "CircuitBreakerMiddleware" not in main_text}
+        circuit_ok = circuit_checks["selection_fidelity"]
+    results["circuit_breaker"] = _result("circuit_breaker", contract["circuit_breaker"].requested, circuit_ok, circuit_checks, contract["circuit_breaker"].reason)
 
     for item in contract.values():
         if item.name not in results and item.requested:

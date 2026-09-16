@@ -66,8 +66,37 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e . flake8 black mypy
-      - name: Run Flake8
+      - name: Run Flake8 source guard
         run: flake8 app/ --count --select=E9,F63,F7,F82 --show-source --statistics
+      - name: Generate representative candidate for template linting
+        run: |
+          python - <<'PY'
+          from app.engine.builder import build_genome_output
+          from app.engine.genome import Genome
+
+          genome = Genome({
+              "services": ["users", "orders"],
+              "auth": "jwt",
+              "database": "sqlite",
+              "cors_enabled": True,
+              "health_endpoints": True,
+              "metrics_endpoints": True,
+              "tracing_enabled": True,
+              "rate_limiting": True,
+              "timeout_config": {"request_timeout": 5.0},
+              "cache_enabled": False,
+              "circuit_breaker": False,
+              "retry_policy": {},
+              "backends": [],
+              "middleware": [],
+              "security_policies": [],
+              "logging_level": "",
+          })
+          build_genome_output(genome, "output/ci-template-smoke")
+          PY
+      - name: Run Flake8 generated-template F821 guard
+        run: |
+          flake8 output/ci-template-smoke/ --count --select=F821 --show-source --statistics
       - name: Run Black check (non-blocking; repo has pre-existing formatting debt)
         run: black app/ --check
         continue-on-error: true

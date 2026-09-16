@@ -11,10 +11,11 @@ def test_unimplemented_features_are_reported_as_unmapped():
         "rate_limiting": True,
         "tracing_enabled": True,
         "health_endpoints": False,
+        "backends": ["cache"],
     })
     report = implementation_report(genome)
 
-    assert "cache" in report["unmapped"]
+    assert "backends" in report["unmapped"]
     assert "rate_limiting" not in report["unmapped"]
     assert "tracing" not in report["unmapped"]
     assert "health_endpoints" not in report["unmapped"]

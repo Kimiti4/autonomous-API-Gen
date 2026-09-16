@@ -64,10 +64,10 @@ def assess_genome(genome: Genome) -> list[CapabilityResult]:
     retry_requested = bool(genome.retry_policy)
     retry_implemented = retry_requested and _valid_retry_policy(genome.retry_policy)
     add("retry_policy", retry_requested, retry_implemented, "A bounded exponential retry middleware is lowered for idempotent requests and retries only transient 502/503/504 responses.")
+    add("circuit_breaker", genome.circuit_breaker, genome.circuit_breaker, "A generated process-local circuit breaker tracks transient failures, opens after a threshold, supports half-open recovery, and fails fast while open.")
 
     unsupported = {
         "cache": genome.cache_enabled,
-        "circuit_breaker": genome.circuit_breaker,
         "backends": bool(genome.backends),
         "middleware": bool(genome.middleware),
         "security_policies": bool(genome.security_policies),
@@ -75,7 +75,6 @@ def assess_genome(genome: Genome) -> list[CapabilityResult]:
     }
     reasons = {
         "cache": "No cache implementation is emitted by builder.py.",
-        "circuit_breaker": "No circuit-breaker implementation is emitted by builder.py.",
         "backends": "Backend descriptors are represented but external cache/queue backends are not generated.",
         "middleware": "Arbitrary middleware selections are represented but not lowered.",
         "security_policies": "Security-policy descriptors are not independently lowered into enforcement code.",

@@ -172,6 +172,87 @@ async def retry_capability_probe():
         return JSONResponse(status_code=503, content={{"detail": "transient failure"}})
     return {{"attempts": _retry_probe_attempts}}
 """
+    circuit_breaker_code = ""
+    if genome.circuit_breaker:
+        circuit_breaker_code = """
+import asyncio
+from time import monotonic
+from fastapi.responses import JSONResponse
+CIRCUIT_FAILURE_THRESHOLD = 2
+CIRCUIT_COOLDOWN_SECONDS = 0.10
+CIRCUIT_TRANSIENT_STATUS_CODES = frozenset({502, 503, 504})
+class CircuitBreakerMiddleware:
+    def __init__(self, app: object) -> None:
+        self.app = app
+        self.state = "CLOSED"
+        self.failures = 0
+        self.opened_at = 0.0
+        self.half_open_in_flight = False
+        self.lock = asyncio.Lock()
+
+    async def __call__(self, scope: dict, receive: object, send: object) -> None:
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+        now = monotonic()
+        async with self.lock:
+            if self.state == "OPEN":
+                if now - self.opened_at < CIRCUIT_COOLDOWN_SECONDS:
+                    await send({"type": "http.response.start", "status": 503,
+                                "headers": [(b"content-type", b"application/json"),
+                                             (b"retry-after", b"1")]})
+                    await send({"type": "http.response.body", "body": b'{"detail":"Circuit open"}', "more_body": False})
+                    return
+                self.state = "HALF_OPEN"
+                self.half_open_in_flight = True
+            elif self.state == "HALF_OPEN":
+                await send({"type": "http.response.start", "status": 503,
+                            "headers": [(b"content-type", b"application/json"),
+                                         (b"retry-after", b"1")]})
+                await send({"type": "http.response.body", "body": b'{"detail":"Circuit open"}', "more_body": False})
+                return
+
+        state = {"status": 0, "headers": [], "body": bytearray()}
+        async def capture_send(message):
+            if message.get("type") == "http.response.start":
+                state["status"] = message.get("status", 0)
+                state["headers"] = message.get("headers", [])
+            elif message.get("type") == "http.response.body":
+                state["body"] += message.get("body", b"")
+
+        await self.app(scope, receive, capture_send)
+        async with self.lock:
+            if state["status"] in CIRCUIT_TRANSIENT_STATUS_CODES:
+                self.failures += 1
+                if self.failures >= CIRCUIT_FAILURE_THRESHOLD:
+                    self.state = "OPEN"
+                    self.opened_at = monotonic()
+                elif self.state == "HALF_OPEN":
+                    self.state = "OPEN"
+                    self.opened_at = monotonic()
+                self.half_open_in_flight = False
+            elif 200 <= state["status"] < 500:
+                self.failures = 0
+                self.state = "CLOSED"
+                self.half_open_in_flight = False
+            elif self.state == "HALF_OPEN":
+                self.state = "OPEN"
+                self.opened_at = monotonic()
+                self.half_open_in_flight = False
+        await send({"type": "http.response.start", "status": state["status"], "headers": state["headers"]})
+        await send({"type": "http.response.body", "body": bytes(state["body"]), "more_body": False})
+app.add_middleware(CircuitBreakerMiddleware)
+_circuit_probe_attempts = 0
+@app.get("/__capability_probe__/circuit-breaker")
+async def circuit_breaker_capability_probe():
+    global _circuit_probe_attempts
+    if os.getenv("CAPABILITY_EVIDENCE_MODE") != "1":
+        return JSONResponse(status_code=404, content={"detail": "Not found"})
+    _circuit_probe_attempts += 1
+    if _circuit_probe_attempts <= CIRCUIT_FAILURE_THRESHOLD:
+        return JSONResponse(status_code=503, content={"attempts": _circuit_probe_attempts})
+    return {"attempts": _circuit_probe_attempts, "recovered": True}
+"""
     health_code = '''
 @app.get("/health")
 async def health_check():
@@ -191,6 +272,7 @@ app = FastAPI(title="Evolved API System", version="{genome.api_version}", descri
 {metrics_code}
 {timeout_code}
 {retry_code}
+{circuit_breaker_code}
 {otel_middleware_code if genome.tracing_enabled else ""}
 {services_includes}
 @app.get("/")

@@ -101,12 +101,52 @@ async def timeout_capability_probe():
     await asyncio.sleep(REQUEST_TIMEOUT_SECONDS * 2)
     return {{"completed": True}}
 """
+    retry_code = ""
+    if genome.retry_policy:
+        retry = genome.retry_policy
+        max_attempts = int(retry.get("max_attempts", 0))
+        base_delay = float(retry.get("base_delay", 0))
+        max_delay = float(retry.get("max_delay", 0))
+        multiplier = float(retry.get("backoff_multiplier", 0))
+        if max_attempts < 2 or base_delay < 0 or max_delay < base_delay or multiplier < 1:
+            raise ValueError("retry_policy requires max_attempts >= 2, base_delay >= 0, max_delay >= base_delay, and backoff_multiplier >= 1")
+        retry_code = f"""
+import asyncio
+RETRY_MAX_ATTEMPTS = {max_attempts!r}
+RETRY_BASE_DELAY = {base_delay!r}
+RETRY_MAX_DELAY = {max_delay!r}
+RETRY_BACKOFF_MULTIPLIER = {multiplier!r}
+RETRYABLE_STATUS_CODES = frozenset({{502, 503, 504}})
+@app.middleware("http")
+async def retry_policy_middleware(request: Request, call_next):
+    if request.method not in {{"GET", "HEAD", "OPTIONS"}}:
+        return await call_next(request)
+    delay = RETRY_BASE_DELAY
+    for attempt in range(RETRY_MAX_ATTEMPTS):
+        response = await call_next(request)
+        if response.status_code not in RETRYABLE_STATUS_CODES or attempt == RETRY_MAX_ATTEMPTS - 1:
+            return response
+        if delay > 0:
+            await asyncio.sleep(min(delay, RETRY_MAX_DELAY))
+            delay = min(delay * RETRY_BACKOFF_MULTIPLIER, RETRY_MAX_DELAY)
+    return response
+_retry_probe_attempts = 0
+@app.get("/__capability_probe__/retry")
+async def retry_capability_probe():
+    global _retry_probe_attempts
+    if os.getenv("CAPABILITY_EVIDENCE_MODE") != "1":
+        return JSONResponse(status_code=404, content={{"detail": "Not found"}})
+    _retry_probe_attempts += 1
+    if _retry_probe_attempts < 2:
+        return JSONResponse(status_code=503, content={{"detail": "transient failure"}})
+    return {{"attempts": _retry_probe_attempts}}
+"""
     health_code = '''
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
 ''' if genome.health_endpoints else ""
-    request_import = "from fastapi import Request\n" if genome.metrics_endpoints or genome.rate_limiting or genome.tracing_enabled or genome.timeout_config else ""
+    request_import = "from fastapi import Request\n" if genome.metrics_endpoints or genome.rate_limiting or genome.tracing_enabled or genome.timeout_config or genome.retry_policy else ""
     return f'''"""Generated API architecture."""
 import os
 from fastapi import FastAPI
@@ -119,6 +159,7 @@ app = FastAPI(title="Evolved API System", version="{genome.api_version}", descri
 {rate_limit_code}
 {metrics_code}
 {timeout_code}
+{retry_code}
 {otel_middleware_code if genome.tracing_enabled else ""}
 {services_includes}
 @app.get("/")

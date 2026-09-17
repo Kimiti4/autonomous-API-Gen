@@ -82,13 +82,18 @@ class EvolutionEngine:
                     build_error = f"best genome not lowerable: {exc}"
                     logger.error("Best genome build failed: %s", exc)
                 await self._emit_update({"type":"building_best","run_id":run_id,"output_path":output_path}, run_id=run_id)
-            result = {"run_id":run_id,"best_genome":best_genome.encode() if best_genome else None,"best_fitness":best_fitness if best_genome else 0.0,"production_readiness":self.production_analyzer.analyze(best_genome) if best_genome else None,"history":history,"output_path":output_path,"build_error":build_error,"total_generations":generations,"evaluation_mode":"runtime" if use_docker else "static","seed":seed}
+            result = {"run_id":run_id,"best_genome":best_genome.encode() if best_genome else None,"best_fitness":best_fitness if best_genome and not build_error else 0.0,"production_readiness":self.production_analyzer.analyze(best_genome) if best_genome and not build_error else None,"history":history,"output_path":output_path,"build_error":build_error,"total_generations":generations,"evaluation_mode":"runtime" if use_docker else "static","seed":seed}
             db = SessionLocal()
             try:
                 record = db.query(EvolutionRun).filter(EvolutionRun.run_id == run_id).first()
-                if record: record.status="completed"; record.best_fitness=result["best_fitness"]; record.best_genome=result["best_genome"]; record.history=history; record.completed_at=datetime.utcnow(); db.commit()
+                if record:
+                    record.status="failed" if build_error else "completed"; record.best_fitness=result["best_fitness"]; record.best_genome=result["best_genome"]; record.history={"generations": history, "build_error": build_error} if build_error else history; record.completed_at=datetime.utcnow(); db.commit()
             finally: db.close()
-            await self._emit_update({"type":"evolution_complete","run_id":run_id,"result":result}, run_id=run_id); return result
+            if build_error:
+                await self._emit_update({"type":"evolution_failed","run_id":run_id,"error":build_error}, run_id=run_id)
+            else:
+                await self._emit_update({"type":"evolution_complete","run_id":run_id,"result":result}, run_id=run_id)
+            return result
         except Exception as exc:
             logger.error("Evolution run failed", exc_info=True)
             db = SessionLocal()
@@ -120,4 +125,4 @@ class EvolutionEngine:
                 output_path = None
                 build_error = f"best genome not lowerable: {exc}"
                 logger.error("Best genome build failed: %s", exc)
-        return {"best_genome": best_genome.encode() if best_genome else None, "best_fitness": best_fitness if best_genome else 0.0, "production_readiness": self.production_analyzer.analyze(best_genome) if best_genome else None, "history": history, "output_path": output_path, "build_error": build_error, "total_generations": generations}
+        return {"best_genome": best_genome.encode() if best_genome and not build_error else None, "best_fitness": best_fitness if best_genome and not build_error else 0.0, "production_readiness": self.production_analyzer.analyze(best_genome) if best_genome and not build_error else None, "history": history, "output_path": output_path, "build_error": build_error, "total_generations": generations}

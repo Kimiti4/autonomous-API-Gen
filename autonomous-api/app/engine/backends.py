@@ -17,6 +17,7 @@ from app.engine.backend_contract import (
     PYTHON_FASTAPI,
     make_compilation_request,
 )
+from app.engine.capability_semantics import plan_capabilities
 from app.engine.builder import (
     generate_database_file,
     generate_dockerfile,
@@ -41,7 +42,13 @@ class PythonFastAPIBackend:
         )
 
     def _architecture_files(self, genome: Genome) -> Dict[str, str]:
-        """Lower the immutable architecture into the full implementation file set."""
+        """Lower semantic capability intent into the Python/FastAPI artifact."""
+        plan = plan_capabilities(genome)
+        if plan.unmapped:
+            raise ValueError(
+                "cannot lower unmapped capabilities: " + ", ".join(plan.unmapped)
+            )
+
         files: Dict[str, str] = {
             "main.py": generate_main_app(genome),
             "database.py": generate_database_file(genome),

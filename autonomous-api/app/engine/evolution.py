@@ -73,10 +73,16 @@ class EvolutionEngine:
                 parents = population.select_parents(fitness_scores, num_parents=2); new_population = parents.copy()
                 while len(new_population) < population_size: new_population.append(mutate(crossover(parents[0], parents[1]), mutation_rate=0.2))
                 population.replace(new_population)
+            build_error = None
             if best_genome:
-                output_path = build_genome_output(best_genome)
+                try:
+                    output_path = build_genome_output(best_genome)
+                except ValueError as exc:
+                    output_path = None
+                    build_error = f"best genome not lowerable: {exc}"
+                    logger.error("Best genome build failed: %s", exc)
                 await self._emit_update({"type":"building_best","run_id":run_id,"output_path":output_path}, run_id=run_id)
-            result = {"run_id":run_id,"best_genome":best_genome.encode() if best_genome else None,"best_fitness":best_fitness if best_genome else 0.0,"production_readiness":self.production_analyzer.analyze(best_genome) if best_genome else None,"history":history,"output_path":output_path,"total_generations":generations,"evaluation_mode":"runtime" if use_docker else "static","seed":seed}
+            result = {"run_id":run_id,"best_genome":best_genome.encode() if best_genome else None,"best_fitness":best_fitness if best_genome else 0.0,"production_readiness":self.production_analyzer.analyze(best_genome) if best_genome else None,"history":history,"output_path":output_path,"build_error":build_error,"total_generations":generations,"evaluation_mode":"runtime" if use_docker else "static","seed":seed}
             db = SessionLocal()
             try:
                 record = db.query(EvolutionRun).filter(EvolutionRun.run_id == run_id).first()
@@ -106,5 +112,12 @@ class EvolutionEngine:
             parents = population.select_parents(fitness_scores, num_parents=2); new_population = parents.copy()
             while len(new_population) < population_size: new_population.append(mutate(crossover(parents[0], parents[1]), mutation_rate=0.2))
             population.replace(new_population)
-        if best_genome: output_path = build_genome_output(best_genome)
-        return {"best_genome": best_genome.encode() if best_genome else None, "best_fitness": best_fitness if best_genome else 0.0, "production_readiness": self.production_analyzer.analyze(best_genome) if best_genome else None, "history": history, "output_path": output_path, "total_generations": generations}
+        build_error = None
+        if best_genome:
+            try:
+                output_path = build_genome_output(best_genome)
+            except ValueError as exc:
+                output_path = None
+                build_error = f"best genome not lowerable: {exc}"
+                logger.error("Best genome build failed: %s", exc)
+        return {"best_genome": best_genome.encode() if best_genome else None, "best_fitness": best_fitness if best_genome else 0.0, "production_readiness": self.production_analyzer.analyze(best_genome) if best_genome else None, "history": history, "output_path": output_path, "build_error": build_error, "total_generations": generations}

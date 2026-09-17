@@ -72,10 +72,11 @@ def test_disabled_metrics_and_rate_limiting_are_not_emitted(tmp_path):
 
 def test_unsupported_requested_capability_never_becomes_verified(tmp_path):
     genome = _genome(backends=["cache"])
-    build_genome_output(genome, str(tmp_path))
-    evidence = inspect_artifact(genome, str(tmp_path))
-    assert not evidence["backends"]["verified"]
-    assert "backends" in summarize(evidence)["failed_or_unverified"]
+    try:
+        build_genome_output(genome, str(tmp_path))
+    except ValueError:
+        return
+    raise AssertionError("requested unmapped capability must fail closed at compile")
 
 
 def test_oauth2_is_not_mislabeled_as_supported_authentication(tmp_path):

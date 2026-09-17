@@ -67,8 +67,15 @@ class EliteEvolutionEngine:
                     population.replace(new_population)
                 if use_multi_population and (gen+1)%3==0: self.multi_pop.cross_pollinate()
                 await asyncio.sleep(.05)
-            output_path=build_genome_output(global_best_genome) if global_best_genome else None
-            return {"run_id":run_id,"best_genome":global_best_genome.encode() if global_best_genome else None,"best_fitness":global_best_fitness if global_best_genome else 0.0,"production_readiness":self.production_analyzer.analyze(global_best_genome) if global_best_genome else None,"history":all_history,"output_path":output_path,"total_generations":generations,"insights":self.memory.get_pattern_insights(),"top_features":self.adaptive_mutator.get_top_features(5) if enable_adaptive_mutation else [],"memory_stats":self.memory.get_statistics(),"seed":seed,"evaluation_mode":"static"}
+            build_error = None
+            if global_best_genome:
+                try:
+                    output_path = build_genome_output(global_best_genome)
+                except ValueError as exc:
+                    output_path = None
+                    build_error = f"best genome not lowerable: {exc}"
+                    logger.error("Best genome build failed: %s", exc)
+            return {"run_id":run_id,"best_genome":global_best_genome.encode() if global_best_genome else None,"best_fitness":global_best_fitness if global_best_genome else 0.0,"production_readiness":self.production_analyzer.analyze(global_best_genome) if global_best_genome else None,"history":all_history,"output_path":output_path,"build_error":build_error,"total_generations":generations,"insights":self.memory.get_pattern_insights(),"top_features":self.adaptive_mutator.get_top_features(5) if enable_adaptive_mutation else [],"memory_stats":self.memory.get_statistics(),"seed":seed,"evaluation_mode":"static"}
         finally:
             if seed is not None: random.setstate(previous_state)
     def get_memory_insights(self)->dict: return {"statistics":self.memory.get_statistics(),"pattern_insights":self.memory.get_pattern_insights(),"suggested_genome":self.memory.get_suggested_genome(),"adaptive_bias":self.adaptive_mutator.get_bias_report() if self.adaptive_mutator else None}

@@ -10,6 +10,7 @@ from app.core.crossover import crossover
 from app.core.mutation import mutate
 from app.engine.fitness import calculate_fitness
 from app.engine.builder import build_genome_output
+from app.engine.backend_contract import BackendTarget, PYTHON_FASTAPI
 from app.engine.candidate_evaluator import evaluate_candidate_async
 from app.engine.production_readiness import ProductionReadinessAnalyzer
 from app.storage.db import SessionLocal
@@ -19,7 +20,8 @@ class EvolutionEngine:
     """Main genetic evolution engine with durable lifecycle and provenance."""
     _EVENT_TYPE_MAP = {"evolution_start":"evolution.stage_changed","generation_start":"evolution.stage_changed","new_best":"candidate.promoted","generation_complete":"fitness.evaluated","building_best":"evolution.stage_changed","docker_test":"evolution.stage_changed","evolution_complete":"evolution.stage_changed","evolution_failed":"evolution.stage_changed"}
 
-    def __init__(self):
+    def __init__(self, target: BackendTarget = PYTHON_FASTAPI):
+        self.target = target
         self.docker_runner = None; self.websocket_callback: Optional[Callable] = None; self.dispatcher = None; self.production_analyzer = ProductionReadinessAnalyzer()
 
     def set_websocket_callback(self, callback: Callable): self.websocket_callback = callback
@@ -47,13 +49,13 @@ class EvolutionEngine:
         try: db.add(EvolutionRun(run_id=run_id, status="running", total_generations=generations)); db.commit()
         finally: db.close()
         try:
-            await self._emit_update({"type":"evolution_start","run_id":run_id,"generations":generations,"population_size":population_size,"evaluation_mode":"runtime" if use_docker else "static","seed":seed}, run_id=run_id)
+            await self._emit_update({"type":"evolution_start","run_id":run_id,"generations":generations,"population_size":population_size,"evaluation_mode":"runtime" if use_docker and self.target.runtime_supported else "static","backend_id":self.target.backend_id,"seed":seed}, run_id=run_id)
             population = Population(size=population_size); history = []; best_genome = None; best_fitness = float("-inf"); output_path = None
             for gen in range(generations):
-                await self._emit_update({"type":"generation_start","run_id":run_id,"generation":gen+1,"total_generations":generations}, run_id=run_id, generation=gen+1)
+                await self._emit_update({"type":"generation_start","run_id":run_id,"generation":gen+1,"total_generations":generations,"backend_id":self.target.backend_id}, run_id=run_id, generation=gen+1)
                 fitness_scores = []; genomes_to_save = []
                 for genome in population.individuals:
-                    evidence = await evaluate_candidate_async(genome, use_docker=use_docker)
+                    evidence = await evaluate_candidate_async(genome, use_docker=use_docker, target=self.target)
                     fitness = evidence["runtime_score"] if use_docker else evidence["static_score"]
                     if use_docker and evidence["evaluation_mode"] != "runtime": fitness = 0.0
                     fitness_scores.append(fitness)
@@ -76,7 +78,7 @@ class EvolutionEngine:
             build_error = None
             if best_genome:
                 try:
-                    output_path = build_genome_output(best_genome)
+                    output_path = build_genome_output(best_genome, target=self.target)
                 except ValueError as exc:
                     output_path = None
                     build_error = f"best genome not lowerable: {exc}"
@@ -120,7 +122,7 @@ class EvolutionEngine:
         build_error = None
         if best_genome:
             try:
-                output_path = build_genome_output(best_genome)
+                output_path = build_genome_output(best_genome, target=self.target)
             except ValueError as exc:
                 output_path = None
                 build_error = f"best genome not lowerable: {exc}"

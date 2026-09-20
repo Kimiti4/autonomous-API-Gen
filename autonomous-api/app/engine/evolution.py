@@ -56,10 +56,10 @@ class EvolutionEngine:
                 fitness_scores = []; genomes_to_save = []
                 for genome in population.individuals:
                     evidence = await evaluate_candidate_async(genome, use_docker=use_docker, target=self.target)
-                    fitness = evidence["runtime_score"] if use_docker else evidence["static_score"]
-                    if use_docker and evidence["evaluation_mode"] != "runtime": fitness = 0.0
+                    fitness = evidence["runtime_score"] if evidence["evaluation_mode"] == "runtime" else evidence["static_score"]
+                    if not evidence["build_ok"]: fitness = 0.0
                     fitness_scores.append(fitness)
-                    payload = genome.encode(); payload["lineage"] = self._lineage_payload(genome); payload["evaluation"] = evidence; payload["provenance"] = {"run_id": run_id, "generation": gen + 1, "seed": seed, "evaluation_mode": "runtime" if use_docker else "static"}
+                    payload = genome.encode(); payload["lineage"] = self._lineage_payload(genome); payload["evaluation"] = evidence; payload["provenance"] = {"run_id": run_id, "generation": gen + 1, "seed": seed, "evaluation_mode": evidence["evaluation_mode"], "backend_id": self.target.backend_id}
                     genomes_to_save.append({"genome_data":payload,"fitness_score":fitness,"generation":gen+1})
                     if fitness > best_fitness:
                         best_fitness, best_genome = fitness, genome
@@ -84,7 +84,7 @@ class EvolutionEngine:
                     build_error = f"best genome not lowerable: {exc}"
                     logger.error("Best genome build failed: %s", exc)
                 await self._emit_update({"type":"building_best","run_id":run_id,"output_path":output_path}, run_id=run_id)
-            result = {"run_id":run_id,"best_genome":best_genome.encode() if best_genome else None,"best_fitness":best_fitness if best_genome and not build_error else 0.0,"production_readiness":self.production_analyzer.analyze(best_genome) if best_genome and not build_error else None,"history":history,"output_path":output_path,"build_error":build_error,"total_generations":generations,"evaluation_mode":"runtime" if use_docker else "static","seed":seed}
+            result = {"run_id":run_id,"best_genome":best_genome.encode() if best_genome else None,"best_fitness":best_fitness if best_genome and not build_error else 0.0,"production_readiness":self.production_analyzer.analyze(best_genome) if best_genome and not build_error else None,"history":history,"output_path":output_path,"build_error":build_error,"total_generations":generations,"evaluation_mode":"runtime" if use_docker and self.target.runtime_supported else "static","backend_id":self.target.backend_id,"seed":seed}
             db = SessionLocal()
             try:
                 record = db.query(EvolutionRun).filter(EvolutionRun.run_id == run_id).first()
@@ -127,4 +127,4 @@ class EvolutionEngine:
                 output_path = None
                 build_error = f"best genome not lowerable: {exc}"
                 logger.error("Best genome build failed: %s", exc)
-        return {"best_genome": best_genome.encode() if best_genome and not build_error else None, "best_fitness": best_fitness if best_genome and not build_error else 0.0, "production_readiness": self.production_analyzer.analyze(best_genome) if best_genome and not build_error else None, "history": history, "output_path": output_path, "build_error": build_error, "total_generations": generations}
+        return {"best_genome": best_genome.encode() if best_genome and not build_error else None, "best_fitness": best_fitness if best_genome and not build_error else 0.0, "production_readiness": self.production_analyzer.analyze(best_genome) if best_genome and not build_error else None, "history": history, "output_path": output_path, "build_error": build_error, "total_generations": generations, "backend_id": self.target.backend_id}

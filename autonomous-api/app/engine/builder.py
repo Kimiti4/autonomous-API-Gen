@@ -495,13 +495,16 @@ def generate_requirements(genome: Genome) -> str:
     return "\n".join(packages) + "\n"
 
 
-def build_genome_output(genome: Genome, output_dir: str = "output/generated_api") -> str:
+def build_genome_output(genome: Genome, output_dir: str = "output/generated_api", target=None) -> str:
     # Committed Genome -> validated architecture request -> backend boundary.
     # The generator never interprets the architecture directly; lowering is a
     # compiler-backend concern (see app/engine/backends.py).
+    from app.engine.backend_contract import PYTHON_FASTAPI
     from app.engine.backends import compile_and_materialize
 
-    return compile_and_materialize(genome.encode(), output_dir=output_dir)
+    return compile_and_materialize(
+        genome.encode(), output_dir=output_dir, target=target or PYTHON_FASTAPI
+    )
 
 
 def generate_dockerfile(genome: Genome) -> str:

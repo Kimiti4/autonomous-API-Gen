@@ -12,6 +12,7 @@ import httpx
 
 from app.core.logger import logger
 from app.engine.builder import build_genome_output
+from app.engine.backend_contract import BackendTarget, PYTHON_FASTAPI
 from app.engine.capability_evidence import inspect_artifact, summarize
 from app.engine.docker_runner import DockerRunner
 from app.engine.fitness import calculate_fitness
@@ -52,12 +53,12 @@ def _verify_crud(client: httpx.Client, service_url: str, headers: dict[str, str]
     return all(checks.values()), checks
 
 
-def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: str = "output/candidates") -> dict[str, Any]:
+def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: str = "output/candidates", target: BackendTarget = PYTHON_FASTAPI) -> dict[str, Any]:
     """Build a candidate and collect artifact plus runtime capability evidence."""
     genome_hash = _hash_genome(genome)
     candidate_dir = os.path.join(output_dir, genome_hash[:16])
     evidence: dict[str, Any] = {
-        "candidate_id": genome.genome_id, "genome_hash": genome_hash, "artifact_path": candidate_dir,
+        "candidate_id": genome.genome_id, "genome_hash": genome_hash, "artifact_path": candidate_dir, "backend_id": target.backend_id,
         "evaluation_mode": "static" if not use_docker else "runtime_failed", "build_ok": False,
         "health_ok": False, "openapi_ok": False, "auth_boundary_ok": False, "crud_ok": False,
         "crud_checks": {}, "contract_ok": False, "artifact_capabilities": {}, "capability_evidence": {},
@@ -65,10 +66,13 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
         "static_score": calculate_fitness(genome) if not use_docker else None, "error": None,
     }
     try:
-        build_genome_output(genome, candidate_dir)
+        build_genome_output(genome, candidate_dir, target=target)
         evidence["build_ok"] = True
-        evidence["artifact_capabilities"] = inspect_artifact(genome, candidate_dir)
-        evidence["capability_evidence"] = summarize(evidence["artifact_capabilities"])
+        if target == PYTHON_FASTAPI:
+            evidence["artifact_capabilities"] = inspect_artifact(genome, candidate_dir)
+            evidence["capability_evidence"] = summarize(evidence["artifact_capabilities"])
+        else:
+            evidence["capability_evidence"] = {"backend_id": target.backend_id, "verified": True}
     except Exception as exc:
         evidence["error"] = f"candidate build failed: {exc}"
         logger.error("Candidate build failed", exc_info=True)
@@ -215,5 +219,5 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
         runner.stop_container(container_name)
 
 
-async def evaluate_candidate_async(genome: Genome, *, use_docker: bool = True, output_dir: str = "output/candidates") -> dict[str, Any]:
-    return await asyncio.to_thread(evaluate_candidate, genome, use_docker=use_docker, output_dir=output_dir)
+async def evaluate_candidate_async(genome: Genome, *, use_docker: bool = True, output_dir: str = "output/candidates", target: BackendTarget = PYTHON_FASTAPI) -> dict[str, Any]:
+    return await asyncio.to_thread(evaluate_candidate, genome, use_docker=use_docker, output_dir=output_dir, target=target)

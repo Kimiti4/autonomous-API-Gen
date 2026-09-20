@@ -61,7 +61,7 @@ class EvolutionEngine:
                     fitness_scores.append(fitness)
                     payload = genome.encode(); payload["lineage"] = self._lineage_payload(genome); payload["evaluation"] = evidence; payload["provenance"] = {"run_id": run_id, "generation": gen + 1, "seed": seed, "evaluation_mode": evidence["evaluation_mode"], "backend_id": self.target.backend_id}
                     genomes_to_save.append({"genome_data":payload,"fitness_score":fitness,"generation":gen+1})
-                    if fitness > best_fitness:
+                    if evidence["build_ok"] and fitness > best_fitness:
                         best_fitness, best_genome = fitness, genome
                         await self._emit_update({"type":"new_best","run_id":run_id,"generation":gen+1,"fitness":fitness,"genome":payload}, run_id=run_id, generation=gen+1)
                 db = SessionLocal()
@@ -84,7 +84,9 @@ class EvolutionEngine:
                     build_error = f"best genome not lowerable: {exc}"
                     logger.error("Best genome build failed: %s", exc)
                 await self._emit_update({"type":"building_best","run_id":run_id,"output_path":output_path}, run_id=run_id)
-            result = {"run_id":run_id,"best_genome":best_genome.encode() if best_genome else None,"best_fitness":best_fitness if best_genome and not build_error else 0.0,"production_readiness":self.production_analyzer.analyze(best_genome) if best_genome and not build_error else None,"history":history,"output_path":output_path,"build_error":build_error,"total_generations":generations,"evaluation_mode":"runtime" if use_docker and self.target.runtime_supported else "static","backend_id":self.target.backend_id,"seed":seed}
+            elif best_genome is None:
+                build_error = "no candidate could be lowered by the selected backend"
+            result = {"run_id":run_id,"best_genome":best_genome.encode() if best_genome and not build_error else None,"best_fitness":best_fitness if best_genome and not build_error else 0.0,"production_readiness":self.production_analyzer.analyze(best_genome) if best_genome and not build_error else None,"history":history,"output_path":output_path,"build_error":build_error,"total_generations":generations,"evaluation_mode":"runtime" if use_docker and self.target.runtime_supported else "static","backend_id":self.target.backend_id,"seed":seed}
             db = SessionLocal()
             try:
                 record = db.query(EvolutionRun).filter(EvolutionRun.run_id == run_id).first()

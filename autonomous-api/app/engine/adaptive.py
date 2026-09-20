@@ -16,7 +16,6 @@ class AdaptiveMutator:
             "rate_limiting": 0.5,
             "cors_enabled": 0.5,
             "auth_jwt": 0.5,
-            "auth_oauth2": 0.5,
             "auth_api_key": 0.3,
             "auth_basic": 0.2,
             "database_postgres": 0.6,
@@ -119,11 +118,10 @@ class AdaptiveMutator:
         
         # Mutate auth method with bias
         if random.random() < 0.25:
-            auth_options = ["jwt", "oauth2", "api_key", "basic"]
+            auth_options = ["jwt", "api_key", "basic"]
             # Weight selection by bias
             weights = [
                 self.success_bias["auth_jwt"],
-                self.success_bias["auth_oauth2"],
                 self.success_bias["auth_api_key"],
                 self.success_bias["auth_basic"]
             ]

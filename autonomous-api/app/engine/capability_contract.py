@@ -73,22 +73,26 @@ def assess_genome(genome: Genome) -> list[CapabilityResult]:
     add("circuit_breaker", genome.circuit_breaker, genome.circuit_breaker, "A generated process-local circuit breaker tracks transient failures, opens after a threshold, supports half-open recovery, and fails fast while open.")
     add("cache", genome.cache_enabled, genome.cache_enabled, "A generated bounded process-local response cache supports GET/HEAD hits, TTL expiry, anonymous-only caching, and mutation invalidation; distributed cache backends remain a separate backend capability.")
 
+    middleware_items = genome.middleware
+    middleware_valid = all(isinstance(item, str) and item in SUPPORTED_MIDDLEWARE for item in middleware_items)
     add(
         "middleware",
         bool(genome.middleware),
-        bool(genome.middleware) and all(item in SUPPORTED_MIDDLEWARE for item in genome.middleware),
+        bool(genome.middleware) and middleware_valid,
         "The FastAPI lowerer supports the declared middleware vocabulary and rejects unknown middleware instead of silently dropping it.",
     )
-    policy_types = {policy.get("type") for policy in genome.security_policies if isinstance(policy, dict)}
-    policies_valid = all(policy_type in SUPPORTED_SECURITY_POLICIES for policy_type in policy_types)
+    policies = genome.security_policies
+    policies_dict = all(isinstance(policy, dict) for policy in policies)
+    policy_types = {policy.get("type") for policy in policies if isinstance(policy, dict)}
+    policies_valid = policies_dict and all(policy_type in SUPPORTED_SECURITY_POLICIES for policy_type in policy_types)
     jwt_policy_ok = all(
         policy.get("type") != "jwt_validation" or genome.auth == "jwt"
-        for policy in genome.security_policies
+        for policy in policies
         if isinstance(policy, dict)
     )
     rate_policy_ok = all(
         policy.get("type") != "rate_limiting" or genome.rate_limiting
-        for policy in genome.security_policies
+        for policy in policies
         if isinstance(policy, dict)
     )
     add(

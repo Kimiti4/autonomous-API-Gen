@@ -353,6 +353,7 @@ import os
 import asyncio
 from fastapi import FastAPI
 {request_import}{services_imports}
+{logging_code}
 from database import init_db
 app = FastAPI(title="Evolved API System", version="{genome.api_version}", description="Generated API architecture")
 {cors_code}

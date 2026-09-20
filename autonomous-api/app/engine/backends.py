@@ -6,6 +6,7 @@ same CompilerBackend contract without changing the ISR-facing model.
 """
 
 import os
+import json
 from typing import Dict
 
 from app.engine.backend_contract import (
@@ -84,8 +85,77 @@ class PythonFastAPIBackend:
         )
 
 
+
+class GoHTTPBackend:
+    """Independent Go/net/http target used to prove backend neutrality."""
+
+    target = BackendTarget(
+        backend_id="go-nethttp",
+        language="go",
+        framework="net/http",
+    )
+
+    def supports(self, request: CompilationRequest) -> bool:
+        return request.target == self.target and request.architecture_schema == ARCHITECTURE_SCHEMA_VERSION
+
+    def compile(self, request: CompilationRequest) -> CompiledArtifact:
+        if not self.supports(request):
+            raise ValueError(
+                f"unsupported backend target: {request.target.backend_id} "
+                f"(schema {request.architecture_schema})"
+            )
+        genome = Genome(dict(request.architecture))
+        plan = plan_capabilities(genome)
+        # This backend intentionally proves a distinct lowering surface. It only
+        # accepts capabilities whose semantics can be represented faithfully by
+        # the small reference HTTP target; unsupported semantics remain explicit.
+        allowed = {"services", "database", "authentication", "cors", "health_endpoints", "openapi", "api_version"}
+        unsupported = set(plan.requested) - allowed
+        if unsupported:
+            raise ValueError("cannot lower unmapped capabilities for go-nethttp: " + ", ".join(sorted(unsupported)))
+        service_routes = []
+        for service in genome.services:
+            route = f"/api/{genome.api_version}/{service}"
+            service_routes.append(
+                f'    mux.HandleFunc({json.dumps(route)}, func(w http.ResponseWriter, r *http.Request) {{ writeJSON(w, map[string]any{{"service": {json.dumps(service)}}}) }})'
+            )
+        routes = "\n".join(service_routes)
+        main = f'''package main
+
+import (
+    "encoding/json"
+    "log"
+    "net/http"
+)
+
+func writeJSON(w http.ResponseWriter, value any) {{
+    w.Header().Set("Content-Type", "application/json")
+    _ = json.NewEncoder(w).Encode(value)
+}}
+
+func main() {{
+    mux := http.NewServeMux()
+    mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {{
+        writeJSON(w, map[string]any{{"version": {json.dumps(genome.api_version)}, "services": {json.dumps(genome.services)}}})
+    }})
+    mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {{
+        writeJSON(w, map[string]string{{"status": "healthy"}})
+    }})
+{routes}
+    log.Fatal(http.ListenAndServe(":8000", mux))
+}}
+'''
+        go_mod = "module generated-api\n\ngo 1.22\n"
+        return CompiledArtifact(
+            backend_id=self.target.backend_id,
+            files={"go.mod": go_mod, "main.go": main},
+            metadata={"language": "go", "framework": "net/http", "architecture_schema": request.architecture_schema},
+        )
+
+
 _BACKENDS: Dict[str, CompilerBackend] = {
     PYTHON_FASTAPI.backend_id: PythonFastAPIBackend(),
+    GoHTTPBackend.target.backend_id: GoHTTPBackend(),
 }
 
 

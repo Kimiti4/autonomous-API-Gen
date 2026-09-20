@@ -96,3 +96,38 @@ def test_python_backend_rejects_other_targets():
     assert not backend.supports(request)
     with pytest.raises(ValueError, match="unsupported backend target"):
         backend.compile(request)
+
+def test_go_backend_compiles_same_architecture_to_independent_artifact():
+    from app.engine.backends import GoHTTPBackend
+
+    request = make_compilation_request(
+        {**ARCHITECTURE, "cache_enabled": False},
+        target=GoHTTPBackend.target,
+    )
+    artifact = compile_architecture(request)
+
+    assert artifact.backend_id == "go-nethttp"
+    assert set(artifact.files) == {"go.mod", "main.go"}
+    assert "package main" in artifact.files["main.go"]
+    assert "FastAPI" not in artifact.files["main.go"]
+
+
+def test_go_backend_selection_is_explicit_and_fail_closed():
+    request = make_compilation_request(
+        {**ARCHITECTURE, "cache_enabled": True},
+        target=BackendTarget("go-nethttp", "go", "net/http"),
+    )
+    with pytest.raises(ValueError, match="unmapped capabilities"):
+        compile_architecture(request)
+
+
+def test_backend_outputs_are_deterministic_for_same_architecture():
+    request = make_compilation_request(
+        {**ARCHITECTURE, "cache_enabled": False},
+        target=BackendTarget("go-nethttp", "go", "net/http"),
+    )
+    first = compile_architecture(request)
+    second = compile_architecture(request)
+
+    assert first.files == second.files
+    assert first.metadata == second.metadata

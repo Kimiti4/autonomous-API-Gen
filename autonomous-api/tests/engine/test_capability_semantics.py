@@ -50,3 +50,15 @@ def test_plan_does_not_mutate_architecture():
     plan_from_architecture(architecture)
 
     assert architecture == before
+
+
+def test_middleware_unknown_value_fails_closed():
+    genome = Genome({**ARCHITECTURE, "middleware": ["unknown"]})
+    plan = plan_capabilities(genome)
+    assert "middleware" in plan.unmapped
+
+
+def test_supported_logging_level_is_lowerable_contract():
+    genome = Genome({**ARCHITECTURE, "logging_level": "INFO"})
+    plan = plan_capabilities(genome)
+    assert "logging_level" in plan.implemented

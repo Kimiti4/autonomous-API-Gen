@@ -32,3 +32,11 @@ def test_elite_evolution_fails_closed_when_best_not_lowerable():
         )
     )
     _assert_fail_closed_invariant(result)
+
+def test_synchronous_evolution_can_complete_when_random_genomes_are_lowerable():
+    result = EvolutionEngine().run_synchronous(generations=1, population_size=3)
+    assert result["build_error"] is None
+    assert result["best_genome"] is not None
+    assert result["best_fitness"] > 0.0
+    assert result["production_readiness"] is not None
+    assert result["output_path"] is not None

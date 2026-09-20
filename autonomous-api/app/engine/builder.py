@@ -339,6 +339,14 @@ async def cache_invalidation_probe():
 async def health_check():
     return {"status": "healthy"}
 ''' if genome.health_endpoints else ""
+    logging_code = ""
+    if genome.logging_level:
+        import_level = genome.logging_level
+        logging_code = f"""
+import logging
+logging.basicConfig(level=logging.{import_level}, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+logger = logging.getLogger("generated-api")
+"""
     request_import = "from fastapi import Request\n" if genome.metrics_endpoints or genome.rate_limiting or genome.tracing_enabled or genome.timeout_config or genome.retry_policy or genome.cache_enabled else ""
     return f'''"""Generated API architecture."""
 import os

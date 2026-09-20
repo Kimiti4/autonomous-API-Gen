@@ -7,6 +7,7 @@ same CompilerBackend contract without changing the ISR-facing model.
 
 import os
 import json
+import hashlib
 from typing import Dict
 
 from app.engine.backend_contract import (
@@ -472,7 +473,21 @@ def get_backend(backend_id: str) -> CompilerBackend:
 def compile_architecture(request: CompilationRequest) -> CompiledArtifact:
     """Compile using only the backend explicitly present in the request."""
 
-    return get_backend(request.target.backend_id).compile(request)
+    artifact = get_backend(request.target.backend_id).compile(request)
+    architecture_payload = json.dumps(
+        dict(request.architecture), sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    metadata = dict(artifact.metadata)
+    metadata.setdefault(
+        "architecture_hash",
+        hashlib.sha256(architecture_payload).hexdigest(),
+    )
+    metadata.setdefault("backend_id", artifact.backend_id)
+    return CompiledArtifact(
+        backend_id=artifact.backend_id,
+        files=artifact.files,
+        metadata=metadata,
+    )
 
 
 def materialize(artifact: CompiledArtifact, output_dir: str) -> str:

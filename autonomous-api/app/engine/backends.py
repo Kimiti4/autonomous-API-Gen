@@ -36,6 +36,7 @@ class PythonFastAPIBackend:
     """First concrete compiler backend for the existing Python generator."""
 
     target = PYTHON_FASTAPI
+    runtime_supported = True
 
     def supports(self, request: CompilationRequest) -> bool:
         return (
@@ -95,6 +96,7 @@ class GoHTTPBackend:
         language="go",
         framework="net/http",
     )
+    runtime_supported = False
 
     def supports(self, request: CompilationRequest) -> bool:
         return request.target == self.target and request.architecture_schema == ARCHITECTURE_SCHEMA_VERSION

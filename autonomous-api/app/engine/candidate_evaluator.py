@@ -13,6 +13,7 @@ import httpx
 from app.core.logger import logger
 from app.engine.builder import build_genome_output
 from app.engine.backend_contract import BackendTarget, PYTHON_FASTAPI
+from app.engine.backends import get_backend
 from app.engine.capability_evidence import inspect_artifact, summarize
 from app.engine.docker_runner import DockerRunner
 from app.engine.fitness import calculate_fitness
@@ -77,7 +78,9 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
         evidence["error"] = f"candidate build failed: {exc}"
         logger.error("Candidate build failed", exc_info=True)
         return evidence
-    if not use_docker:
+    if not use_docker or not get_backend(target.backend_id).runtime_supported:
+        evidence["evaluation_mode"] = "static"
+        evidence["static_score"] = calculate_fitness(genome) if evidence["build_ok"] else 0.0
         return evidence
 
     runner = DockerRunner()

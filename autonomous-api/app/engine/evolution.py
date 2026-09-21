@@ -12,6 +12,7 @@ from app.engine.fitness import calculate_fitness
 from app.engine.builder import build_genome_output
 from app.engine.backend_contract import BackendTarget, PYTHON_FASTAPI
 from app.engine.candidate_evaluator import evaluate_candidate_async
+from app.engine.backends import get_backend
 from app.engine.production_readiness import ProductionReadinessAnalyzer
 from app.storage.db import SessionLocal
 from app.storage.models import GenomeRecord, EvolutionRun
@@ -68,7 +69,7 @@ class EvolutionEngine:
         try: db.add(EvolutionRun(run_id=run_id, status="running", total_generations=generations)); db.commit()
         finally: db.close()
         try:
-            await self._emit_update({"type":"evolution_start","run_id":run_id,"generations":generations,"population_size":population_size,"evaluation_mode":"runtime" if use_docker and self.target.runtime_supported else "static","backend_id":self.target.backend_id,"seed":seed}, run_id=run_id)
+            await self._emit_update({"type":"evolution_start","run_id":run_id,"generations":generations,"population_size":population_size,"evaluation_mode":"runtime" if use_docker and get_backend(self.target.backend_id).runtime_supported else "static","backend_id":self.target.backend_id,"seed":seed}, run_id=run_id)
             population = Population(size=population_size); history = []; best_genome = None; best_fitness = float("-inf"); output_path = None
             for gen in range(generations):
                 await self._emit_update({"type":"generation_start","run_id":run_id,"generation":gen+1,"total_generations":generations,"backend_id":self.target.backend_id}, run_id=run_id, generation=gen+1)
@@ -79,7 +80,7 @@ class EvolutionEngine:
                     fitness_scores.append(fitness)
                     payload = genome.encode(); payload["lineage"] = self._lineage_payload(genome); payload["evaluation"] = evidence; payload["provenance"] = {"run_id": run_id, "generation": gen + 1, "seed": seed, "evaluation_mode": evidence["evaluation_mode"], "backend_id": self.target.backend_id}
                     genomes_to_save.append({"genome_data":payload,"fitness_score":fitness,"generation":gen+1})
-                    if evidence["build_ok"] and fitness > best_fitness:
+                    if evidence["build_ok"] and fitness > 0.0 and fitness > best_fitness:
                         best_fitness, best_genome = fitness, genome
                         await self._emit_update({"type":"new_best","run_id":run_id,"generation":gen+1,"fitness":fitness,"genome":payload}, run_id=run_id, generation=gen+1)
                 db = SessionLocal()

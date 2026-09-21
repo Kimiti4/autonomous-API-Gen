@@ -65,3 +65,25 @@ def test_async_evolution_fails_closed_when_runtime_evaluation_fails(monkeypatch)
         EvolutionEngine().run_async(generations=1, population_size=2, use_docker=True, seed=7)
     )
     _assert_fail_closed_invariant(result)
+
+
+def test_runtime_failed_candidate_is_never_promoted(monkeypatch):
+    async def _runtime_failed(*args, **kwargs):
+        return {
+            "build_ok": True,
+            "evaluation_mode": "runtime_failed",
+            "runtime_score": None,
+            "static_score": None,
+            "error": "container exited non-zero",
+        }
+
+    monkeypatch.setattr("app.engine.evolution.evaluate_candidate_async", _runtime_failed)
+    result = asyncio.run(
+        EvolutionEngine().run_async(generations=1, population_size=2, use_docker=True, seed=11)
+    )
+
+    assert result["best_genome"] is None
+    assert result["best_fitness"] == 0.0
+    assert result["production_readiness"] is None
+    assert result["output_path"] is None
+    assert result["build_error"] is not None

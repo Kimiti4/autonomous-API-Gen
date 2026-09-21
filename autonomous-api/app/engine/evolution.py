@@ -40,6 +40,25 @@ class EvolutionEngine:
     def _lineage_payload(genome: Genome) -> dict:
         return {"genome_id": genome.genome_id, "lineage": getattr(genome, "lineage", {})}
 
+    @staticmethod
+    def _fitness_from_evidence(evidence: dict) -> float:
+        """Convert candidate evidence into a safe evolutionary fitness value.
+
+        Only completed runtime or static evaluations may contribute fitness.
+        Build failures and runtime failures are deliberately zero-fitness so a
+        partially verified candidate can never be promoted as the best result.
+        """
+        if not evidence.get("build_ok"):
+            return 0.0
+        mode = evidence.get("evaluation_mode")
+        if mode == "runtime":
+            score = evidence.get("runtime_score")
+        elif mode == "static":
+            score = evidence.get("static_score")
+        else:
+            return 0.0
+        return float(score) if score is not None else 0.0
+
     async def run_async(self, generations: int = 10, population_size: int = 10, use_docker: bool = True, seed: Optional[int] = None) -> dict:
         if generations < 1 or population_size < 2: raise ValueError("generations must be >= 1 and population_size must be >= 2")
         run_id = str(uuid.uuid4())
@@ -56,8 +75,7 @@ class EvolutionEngine:
                 fitness_scores = []; genomes_to_save = []
                 for genome in population.individuals:
                     evidence = await evaluate_candidate_async(genome, use_docker=use_docker, target=self.target)
-                    fitness = evidence["runtime_score"] if evidence["evaluation_mode"] == "runtime" else evidence["static_score"]
-                    if not evidence["build_ok"]: fitness = 0.0
+                    fitness = self._fitness_from_evidence(evidence)
                     fitness_scores.append(fitness)
                     payload = genome.encode(); payload["lineage"] = self._lineage_payload(genome); payload["evaluation"] = evidence; payload["provenance"] = {"run_id": run_id, "generation": gen + 1, "seed": seed, "evaluation_mode": evidence["evaluation_mode"], "backend_id": self.target.backend_id}
                     genomes_to_save.append({"genome_data":payload,"fitness_score":fitness,"generation":gen+1})

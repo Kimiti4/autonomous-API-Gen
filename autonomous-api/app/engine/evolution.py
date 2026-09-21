@@ -105,7 +105,7 @@ class EvolutionEngine:
                 await self._emit_update({"type":"building_best","run_id":run_id,"output_path":output_path}, run_id=run_id)
             elif best_genome is None:
                 build_error = "no candidate could be lowered by the selected backend"
-            result = {"run_id":run_id,"best_genome":best_genome.encode() if best_genome and not build_error else None,"best_fitness":best_fitness if best_genome and not build_error else 0.0,"production_readiness":self.production_analyzer.analyze(best_genome) if best_genome and not build_error else None,"history":history,"output_path":output_path,"build_error":build_error,"total_generations":generations,"evaluation_mode":"runtime" if use_docker and self.target.runtime_supported else "static","backend_id":self.target.backend_id,"seed":seed}
+            result = {"run_id":run_id,"best_genome":best_genome.encode() if best_genome and not build_error else None,"best_fitness":best_fitness if best_genome and not build_error else 0.0,"production_readiness":self.production_analyzer.analyze(best_genome) if best_genome and not build_error else None,"history":history,"output_path":output_path,"build_error":build_error,"total_generations":generations,"evaluation_mode":"runtime" if use_docker and get_backend(self.target.backend_id).runtime_supported else "static","backend_id":self.target.backend_id,"seed":seed}
             db = SessionLocal()
             try:
                 record = db.query(EvolutionRun).filter(EvolutionRun.run_id == run_id).first()

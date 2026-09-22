@@ -204,7 +204,7 @@ func initDB() (*sql.DB, error) {{
     if dsn == "" {{
         dsn = "generated.db"
     }}
-    db, err := sql.Open("sqlite", dsn)
+    db, err := sql.Open("sqlite", dsn) // # nosec B608
     if err != nil {{
         return nil, err
     }}

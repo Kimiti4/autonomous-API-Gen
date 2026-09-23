@@ -124,6 +124,7 @@ class CompilerBackend(Protocol):
     """Minimal interface implemented by language/framework compiler plugins."""
 
     target: BackendTarget
+    runtime_supported: bool
 
     def compile(self, request: CompilationRequest) -> CompiledArtifact:
         """Lower an immutable architecture request into an implementation."""

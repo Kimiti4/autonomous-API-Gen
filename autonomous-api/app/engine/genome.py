@@ -75,7 +75,7 @@ class Genome:
     def _generate_random_genome(self, rng):
         available = ["auth", "users", "payments", "analytics", "notifications", "search", "files", "admin", "products", "orders", "inventory", "reports"]
         self.services = rng.sample(available, rng.randint(2, 6))
-        self.auth = rng.choice(["jwt", "oauth2", "api_key", "basic"])
+        self.auth = rng.choice(["jwt", "api_key", "basic"])
         self.database = rng.choice(["postgres", "sqlite", "mysql"])
         self.cache_enabled = rng.choice([True, False]); self.rate_limiting = rng.choice([True, False]); self.cors_enabled = rng.choice([True, False])
         self.logging_level = rng.choice(["DEBUG", "INFO", "WARNING", "ERROR"]); self.api_version = rng.choice(["v1", "v2", "v3"]); self.security_score = 1.0
@@ -87,7 +87,11 @@ class Genome:
         max_delay = rng.uniform(max(base_delay, 5.0), 30.0)
         self.retry_policy = {"max_attempts": max_attempts, "base_delay": base_delay, "max_delay": max_delay, "backoff_multiplier": rng.uniform(1.5, 3.0)}
         self.timeout_config = {"connect_timeout": rng.uniform(5.0, 30.0), "read_timeout": rng.uniform(10.0, 60.0), "write_timeout": rng.uniform(10.0, 60.0), "request_timeout": rng.uniform(30.0, 120.0)}
-        self.backends = self._generate_backends(rng); self.middleware = self._generate_middleware(rng); self.security_policies = self._generate_security_policies(rng)
+        # Random evolution seeds must stay inside the currently lowerable search space.
+        # External backend descriptors remain explicit architecture inputs until a
+        # backend can provide their real runtime semantics.
+        self.backends = []
+        self.middleware = self._generate_middleware(rng); self.security_policies = self._generate_security_policies(rng)
 
     def _generate_backends(self, rng=None):
         rng = rng or random
@@ -98,7 +102,7 @@ class Genome:
 
     def _generate_middleware(self, rng=None):
         rng = rng or random
-        return rng.sample(["auth", "caching", "logging", "tracing", "rate_limiting", "circuit_breaker", "retry", "compression", "cors", "security_headers"], rng.randint(2, 6))
+        return rng.sample(["auth", "caching", "tracing", "rate_limiting", "circuit_breaker", "retry", "cors"], rng.randint(1, 5))
 
     def _generate_security_policies(self, rng=None):
         rng = rng or random

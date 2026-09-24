@@ -7,6 +7,7 @@ Ensures evolved architectures comply with organizational requirements and standa
 """
 
 import json
+from app.storage.atomic import atomic_write_json
 import random
 from typing import Dict, List, Any, Optional, Tuple, Set
 from dataclasses import dataclass, field
@@ -550,8 +551,7 @@ class PolicyAwareGenerator:
             for p in self.policies
         ]
         
-        with open(file_path, 'w') as f:
-            json.dump(policies_data, f, indent=2)
+        atomic_write_json(file_path, policies_data)
     
     def import_policies(self, file_path: str):
         """Import policies from a file"""

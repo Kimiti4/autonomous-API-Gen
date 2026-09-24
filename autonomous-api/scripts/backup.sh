@@ -18,12 +18,17 @@ echo "======================================"
 # Create backup directory
 mkdir -p $BACKUP_DIR
 
-# Backup SQLite database
+# Backup SQLite database (integrity-checked image, not a live cp)
+# sqlite3 backup API + PRAGMA integrity_check + SHA-256 via app.storage.cli.
 echo ""
 echo "[1/4] Backing up database..."
 if [ -f "$APP_DIR/data/evolution.db" ]; then
-    cp $APP_DIR/data/evolution.db $BACKUP_DIR/evolution_db_$TIMESTAMP.db
-    echo "✅ Database backed up"
+    PYTHON_BIN="${PYTHON_BIN:-python3}"
+    DB_BACKUP="$BACKUP_DIR/evolution_db_$TIMESTAMP.db"
+    DIGEST=$(cd "$APP_DIR" && PYTHONPATH="$APP_DIR" "$PYTHON_BIN" -m app.storage.cli backup \
+        --database "$APP_DIR/data/evolution.db" \
+        --output "$DB_BACKUP")
+    echo "✅ Database backed up (sha256: $DIGEST)"
 else
     echo "⚠️  Database file not found, skipping"
 fi

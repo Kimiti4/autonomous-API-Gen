@@ -152,3 +152,25 @@ def test_verified_artifact_promotion_rejects_tampering(tmp_path):
         assert "digest" in str(exc)
     else:
         raise AssertionError("tampered verified artifact must not be promoted")
+
+
+def test_logging_level_is_bound_to_generated_artifact(tmp_path):
+    genome = _genome(logging_level="WARNING")
+    build_genome_output(genome, str(tmp_path))
+    evidence = inspect_artifact(genome, str(tmp_path))
+    assert evidence["logging_level"]["verified"]
+    assert evidence["logging_level"]["checks"]["configured_level"]
+
+
+def test_go_authentication_defaults_fail_closed():
+    from app.engine.backends import GoHTTPBackend
+    from app.engine.backend_contract import make_compilation_request
+    genome = _genome(auth="api_key")
+    request = make_compilation_request(genome.encode(), GoHTTPBackend.target)
+    artifact = GoHTTPBackend().compile(request)
+    source = artifact.files["main.go"]
+    assert "generated-api-key" not in source
+    assert "API_KEY is not configured" in source
+    assert "generated-user" not in GoHTTPBackend._AUTH_BASIC
+    assert "generated-pass" not in GoHTTPBackend._AUTH_BASIC
+    assert "generated-jwt-secret" not in GoHTTPBackend._AUTH_JWT

@@ -23,7 +23,8 @@ from app.observation.sequences.memory import InMemorySequenceStore
 from app.core.contracts.events import EventSource
 from app.storage.db import init_db, engine as db_engine
 from app.storage.models import GenomeRecord
-from app.core.metrics import setup_metrics\nfrom app.engine.evolution import EvolutionEngine
+from app.core.metrics import setup_metrics
+from app.engine.evolution import EvolutionEngine
 
 settings = get_settings()
 
@@ -151,7 +152,12 @@ async def startup_event():
     logger.info(f"Model: {settings.OLLAMA_MODEL}")
     try:
         init_db()
-        recovered = EvolutionEngine.recover_interrupted_runs()\n        if recovered:\n            logger.warning("Recovered %s interrupted evolution run(s) as abandoned", recovered)\n        logger.info("Database initialized successfully")
+        recovered = EvolutionEngine.recover_interrupted_runs()
+        if recovered:
+            logger.warning(
+                "Recovered %s interrupted evolution run(s) as abandoned", recovered
+            )
+        logger.info("Database initialized successfully")
     except Exception:
         logger.exception("Database initialization failed; refusing to start")
         raise

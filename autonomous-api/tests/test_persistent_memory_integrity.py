@@ -1,8 +1,16 @@
 import json
+import sys
+from pathlib import Path
 
 import pytest
 
 from app.engine.memory import EvolutionMemory
+
+# Knowledge persistence lives at the workspace root; CI runs pytest from
+# autonomous-api/ with pythonpath=["."] only, so bootstrap the root package.
+_ROOT = Path(__file__).resolve().parents[2]
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
 
 
 def test_evolution_memory_write_is_recoverable(tmp_path):

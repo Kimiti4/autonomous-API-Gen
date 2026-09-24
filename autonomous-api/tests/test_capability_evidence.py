@@ -136,3 +136,19 @@ def test_materialization_rejects_path_traversal(tmp_path):
         assert "escapes output directory" in str(exc)
     else:
         raise AssertionError("path traversal must fail closed")
+
+def test_verified_artifact_promotion_rejects_tampering(tmp_path):
+    from app.engine.backends import promote_verified_artifact
+    genome = _genome()
+    source = tmp_path / "candidate"
+    destination = tmp_path / "promoted"
+    build_genome_output(genome, str(source))
+    import json
+    manifest = json.loads((source / "artifact-manifest.json").read_text())
+    (source / "main.py").write_text("# tampered\n")
+    try:
+        promote_verified_artifact(str(source), str(destination), expected_digest=manifest["artifact_digest"])
+    except ValueError as exc:
+        assert "digest" in str(exc)
+    else:
+        raise AssertionError("tampered verified artifact must not be promoted")

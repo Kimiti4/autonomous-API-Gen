@@ -9,6 +9,7 @@ import os
 import json
 import hashlib
 import subprocess
+import tempfile
 from typing import Dict
 from pathlib import Path
 
@@ -508,62 +509,84 @@ def compile_architecture(request: CompilationRequest) -> CompiledArtifact:
 
 
 def materialize(artifact: CompiledArtifact, output_dir: str) -> str:
-    """Write an artifact safely and persist a content-addressed manifest."""
+    """Build an artifact in isolation, then publish the complete tree atomically."""
     root = Path(output_dir).resolve()
-    root.mkdir(parents=True, exist_ok=True)
+    root.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=f".{root.name}.", dir=str(root.parent)))
     file_digests: Dict[str, str] = {}
-    for relative_path, content in artifact.files.items():
-        relative = Path(relative_path)
-        if relative.is_absolute() or ".." in relative.parts:
-            raise ValueError(f"artifact path escapes output directory: {relative_path!r}")
-        full_path = (root / relative).resolve()
-        if root != full_path and root not in full_path.parents:
-            raise ValueError(f"artifact path escapes output directory: {relative_path!r}")
-        full_path.parent.mkdir(parents=True, exist_ok=True)
-        data = content.encode("utf-8")
-        full_path.write_bytes(data)
-        file_digests[relative.as_posix()] = hashlib.sha256(data).hexdigest()
+    try:
+        for relative_path, content in artifact.files.items():
+            relative = Path(relative_path)
+            if relative.is_absolute() or ".." in relative.parts:
+                raise ValueError(f"artifact path escapes output directory: {relative_path!r}")
+            full_path = (staging / relative).resolve()
+            if staging != full_path and staging not in full_path.parents:
+                raise ValueError(f"artifact path escapes output directory: {relative_path!r}")
+            full_path.parent.mkdir(parents=True, exist_ok=True)
+            data = content.encode("utf-8")
+            full_path.write_bytes(data)
+            file_digests[relative.as_posix()] = hashlib.sha256(data).hexdigest()
 
-    if "go.mod" in artifact.files:
-        # Resolve the module graph before content-addressing so a later
-        # `go build` cannot mutate go.mod/go.sum after digests are recorded.
+        if "go.mod" in artifact.files:
+            try:
+                subprocess.run(
+                    ["go", "mod", "tidy"],
+                    cwd=staging,
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                    check=False,
+                )
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                pass
+            file_digests = {}
+            for relative_path in artifact.files:
+                full_path = staging / relative_path
+                if full_path.is_file():
+                    file_digests[Path(relative_path).as_posix()] = hashlib.sha256(
+                        full_path.read_bytes()
+                    ).hexdigest()
+            go_sum = staging / "go.sum"
+            if go_sum.is_file():
+                file_digests["go.sum"] = hashlib.sha256(go_sum.read_bytes()).hexdigest()
+
+        manifest_payload = {
+            "manifest_version": 1,
+            "backend_id": artifact.backend_id,
+            "architecture_hash": artifact.metadata.get("architecture_hash"),
+            "files": dict(sorted(file_digests.items())),
+        }
+        manifest_bytes = json.dumps(
+            manifest_payload, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+        manifest_payload["artifact_digest"] = hashlib.sha256(manifest_bytes).hexdigest()
+        (staging / "artifact-manifest.json").write_text(
+            json.dumps(manifest_payload, sort_keys=True, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+        previous = root.with_name(f".{root.name}.materialize-previous")
+        if previous.exists():
+            import shutil
+            shutil.rmtree(previous) if previous.is_dir() else previous.unlink()
+        if root.exists():
+            root.rename(previous)
         try:
-            subprocess.run(
-                ["go", "mod", "tidy"],
-                cwd=root,
-                capture_output=True,
-                text=True,
-                timeout=120,
-                check=False,
-            )
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            pass
-        file_digests = {}
-        for relative_path in artifact.files:
-            full_path = root / relative_path
-            if full_path.is_file():
-                file_digests[Path(relative_path).as_posix()] = hashlib.sha256(
-                    full_path.read_bytes()
-                ).hexdigest()
-        go_sum = root / "go.sum"
-        if go_sum.is_file():
-            file_digests["go.sum"] = hashlib.sha256(go_sum.read_bytes()).hexdigest()
-
-    manifest_payload = {
-        "manifest_version": 1,
-        "backend_id": artifact.backend_id,
-        "architecture_hash": artifact.metadata.get("architecture_hash"),
-        "files": dict(sorted(file_digests.items())),
-    }
-    manifest_bytes = json.dumps(manifest_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    manifest_payload["artifact_digest"] = hashlib.sha256(manifest_bytes).hexdigest()
-    (root / "artifact-manifest.json").write_text(
-        json.dumps(manifest_payload, sort_keys=True, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    return str(root)
-
-
+            staging.rename(root)
+        except Exception:
+            if not root.exists() and previous.exists():
+                previous.rename(root)
+            raise
+        if previous.exists():
+            import shutil
+            shutil.rmtree(previous) if previous.is_dir() else previous.unlink()
+        staging = None
+        return str(root)
+    except Exception:
+        if staging is not None and staging.exists():
+            import shutil
+            shutil.rmtree(staging)
+        raise
 
 def _validate_verified_artifact(source_dir: str, expected_digest: str) -> dict:
     """Validate a content-addressed artifact and return its manifest."""

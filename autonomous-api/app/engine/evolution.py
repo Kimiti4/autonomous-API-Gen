@@ -63,12 +63,21 @@ class EvolutionEngine:
         if generations < 1 or population_size < 2: raise ValueError("generations must be >= 1 and population_size must be >= 2")
         run_id = str(uuid.uuid4())
         previous_state = random.getstate()
+        evaluation_mode = "runtime" if use_docker and get_backend(self.target.backend_id).runtime_supported else "static"
         if seed is not None: random.seed(seed)
         db = SessionLocal()
-        try: db.add(EvolutionRun(run_id=run_id, status="running", total_generations=generations)); db.commit()
+        try:
+            db.add(EvolutionRun(
+                run_id=run_id, status="running", total_generations=generations,
+                history=self._run_metadata(
+                    phase="starting", evaluation_mode=evaluation_mode,
+                    backend_id=self.target.backend_id, seed=seed,
+                ),
+            ))
+            db.commit()
         finally: db.close()
         try:
-            await self._emit_update({"type":"evolution_start","run_id":run_id,"generations":generations,"population_size":population_size,"evaluation_mode":"runtime" if use_docker and get_backend(self.target.backend_id).runtime_supported else "static","backend_id":self.target.backend_id,"seed":seed}, run_id=run_id)
+            await self._emit_update({"type":"evolution_start","run_id":run_id,"generations":generations,"population_size":population_size,"evaluation_mode":evaluation_mode,"backend_id":self.target.backend_id,"seed":seed}, run_id=run_id)
             population = Population(size=population_size); history = []; best_genome = None; best_evidence = None; best_fitness = float("-inf"); output_path = None
             for gen in range(generations):
                 await self._emit_update({"type":"generation_start","run_id":run_id,"generation":gen+1,"total_generations":generations,"backend_id":self.target.backend_id}, run_id=run_id, generation=gen+1)
@@ -92,24 +101,36 @@ class EvolutionEngine:
                 finally: db.close()
                 avg_fitness = sum(fitness_scores) / len(fitness_scores)
                 history.append({"generation":gen+1,"scores":fitness_scores,"best_score":max(fitness_scores),"avg_score":avg_fitness})
+                db = SessionLocal()
+                try:
+                    record = db.query(EvolutionRun).filter(EvolutionRun.run_id == run_id).first()
+                    if record:
+                        record.history = self._run_metadata(
+                            phase="evaluating", evaluation_mode=evaluation_mode,
+                            backend_id=self.target.backend_id, seed=seed,
+                            generation=gen + 1,
+                            best_fitness=0.0 if best_fitness == float("-inf") else best_fitness,
+                            best_artifact_digest=best_evidence.get("artifact_digest") if best_evidence else None,
+                        ) | {"generations": history}
+                        db.commit()
+                finally:
+                    db.close()
                 await self._emit_update({"type":"generation_complete","run_id":run_id,"generation":gen+1,"best_score":max(fitness_scores),"avg_score":avg_fitness,"fitness_scores":fitness_scores}, run_id=run_id, generation=gen+1)
                 await asyncio.sleep(0)
                 parents = population.select_parents(fitness_scores, num_parents=2); new_population = parents.copy()
                 while len(new_population) < population_size: new_population.append(mutate(crossover(parents[0], parents[1]), mutation_rate=0.2))
                 population.replace(new_population)
             build_error = None
+            promotion_status = "not_attempted"
             if best_genome and best_evidence:
                 try:
                     if best_evidence.get("verification_status") != "verified":
                         raise ValueError("best candidate is not verified")
-                    output_path = promote_verified_artifact(
-                        best_evidence["artifact_path"],
-                        "output/generated_api",
-                        expected_digest=best_evidence["artifact_digest"],
-                    )
+                    output_path = promote_verified_artifact(best_evidence["artifact_path"], "output/generated_api", expected_digest=best_evidence["artifact_digest"])\n                    promotion_status = "published"
                 except (KeyError, ValueError) as exc:
                     output_path = None
                     build_error = f"verified artifact promotion failed: {exc}"
+                    promotion_status = "failed"
                     logger.error("Verified artifact promotion failed: %s", exc)
                 await self._emit_update(
                     {"type": "building_best", "run_id": run_id,
@@ -119,12 +140,26 @@ class EvolutionEngine:
                 )
             elif best_genome is None:
                 build_error = "no candidate could be lowered by the selected backend"
-            result = {"run_id":run_id,"best_genome":best_genome.encode() if best_genome and not build_error else None,"best_fitness":best_fitness if best_genome and not build_error else 0.0,"production_readiness":self.production_analyzer.analyze(best_genome) if best_genome and not build_error else None,"history":history,"output_path":output_path,"build_error":build_error,"total_generations":generations,"evaluation_mode":"runtime" if use_docker and get_backend(self.target.backend_id).runtime_supported else "static","backend_id":self.target.backend_id,"seed":seed}
+                promotion_status = "failed"
+            result = {"run_id":run_id,"best_genome":best_genome.encode() if best_genome and not build_error else None,"best_fitness":best_fitness if best_genome and not build_error else 0.0,"production_readiness":self.production_analyzer.analyze(best_genome) if best_genome and not build_error else None,"history":history,"output_path":output_path,"build_error":build_error,"total_generations":generations,"evaluation_mode":evaluation_mode,"backend_id":self.target.backend_id,"seed":seed}
             db = SessionLocal()
             try:
                 record = db.query(EvolutionRun).filter(EvolutionRun.run_id == run_id).first()
                 if record:
-                    record.status="failed" if build_error else "completed"; record.best_fitness=result["best_fitness"]; record.best_genome=result["best_genome"]; record.history={"generations": history, "build_error": build_error} if build_error else history; record.completed_at=datetime.utcnow(); db.commit()
+                    record.status="failed" if build_error else "completed"
+                    record.best_fitness=result["best_fitness"]
+                    record.best_genome=result["best_genome"]
+                    record.history = self._run_metadata(
+                        phase="failed" if build_error else "completed",
+                        evaluation_mode=evaluation_mode, backend_id=self.target.backend_id,
+                        seed=seed, generation=generations, best_fitness=result["best_fitness"],
+                        best_artifact_digest=best_evidence.get("artifact_digest") if best_evidence else None,
+                        promotion_status=promotion_status, error=build_error,
+                    ) | {"generations": history}
+                    record.completed_at=datetime.utcnow()
+                    db.commit()
+                    if record.status == "completed" and not self._is_authoritative(record):
+                        raise RuntimeError("completed evolution run failed durable authority invariant")
             finally: db.close()
             if build_error:
                 await self._emit_update({"type":"evolution_failed","run_id":run_id,"error":build_error}, run_id=run_id)
@@ -136,12 +171,68 @@ class EvolutionEngine:
             db = SessionLocal()
             try:
                 record = db.query(EvolutionRun).filter(EvolutionRun.run_id == run_id).first()
-                if record: record.status="failed"; record.completed_at=datetime.utcnow(); record.history={"error":str(exc)}; db.commit()
+                if record:
+                    record.status="failed"; record.completed_at=datetime.utcnow()
+                    prior = record.history if isinstance(record.history, dict) else {}
+                    record.history={**prior, "schema_version":1, "phase":"failed", "error":str(exc)}
+                    db.commit()
             except Exception: db.rollback(); logger.error("Failed to persist evolution failure state", exc_info=True)
             finally: db.close()
             await self._emit_update({"type":"evolution_failed","run_id":run_id,"error":"Evolution run failed"}, run_id=run_id); raise
         finally:
             if seed is not None: random.setstate(previous_state)
+
+    @staticmethod
+    def _run_metadata(*, phase: str, evaluation_mode: str, backend_id: str,
+                      seed: Optional[int], generation: int = 0,
+                      best_fitness: float = 0.0, best_artifact_digest: Optional[str] = None,
+                      promotion_status: str = "not_attempted", error: Optional[str] = None) -> dict:
+        return {
+            "schema_version": 1, "phase": phase, "evaluation_mode": evaluation_mode,
+            "backend_id": backend_id, "seed": seed, "generation": generation,
+            "best_fitness": best_fitness, "best_artifact_digest": best_artifact_digest,
+            "promotion_status": promotion_status, "error": error,
+        }
+
+    @staticmethod
+    def _is_authoritative(record: EvolutionRun) -> bool:
+        if record.status != "completed" or record.completed_at is None:
+            return False
+        metadata = record.history if isinstance(record.history, dict) else {}
+        return (
+            metadata.get("schema_version") == 1
+            and metadata.get("phase") == "completed"
+            and metadata.get("promotion_status") == "published"
+            and bool(metadata.get("best_artifact_digest"))
+            and bool(record.best_genome)
+        )
+
+    @staticmethod
+    def recover_interrupted_runs() -> int:
+        db = SessionLocal()
+        recovered = 0
+        try:
+            runs = db.query(EvolutionRun).filter(EvolutionRun.status == "running").all()
+            for record in runs:
+                metadata = record.history if isinstance(record.history, dict) else {}
+                record.status = "abandoned"
+                record.completed_at = datetime.utcnow()
+                record.history = {
+                    **metadata,
+                    "schema_version": 1,
+                    "phase": "abandoned",
+                    "promotion_status": metadata.get("promotion_status", "not_attempted"),
+                    "recovery_reason": "process restart or interrupted execution",
+                }
+                recovered += 1
+            db.commit()
+            return recovered
+        except Exception:
+            db.rollback()
+            logger.exception("Failed to recover interrupted evolution runs")
+            raise
+        finally:
+            db.close()
 
     def run_synchronous(self, generations: int = 10, population_size: int = 10, use_docker: bool = False) -> dict:
         """Synchronous compatibility wrapper for the verified async evolution path."""

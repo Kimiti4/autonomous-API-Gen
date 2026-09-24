@@ -9,6 +9,7 @@ import os
 import json
 import hashlib
 from typing import Dict
+from pathlib import Path
 
 from app.engine.backend_contract import (
     ARCHITECTURE_SCHEMA_VERSION,
@@ -493,17 +494,35 @@ def compile_architecture(request: CompilationRequest) -> CompiledArtifact:
 
 
 def materialize(artifact: CompiledArtifact, output_dir: str) -> str:
-    """Write a compiled artifact's file tree to disk without mutating it."""
-
-    os.makedirs(output_dir, exist_ok=True)
+    """Write an artifact safely and persist a content-addressed manifest."""
+    root = Path(output_dir).resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    file_digests: Dict[str, str] = {}
     for relative_path, content in artifact.files.items():
-        full_path = os.path.join(output_dir, relative_path)
-        directory = os.path.dirname(full_path)
-        if directory:
-            os.makedirs(directory, exist_ok=True)
-        with open(full_path, "w", encoding="utf-8") as f:
-            f.write(content)
-    return output_dir
+        relative = Path(relative_path)
+        if relative.is_absolute() or ".." in relative.parts:
+            raise ValueError(f"artifact path escapes output directory: {relative_path!r}")
+        full_path = (root / relative).resolve()
+        if root != full_path and root not in full_path.parents:
+            raise ValueError(f"artifact path escapes output directory: {relative_path!r}")
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        data = content.encode("utf-8")
+        full_path.write_bytes(data)
+        file_digests[relative.as_posix()] = hashlib.sha256(data).hexdigest()
+
+    manifest_payload = {
+        "manifest_version": 1,
+        "backend_id": artifact.backend_id,
+        "architecture_hash": artifact.metadata.get("architecture_hash"),
+        "files": dict(sorted(file_digests.items())),
+    }
+    manifest_bytes = json.dumps(manifest_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    manifest_payload["artifact_digest"] = hashlib.sha256(manifest_bytes).hexdigest()
+    (root / "artifact-manifest.json").write_text(
+        json.dumps(manifest_payload, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return str(root)
 
 
 def compile_and_materialize(

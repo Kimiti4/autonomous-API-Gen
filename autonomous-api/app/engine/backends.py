@@ -560,20 +560,42 @@ def promote_verified_artifact(source_dir: str, destination_dir: str, *, expected
         if actual != expected_file_digest:
             raise ValueError(f"artifact file digest mismatch: {relative_path!r}")
 
-    if destination.exists():
-        import shutil
-        shutil.rmtree(destination)
-    destination.mkdir(parents=True, exist_ok=True)
     import shutil
-    for relative_path in files:
-        relative = Path(relative_path)
-        target = destination / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source / relative, target)
-    (destination / "artifact-manifest.json").write_text(
-        manifest_path.read_text(encoding="utf-8"), encoding="utf-8"
-    )
-    return str(destination)
+    import tempfile
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=f".{destination.name}.", dir=str(destination.parent)))
+    backup = destination.with_name(f".{destination.name}.previous")
+    try:
+        for relative_path in files:
+            relative = Path(relative_path)
+            target = staging / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source / relative, target)
+        (staging / "artifact-manifest.json").write_text(
+            manifest_path.read_text(encoding="utf-8"), encoding="utf-8"
+        )
+
+        # Revalidate the complete staged tree before exposing it.
+        for relative_path, expected_file_digest in files.items():
+            actual = hashlib.sha256((staging / relative_path).read_bytes()).hexdigest()
+            if actual != expected_file_digest:
+                raise ValueError(f"staged artifact file digest mismatch: {relative_path!r}")
+
+        if backup.exists():
+            shutil.rmtree(backup) if backup.is_dir() else backup.unlink()
+        if destination.exists():
+            destination.rename(backup)
+        staging.rename(destination)
+        if backup.exists():
+            shutil.rmtree(backup)
+        return str(destination)
+    except Exception:
+        if staging.exists():
+            shutil.rmtree(staging)
+        if not destination.exists() and backup.exists():
+            backup.rename(destination)
+        raise
 
 
 def compile_and_materialize(

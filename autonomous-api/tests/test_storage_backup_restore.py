@@ -1,5 +1,3 @@
-import hashlib
-import sqlite3
 from pathlib import Path
 
 import pytest
@@ -39,8 +37,10 @@ def _state(engine):
             text("SELECT genome_data, fitness_score, generation FROM genomes ORDER BY id")
         ).all()
         runs = connection.execute(
-            text("SELECT run_id, status, total_generations, best_fitness, best_genome, history "
-                 "FROM evolution_runs ORDER BY id")
+            text(
+                "SELECT run_id, status, total_generations, best_fitness, best_genome, history "
+                "FROM evolution_runs ORDER BY id"
+            )
         ).all()
         schema_version = connection.execute(text("SELECT version FROM schema_version")).scalar_one()
     return genome, runs, schema_version
@@ -96,7 +96,8 @@ def test_restore_retains_previous_database_as_rollback_point(tmp_path):
 
     rollback = tmp_path / ".evolution.db.previous"
     assert rollback.exists()
-    assert "changed" in rollback.read_bytes().decode("utf-8", errors="ignore")
+    with create_engine(f"sqlite:///{rollback}").connect() as connection:
+        assert connection.execute(text("SELECT genome_data FROM genomes")).scalar_one() == "changed"
 
 
 def test_backup_digest_is_stable_for_unchanged_state(tmp_path):

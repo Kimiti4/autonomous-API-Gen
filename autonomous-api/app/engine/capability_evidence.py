@@ -36,6 +36,17 @@ def inspect_artifact(genome: Genome, artifact_dir: str) -> dict[str, Any]:
     results["openapi"] = _result("openapi", contract["openapi"].requested, os.path.isfile(main_path), {"main_file": os.path.isfile(main_path)})
     version_ok = f'/api/{genome.api_version}/' in main_text
     results["api_version"] = _result("api_version", contract["api_version"].requested, version_ok, {"route_prefix": version_ok})
+    if genome.logging_level:
+        logging_checks = {
+            "logging_import": "import logging" in main_text,
+            "configured_level": f"logging.basicConfig(level=logging.{genome.logging_level}" in main_text,
+            "logger_created": 'logger = logging.getLogger("generated-api")' in main_text,
+        }
+        logging_ok = all(logging_checks.values())
+    else:
+        logging_checks = {"selection_fidelity": "logging.basicConfig(" not in main_text}
+        logging_ok = logging_checks["selection_fidelity"]
+    results["logging_level"] = _result("logging_level", contract["logging_level"].requested, logging_ok, logging_checks)
     rate_ok = ("rate_limit_middleware" in main_text and "RATE_LIMIT_REQUESTS_PER_MINUTE" in main_text) if genome.rate_limiting else "rate_limit_middleware" not in main_text
     results["rate_limiting"] = _result("rate_limiting", contract["rate_limiting"].requested, rate_ok, {"selection_fidelity": rate_ok})
     metrics_ok = ("http_requests_total" in main_text and '@app.get("/metrics")' in main_text) if genome.metrics_endpoints else '@app.get("/metrics")' not in main_text

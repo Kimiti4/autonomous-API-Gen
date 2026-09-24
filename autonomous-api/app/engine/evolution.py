@@ -126,7 +126,8 @@ class EvolutionEngine:
                 try:
                     if best_evidence.get("verification_status") != "verified":
                         raise ValueError("best candidate is not verified")
-                    output_path = promote_verified_artifact(best_evidence["artifact_path"], "output/generated_api", expected_digest=best_evidence["artifact_digest"])\n                    promotion_status = "published"
+                    output_path = promote_verified_artifact(best_evidence["artifact_path"], "output/generated_api", expected_digest=best_evidence["artifact_digest"])
+                    promotion_status = "published"
                 except (KeyError, ValueError) as exc:
                     output_path = None
                     build_error = f"verified artifact promotion failed: {exc}"

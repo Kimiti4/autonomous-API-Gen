@@ -29,8 +29,11 @@ def _database_path(engine: Engine) -> Path:
 def _integrity_check(path: Path) -> None:
     if not path.is_file():
         raise ValueError(f"database backup does not exist: {path}")
-    with sqlite3.connect(path) as connection:
+    connection = sqlite3.connect(path)
+    try:
         result = connection.execute("PRAGMA integrity_check").fetchone()
+    finally:
+        connection.close()
     if not result or result[0] != "ok":
         raise ValueError(f"SQLite integrity check failed for {path}: {result}")
 
@@ -41,6 +44,27 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _fsync_path(path: Path) -> None:
+    # Windows fsync requires a writable descriptor; O_RDONLY raises EBADF.
+    fd = os.open(path, os.O_RDWR)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def _copy_sqlite_image(source: Path, temporary: Path) -> None:
+    source_connection = sqlite3.connect(source)
+    target_connection = sqlite3.connect(temporary)
+    try:
+        source_connection.backup(target_connection)
+        target_connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        target_connection.commit()
+    finally:
+        target_connection.close()
+        source_connection.close()
 
 
 def backup_sqlite_database(
@@ -63,14 +87,9 @@ def backup_sqlite_database(
     os.close(fd)
     temporary = Path(temp_name)
     try:
-        with sqlite3.connect(source) as source_connection, sqlite3.connect(temporary) as target_connection:
-            source_connection.backup(target_connection)
-            target_connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-            target_connection.commit()
-
+        _copy_sqlite_image(source, temporary)
         _integrity_check(temporary)
-        with temporary.open("rb") as handle:
-            os.fsync(handle.fileno())
+        _fsync_path(temporary)
         os.replace(temporary, destination)
         return _sha256(destination)
     except Exception:
@@ -105,12 +124,9 @@ def restore_sqlite_database(
     os.close(fd)
     temporary = Path(temp_name)
     try:
-        with sqlite3.connect(backup) as source_connection, sqlite3.connect(temporary) as target_connection:
-            source_connection.backup(target_connection)
-            target_connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-            target_connection.commit()
-
+        _copy_sqlite_image(backup, temporary)
         _integrity_check(temporary)
+        _fsync_path(temporary)
         os.replace(destination, rollback)
         try:
             os.replace(temporary, destination)

@@ -564,17 +564,16 @@ def materialize(artifact: CompiledArtifact, output_dir: str) -> str:
     return str(root)
 
 
-def promote_verified_artifact(source_dir: str, destination_dir: str, *, expected_digest: str) -> str:
-    """Promote the exact verified artifact after validating its content digest."""
+
+def _validate_verified_artifact(source_dir: str, expected_digest: str) -> dict:
+    """Validate a content-addressed artifact and return its manifest."""
     source = Path(source_dir).resolve()
-    destination = Path(destination_dir).resolve()
     manifest_path = source / "artifact-manifest.json"
     if not manifest_path.is_file():
         raise ValueError("verified artifact is missing artifact-manifest.json")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if manifest.get("artifact_digest") != expected_digest:
-        raise ValueError("verified artifact digest does not match evaluation evidence")
-
+        raise ValueError("verified artifact digest does not match expected digest")
     files = manifest.get("files")
     if not isinstance(files, dict):
         raise ValueError("artifact manifest has no file digest map")
@@ -588,8 +587,7 @@ def promote_verified_artifact(source_dir: str, destination_dir: str, *, expected
         json.dumps(digest_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
     if calculated_digest != expected_digest:
-        raise ValueError("artifact manifest digest verification failed")
-
+        raise ValueError("verified artifact manifest digest verification failed")
     for relative_path, expected_file_digest in files.items():
         relative = Path(relative_path)
         if relative.is_absolute() or ".." in relative.parts:
@@ -602,6 +600,84 @@ def promote_verified_artifact(source_dir: str, destination_dir: str, *, expected
         actual = hashlib.sha256(file_path.read_bytes()).hexdigest()
         if actual != expected_file_digest:
             raise ValueError(f"artifact file digest mismatch: {relative_path!r}")
+    return manifest
+
+
+def _copy_verified_tree(source: Path, destination: Path, manifest: dict) -> None:
+    import shutil
+    for relative_path in manifest["files"]:
+        relative = Path(relative_path)
+        target = destination / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source / relative, target)
+    (destination / "artifact-manifest.json").write_text(
+        (source / "artifact-manifest.json").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+
+
+def backup_verified_artifact(source_dir: str, backup_dir: str, *, expected_digest: str) -> str:
+    """Create a durable, digest-verified backup of a known-good artifact."""
+    source = Path(source_dir).resolve()
+    backup = Path(backup_dir).resolve()
+    manifest = _validate_verified_artifact(str(source), expected_digest)
+    import shutil
+    import tempfile
+    backup.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=f".{backup.name}.", dir=str(backup.parent)))
+    try:
+        _copy_verified_tree(source, staging, manifest)
+        for relative_path, expected_file_digest in manifest["files"].items():
+            actual = hashlib.sha256((staging / relative_path).read_bytes()).hexdigest()
+            if actual != expected_file_digest:
+                raise ValueError(f"backup artifact file digest mismatch: {relative_path!r}")
+        if backup.exists():
+            shutil.rmtree(backup) if backup.is_dir() else backup.unlink()
+        staging.rename(backup)
+        return str(backup)
+    except Exception:
+        if staging.exists():
+            shutil.rmtree(staging)
+        raise
+
+
+def restore_verified_artifact(backup_dir: str, destination_dir: str, *, expected_digest: str) -> str:
+    """Restore a durable backup only when its content digest is verified."""
+    backup = Path(backup_dir).resolve()
+    destination = Path(destination_dir).resolve()
+    manifest = _validate_verified_artifact(str(backup), expected_digest)
+    import shutil
+    import tempfile
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=f".{destination.name}.restore-", dir=str(destination.parent)))
+    previous = destination.with_name(f".{destination.name}.restore-previous")
+    try:
+        _copy_verified_tree(backup, staging, manifest)
+        for relative_path, expected_file_digest in manifest["files"].items():
+            actual = hashlib.sha256((staging / relative_path).read_bytes()).hexdigest()
+            if actual != expected_file_digest:
+                raise ValueError(f"restored artifact file digest mismatch: {relative_path!r}")
+        if previous.exists():
+            shutil.rmtree(previous) if previous.is_dir() else previous.unlink()
+        if destination.exists():
+            destination.rename(previous)
+        staging.rename(destination)
+        if previous.exists():
+            shutil.rmtree(previous)
+        return str(destination)
+    except Exception:
+        if staging.exists():
+            shutil.rmtree(staging)
+        if not destination.exists() and previous.exists():
+            previous.rename(destination)
+        raise
+
+def promote_verified_artifact(source_dir: str, destination_dir: str, *, expected_digest: str) -> str:
+    """Promote the exact verified artifact after validating its content digest."""
+    source = Path(source_dir).resolve()
+    destination = Path(destination_dir).resolve()
+    manifest = _validate_verified_artifact(str(source), expected_digest)
+    files = manifest["files"]
 
     import shutil
     import tempfile
@@ -630,8 +706,7 @@ def promote_verified_artifact(source_dir: str, destination_dir: str, *, expected
         if destination.exists():
             destination.rename(backup)
         staging.rename(destination)
-        if backup.exists():
-            shutil.rmtree(backup)
+        # Preserve the verified previous artifact as the durable rollback point.
         return str(destination)
     except Exception:
         if staging.exists():

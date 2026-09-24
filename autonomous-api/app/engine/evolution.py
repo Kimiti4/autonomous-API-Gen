@@ -15,6 +15,12 @@ from app.engine.backends import get_backend, promote_verified_artifact
 from app.engine.production_readiness import ProductionReadinessAnalyzer
 from app.storage.db import SessionLocal
 from app.storage.models import GenomeRecord, EvolutionRun
+from app.storage.lease import (
+    ControlPlaneBusy,
+    acquire_control_plane_lease,
+    heartbeat_control_plane_lease,
+    release_control_plane_lease,
+)
 
 class EvolutionEngine:
     """Main genetic evolution engine with durable lifecycle and provenance."""
@@ -67,6 +73,7 @@ class EvolutionEngine:
     async def run_async(self, generations: int = 10, population_size: int = 10, use_docker: bool = True, seed: Optional[int] = None) -> dict:
         if generations < 1 or population_size < 2: raise ValueError("generations must be >= 1 and population_size must be >= 2")
         run_id = str(uuid.uuid4())
+        lease_token = acquire_control_plane_lease(owner_run_id=run_id)
         previous_state = random.getstate()
         evaluation_mode = "runtime" if use_docker and get_backend(self.target.backend_id).runtime_supported else "static"
         if seed is not None: random.seed(seed)
@@ -89,6 +96,7 @@ class EvolutionEngine:
                 fitness_scores = []; genomes_to_save = []
                 for genome in population.individuals:
                     evidence = await evaluate_candidate_async(genome, use_docker=use_docker, target=self.target)
+                    heartbeat_control_plane_lease(lease_token)
                     fitness = self._fitness_from_evidence(evidence)
                     fitness_scores.append(fitness)
                     payload = genome.encode(); payload["lineage"] = self._lineage_payload(genome); payload["evaluation"] = evidence; payload["provenance"] = {"run_id": run_id, "generation": gen + 1, "seed": seed, "evaluation_mode": evidence["evaluation_mode"], "backend_id": self.target.backend_id, "artifact_digest": evidence.get("artifact_digest")}
@@ -186,6 +194,7 @@ class EvolutionEngine:
             finally: db.close()
             await self._emit_update({"type":"evolution_failed","run_id":run_id,"error":"Evolution run failed"}, run_id=run_id); raise
         finally:
+            release_control_plane_lease(lease_token)
             if seed is not None: random.setstate(previous_state)
 
     @staticmethod
@@ -215,6 +224,15 @@ class EvolutionEngine:
 
     @staticmethod
     def recover_interrupted_runs() -> int:
+        recovery_id = f"recovery:{uuid.uuid4()}"
+        try:
+            lease_token = acquire_control_plane_lease(
+                owner_run_id=recovery_id,
+                allow_stale_takeover=True,
+            )
+        except ControlPlaneBusy:
+            return 0
+
         db = SessionLocal()
         recovered = 0
         try:
@@ -228,7 +246,7 @@ class EvolutionEngine:
                     "schema_version": 1,
                     "phase": "abandoned",
                     "promotion_status": metadata.get("promotion_status", "not_attempted"),
-                    "recovery_reason": "process restart or interrupted execution",
+                    "recovery_reason": "stale control-plane lease; process restart or interrupted execution",
                 }
                 recovered += 1
             db.commit()
@@ -239,6 +257,7 @@ class EvolutionEngine:
             raise
         finally:
             db.close()
+            release_control_plane_lease(lease_token)
 
     def run_synchronous(self, generations: int = 10, population_size: int = 10, use_docker: bool = False) -> dict:
         """Synchronous compatibility wrapper for the verified async evolution path."""

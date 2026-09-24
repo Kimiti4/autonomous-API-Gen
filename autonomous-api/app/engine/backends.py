@@ -522,6 +522,61 @@ def materialize(artifact: CompiledArtifact, output_dir: str) -> str:
     return str(root)
 
 
+def promote_verified_artifact(source_dir: str, destination_dir: str, *, expected_digest: str) -> str:
+    """Promote the exact verified artifact after validating its content digest."""
+    source = Path(source_dir).resolve()
+    destination = Path(destination_dir).resolve()
+    manifest_path = source / "artifact-manifest.json"
+    if not manifest_path.is_file():
+        raise ValueError("verified artifact is missing artifact-manifest.json")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("artifact_digest") != expected_digest:
+        raise ValueError("verified artifact digest does not match evaluation evidence")
+
+    files = manifest.get("files")
+    if not isinstance(files, dict):
+        raise ValueError("artifact manifest has no file digest map")
+    digest_payload = {
+        "manifest_version": manifest.get("manifest_version"),
+        "backend_id": manifest.get("backend_id"),
+        "architecture_hash": manifest.get("architecture_hash"),
+        "files": dict(sorted(files.items())),
+    }
+    calculated_digest = hashlib.sha256(
+        json.dumps(digest_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    if calculated_digest != expected_digest:
+        raise ValueError("artifact manifest digest verification failed")
+
+    for relative_path, expected_file_digest in files.items():
+        relative = Path(relative_path)
+        if relative.is_absolute() or ".." in relative.parts:
+            raise ValueError(f"manifest path escapes artifact root: {relative_path!r}")
+        file_path = (source / relative).resolve()
+        if source != file_path and source not in file_path.parents:
+            raise ValueError(f"manifest path escapes artifact root: {relative_path!r}")
+        if not file_path.is_file():
+            raise ValueError(f"manifest file is missing: {relative_path!r}")
+        actual = hashlib.sha256(file_path.read_bytes()).hexdigest()
+        if actual != expected_file_digest:
+            raise ValueError(f"artifact file digest mismatch: {relative_path!r}")
+
+    if destination.exists():
+        import shutil
+        shutil.rmtree(destination)
+    destination.mkdir(parents=True, exist_ok=True)
+    import shutil
+    for relative_path in files:
+        relative = Path(relative_path)
+        target = destination / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source / relative, target)
+    (destination / "artifact-manifest.json").write_text(
+        manifest_path.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    return str(destination)
+
+
 def compile_and_materialize(
     architecture: Dict[str, object],
     output_dir: str,

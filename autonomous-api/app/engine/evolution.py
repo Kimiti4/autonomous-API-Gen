@@ -42,11 +42,6 @@ class EvolutionEngine:
             try: await self.dispatcher.emit(stream_id=run_id, event_type=event_type, payload=data, correlation_id=run_id, generation=generation)
             except Exception: logger.error("Envelope emission failed", exc_info=True)
 
-    async def _lease_heartbeat_loop(self, lease_token: str) -> None:
-        while True:
-            await asyncio.sleep(10)
-            heartbeat_control_plane_lease(lease_token)
-
     @staticmethod
     def _lineage_payload(genome: Genome) -> dict:
         return {"genome_id": genome.genome_id, "lineage": getattr(genome, "lineage", {})}
@@ -80,7 +75,6 @@ class EvolutionEngine:
         run_id = str(uuid.uuid4())
         lease_token = acquire_control_plane_lease(owner_run_id=run_id)
         previous_state = random.getstate()
-        heartbeat_task = asyncio.create_task(self._lease_heartbeat_loop(lease_token))
         evaluation_mode = "runtime" if use_docker and get_backend(self.target.backend_id).runtime_supported else "static"
         if seed is not None: random.seed(seed)
         db = SessionLocal()
@@ -199,11 +193,6 @@ class EvolutionEngine:
             finally: db.close()
             await self._emit_update({"type":"evolution_failed","run_id":run_id,"error":"Evolution run failed"}, run_id=run_id); raise
         finally:
-            heartbeat_task.cancel()
-            try:
-                await heartbeat_task
-            except asyncio.CancelledError:
-                pass
             release_control_plane_lease(lease_token)
             if seed is not None: random.setstate(previous_state)
 

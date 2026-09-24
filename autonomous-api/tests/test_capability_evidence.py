@@ -174,3 +174,41 @@ def test_go_authentication_defaults_fail_closed():
     assert "generated-user" not in GoHTTPBackend._AUTH_BASIC
     assert "generated-pass" not in GoHTTPBackend._AUTH_BASIC
     assert "generated-jwt-secret" not in GoHTTPBackend._AUTH_JWT
+
+
+def test_verified_artifact_promotion_preserves_live_artifact_on_publish_failure(tmp_path, monkeypatch):
+    from app.engine.backends import promote_verified_artifact
+    import json
+    import shutil
+
+    genome = _genome()
+    source = tmp_path / "candidate"
+    destination = tmp_path / "promoted"
+    build_genome_output(genome, str(source))
+    destination.mkdir()
+    (destination / "sentinel.txt").write_text("live")
+
+    manifest = json.loads((source / "artifact-manifest.json").read_text())
+    original_copy2 = shutil.copy2
+    calls = {"count": 0}
+
+    def failing_copy2(src, dst, *args, **kwargs):
+        calls["count"] += 1
+        if calls["count"] == 2:
+            raise OSError("simulated publication failure")
+        return original_copy2(src, dst, *args, **kwargs)
+
+    monkeypatch.setattr(shutil, "copy2", failing_copy2)
+
+    try:
+        promote_verified_artifact(
+            str(source),
+            str(destination),
+            expected_digest=manifest["artifact_digest"],
+        )
+    except OSError as exc:
+        assert "publication failure" in str(exc)
+    else:
+        raise AssertionError("publication failure must propagate")
+
+    assert (destination / "sentinel.txt").read_text() == "live"

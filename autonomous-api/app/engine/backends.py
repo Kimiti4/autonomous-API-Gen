@@ -299,7 +299,8 @@ func serviceHandler(db *sql.DB, service string) http.HandlerFunc {{
     return func(w http.ResponseWriter, r *http.Request) {
         expected := os.Getenv("API_KEY")
         if expected == "" {
-            expected = "generated-api-key"
+            writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "API_KEY is not configured"})
+            return
         }
         if !hmac.Equal([]byte(r.Header.Get("X-API-Key")), []byte(expected)) {
             writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "invalid or missing API key"})
@@ -315,11 +316,9 @@ func serviceHandler(db *sql.DB, service string) http.HandlerFunc {{
     return func(w http.ResponseWriter, r *http.Request) {
         user := os.Getenv("BASIC_AUTH_USER")
         if user == "" {
-            user = "generated-user"
         }
         pass := os.Getenv("BASIC_AUTH_PASS")
         if pass == "" {
-            pass = "generated-pass"
         }
         header := r.Header.Get("Authorization")
         const prefix = "Basic "
@@ -348,7 +347,7 @@ func serviceHandler(db *sql.DB, service string) http.HandlerFunc {{
     }
     secret := os.Getenv("JWT_SECRET")
     if secret == "" {
-        secret = "generated-jwt-secret"
+        return false, fmt.Errorf("JWT_SECRET is not configured")
     }
     parts := strings.Split(token, ".")
     if len(parts) != 3 {

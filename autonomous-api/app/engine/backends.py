@@ -481,10 +481,7 @@ def compile_architecture(request: CompilationRequest) -> CompiledArtifact:
         dict(request.architecture), sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
     metadata = dict(artifact.metadata)
-    metadata.setdefault(
-        "architecture_hash",
-        hashlib.sha256(architecture_payload).hexdigest(),
-    )
+    metadata["architecture_hash"] = hashlib.sha256(architecture_payload).hexdigest()
     metadata.setdefault("backend_id", artifact.backend_id)
     return CompiledArtifact(
         backend_id=artifact.backend_id,

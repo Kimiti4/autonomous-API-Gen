@@ -692,7 +692,7 @@ def promote_verified_artifact(source_dir: str, destination_dir: str, *, expected
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source / relative, target)
         (staging / "artifact-manifest.json").write_text(
-            manifest_path.read_text(encoding="utf-8"), encoding="utf-8"
+            (source / "artifact-manifest.json").read_text(encoding="utf-8"), encoding="utf-8"
         )
 
         # Revalidate the complete staged tree before exposing it.

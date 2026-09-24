@@ -49,15 +49,15 @@ class EvolutionEngine:
         Build failures and runtime failures are deliberately zero-fitness so a
         partially verified candidate can never be promoted as the best result.
         """
-        if not evidence.get("build_ok"):
+        if not evidence.get("build_ok") or not evidence.get("artifact_compile_ok"):
             return 0.0
-        mode = evidence.get("evaluation_mode")
-        if mode == "runtime":
-            score = evidence.get("runtime_score")
-        elif mode == "static":
-            score = evidence.get("static_score")
-        else:
+        if evidence.get("verification_status") != "verified":
             return 0.0
+        if not evidence.get("artifact_digest"):
+            return 0.0
+        if evidence.get("evaluation_mode") != "runtime":
+            return 0.0
+        score = evidence.get("runtime_score")
         return float(score) if score is not None else 0.0
 
     async def run_async(self, generations: int = 10, population_size: int = 10, use_docker: bool = True, seed: Optional[int] = None) -> dict:
@@ -80,7 +80,7 @@ class EvolutionEngine:
                     fitness_scores.append(fitness)
                     payload = genome.encode(); payload["lineage"] = self._lineage_payload(genome); payload["evaluation"] = evidence; payload["provenance"] = {"run_id": run_id, "generation": gen + 1, "seed": seed, "evaluation_mode": evidence["evaluation_mode"], "backend_id": self.target.backend_id}
                     genomes_to_save.append({"genome_data":payload,"fitness_score":fitness,"generation":gen+1})
-                    if evidence["build_ok"] and fitness > 0.0 and fitness > best_fitness:
+                    if evidence.get("verification_status") == "verified" and fitness > 0.0 and fitness > best_fitness:
                         best_fitness, best_genome = fitness, genome
                         await self._emit_update({"type":"new_best","run_id":run_id,"generation":gen+1,"fitness":fitness,"genome":payload}, run_id=run_id, generation=gen+1)
                 db = SessionLocal()

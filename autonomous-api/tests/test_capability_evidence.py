@@ -110,3 +110,29 @@ def test_invalid_timeout_is_rejected_during_generation(tmp_path):
     except ValueError:
         return
     raise AssertionError("non-positive request timeout must fail closed")
+
+
+def test_materialized_artifact_has_content_addressed_manifest(tmp_path):
+    genome = _genome()
+    build_genome_output(genome, str(tmp_path))
+    import json
+    manifest = json.loads((tmp_path / "artifact-manifest.json").read_text())
+    assert manifest["artifact_digest"]
+    assert manifest["architecture_hash"]
+    assert manifest["files"]["main.py"]
+
+
+def test_materialization_rejects_path_traversal(tmp_path):
+    from app.engine.backends import materialize
+    from app.engine.backend_contract import CompiledArtifact
+    artifact = CompiledArtifact(
+        backend_id="test",
+        files={"../escape.py": "print('escape')"},
+        metadata={"architecture_hash": "test"},
+    )
+    try:
+        materialize(artifact, str(tmp_path / "candidate"))
+    except ValueError as exc:
+        assert "escapes output directory" in str(exc)
+    else:
+        raise AssertionError("path traversal must fail closed")

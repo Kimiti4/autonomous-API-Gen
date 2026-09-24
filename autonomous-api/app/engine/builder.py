@@ -350,6 +350,8 @@ logger = logging.getLogger("generated-api")
     request_import = "from fastapi import Request\n" if genome.metrics_endpoints or genome.rate_limiting or genome.tracing_enabled or genome.timeout_config or genome.retry_policy or genome.cache_enabled else ""
     return f'''"""Generated API architecture."""
 import os
+import shutil
+from pathlib import Path
 import asyncio
 from fastapi import FastAPI
 {request_import}{services_imports}

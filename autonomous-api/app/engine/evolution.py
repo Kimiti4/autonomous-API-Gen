@@ -50,13 +50,18 @@ class EvolutionEngine:
         """
         if not evidence.get("build_ok") or not evidence.get("artifact_compile_ok"):
             return 0.0
-        if evidence.get("verification_status") != "verified":
+        status = evidence.get("verification_status")
+        if status not in ("verified", "static_verified"):
             return 0.0
         if not evidence.get("artifact_digest"):
             return 0.0
-        if evidence.get("evaluation_mode") != "runtime":
+        mode = evidence.get("evaluation_mode")
+        if mode == "runtime":
+            score = evidence.get("runtime_score")
+        elif mode == "static":
+            score = evidence.get("static_score")
+        else:
             return 0.0
-        score = evidence.get("runtime_score")
         return float(score) if score is not None else 0.0
 
     async def run_async(self, generations: int = 10, population_size: int = 10, use_docker: bool = True, seed: Optional[int] = None) -> dict:
@@ -92,7 +97,7 @@ class EvolutionEngine:
                     stored_evaluation.pop("artifact_path", None)
                     stored_payload["evaluation"] = stored_evaluation
                     genomes_to_save.append({"genome_data":stored_payload,"fitness_score":fitness,"generation":gen+1})
-                    if evidence.get("verification_status") == "verified" and fitness > 0.0 and fitness > best_fitness:
+                    if evidence.get("verification_status") in ("verified", "static_verified") and fitness > 0.0 and fitness > best_fitness:
                         best_fitness, best_genome, best_evidence = fitness, genome, evidence
                         await self._emit_update({"type":"new_best","run_id":run_id,"generation":gen+1,"fitness":fitness,"genome":payload}, run_id=run_id, generation=gen+1)
                 db = SessionLocal()
@@ -124,7 +129,7 @@ class EvolutionEngine:
             promotion_status = "not_attempted"
             if best_genome and best_evidence:
                 try:
-                    if best_evidence.get("verification_status") != "verified":
+                    if best_evidence.get("verification_status") not in ("verified", "static_verified"):
                         raise ValueError("best candidate is not verified")
                     output_path = promote_verified_artifact(best_evidence["artifact_path"], "output/generated_api", expected_digest=best_evidence["artifact_digest"])
                     promotion_status = "published"

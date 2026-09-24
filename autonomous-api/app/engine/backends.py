@@ -8,6 +8,7 @@ same CompilerBackend contract without changing the ISR-facing model.
 import os
 import json
 import hashlib
+import subprocess
 from typing import Dict
 from pathlib import Path
 
@@ -522,6 +523,31 @@ def materialize(artifact: CompiledArtifact, output_dir: str) -> str:
         data = content.encode("utf-8")
         full_path.write_bytes(data)
         file_digests[relative.as_posix()] = hashlib.sha256(data).hexdigest()
+
+    if "go.mod" in artifact.files:
+        # Resolve the module graph before content-addressing so a later
+        # `go build` cannot mutate go.mod/go.sum after digests are recorded.
+        try:
+            subprocess.run(
+                ["go", "mod", "tidy"],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                timeout=120,
+                check=False,
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+        file_digests = {}
+        for relative_path in artifact.files:
+            full_path = root / relative_path
+            if full_path.is_file():
+                file_digests[Path(relative_path).as_posix()] = hashlib.sha256(
+                    full_path.read_bytes()
+                ).hexdigest()
+        go_sum = root / "go.sum"
+        if go_sum.is_file():
+            file_digests["go.sum"] = hashlib.sha256(go_sum.read_bytes()).hexdigest()
 
     manifest_payload = {
         "manifest_version": 1,

@@ -17,6 +17,7 @@ from pathlib import Path
 # so protected control endpoints (e.g. /production/readiness) are testable.
 os.environ.setdefault("ADMIN_API_KEY", "test-admin-key")
 
+import pytest
 import pytest_asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -31,6 +32,13 @@ SCHEMA_PATH = Path(
         str(Path(__file__).resolve().parents[1] / "app/observation/sequences/schema.sql"),
     )
 )
+
+
+@pytest.fixture(scope="session", autouse=True)
+def ensure_sqlite_schema():
+    from app.storage.db import init_db
+
+    init_db()
 
 
 @pytest_asyncio.fixture

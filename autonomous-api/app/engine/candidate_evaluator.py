@@ -129,7 +129,9 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
     if not use_docker or not get_backend(target.backend_id).runtime_supported:
         evidence["evaluation_mode"] = "static"
         evidence["static_score"] = calculate_fitness(genome)
-        evidence["verification_status"] = "built_unverified"
+        evidence["verification_status"] = (
+            "static_verified" if evidence["artifact_digest"] else "unverified"
+        )
         return evidence
 
     runner = DockerRunner()

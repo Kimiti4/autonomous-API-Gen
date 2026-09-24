@@ -21,10 +21,19 @@ def _assert_fail_closed_invariant(result: dict):
 
 
 def test_synchronous_evolution_fails_closed_when_best_not_lowerable(monkeypatch):
-    def _fail_lowering(*args, **kwargs):
-        raise ValueError("cannot lower unmapped capabilities: backends")
+    async def _fail_evaluation(*args, **kwargs):
+        return {
+            "build_ok": False,
+            "artifact_compile_ok": False,
+            "verification_status": "unverified",
+            "artifact_digest": None,
+            "evaluation_mode": "static_failed",
+            "static_score": 0.0,
+            "runtime_score": None,
+            "error": "cannot lower unmapped capabilities: backends",
+        }
 
-    monkeypatch.setattr("app.engine.evolution.build_genome_output", _fail_lowering)
+    monkeypatch.setattr("app.engine.evolution.evaluate_candidate_async", _fail_evaluation)
     result = EvolutionEngine().run_synchronous(generations=2, population_size=4, use_docker=False)
     _assert_fail_closed_invariant(result)
 

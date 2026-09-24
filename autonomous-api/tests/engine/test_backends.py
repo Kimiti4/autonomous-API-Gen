@@ -267,6 +267,7 @@ def test_go_backend_compiles_and_executes_when_go_toolchain_available(tmp_path):
         cwd=output_dir,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
+        env={**os.environ, "JWT_SECRET": "generated-jwt-secret"},
     )
     try:
         deadline = time.time() + 20

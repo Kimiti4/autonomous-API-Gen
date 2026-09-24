@@ -77,8 +77,12 @@ class EvolutionEngine:
                     evidence = await evaluate_candidate_async(genome, use_docker=use_docker, target=self.target)
                     fitness = self._fitness_from_evidence(evidence)
                     fitness_scores.append(fitness)
-                    payload = genome.encode(); payload["lineage"] = self._lineage_payload(genome); payload["evaluation"] = evidence; payload["provenance"] = {"run_id": run_id, "generation": gen + 1, "seed": seed, "evaluation_mode": evidence["evaluation_mode"], "backend_id": self.target.backend_id}
-                    genomes_to_save.append({"genome_data":payload,"fitness_score":fitness,"generation":gen+1})
+                    payload = genome.encode(); payload["lineage"] = self._lineage_payload(genome); payload["evaluation"] = evidence; payload["provenance"] = {"run_id": run_id, "generation": gen + 1, "seed": seed, "evaluation_mode": evidence["evaluation_mode"], "backend_id": self.target.backend_id, "artifact_digest": evidence.get("artifact_digest")}
+                    stored_payload = dict(payload)
+                    stored_evaluation = dict(evidence)
+                    stored_evaluation.pop("artifact_path", None)
+                    stored_payload["evaluation"] = stored_evaluation
+                    genomes_to_save.append({"genome_data":stored_payload,"fitness_score":fitness,"generation":gen+1})
                     if evidence.get("verification_status") == "verified" and fitness > 0.0 and fitness > best_fitness:
                         best_fitness, best_genome, best_evidence = fitness, genome, evidence
                         await self._emit_update({"type":"new_best","run_id":run_id,"generation":gen+1,"fitness":fitness,"genome":payload}, run_id=run_id, generation=gen+1)
@@ -140,22 +144,15 @@ class EvolutionEngine:
             if seed is not None: random.setstate(previous_state)
 
     def run_synchronous(self, generations: int = 10, population_size: int = 10, use_docker: bool = False) -> dict:
-        if generations < 1 or population_size < 2: raise ValueError("generations must be >= 1 and population_size must be >= 2")
-        population = Population(size=population_size); history = []; best_genome = None; best_fitness = float("-inf"); output_path = None
-        for gen in range(generations):
-            fitness_scores = [calculate_fitness(g) for g in population.individuals]
-            for fitness, genome in zip(fitness_scores, population.individuals):
-                if fitness > best_fitness: best_fitness, best_genome = fitness, genome
-            history.append({"generation": gen + 1, "scores": fitness_scores, "best_score": max(fitness_scores), "avg_score": sum(fitness_scores) / len(fitness_scores)})
-            parents = population.select_parents(fitness_scores, num_parents=2); new_population = parents.copy()
-            while len(new_population) < population_size: new_population.append(mutate(crossover(parents[0], parents[1]), mutation_rate=0.2))
-            population.replace(new_population)
-        build_error = None
-        if best_genome:
-            try:
-                output_path = build_genome_output(best_genome, target=self.target)
-            except ValueError as exc:
-                output_path = None
-                build_error = f"best genome not lowerable: {exc}"
-                logger.error("Best genome build failed: %s", exc)
-        return {"best_genome": best_genome.encode() if best_genome and not build_error else None, "best_fitness": best_fitness if best_genome and not build_error else 0.0, "production_readiness": self.production_analyzer.analyze(best_genome) if best_genome and not build_error else None, "history": history, "output_path": output_path, "build_error": build_error, "total_generations": generations, "backend_id": self.target.backend_id}
+        """Synchronous compatibility wrapper for the verified async evolution path."""
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(
+                self.run_async(
+                    generations=generations,
+                    population_size=population_size,
+                    use_docker=use_docker,
+                )
+            )
+        raise RuntimeError("run_synchronous cannot be called from an active event loop; use run_async")

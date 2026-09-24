@@ -7,6 +7,8 @@ Serialization and deserialization for the knowledge engine.
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -105,9 +107,24 @@ class KnowledgePersistence:
     ) -> None:
         self._path.mkdir(parents=True, exist_ok=True)
         data = [KnowledgeSerializer.fitness_record_to_dict(r) for r in records]
-        (self._path / filename).write_text(
-            json.dumps(data, indent=2, default=str), encoding="utf-8"
-        )
+        self._atomic_write_json(self._path / filename, data)
+
+    @staticmethod
+    def _atomic_write_json(path: Path, data: Any) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, temp_path = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                json.dump(data, handle, indent=2, default=str)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temp_path, path)
+        except Exception:
+            try:
+                os.unlink(temp_path)
+            except FileNotFoundError:
+                pass
+            raise
 
     def load_fitness_records(
         self, filename: str = "fitness_records.json"
@@ -118,8 +135,8 @@ class KnowledgePersistence:
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             return [KnowledgeSerializer.fitness_record_from_dict(d) for d in data]
-        except (json.JSONDecodeError, KeyError):
-            return []
+        except (json.JSONDecodeError, KeyError) as exc:
+            raise RuntimeError(f"Persistent knowledge record is unreadable: {path}") from exc
 
     def save_compatibility_records(
         self, records: list[CompatibilityRecord], filename: str = "compatibility.json"

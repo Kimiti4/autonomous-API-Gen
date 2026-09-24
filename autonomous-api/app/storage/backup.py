@@ -29,11 +29,14 @@ def _database_path(engine: Engine) -> Path:
 def _integrity_check(path: Path) -> None:
     if not path.is_file():
         raise ValueError(f"database backup does not exist: {path}")
-    connection = sqlite3.connect(path)
     try:
-        result = connection.execute("PRAGMA integrity_check").fetchone()
-    finally:
-        connection.close()
+        connection = sqlite3.connect(path)
+        try:
+            result = connection.execute("PRAGMA integrity_check").fetchone()
+        finally:
+            connection.close()
+    except sqlite3.Error as exc:
+        raise ValueError(f"SQLite integrity check failed for {path}: {exc}") from exc
     if not result or result[0] != "ok":
         raise ValueError(f"SQLite integrity check failed for {path}: {result}")
 

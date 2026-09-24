@@ -76,6 +76,7 @@ def _apply_v2(engine: Engine) -> None:
                 expires_at DATETIME NOT NULL
             )
         """))
+        connection.execute(text("UPDATE schema_version SET version = 2"))
 
 
 def _verify_schema(engine: Engine) -> None:

@@ -18,6 +18,11 @@ from app.engine.backend_contract import BackendTarget, PYTHON_FASTAPI
 from app.engine.production_readiness import ProductionReadinessAnalyzer
 from app.storage.db import SessionLocal
 from app.storage.models import GenomeRecord, EvolutionRun
+from app.storage.lease import (
+    acquire_control_plane_lease,
+    heartbeat_control_plane_lease,
+    release_control_plane_lease,
+)
 
 class EliteEvolutionEngine:
     """Advanced evolution engine with persistent memory, adaptation and multi-population search."""
@@ -45,6 +50,7 @@ class EliteEvolutionEngine:
         return round(final_fitness,3)
     async def run_elite_evolution(self,generations:int=10,population_size:int=8,use_multi_population:bool=True,enable_adaptive_mutation:bool=True,use_docker:bool=False,seed:Optional[int]=None)->dict:
         run_id=str(uuid.uuid4()); logger.info(f"Starting elite evolution run {run_id}"); previous_state=random.getstate()
+        lease_token = acquire_control_plane_lease(owner_run_id=f"elite:{run_id}")
         if seed is not None: random.seed(seed)
         try:
             if use_multi_population: self.multi_pop=MultiPopulationSystem(population_size=population_size); groups=self.multi_pop.groups
@@ -55,7 +61,7 @@ class EliteEvolutionEngine:
                 for group_name,population in groups.items():
                     fitness_scores=[]
                     for genome in population.individuals:
-                        fitness=await self.evaluate_genome(genome,group_name); fitness_scores.append(fitness)
+                        fitness=await self.evaluate_genome(genome,group_name); heartbeat_control_plane_lease(lease_token); fitness_scores.append(fitness)
                         if enable_adaptive_mutation: self.adaptive_mutator.update(genome.encode(),fitness)
                         if fitness>global_best_fitness: global_best_fitness=fitness; global_best_genome=genome
                     best_in_group=max(fitness_scores); avg_fitness=sum(fitness_scores)/len(fitness_scores); all_history[group_name].append({"generation":gen+1,"best":best_in_group,"avg":avg_fitness})
@@ -78,6 +84,7 @@ class EliteEvolutionEngine:
                     logger.error("Best genome build failed: %s", exc)
             return {"run_id":run_id,"best_genome":global_best_genome.encode() if global_best_genome and not build_error else None,"best_fitness":global_best_fitness if global_best_genome and not build_error else 0.0,"production_readiness":self.production_analyzer.analyze(global_best_genome) if global_best_genome and not build_error else None,"history":all_history,"output_path":output_path,"build_error":build_error,"total_generations":generations,"insights":self.memory.get_pattern_insights(),"top_features":self.adaptive_mutator.get_top_features(5) if enable_adaptive_mutation else [],"memory_stats":self.memory.get_statistics(),"seed":seed,"evaluation_mode":"static"}
         finally:
+            release_control_plane_lease(lease_token)
             if seed is not None: random.setstate(previous_state)
     def get_memory_insights(self)->dict: return {"statistics":self.memory.get_statistics(),"pattern_insights":self.memory.get_pattern_insights(),"suggested_genome":self.memory.get_suggested_genome(),"adaptive_bias":self.adaptive_mutator.get_bias_report() if self.adaptive_mutator else None}
     def clear_memory(self): self.memory.clear(); self.adaptive_mutator.reset(); logger.info("All memory cleared")

@@ -96,6 +96,7 @@ class EvolutionEngine:
                 fitness_scores = []; genomes_to_save = []
                 for genome in population.individuals:
                     evidence = await evaluate_candidate_async(genome, use_docker=use_docker, target=self.target)
+                    heartbeat_control_plane_lease(lease_token)
                     fitness = self._fitness_from_evidence(evidence)
                     fitness_scores.append(fitness)
                     payload = genome.encode(); payload["lineage"] = self._lineage_payload(genome); payload["evaluation"] = evidence; payload["provenance"] = {"run_id": run_id, "generation": gen + 1, "seed": seed, "evaluation_mode": evidence["evaluation_mode"], "backend_id": self.target.backend_id, "artifact_digest": evidence.get("artifact_digest")}

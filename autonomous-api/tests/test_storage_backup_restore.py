@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import create_engine, text
 
 from app.storage.backup import backup_sqlite_database, restore_sqlite_database
-from app.storage.migrations import migrate
+from app.storage.migrations import LATEST_SCHEMA_VERSION, migrate
 
 
 def _engine(tmp_path: Path):
@@ -63,7 +63,7 @@ def test_database_backup_is_restorable_known_good_state(tmp_path):
     assert restored_digest == digest
     assert _state(engine)[0][0][0] == "known-good"
     assert len(_state(engine)[1]) == 1
-    assert _state(engine)[2] == 1
+    assert _state(engine)[2] == LATEST_SCHEMA_VERSION
 
 
 def test_tampered_database_backup_is_rejected(tmp_path):

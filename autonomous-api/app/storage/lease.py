@@ -17,7 +17,7 @@ from pathlib import Path
 from app.storage.db import DATABASE_URL
 
 LEASE_KEY = "evolution"
-LEASE_SECONDS = 60
+LEASE_SECONDS = 300
 BUSY_MESSAGE = "another authoritative evolution operation is already active"
 
 

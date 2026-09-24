@@ -7,6 +7,7 @@ used to accelerate and standardize API generation.
 """
 
 import json
+from app.storage.atomic import atomic_write_json
 import random
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass, field
@@ -775,8 +776,7 @@ class BlueprintMarketplace:
         """Export a blueprint to a file"""
         blueprint = self.get_blueprint(blueprint_id)
         if blueprint:
-            with open(file_path, 'w') as f:
-                json.dump(blueprint.__dict__, f, indent=2)
+            atomic_write_json(file_path, blueprint.__dict__)
     
     def import_blueprint(self, file_path: str):
         """Import a blueprint from a file"""

@@ -12,7 +12,7 @@ from app.engine.fitness import calculate_fitness
 from app.engine.builder import build_genome_output
 from app.engine.backend_contract import BackendTarget, PYTHON_FASTAPI
 from app.engine.candidate_evaluator import evaluate_candidate_async
-from app.engine.backends import get_backend
+from app.engine.backends import get_backend, promote_verified_artifact
 from app.engine.production_readiness import ProductionReadinessAnalyzer
 from app.storage.db import SessionLocal
 from app.storage.models import GenomeRecord, EvolutionRun
@@ -70,7 +70,7 @@ class EvolutionEngine:
         finally: db.close()
         try:
             await self._emit_update({"type":"evolution_start","run_id":run_id,"generations":generations,"population_size":population_size,"evaluation_mode":"runtime" if use_docker and get_backend(self.target.backend_id).runtime_supported else "static","backend_id":self.target.backend_id,"seed":seed}, run_id=run_id)
-            population = Population(size=population_size); history = []; best_genome = None; best_fitness = float("-inf"); output_path = None
+            population = Population(size=population_size); history = []; best_genome = None; best_evidence = None; best_fitness = float("-inf"); output_path = None
             for gen in range(generations):
                 await self._emit_update({"type":"generation_start","run_id":run_id,"generation":gen+1,"total_generations":generations,"backend_id":self.target.backend_id}, run_id=run_id, generation=gen+1)
                 fitness_scores = []; genomes_to_save = []
@@ -81,7 +81,7 @@ class EvolutionEngine:
                     payload = genome.encode(); payload["lineage"] = self._lineage_payload(genome); payload["evaluation"] = evidence; payload["provenance"] = {"run_id": run_id, "generation": gen + 1, "seed": seed, "evaluation_mode": evidence["evaluation_mode"], "backend_id": self.target.backend_id}
                     genomes_to_save.append({"genome_data":payload,"fitness_score":fitness,"generation":gen+1})
                     if evidence.get("verification_status") == "verified" and fitness > 0.0 and fitness > best_fitness:
-                        best_fitness, best_genome = fitness, genome
+                        best_fitness, best_genome, best_evidence = fitness, genome, evidence
                         await self._emit_update({"type":"new_best","run_id":run_id,"generation":gen+1,"fitness":fitness,"genome":payload}, run_id=run_id, generation=gen+1)
                 db = SessionLocal()
                 try: db.add_all([GenomeRecord(**item) for item in genomes_to_save]); db.commit()
@@ -95,14 +95,25 @@ class EvolutionEngine:
                 while len(new_population) < population_size: new_population.append(mutate(crossover(parents[0], parents[1]), mutation_rate=0.2))
                 population.replace(new_population)
             build_error = None
-            if best_genome:
+            if best_genome and best_evidence:
                 try:
-                    output_path = build_genome_output(best_genome, target=self.target)
-                except ValueError as exc:
+                    if best_evidence.get("verification_status") != "verified":
+                        raise ValueError("best candidate is not verified")
+                    output_path = promote_verified_artifact(
+                        best_evidence["artifact_path"],
+                        "output/generated_api",
+                        expected_digest=best_evidence["artifact_digest"],
+                    )
+                except (KeyError, ValueError) as exc:
                     output_path = None
-                    build_error = f"best genome not lowerable: {exc}"
-                    logger.error("Best genome build failed: %s", exc)
-                await self._emit_update({"type":"building_best","run_id":run_id,"output_path":output_path}, run_id=run_id)
+                    build_error = f"verified artifact promotion failed: {exc}"
+                    logger.error("Verified artifact promotion failed: %s", exc)
+                await self._emit_update(
+                    {"type": "building_best", "run_id": run_id,
+                     "output_path": output_path,
+                     "artifact_digest": best_evidence.get("artifact_digest")},
+                    run_id=run_id,
+                )
             elif best_genome is None:
                 build_error = "no candidate could be lowered by the selected backend"
             result = {"run_id":run_id,"best_genome":best_genome.encode() if best_genome and not build_error else None,"best_fitness":best_fitness if best_genome and not build_error else 0.0,"production_readiness":self.production_analyzer.analyze(best_genome) if best_genome and not build_error else None,"history":history,"output_path":output_path,"build_error":build_error,"total_generations":generations,"evaluation_mode":"runtime" if use_docker and get_backend(self.target.backend_id).runtime_supported else "static","backend_id":self.target.backend_id,"seed":seed}

@@ -9,7 +9,7 @@ from __future__ import annotations
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import Engine
 
-LATEST_SCHEMA_VERSION = 1
+LATEST_SCHEMA_VERSION = 2
 
 _REQUIRED_COLUMNS = {
     "genomes": {"id", "genome_data", "fitness_score", "generation", "created_at"},
@@ -64,15 +64,41 @@ def _apply_v1(engine: Engine) -> None:
         connection.execute(text("UPDATE schema_version SET version = 1"))
 
 
+def _apply_v2(engine: Engine) -> None:
+    with engine.begin() as connection:
+        connection.execute(text("""
+            CREATE TABLE IF NOT EXISTS control_plane_lease (
+                lease_key VARCHAR PRIMARY KEY,
+                owner_token VARCHAR NOT NULL,
+                owner_run_id VARCHAR NOT NULL,
+                acquired_at DATETIME NOT NULL,
+                heartbeat_at DATETIME NOT NULL,
+                expires_at DATETIME NOT NULL
+            )
+        """))
+
+
 def _verify_schema(engine: Engine) -> None:
     inspector = inspect(engine)
     tables = set(inspector.get_table_names())
-    required_tables = set(_REQUIRED_COLUMNS) | {"schema_version"}
+    required_tables = set(_REQUIRED_COLUMNS) | {"schema_version", "control_plane_lease"}
     missing_tables = required_tables - tables
     if missing_tables:
         raise RuntimeError(
             "Database schema verification failed; missing tables: "
             + ", ".join(sorted(missing_tables))
+        )
+
+    lease_columns = {column["name"] for column in inspector.get_columns("control_plane_lease")}
+    required_lease_columns = {
+        "lease_key", "owner_token", "owner_run_id", "acquired_at",
+        "heartbeat_at", "expires_at",
+    }
+    missing_lease_columns = required_lease_columns - lease_columns
+    if missing_lease_columns:
+        raise RuntimeError(
+            "Database schema verification failed for control_plane_lease; missing columns: "
+            + ", ".join(sorted(missing_lease_columns))
         )
 
     for table, required_columns in _REQUIRED_COLUMNS.items():
@@ -99,6 +125,10 @@ def migrate(engine: Engine) -> int:
 
     if version < 1:
         _apply_v1(engine)
+        version = 1
+
+    if version < 2:
+        _apply_v2(engine)
 
     _verify_schema(engine)
     return LATEST_SCHEMA_VERSION

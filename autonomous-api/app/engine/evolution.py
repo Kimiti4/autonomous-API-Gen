@@ -9,7 +9,6 @@ from app.core.population import Population
 from app.core.crossover import crossover
 from app.core.mutation import mutate
 from app.engine.fitness import calculate_fitness
-from app.engine.builder import build_genome_output
 from app.engine.backend_contract import BackendTarget, PYTHON_FASTAPI
 from app.engine.candidate_evaluator import evaluate_candidate_async
 from app.engine.backends import get_backend, promote_verified_artifact

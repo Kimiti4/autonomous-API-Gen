@@ -162,9 +162,7 @@ class KnowledgePersistence:
     ) -> None:
         self._path.mkdir(parents=True, exist_ok=True)
         data = [KnowledgeSerializer.lesson_to_dict(l) for l in lessons]
-        (self._path / filename).write_text(
-            json.dumps(data, indent=2, default=str), encoding="utf-8"
-        )
+        self._atomic_write_json(self._path / filename, data)
 
     def load_lessons(
         self, filename: str = "lessons.json"
@@ -175,5 +173,5 @@ class KnowledgePersistence:
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             return [KnowledgeSerializer.lesson_from_dict(d) for d in data]
-        except (json.JSONDecodeError, KeyError):
-            return []
+        except (json.JSONDecodeError, KeyError) as exc:
+            raise RuntimeError(f"Persistent knowledge record is unreadable: {path}") from exc

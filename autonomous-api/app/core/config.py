@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     GOVERNANCE_CERTIFIERS: str = ""
     GOVERNANCE_QUORUM_THRESHOLD: float = 1.0
     GOVERNANCE_EXECUTIVE_WEIGHT: float = 0.6
+    GOVERNANCE_ENFORCEMENT_REQUIRED: bool = False
 
     LOG_LEVEL: str = "INFO"
     LOG_FILE: str = "logs/app.log"
@@ -78,6 +79,8 @@ class Settings(BaseSettings):
                 raise ValueError("GOVERNANCE_CERTIFIERS is required in production")
             if self.GOVERNANCE_QUORUM_THRESHOLD <= 0:
                 raise ValueError("GOVERNANCE_QUORUM_THRESHOLD must be positive in production")
+            if not self.GOVERNANCE_ENFORCEMENT_REQUIRED:
+                raise ValueError("GOVERNANCE_ENFORCEMENT_REQUIRED must be true in production")
         return self
 
     model_config = SettingsConfigDict(

@@ -4,6 +4,7 @@ import random
 from typing import Dict, List, Optional, Callable
 from datetime import datetime
 from app.core.logger import logger
+from app.core.config import get_settings
 from app.engine.genome import Genome
 from app.core.population import Population
 from app.core.crossover import crossover
@@ -75,13 +76,22 @@ class EliteEvolutionEngine:
                 if use_multi_population and (gen+1)%3==0: self.multi_pop.cross_pollinate()
                 await asyncio.sleep(.05)
             build_error = None
+            output_path = None
             if global_best_genome:
-                try:
-                    output_path = build_genome_output(global_best_genome, target=self.target)
-                except ValueError as exc:
-                    output_path = None
-                    build_error = f"best genome not lowerable: {exc}"
-                    logger.error("Best genome build failed: %s", exc)
+                if get_settings().GOVERNANCE_ENFORCEMENT_REQUIRED:
+                    build_error = (
+                        "governance promotion gate denied: elite evolution has no "
+                        "verified artifact evidence, so production publication "
+                        "fails closed"
+                    )
+                    logger.error("Elite evolution promotion blocked: %s", build_error)
+                else:
+                    try:
+                        output_path = build_genome_output(global_best_genome, target=self.target)
+                    except ValueError as exc:
+                        output_path = None
+                        build_error = f"best genome not lowerable: {exc}"
+                        logger.error("Best genome build failed: %s", exc)
             return {"run_id":run_id,"best_genome":global_best_genome.encode() if global_best_genome and not build_error else None,"best_fitness":global_best_fitness if global_best_genome and not build_error else 0.0,"production_readiness":self.production_analyzer.analyze(global_best_genome) if global_best_genome and not build_error else None,"history":all_history,"output_path":output_path,"build_error":build_error,"total_generations":generations,"insights":self.memory.get_pattern_insights(),"top_features":self.adaptive_mutator.get_top_features(5) if enable_adaptive_mutation else [],"memory_stats":self.memory.get_statistics(),"seed":seed,"evaluation_mode":"static"}
         finally:
             release_control_plane_lease(lease_token)

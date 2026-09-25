@@ -105,9 +105,11 @@ def test_production_promotion_requires_governance_decision(monkeypatch):
     engine = EvolutionEngine()
     genome = SimpleNamespace(genome_id="candidate-1")
     denied_state = SimpleNamespace(current_state="verified", latest_decision=lambda: None)
-    governance = SimpleNamespace(
-        materialize_candidate=lambda _candidate_id: denied_state
-    )
+
+    async def fake_materialize(_candidate_id):
+        return denied_state
+
+    governance = SimpleNamespace(materialize_candidate=fake_materialize)
     settings = SimpleNamespace(GOVERNANCE_ENFORCEMENT_REQUIRED=True)
     monkeypatch.setattr("app.engine.evolution.get_settings", lambda: settings)
     monkeypatch.setattr("app.engine.evolution.get_governance", lambda: governance)
@@ -124,11 +126,35 @@ def test_production_promotion_accepts_certified_governance_decision(monkeypatch)
     allowed_state = SimpleNamespace(
         current_state="certified", latest_decision=lambda: decision
     )
-    governance = SimpleNamespace(
-        materialize_candidate=lambda _candidate_id: allowed_state
-    )
+
+    async def fake_materialize(_candidate_id):
+        return allowed_state
+
+    governance = SimpleNamespace(materialize_candidate=fake_materialize)
     settings = SimpleNamespace(GOVERNANCE_ENFORCEMENT_REQUIRED=True)
     monkeypatch.setattr("app.engine.evolution.get_settings", lambda: settings)
     monkeypatch.setattr("app.engine.evolution.get_governance", lambda: governance)
 
     assert asyncio.run(engine._governance_allows_promotion(genome)) is True
+
+
+def test_elite_publication_fails_closed_under_production_enforcement(monkeypatch):
+    from types import SimpleNamespace
+
+    def record_build(*args, **kwargs):
+        raise AssertionError("elite builder must not publish in enforcement mode")
+
+    settings = SimpleNamespace(GOVERNANCE_ENFORCEMENT_REQUIRED=True)
+    monkeypatch.setattr("app.engine.elite_evolution.get_settings", lambda: settings)
+    monkeypatch.setattr("app.engine.elite_evolution.build_genome_output", record_build)
+
+    result = asyncio.run(
+        EliteEvolutionEngine().run_elite_evolution(
+            generations=1, population_size=4, use_multi_population=False, seed=13
+        )
+    )
+
+    assert result["output_path"] is None
+    assert result["best_genome"] is None
+    assert result["build_error"] is not None
+    assert "governance promotion gate denied" in result["build_error"]

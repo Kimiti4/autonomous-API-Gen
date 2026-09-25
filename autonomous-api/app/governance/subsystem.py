@@ -54,11 +54,19 @@ class GovernanceSubsystem:
         reference_store,
         quorum_threshold: float = 1.0,
         recognized_certifiers: Optional[set] = None,
+        executive_voting_weight: float = 0.6,
     ) -> None:
+        if quorum_threshold <= 0:
+            raise ValueError("quorum_threshold must be positive")
+        if executive_voting_weight < 0:
+            raise ValueError("executive_voting_weight must be non-negative")
+        if recognized_certifiers is not None and not recognized_certifiers:
+            raise ValueError("recognized_certifiers must not be empty; G-6 is fail-closed")
         self._events = event_store
         self._refs = reference_store
         self._quorum = quorum_threshold
-        self._certifiers = recognized_certifiers or set()
+        self._executive_weight = executive_voting_weight
+        self._certifiers = set(recognized_certifiers or set())
 
     # ---- command handlers ------------------------------------------------
 
@@ -96,7 +104,9 @@ class GovernanceSubsystem:
         check_g5_decider_authorization(cmd.decidedBy, council)
         if cmd.verdict == "approve":
             check_g2_gates_satisfied(decision, state.gate_outcomes, gates)
-            check_g7_quorum_weight(cmd.decidedBy, council, self._quorum)
+            check_g7_quorum_weight(
+                cmd.decidedBy, council, self._quorum, self._executive_weight
+            )
 
         event = GovernanceDecisionMade(decision=decision)
         await self._events.append(cmd.candidateId, [event])
@@ -122,7 +132,7 @@ class GovernanceSubsystem:
         return outcome
 
     async def grant_certification(self, cmd: GrantCertification):
-        if self._certifiers and cmd.certifiedBy not in self._certifiers:
+        if cmd.certifiedBy not in self._certifiers:
             raise Exception(
                 "G-6 violated: %r is not a recognized certifying authority"
                 % cmd.certifiedBy

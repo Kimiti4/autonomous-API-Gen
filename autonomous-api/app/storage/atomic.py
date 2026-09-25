@@ -21,7 +21,7 @@ def atomic_write_json(path: str | os.PathLike[str], data: Any) -> None:
     temporary = Path(temp_name)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            json.dump(data, handle, indent=2, default=str)
+            json.dump(data, handle, indent=2)
             handle.write("\n")
             handle.flush()
             os.fsync(handle.fileno())

@@ -564,6 +564,7 @@ def materialize(artifact: CompiledArtifact, output_dir: str) -> str:
             json.dumps(manifest_payload, sort_keys=True, indent=2) + "\n",
             encoding="utf-8",
         )
+        _validate_verified_artifact(str(staging), manifest_payload["artifact_digest"])
 
         previous = root.with_name(f".{root.name}.materialize-previous")
         if previous.exists():

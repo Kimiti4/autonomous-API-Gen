@@ -25,6 +25,11 @@ from app.storage.db import init_db, engine as db_engine
 from app.storage.models import GenomeRecord
 from app.core.metrics import setup_metrics
 from app.engine.evolution import EvolutionEngine
+from app.governance.subsystem import GovernanceSubsystem
+from app.governance.adapters.sqlite import (
+    SqliteGovernanceEventStore,
+    SqliteGovernanceReferenceStore,
+)
 
 settings = get_settings()
 
@@ -103,6 +108,23 @@ configure_observation(
     store=store,
     dispatcher=dispatcher,
     fitness_projector=fitness_projector,
+)
+
+
+def _governance_certifiers() -> set[str]:
+    return {
+        value.strip()
+        for value in settings.GOVERNANCE_CERTIFIERS.split(",")
+        if value.strip()
+    }
+
+
+governance = GovernanceSubsystem(
+    event_store=SqliteGovernanceEventStore(),
+    reference_store=SqliteGovernanceReferenceStore(),
+    quorum_threshold=settings.GOVERNANCE_QUORUM_THRESHOLD,
+    recognized_certifiers=_governance_certifiers() or None,
+    executive_voting_weight=settings.GOVERNANCE_EXECUTIVE_WEIGHT,
 )
 
 

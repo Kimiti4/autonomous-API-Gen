@@ -96,3 +96,39 @@ def test_runtime_failed_candidate_is_never_promoted(monkeypatch):
     assert result["production_readiness"] is None
     assert result["output_path"] is None
     assert result["build_error"] is not None
+
+
+
+def test_production_promotion_requires_governance_decision(monkeypatch):
+    from types import SimpleNamespace
+
+    engine = EvolutionEngine()
+    genome = SimpleNamespace(genome_id="candidate-1")
+    denied_state = SimpleNamespace(current_state="verified", latest_decision=lambda: None)
+    governance = SimpleNamespace(
+        materialize_candidate=lambda _candidate_id: denied_state
+    )
+    settings = SimpleNamespace(GOVERNANCE_ENFORCEMENT_REQUIRED=True)
+    monkeypatch.setattr("app.engine.evolution.get_settings", lambda: settings)
+    monkeypatch.setattr("app.engine.evolution.get_governance", lambda: governance)
+
+    assert asyncio.run(engine._governance_allows_promotion(genome)) is False
+
+
+def test_production_promotion_accepts_certified_governance_decision(monkeypatch):
+    from types import SimpleNamespace
+
+    engine = EvolutionEngine()
+    genome = SimpleNamespace(genome_id="candidate-2")
+    decision = SimpleNamespace(verdict="approve", authorizesTransition=True)
+    allowed_state = SimpleNamespace(
+        current_state="certified", latest_decision=lambda: decision
+    )
+    governance = SimpleNamespace(
+        materialize_candidate=lambda _candidate_id: allowed_state
+    )
+    settings = SimpleNamespace(GOVERNANCE_ENFORCEMENT_REQUIRED=True)
+    monkeypatch.setattr("app.engine.evolution.get_settings", lambda: settings)
+    monkeypatch.setattr("app.engine.evolution.get_governance", lambda: governance)
+
+    assert asyncio.run(engine._governance_allows_promotion(genome)) is True

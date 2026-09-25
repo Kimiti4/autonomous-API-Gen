@@ -4,6 +4,8 @@ import random
 from typing import Callable, Optional
 from datetime import datetime
 from app.core.logger import logger
+from app.core.config import get_settings
+from app.governance.runtime import get_governance
 from app.engine.genome import Genome
 from app.core.population import Population
 from app.core.crossover import crossover
@@ -69,6 +71,29 @@ class EvolutionEngine:
         else:
             return 0.0
         return float(score) if score is not None else 0.0
+
+    async def _governance_allows_promotion(self, genome: Genome) -> bool:
+        """Production promotion requires a durable governance decision.
+
+        Evaluation evidence proves the artifact; governance proves that the
+        candidate is authorized to cross the promotion boundary. Development
+        and test environments may exercise the engine without a configured
+        council, but production cannot bypass this check.
+        """
+        if not get_settings().GOVERNANCE_ENFORCEMENT_REQUIRED:
+            return True
+        governance = get_governance()
+        state = await governance.materialize_candidate(genome.genome_id)
+        if state.current_state not in {
+            "certified", "selected", "deployed", "operating"
+        }:
+            return False
+        decision = state.latest_decision()
+        return bool(
+            decision
+            and decision.verdict == "approve"
+            and decision.authorizesTransition
+        )
 
     async def run_async(self, generations: int = 10, population_size: int = 10, use_docker: bool = True, seed: Optional[int] = None) -> dict:
         if generations < 1 or population_size < 2: raise ValueError("generations must be >= 1 and population_size must be >= 2")
@@ -139,6 +164,11 @@ class EvolutionEngine:
                 try:
                     if best_evidence.get("verification_status") not in ("verified", "static_verified"):
                         raise ValueError("best candidate is not verified")
+                    if not await self._governance_allows_promotion(best_genome):
+                        raise ValueError(
+                            "governance promotion gate denied: candidate lacks an approving "
+                            "decision at certified/selected lifecycle state"
+                        )
                     output_path = promote_verified_artifact(best_evidence["artifact_path"], "output/generated_api", expected_digest=best_evidence["artifact_digest"])
                     promotion_status = "published"
                 except (KeyError, ValueError) as exc:

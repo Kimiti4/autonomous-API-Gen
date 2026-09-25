@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router
 from app.api.ws import router as ws_router
 from app.api.observation_routes import router as observation_router
+from app.api.governance_routes import router as governance_router
 from app.core.config import get_settings
 from app.core.logger import logger
 from app.middleware.error_handler import ErrorHandlingConfig, install_error_handlers
@@ -30,6 +31,7 @@ from app.governance.adapters.sqlite import (
     SqliteGovernanceEventStore,
     SqliteGovernanceReferenceStore,
 )
+from app.governance.runtime import configure_governance
 
 settings = get_settings()
 
@@ -126,6 +128,7 @@ governance = GovernanceSubsystem(
     recognized_certifiers=_governance_certifiers() or None,
     executive_voting_weight=settings.GOVERNANCE_EXECUTIVE_WEIGHT,
 )
+configure_governance(governance)
 
 
 async def manager_broadcast(envelope) -> None:
@@ -153,6 +156,7 @@ except Exception:  # pragma: no cover
 app.include_router(router)
 app.include_router(ws_router)
 app.include_router(observation_router)
+app.include_router(governance_router)
 setup_metrics(app)
 
 

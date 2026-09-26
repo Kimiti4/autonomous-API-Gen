@@ -70,6 +70,9 @@ def test_sqlite_governance_event_round_trip(tmp_path):
         connection.exec_driver_sql(
             "CREATE TABLE governance_events (id INTEGER PRIMARY KEY, candidate_id VARCHAR NOT NULL, event_type VARCHAR NOT NULL, payload TEXT NOT NULL)"
         )
+        connection.exec_driver_sql(
+            "CREATE TABLE governance_audit (id INTEGER PRIMARY KEY, candidate_id VARCHAR NOT NULL, sequence INTEGER NOT NULL, event_type VARCHAR NOT NULL, payload TEXT NOT NULL, previous_hash VARCHAR NOT NULL, record_hash VARCHAR NOT NULL, signature VARCHAR NOT NULL, UNIQUE(candidate_id, sequence))"
+        )
 
     original = governance_sqlite.engine
     governance_sqlite.engine = engine

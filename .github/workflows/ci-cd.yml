@@ -54,6 +54,24 @@ jobs:
           files: ./autonomous-api/coverage.xml
           fail_ci_if_error: false
 
+  constitutional-deployment-tests:
+    name: constitutional deployment + rollback boundary tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: autonomous-api/requirements*.txt
+      - name: Install platform dependencies
+        working-directory: .
+        run: pip install -r autonomous-api/requirements.txt
+      - name: Run constitutional deployment + rollback boundary tests (EV-A08-003)
+        working-directory: .
+        run: pytest constitutional_architecture/tests/test_deployment_engine.py constitutional_architecture/tests/test_deployment_constitutional_boundary.py -q
+
   lint:
     runs-on: ubuntu-latest
     steps:

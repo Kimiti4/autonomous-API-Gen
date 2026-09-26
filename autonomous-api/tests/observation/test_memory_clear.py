@@ -3,8 +3,9 @@ import json
 import pytest
 from sqlalchemy import create_engine, text
 
-from app.core.adaptive import *  # noqa: F401,F403
+from app.core.governance.audit import AuditIntegrityError
 from app.core.memory_clear import CONFIRMATION, MemoryClearAuditStore, clear_elite_memory
+from app.core.config import get_settings
 from app.engine.adaptive import AdaptiveMutator
 from app.engine.memory import EvolutionMemory
 from app.storage.migrations import migrate
@@ -61,7 +62,7 @@ def test_clear_creates_verified_backup_and_durable_audit(tmp_path, monkeypatch):
     assert backup.is_file()
     assert json.loads(backup.read_text())["statistics"]["total_runs"] == 1
 
-    audit = MemoryClearAuditStore(module.get_settings().GOVERNANCE_AUDIT_SIGNING_KEY)
+    audit = MemoryClearAuditStore(get_settings().GOVERNANCE_AUDIT_SIGNING_KEY)
     records = audit.verify()
     assert [record.event_type for record in records] == [
         "memory.clear.requested",
@@ -124,5 +125,5 @@ def test_memory_clear_audit_tamper_fails_closed(tmp_path, monkeypatch):
         conn.execute(
             text("UPDATE memory_clear_audit SET payload = '{"tampered":true}' WHERE sequence = 1")
         )
-    with pytest.raises(Exception):
+    with pytest.raises(AuditIntegrityError):
         MemoryClearAuditStore(module.get_settings().GOVERNANCE_AUDIT_SIGNING_KEY).verify()

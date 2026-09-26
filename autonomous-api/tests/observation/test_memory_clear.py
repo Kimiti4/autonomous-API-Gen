@@ -11,13 +11,21 @@ from app.engine.memory import EvolutionMemory
 from app.storage.migrations import migrate
 
 
+@pytest.fixture
+def isolated_clear_lease(monkeypatch):
+    import app.core.memory_clear as module
+
+    monkeypatch.setattr(module, "acquire_control_plane_lease", lambda **_: "test-lease")
+    monkeypatch.setattr(module, "release_control_plane_lease", lambda _token: None)
+
+
 def _db(tmp_path):
     db = create_engine(f"sqlite:///{tmp_path / 'clear.db'}")
     migrate(db)
     return db
 
 
-def test_clear_requires_explicit_confirmation(tmp_path, monkeypatch):
+def test_clear_requires_explicit_confirmation(tmp_path, monkeypatch, isolated_clear_lease):
     import app.core.memory_clear as module
 
     monkeypatch.setattr(module, "engine", _db(tmp_path))
@@ -35,7 +43,7 @@ def test_clear_requires_explicit_confirmation(tmp_path, monkeypatch):
         assert conn.execute(text("SELECT COUNT(*) FROM memory_clear_audit")).scalar_one() == 0
 
 
-def test_clear_creates_verified_backup_and_durable_audit(tmp_path, monkeypatch):
+def test_clear_creates_verified_backup_and_durable_audit(tmp_path, monkeypatch, isolated_clear_lease):
     import app.core.memory_clear as module
 
     db = _db(tmp_path)
@@ -71,7 +79,7 @@ def test_clear_creates_verified_backup_and_durable_audit(tmp_path, monkeypatch):
     ]
 
 
-def test_clear_rejects_operation_replay(tmp_path, monkeypatch):
+def test_clear_rejects_operation_replay(tmp_path, monkeypatch, isolated_clear_lease):
     import app.core.memory_clear as module
 
     monkeypatch.setattr(module, "engine", _db(tmp_path))
@@ -89,7 +97,7 @@ def test_clear_rejects_operation_replay(tmp_path, monkeypatch):
         clear_elite_memory(**kwargs)
 
 
-def test_clear_fails_closed_on_corrupt_memory(tmp_path, monkeypatch):
+def test_clear_fails_closed_on_corrupt_memory(tmp_path, monkeypatch, isolated_clear_lease):
     import app.core.memory_clear as module
 
     monkeypatch.setattr(module, "engine", _db(tmp_path))
@@ -107,7 +115,7 @@ def test_clear_fails_closed_on_corrupt_memory(tmp_path, monkeypatch):
     assert not list((tmp_path / "memory-backups").glob("*.json"))
 
 
-def test_memory_clear_audit_tamper_fails_closed(tmp_path, monkeypatch):
+def test_memory_clear_audit_tamper_fails_closed(tmp_path, monkeypatch, isolated_clear_lease):
     import app.core.memory_clear as module
 
     db = _db(tmp_path)

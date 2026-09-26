@@ -2,6 +2,12 @@
 from __future__ import annotations
 
 import pytest
+from sqlalchemy import create_engine, text
+
+from app.core.contracts.governance import GovernanceDecision
+from app.core.governance.events import GovernanceDecisionMade
+from app.governance.adapters import sqlite as sqlite_adapter
+from app.storage.migrations import migrate
 
 from app.core.governance.audit import (
     AuditIntegrityError,
@@ -84,3 +90,44 @@ def test_audit_chain_rejects_signature_tampering():
 def test_signer_requires_key():
     with pytest.raises(ValueError, match="signing key"):
         GovernanceAuditSigner("")
+
+
+@pytest.mark.asyncio
+async def test_sqlite_event_store_persists_and_verifies_signed_trail(monkeypatch):
+    engine = create_engine("sqlite:///:memory:")
+    migrate(engine)
+    monkeypatch.setattr(sqlite_adapter, "engine", engine)
+    store = sqlite_adapter.SqliteGovernanceEventStore("test-key")
+    decision = GovernanceDecision(
+        decisionId="dec-1",
+        candidateId="c1",
+        generation=0,
+        verdict="approve",
+        fromState="proposed",
+        toState="evaluating",
+        authorizesTransition=True,
+        decidedBy=["executive"],
+        rationale="r",
+        evidenceRefs=["e-1"],
+        decidedAt="2026-09-26T00:00:00+00:00",
+    )
+    await store.append("c1", [GovernanceDecisionMade(decision=decision)])
+
+    records = await store.audit("c1")
+    assert len(records) == 1
+    assert records[0].sequence == 1
+    assert records[0].previous_hash == ""
+    loaded = await store.load("c1")
+    assert loaded[0].decision.decisionId == "dec-1"
+
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "UPDATE governance_audit SET payload = :payload "
+                "WHERE candidate_id = 'c1' AND sequence = 1"
+            ),
+            {"payload": '{"type":"GovernanceDecisionMade","payload":{"tampered":true}}'},
+        )
+
+    with pytest.raises(Exception, match="hash mismatch"):
+        await store.audit("c1")

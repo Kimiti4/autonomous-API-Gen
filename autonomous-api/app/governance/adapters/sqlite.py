@@ -62,7 +62,7 @@ def _load_event(raw: str):
 class SqliteGovernanceEventStore:
     """Durable append-only governance event store with signed audit envelopes."""
 
-    def __init__(self, signing_key: str):
+    def __init__(self, signing_key: str = "development-only-audit-key"):
         self._signer = GovernanceAuditSigner(signing_key)
 
     async def append(self, candidate_id: str, events: list) -> None:

@@ -197,6 +197,14 @@ class GovernanceSubsystem:
         events = await self._events.load(candidate_id)
         return CandidateGovernanceState.fold(candidate_id, events)
 
+
+    async def audit_candidate(self, candidate_id: str) -> list:
+        audit = getattr(self._events, "audit", None)
+        if audit is None:
+            raise RuntimeError("governance audit trail is unavailable")
+        return await audit(candidate_id)
+
+
     async def materialize_generation(self, generation: int) -> list:
         events_by_candidate = await self._events.load_generation(generation)
         return [

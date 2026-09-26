@@ -126,7 +126,7 @@ class MemoryClearAuditStore:
         return records
 
 
-def clear_elite_memory(*, engine_instance, memory, adaptive_mutator, actor: str,
+def clear_elite_memory(*, memory, adaptive_mutator, actor: str,
                        confirmation: str, operation_id: str | None = None) -> dict:
     if confirmation != CONFIRMATION:
         raise PermissionError("explicit clear-memory confirmation required")
@@ -141,6 +141,10 @@ def clear_elite_memory(*, engine_instance, memory, adaptive_mutator, actor: str,
     backup_path = memory_path.parent / "memory-backups" / f"{operation}.json"
     audit = MemoryClearAuditStore(__import__("app.core.config", fromlist=["get_settings"]).get_settings().GOVERNANCE_AUDIT_SIGNING_KEY)
 
+    existing = audit.verify()
+    if any(json.loads(record.payload).get("operation_id") == operation for record in existing):
+        raise ValueError("operation_id has already been used")
+
     audit.append("memory.clear.requested", {
         "operation_id": operation, "actor": actor, "target": SCOPE,
     })
@@ -150,8 +154,15 @@ def clear_elite_memory(*, engine_instance, memory, adaptive_mutator, actor: str,
             "operation_id": operation, "actor": actor,
             "backup_path": str(backup_path), "backup_digest": digest,
         })
-        memory.clear()
-        adaptive_mutator.reset()
+        adaptive_bias = adaptive_mutator.success_bias.copy()
+        adaptive_history = list(adaptive_mutator.mutation_history)
+        try:
+            memory.clear()
+            adaptive_mutator.reset()
+        except Exception:
+            adaptive_mutator.success_bias = adaptive_bias
+            adaptive_mutator.mutation_history = adaptive_history
+            raise
         audit.append("memory.clear.succeeded", {
             "operation_id": operation, "actor": actor,
             "backup_path": str(backup_path), "backup_digest": digest,

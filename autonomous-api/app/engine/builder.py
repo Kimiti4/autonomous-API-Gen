@@ -339,12 +339,23 @@ async def cache_invalidation_probe():
 async def health_check():
     return {"status": "healthy"}
 ''' if genome.health_endpoints else ""
+    logging_code = ""
+    if genome.logging_level:
+        import_level = genome.logging_level
+        logging_code = f"""
+import logging
+logging.basicConfig(level=logging.{import_level}, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+logger = logging.getLogger("generated-api")
+"""
     request_import = "from fastapi import Request\n" if genome.metrics_endpoints or genome.rate_limiting or genome.tracing_enabled or genome.timeout_config or genome.retry_policy or genome.cache_enabled else ""
     return f'''"""Generated API architecture."""
 import os
+import shutil
+from pathlib import Path
 import asyncio
 from fastapi import FastAPI
 {request_import}{services_imports}
+{logging_code}
 from database import init_db
 app = FastAPI(title="Evolved API System", version="{genome.api_version}", description="Generated API architecture")
 {cors_code}
@@ -486,13 +497,16 @@ def generate_requirements(genome: Genome) -> str:
     return "\n".join(packages) + "\n"
 
 
-def build_genome_output(genome: Genome, output_dir: str = "output/generated_api") -> str:
+def build_genome_output(genome: Genome, output_dir: str = "output/generated_api", target=None) -> str:
     # Committed Genome -> validated architecture request -> backend boundary.
     # The generator never interprets the architecture directly; lowering is a
     # compiler-backend concern (see app/engine/backends.py).
+    from app.engine.backend_contract import PYTHON_FASTAPI
     from app.engine.backends import compile_and_materialize
 
-    return compile_and_materialize(genome.encode(), output_dir=output_dir)
+    return compile_and_materialize(
+        genome.encode(), output_dir=output_dir, target=target or PYTHON_FASTAPI
+    )
 
 
 def generate_dockerfile(genome: Genome) -> str:

@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     RATE_LIMIT_EVOLUTION: int = 20
     RATE_LIMIT_WINDOW: int = 60
 
+    GOVERNANCE_CERTIFIERS: str = ""
+    GOVERNANCE_QUORUM_THRESHOLD: float = 1.0
+    GOVERNANCE_EXECUTIVE_WEIGHT: float = 0.6
+    GOVERNANCE_ENFORCEMENT_REQUIRED: bool = False
+    GOVERNANCE_AUDIT_SIGNING_KEY: str = "development-only-audit-key"
+
     LOG_LEVEL: str = "INFO"
     LOG_FILE: str = "logs/app.log"
 
@@ -47,6 +53,13 @@ class Settings(BaseSettings):
             raise ValueError("ENVIRONMENT must be development, test, staging, or production")
         return value
 
+    @field_validator("GOVERNANCE_QUORUM_THRESHOLD", "GOVERNANCE_EXECUTIVE_WEIGHT")
+    @classmethod
+    def _non_negative_governance_weights(cls, v):
+        if v < 0:
+            raise ValueError("governance quorum and executive weight must be non-negative")
+        return v
+
     @field_validator("RATE_LIMIT_GENERAL", "RATE_LIMIT_EVOLUTION", "RATE_LIMIT_WINDOW")
     @classmethod
     def _positive_limits(cls, v):
@@ -63,6 +76,14 @@ class Settings(BaseSettings):
                 raise ValueError("SECRET_KEY must be explicitly configured in production")
             if not self.CORS_ORIGINS:
                 raise ValueError("CORS_ORIGINS must be configured in production")
+            if not self.GOVERNANCE_CERTIFIERS.strip():
+                raise ValueError("GOVERNANCE_CERTIFIERS is required in production")
+            if self.GOVERNANCE_QUORUM_THRESHOLD <= 0:
+                raise ValueError("GOVERNANCE_QUORUM_THRESHOLD must be positive in production")
+            if not self.GOVERNANCE_ENFORCEMENT_REQUIRED:
+                raise ValueError("GOVERNANCE_ENFORCEMENT_REQUIRED must be true in production")
+            if not self.GOVERNANCE_AUDIT_SIGNING_KEY or self.GOVERNANCE_AUDIT_SIGNING_KEY == "development-only-audit-key":
+                raise ValueError("GOVERNANCE_AUDIT_SIGNING_KEY must be explicitly configured in production")
         return self
 
     model_config = SettingsConfigDict(

@@ -21,6 +21,12 @@ class CapabilityResult:
 
 IMPLEMENTED_AUTH = {"jwt", "api_key", "basic"}
 SUPPORTED_DATABASES = {"postgres", "mysql", "sqlite"}
+SUPPORTED_MIDDLEWARE = {
+    "auth", "caching", "tracing", "rate_limiting",
+    "circuit_breaker", "retry", "cors",
+}
+SUPPORTED_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR"}
+SUPPORTED_SECURITY_POLICIES = {"jwt_validation", "rate_limiting"}
 
 
 def _valid_request_timeout(config: dict[str, Any]) -> bool:
@@ -67,20 +73,46 @@ def assess_genome(genome: Genome) -> list[CapabilityResult]:
     add("circuit_breaker", genome.circuit_breaker, genome.circuit_breaker, "A generated process-local circuit breaker tracks transient failures, opens after a threshold, supports half-open recovery, and fails fast while open.")
     add("cache", genome.cache_enabled, genome.cache_enabled, "A generated bounded process-local response cache supports GET/HEAD hits, TTL expiry, anonymous-only caching, and mutation invalidation; distributed cache backends remain a separate backend capability.")
 
-    unsupported = {
-        "backends": bool(genome.backends),
-        "middleware": bool(genome.middleware),
-        "security_policies": bool(genome.security_policies),
-        "logging_level": bool(genome.logging_level),
-    }
-    reasons = {
-        "backends": "Backend descriptors are represented but external cache/queue backends are not generated.",
-        "middleware": "Arbitrary middleware selections are represented but not lowered.",
-        "security_policies": "Security-policy descriptors are not independently lowered into enforcement code.",
-        "logging_level": "Logging level is represented but no generated logging configuration is emitted.",
-    }
-    for name, requested in unsupported.items():
-        add(name, requested, False, reasons[name])
+    middleware_items = genome.middleware
+    middleware_valid = all(isinstance(item, str) and item in SUPPORTED_MIDDLEWARE for item in middleware_items)
+    add(
+        "middleware",
+        bool(genome.middleware),
+        bool(genome.middleware) and middleware_valid,
+        "The FastAPI lowerer supports the declared middleware vocabulary and rejects unknown middleware instead of silently dropping it.",
+    )
+    policies = genome.security_policies
+    policies_dict = all(isinstance(policy, dict) for policy in policies)
+    policy_types = {policy.get("type") for policy in policies if isinstance(policy, dict)}
+    policies_valid = policies_dict and all(policy_type in SUPPORTED_SECURITY_POLICIES for policy_type in policy_types)
+    jwt_policy_ok = all(
+        policy.get("type") != "jwt_validation" or genome.auth == "jwt"
+        for policy in policies
+        if isinstance(policy, dict)
+    )
+    rate_policy_ok = all(
+        policy.get("type") != "rate_limiting" or genome.rate_limiting
+        for policy in policies
+        if isinstance(policy, dict)
+    )
+    add(
+        "security_policies",
+        bool(genome.security_policies),
+        bool(genome.security_policies) and policies_valid and jwt_policy_ok and rate_policy_ok,
+        "JWT-validation and rate-limiting policy descriptors are enforced by the generated authentication/limiter paths; unknown or inconsistent policies fail closed.",
+    )
+    add(
+        "logging_level",
+        bool(genome.logging_level),
+        genome.logging_level in SUPPORTED_LOG_LEVELS,
+        "Standard-library logging configuration is emitted for DEBUG, INFO, WARNING and ERROR.",
+    )
+    add(
+        "backends",
+        bool(genome.backends),
+        False,
+        "External cache/message-queue backend descriptors remain reserved for a backend that can provide their real runtime semantics; they are never represented as implemented by the local FastAPI cache.",
+    )
     return results
 
 

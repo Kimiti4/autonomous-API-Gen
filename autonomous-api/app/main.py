@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router
 from app.api.ws import router as ws_router
 from app.api.observation_routes import router as observation_router
+from app.api.governance_routes import router as governance_router
 from app.core.config import get_settings
 from app.core.logger import logger
 from app.middleware.error_handler import ErrorHandlingConfig, install_error_handlers
@@ -24,6 +25,13 @@ from app.core.contracts.events import EventSource
 from app.storage.db import init_db, engine as db_engine
 from app.storage.models import GenomeRecord
 from app.core.metrics import setup_metrics
+from app.engine.evolution import EvolutionEngine
+from app.governance.subsystem import GovernanceSubsystem
+from app.governance.adapters.sqlite import (
+    SqliteGovernanceEventStore,
+    SqliteGovernanceReferenceStore,
+)
+from app.governance.runtime import configure_governance
 
 settings = get_settings()
 
@@ -105,6 +113,24 @@ configure_observation(
 )
 
 
+def _governance_certifiers() -> set[str]:
+    return {
+        value.strip()
+        for value in settings.GOVERNANCE_CERTIFIERS.split(",")
+        if value.strip()
+    }
+
+
+governance = GovernanceSubsystem(
+    event_store=SqliteGovernanceEventStore(settings.GOVERNANCE_AUDIT_SIGNING_KEY or settings.SECRET_KEY),
+    reference_store=SqliteGovernanceReferenceStore(),
+    quorum_threshold=settings.GOVERNANCE_QUORUM_THRESHOLD,
+    recognized_certifiers=_governance_certifiers() or None,
+    executive_voting_weight=settings.GOVERNANCE_EXECUTIVE_WEIGHT,
+)
+configure_governance(governance)
+
+
 async def manager_broadcast(envelope) -> None:
     await ws_manager.broadcast(envelope.model_dump(mode="json"))
 
@@ -130,6 +156,7 @@ except Exception:  # pragma: no cover
 app.include_router(router)
 app.include_router(ws_router)
 app.include_router(observation_router)
+app.include_router(governance_router)
 setup_metrics(app)
 
 
@@ -151,6 +178,11 @@ async def startup_event():
     logger.info(f"Model: {settings.OLLAMA_MODEL}")
     try:
         init_db()
+        recovered = EvolutionEngine.recover_interrupted_runs()
+        if recovered:
+            logger.warning(
+                "Recovered %s interrupted evolution run(s) as abandoned", recovered
+            )
         logger.info("Database initialized successfully")
     except Exception:
         logger.exception("Database initialization failed; refusing to start")

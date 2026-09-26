@@ -4,6 +4,7 @@ import random
 from typing import Dict, List, Optional, Callable
 from datetime import datetime
 from app.core.logger import logger
+from app.core.config import get_settings
 from app.engine.genome import Genome
 from app.core.population import Population
 from app.core.crossover import crossover
@@ -14,15 +15,21 @@ from app.engine.adaptive import AdaptiveMutator
 from app.engine.multi_population import MultiPopulationSystem
 from app.engine.benchmark import benchmark_api_performance, calculate_performance_fitness
 from app.engine.builder import build_genome_output
+from app.engine.backend_contract import BackendTarget, PYTHON_FASTAPI
 from app.engine.production_readiness import ProductionReadinessAnalyzer
 from app.storage.db import SessionLocal
 from app.storage.models import GenomeRecord, EvolutionRun
+from app.storage.lease import (
+    acquire_control_plane_lease,
+    heartbeat_control_plane_lease,
+    release_control_plane_lease,
+)
 
 class EliteEvolutionEngine:
     """Advanced evolution engine with persistent memory, adaptation and multi-population search."""
     _EVENT_TYPE_MAP = {"evolution_start":"evolution.stage_changed","generation_start":"evolution.stage_changed","new_best":"candidate.promoted","generation_complete":"fitness.evaluated","building_best":"evolution.stage_changed","docker_test":"evolution.stage_changed","evolution_complete":"evolution.stage_changed"}
-    def __init__(self):
-        self.memory=EvolutionMemory(); self.adaptive_mutator=AdaptiveMutator(); self.multi_pop=None; self.websocket_callback:Optional[Callable]=None; self.dispatcher=None; self.production_analyzer=ProductionReadinessAnalyzer()
+    def __init__(self, target: BackendTarget = PYTHON_FASTAPI):
+        self.target=target; self.memory=EvolutionMemory(); self.adaptive_mutator=AdaptiveMutator(); self.multi_pop=None; self.websocket_callback:Optional[Callable]=None; self.dispatcher=None; self.production_analyzer=ProductionReadinessAnalyzer()
     def set_websocket_callback(self, callback: Callable): self.websocket_callback=callback
     def set_dispatcher(self, dispatcher): self.dispatcher=dispatcher
     async def _emit_update(self, data:dict, *, run_id:str="global", generation:int=0):
@@ -44,17 +51,18 @@ class EliteEvolutionEngine:
         return round(final_fitness,3)
     async def run_elite_evolution(self,generations:int=10,population_size:int=8,use_multi_population:bool=True,enable_adaptive_mutation:bool=True,use_docker:bool=False,seed:Optional[int]=None)->dict:
         run_id=str(uuid.uuid4()); logger.info(f"Starting elite evolution run {run_id}"); previous_state=random.getstate()
+        lease_token = acquire_control_plane_lease(owner_run_id=f"elite:{run_id}")
         if seed is not None: random.seed(seed)
         try:
             if use_multi_population: self.multi_pop=MultiPopulationSystem(population_size=population_size); groups=self.multi_pop.groups
             else: groups={"balanced":Population(size=population_size*4)}
             all_history={g:[] for g in groups}; global_best_genome=None; global_best_fitness=float("-inf")
-            await self._emit_update({"type":"elite_evolution_start","run_id":run_id,"generations":generations,"groups":list(groups.keys()),"adaptive_mutation":enable_adaptive_mutation,"seed":seed,"evaluation_mode":"static"},run_id=run_id)
+            await self._emit_update({"type":"elite_evolution_start","run_id":run_id,"generations":generations,"groups":list(groups.keys()),"adaptive_mutation":enable_adaptive_mutation,"seed":seed,"evaluation_mode":"static","backend_id":self.target.backend_id},run_id=run_id)
             for gen in range(generations):
                 for group_name,population in groups.items():
                     fitness_scores=[]
                     for genome in population.individuals:
-                        fitness=await self.evaluate_genome(genome,group_name); fitness_scores.append(fitness)
+                        fitness=await self.evaluate_genome(genome,group_name); heartbeat_control_plane_lease(lease_token); fitness_scores.append(fitness)
                         if enable_adaptive_mutation: self.adaptive_mutator.update(genome.encode(),fitness)
                         if fitness>global_best_fitness: global_best_fitness=fitness; global_best_genome=genome
                     best_in_group=max(fitness_scores); avg_fitness=sum(fitness_scores)/len(fitness_scores); all_history[group_name].append({"generation":gen+1,"best":best_in_group,"avg":avg_fitness})
@@ -68,15 +76,25 @@ class EliteEvolutionEngine:
                 if use_multi_population and (gen+1)%3==0: self.multi_pop.cross_pollinate()
                 await asyncio.sleep(.05)
             build_error = None
+            output_path = None
             if global_best_genome:
-                try:
-                    output_path = build_genome_output(global_best_genome)
-                except ValueError as exc:
-                    output_path = None
-                    build_error = f"best genome not lowerable: {exc}"
-                    logger.error("Best genome build failed: %s", exc)
+                if get_settings().GOVERNANCE_ENFORCEMENT_REQUIRED:
+                    build_error = (
+                        "governance promotion gate denied: elite evolution has no "
+                        "verified artifact evidence, so production publication "
+                        "fails closed"
+                    )
+                    logger.error("Elite evolution promotion blocked: %s", build_error)
+                else:
+                    try:
+                        output_path = build_genome_output(global_best_genome, target=self.target)
+                    except ValueError as exc:
+                        output_path = None
+                        build_error = f"best genome not lowerable: {exc}"
+                        logger.error("Best genome build failed: %s", exc)
             return {"run_id":run_id,"best_genome":global_best_genome.encode() if global_best_genome and not build_error else None,"best_fitness":global_best_fitness if global_best_genome and not build_error else 0.0,"production_readiness":self.production_analyzer.analyze(global_best_genome) if global_best_genome and not build_error else None,"history":all_history,"output_path":output_path,"build_error":build_error,"total_generations":generations,"insights":self.memory.get_pattern_insights(),"top_features":self.adaptive_mutator.get_top_features(5) if enable_adaptive_mutation else [],"memory_stats":self.memory.get_statistics(),"seed":seed,"evaluation_mode":"static"}
         finally:
+            release_control_plane_lease(lease_token)
             if seed is not None: random.setstate(previous_state)
     def get_memory_insights(self)->dict: return {"statistics":self.memory.get_statistics(),"pattern_insights":self.memory.get_pattern_insights(),"suggested_genome":self.memory.get_suggested_genome(),"adaptive_bias":self.adaptive_mutator.get_bias_report() if self.adaptive_mutator else None}
     def clear_memory(self): self.memory.clear(); self.adaptive_mutator.reset(); logger.info("All memory cleared")

@@ -29,7 +29,7 @@ from constitutional_architecture.deployment.targets.kubernetes_target import Kub
 from constitutional_architecture.deployment.targets.local_target import LocalTarget
 from constitutional_architecture.deployment.targets.target_interface import DeploymentTarget, TargetResult
 from constitutional_architecture.deployment.rollout.rollout_manager import RolloutManager, RolloutConfig, RolloutStrategy, RolloutPlan
-from constitutional_architecture.deployment.rollout.rollback_manager import RollbackManager, RollbackConfig, RollbackReason
+from constitutional_architecture.deployment.rollout.rollback_manager import RollbackExecution, RollbackManager, RollbackConfig, RollbackReason
 from constitutional_architecture.deployment.rollout.promotion_manager import PromotionManager, PromotionConfig, PromotionEnvironment
 from constitutional_architecture.deployment.health.health_monitor import HealthMonitor, HealthCheckConfig, HealthStatus
 

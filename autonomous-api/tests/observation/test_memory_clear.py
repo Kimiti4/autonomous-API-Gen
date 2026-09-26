@@ -131,7 +131,7 @@ def test_memory_clear_audit_tamper_fails_closed(tmp_path, monkeypatch, isolated_
     )
     with db.begin() as conn:
         conn.execute(
-            text("UPDATE memory_clear_audit SET payload = '{"tampered":true}' WHERE sequence = 1")
+            text("UPDATE memory_clear_audit SET payload = :payload WHERE sequence = 1"), {"payload": "{\"tampered\":true}"}
         )
     with pytest.raises(AuditIntegrityError):
-        MemoryClearAuditStore(module.get_settings().GOVERNANCE_AUDIT_SIGNING_KEY).verify()
+        MemoryClearAuditStore(get_settings().GOVERNANCE_AUDIT_SIGNING_KEY).verify()

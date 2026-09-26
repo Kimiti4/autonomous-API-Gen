@@ -149,6 +149,30 @@ class SqliteGovernanceEventStore:
         records = await self.audit(candidate_id)
         return [_load_event(record.payload) for record in records]
 
+    async def load_generation(self, generation: int) -> dict:
+        """Return chain-verified histories for candidates with a decision in
+        the given generation. Every candidate history is verified through the
+        audit chain before it is reconstructed."""
+        with engine.connect() as connection:
+            candidate_ids = connection.execute(
+                text(
+                    "SELECT DISTINCT candidate_id FROM governance_events "
+                    "WHERE event_type = 'GovernanceDecisionMade' "
+                    "ORDER BY candidate_id"
+                )
+            ).scalars().all()
+
+        complete = {}
+        for candidate_id in candidate_ids:
+            events = await self.load(candidate_id)
+            if any(
+                isinstance(event, GovernanceDecisionMade)
+                and event.decision.generation == generation
+                for event in events
+            ):
+                complete[candidate_id] = events
+        return complete
+
 
 class SqliteGovernanceReferenceStore:
     """Durable council/gate/policy registry."""

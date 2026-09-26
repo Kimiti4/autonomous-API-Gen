@@ -103,3 +103,47 @@ def test_sqlite_governance_event_round_trip(tmp_path):
         assert type(loaded[0]).__name__ == "GovernanceDecisionMade"
     finally:
         governance_sqlite.engine = original
+
+
+def test_sqlite_load_generation_is_chain_verified(tmp_path, monkeypatch):
+    import pytest
+
+    from app.core.contracts.governance import GovernanceDecision
+    from app.storage.migrations import migrate
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'generation.db'}")
+    migrate(engine)
+    monkeypatch.setattr(governance_sqlite, "engine", engine)
+    store = governance_sqlite.SqliteGovernanceEventStore("test-key")
+
+    decision = GovernanceDecision(
+        decisionId="d-gen",
+        candidateId="c-gen",
+        generation=3,
+        verdict="approve",
+        fromState="evaluating",
+        toState="verified",
+        authorizesTransition=True,
+        decidedBy=["executive"],
+        rationale="r",
+        evidenceRefs=[],
+        decidedAt="2026-09-26T00:00:00+00:00",
+    )
+    asyncio.run(store.append("c-gen", [GovernanceDecisionMade(decision=decision)]))
+
+    matched = asyncio.run(store.load_generation(3))
+    assert list(matched) == ["c-gen"]
+    assert len(matched["c-gen"]) == 1
+    assert asyncio.run(store.load_generation(9)) == {}
+
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "UPDATE governance_audit SET payload = :payload "
+                "WHERE candidate_id = 'c-gen'"
+            ),
+            {"payload": '{"type":"GovernanceDecisionMade","payload":{"tampered":true}}'},
+        )
+
+    with pytest.raises(Exception, match="hash mismatch"):
+        asyncio.run(store.load_generation(3))

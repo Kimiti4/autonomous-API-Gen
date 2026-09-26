@@ -112,3 +112,26 @@ async def generation_governance(
             for state in states
         ],
     }
+
+
+@router.get("/audit/{candidate_id}")
+async def candidate_audit(
+    candidate_id: str, _auth=Depends(require_auth)
+):
+    records = await get_governance().audit_candidate(candidate_id)
+    return {
+        "candidateId": candidate_id,
+        "verified": True,
+        "records": [
+            {
+                "candidateId": record.candidate_id,
+                "sequence": record.sequence,
+                "eventType": record.event_type,
+                "payload": record.payload,
+                "previousHash": record.previous_hash,
+                "recordHash": record.record_hash,
+                "signature": record.signature,
+            }
+            for record in records
+        ],
+    }

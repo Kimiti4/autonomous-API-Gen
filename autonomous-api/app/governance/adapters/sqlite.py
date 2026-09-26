@@ -130,7 +130,18 @@ class SqliteGovernanceEventStore:
                 ),
                 {"candidate_id": candidate_id},
             ).all()
+            event_count = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM governance_events "
+                    "WHERE candidate_id = :candidate_id"
+                ),
+                {"candidate_id": candidate_id},
+            ).scalar_one()
         records = [AuditRecord(*row) for row in rows]
+        if len(records) != event_count:
+            raise RuntimeError(
+                "governance audit/event count mismatch; refusing unsigned or incomplete history"
+            )
         verify_chain(records, self._signer)
         return records
 

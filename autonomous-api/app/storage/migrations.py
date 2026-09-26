@@ -9,7 +9,7 @@ from __future__ import annotations
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import Engine
 
-LATEST_SCHEMA_VERSION = 3
+LATEST_SCHEMA_VERSION = 4
 
 _REQUIRED_COLUMNS = {
     "genomes": {"id", "genome_data", "fitness_score", "generation", "created_at"},
@@ -114,12 +114,35 @@ def _apply_v3(engine: Engine) -> None:
         connection.execute(text("UPDATE schema_version SET version = 3"))
 
 
+
+def _apply_v4(engine: Engine) -> None:
+    with engine.begin() as connection:
+        connection.execute(text("""
+            CREATE TABLE IF NOT EXISTS governance_audit (
+                id INTEGER PRIMARY KEY,
+                candidate_id VARCHAR NOT NULL,
+                sequence INTEGER NOT NULL,
+                event_type VARCHAR NOT NULL,
+                payload TEXT NOT NULL,
+                previous_hash VARCHAR NOT NULL,
+                record_hash VARCHAR NOT NULL,
+                signature VARCHAR NOT NULL,
+                UNIQUE(candidate_id, sequence)
+            )
+        """))
+        connection.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_governance_audit_candidate_id "
+            "ON governance_audit (candidate_id, sequence)"
+        ))
+        connection.execute(text("UPDATE schema_version SET version = 4"))
+
+
 def _verify_schema(engine: Engine) -> None:
     inspector = inspect(engine)
     tables = set(inspector.get_table_names())
     required_tables = set(_REQUIRED_COLUMNS) | {
         "schema_version", "control_plane_lease", "governance_events",
-        "governance_council", "governance_gates", "governance_policies",
+        "governance_council", "governance_gates", "governance_policies", "governance_audit",
     }
     missing_tables = required_tables - tables
     if missing_tables:
@@ -172,6 +195,10 @@ def migrate(engine: Engine) -> int:
 
     if version < 3:
         _apply_v3(engine)
+        version = 3
+
+    if version < 4:
+        _apply_v4(engine)
 
     _verify_schema(engine)
     return LATEST_SCHEMA_VERSION

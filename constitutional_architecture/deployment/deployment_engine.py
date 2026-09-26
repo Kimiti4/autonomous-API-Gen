@@ -114,7 +114,7 @@ class DeploymentEngine:
         container_result = ctx.get_stage_result("containerize")
         infrastructure_result = ctx.get_stage_result("infrastructure")
         deployment_result = DeploymentResult(
-            deployment_id=ctx.metadata.get("deployment_id", ""),
+            deployment_id=ctx.metadata.get("deployment_id") or rollout_plan.rollout_id,
             status=DeploymentStatus.RUNNING,
             duration_seconds=overall_duration,
             version=ctx.isr.system.name,

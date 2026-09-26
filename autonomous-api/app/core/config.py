@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     GOVERNANCE_QUORUM_THRESHOLD: float = 1.0
     GOVERNANCE_EXECUTIVE_WEIGHT: float = 0.6
     GOVERNANCE_ENFORCEMENT_REQUIRED: bool = False
+    GOVERNANCE_AUDIT_SIGNING_KEY: str = ""
 
     LOG_LEVEL: str = "INFO"
     LOG_FILE: str = "logs/app.log"
@@ -81,6 +82,8 @@ class Settings(BaseSettings):
                 raise ValueError("GOVERNANCE_QUORUM_THRESHOLD must be positive in production")
             if not self.GOVERNANCE_ENFORCEMENT_REQUIRED:
                 raise ValueError("GOVERNANCE_ENFORCEMENT_REQUIRED must be true in production")
+            if not self.GOVERNANCE_AUDIT_SIGNING_KEY:
+                raise ValueError("GOVERNANCE_AUDIT_SIGNING_KEY is required in production")
         return self
 
     model_config = SettingsConfigDict(

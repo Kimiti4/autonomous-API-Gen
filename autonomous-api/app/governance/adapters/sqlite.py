@@ -11,6 +11,7 @@ import json
 
 from sqlalchemy import text
 
+from app.core.governance.audit import AuditRecord, GovernanceAuditSigner, verify_chain
 from app.core.contracts.governance import (
     CouncilComposition,
     GovernanceGate,
@@ -59,13 +60,34 @@ def _load_event(raw: str):
 
 
 class SqliteGovernanceEventStore:
-    """Durable append-only governance event store."""
+    """Durable append-only governance event store with signed audit envelopes."""
+
+    def __init__(self, signing_key: str):
+        self._signer = GovernanceAuditSigner(signing_key)
 
     async def append(self, candidate_id: str, events: list) -> None:
         if not events:
             return
         with engine.begin() as connection:
+            previous = connection.execute(
+                text(
+                    "SELECT sequence, record_hash FROM governance_audit "
+                    "WHERE candidate_id = :candidate_id ORDER BY sequence DESC LIMIT 1"
+                ),
+                {"candidate_id": candidate_id},
+            ).first()
+            sequence = (previous[0] + 1) if previous else 1
+            previous_hash = previous[1] if previous else ""
             for event in events:
+                payload = _dump_event(event)
+                event_type = type(event).__name__
+                record_hash, signature = self._signer.sign(
+                    candidate_id=candidate_id,
+                    sequence=sequence,
+                    event_type=event_type,
+                    payload=payload,
+                    previous_hash=previous_hash,
+                )
                 connection.execute(
                     text(
                         "INSERT INTO governance_events "
@@ -74,44 +96,47 @@ class SqliteGovernanceEventStore:
                     ),
                     {
                         "candidate_id": candidate_id,
-                        "event_type": type(event).__name__,
-                        "payload": _dump_event(event),
+                        "event_type": event_type,
+                        "payload": payload,
                     },
                 )
+                connection.execute(
+                    text(
+                        "INSERT INTO governance_audit "
+                        "(candidate_id, sequence, event_type, payload, previous_hash, record_hash, signature) "
+                        "VALUES (:candidate_id, :sequence, :event_type, :payload, "
+                        ":previous_hash, :record_hash, :signature)"
+                    ),
+                    {
+                        "candidate_id": candidate_id,
+                        "sequence": sequence,
+                        "event_type": event_type,
+                        "payload": payload,
+                        "previous_hash": previous_hash,
+                        "record_hash": record_hash,
+                        "signature": signature,
+                    },
+                )
+                previous_hash = record_hash
+                sequence += 1
 
-    async def load(self, candidate_id: str) -> list:
+    async def audit(self, candidate_id: str) -> list[AuditRecord]:
         with engine.connect() as connection:
             rows = connection.execute(
                 text(
-                    "SELECT payload FROM governance_events "
-                    "WHERE candidate_id = :candidate_id ORDER BY id ASC"
+                    "SELECT candidate_id, sequence, event_type, payload, previous_hash, "
+                    "record_hash, signature FROM governance_audit "
+                    "WHERE candidate_id = :candidate_id ORDER BY sequence ASC"
                 ),
                 {"candidate_id": candidate_id},
-            ).scalars().all()
-        return [_load_event(raw) for raw in rows]
-
-    async def load_generation(self, generation: int) -> dict:
-        with engine.connect() as connection:
-            rows = connection.execute(
-                text(
-                    "SELECT candidate_id, payload FROM governance_events "
-                    "WHERE event_type = 'GovernanceDecisionMade' ORDER BY id ASC"
-                )
             ).all()
+        records = [AuditRecord(*row) for row in rows]
+        verify_chain(records, self._signer)
+        return records
 
-        result = {}
-        for candidate_id, raw in rows:
-            event = _load_event(raw)
-            if event.decision.generation == generation:
-                result.setdefault(candidate_id, []).append(event)
-
-        # A generation projection needs the complete candidate history so
-        # lifecycle state is reconstructed correctly, not just the matching
-        # decision event.
-        complete = {}
-        for candidate_id in result:
-            complete[candidate_id] = await self.load(candidate_id)
-        return complete
+    async def load(self, candidate_id: str) -> list:
+        records = await self.audit(candidate_id)
+        return [_load_event(record.payload) for record in records]
 
 
 class SqliteGovernanceReferenceStore:

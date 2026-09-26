@@ -9,7 +9,7 @@ from __future__ import annotations
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import Engine
 
-LATEST_SCHEMA_VERSION = 4
+LATEST_SCHEMA_VERSION = 5
 
 _REQUIRED_COLUMNS = {
     "genomes": {"id", "genome_data", "fitness_score", "generation", "created_at"},
@@ -137,18 +137,54 @@ def _apply_v4(engine: Engine) -> None:
         connection.execute(text("UPDATE schema_version SET version = 4"))
 
 
+def _apply_v5(engine: Engine) -> None:
+    with engine.begin() as connection:
+        connection.execute(text("""
+            CREATE TABLE IF NOT EXISTS memory_clear_audit (
+                id INTEGER PRIMARY KEY,
+                scope VARCHAR NOT NULL,
+                sequence INTEGER NOT NULL,
+                operation_id VARCHAR NOT NULL,
+                event_type VARCHAR NOT NULL,
+                payload TEXT NOT NULL,
+                previous_hash VARCHAR NOT NULL,
+                record_hash VARCHAR NOT NULL,
+                signature VARCHAR NOT NULL,
+                UNIQUE(scope, sequence),
+                UNIQUE(scope, operation_id)
+            )
+        """))
+        connection.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_memory_clear_audit_scope "
+            "ON memory_clear_audit (scope, sequence)"
+        ))
+        connection.execute(text("UPDATE schema_version SET version = 5"))
+
+
 def _verify_schema(engine: Engine) -> None:
     inspector = inspect(engine)
     tables = set(inspector.get_table_names())
     required_tables = set(_REQUIRED_COLUMNS) | {
         "schema_version", "control_plane_lease", "governance_events",
-        "governance_council", "governance_gates", "governance_policies", "governance_audit",
+        "governance_council", "governance_gates", "governance_policies", "governance_audit", "memory_clear_audit",
     }
     missing_tables = required_tables - tables
     if missing_tables:
         raise RuntimeError(
             "Database schema verification failed; missing tables: "
             + ", ".join(sorted(missing_tables))
+        )
+
+    clear_audit_columns = {column["name"] for column in inspector.get_columns("memory_clear_audit")}
+    required_clear_audit_columns = {
+        "id", "scope", "sequence", "operation_id", "event_type", "payload",
+        "previous_hash", "record_hash", "signature",
+    }
+    missing_clear_audit_columns = required_clear_audit_columns - clear_audit_columns
+    if missing_clear_audit_columns:
+        raise RuntimeError(
+            "Database schema verification failed for memory_clear_audit; missing columns: "
+            + ", ".join(sorted(missing_clear_audit_columns))
         )
 
     audit_columns = {column["name"] for column in inspector.get_columns("governance_audit")}
@@ -211,6 +247,10 @@ def migrate(engine: Engine) -> int:
 
     if version < 4:
         _apply_v4(engine)
+        version = 4
+
+    if version < 5:
+        _apply_v5(engine)
 
     _verify_schema(engine)
     return LATEST_SCHEMA_VERSION

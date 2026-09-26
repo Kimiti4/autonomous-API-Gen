@@ -121,7 +121,6 @@ async def clear_elite_memory_route(
     auth=Depends(require_auth),
 ):
     return clear_elite_memory(
-        engine_instance=elite_engine,
         memory=elite_engine.memory,
         adaptive_mutator=elite_engine.adaptive_mutator,
         actor=auth.subject,

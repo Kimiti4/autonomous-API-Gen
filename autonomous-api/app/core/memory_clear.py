@@ -6,17 +6,21 @@ import json
 import os
 import shutil
 import tempfile
+import threading
 from pathlib import Path
 from uuid import UUID
 
 from sqlalchemy import text
 
-from app.core.governance.audit import AuditIntegrityError, AuditRecord, GovernanceAuditSigner, verify_chain
+from app.core.config import get_settings
+from app.core.governance.audit import AuditRecord, GovernanceAuditSigner, verify_chain
 from app.core.ids import uuid7
 from app.storage.db import engine
+from app.storage.lease import acquire_control_plane_lease, release_control_plane_lease
 
 CONFIRMATION = "CLEAR_ELITE_MEMORY"
 SCOPE = "elite-memory"
+_CLEAR_LOCK = threading.Lock()
 
 
 def _sha256(path: Path) -> str:
@@ -29,13 +33,19 @@ def _sha256(path: Path) -> str:
 
 def _atomic_json_backup(source: Path, destination: Path) -> str:
     if not source.is_file():
-        raise RuntimeError("elite evolution memory file does not exist; refusing destructive clear")
+        raise RuntimeError(
+            "elite evolution memory file does not exist; refusing destructive clear"
+        )
     try:
         data = json.loads(source.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise RuntimeError("elite evolution memory is unreadable; refusing destructive clear") from exc
+        raise RuntimeError(
+            "elite evolution memory is unreadable; refusing destructive clear"
+        ) from exc
     if not isinstance(data, dict):
-        raise RuntimeError("elite evolution memory is not a JSON object; refusing destructive clear")
+        raise RuntimeError(
+            "elite evolution memory is not a JSON object; refusing destructive clear"
+        )
 
     destination.parent.mkdir(parents=True, exist_ok=True)
     fd, temp_name = tempfile.mkstemp(
@@ -113,68 +123,115 @@ class MemoryClearAuditStore:
         with engine.connect() as connection:
             rows = connection.execute(
                 text(
-                    "SELECT scope, sequence, event_type, payload, previous_hash, record_hash, signature "
-                    "FROM memory_clear_audit WHERE scope = :scope ORDER BY sequence ASC"
+                    "SELECT scope, sequence, event_type, payload, previous_hash, "
+                    "record_hash, signature FROM memory_clear_audit "
+                    "WHERE scope = :scope ORDER BY sequence ASC"
                 ),
                 {"scope": SCOPE},
             ).all()
         records = [AuditRecord(*row) for row in rows]
-        try:
-            verify_chain(records, self._signer)
-        except AuditIntegrityError:
-            raise
+        verify_chain(records, self._signer)
         return records
 
 
-def clear_elite_memory(*, memory, adaptive_mutator, actor: str,
-                       confirmation: str, operation_id: str | None = None) -> dict:
+def clear_elite_memory(
+    *,
+    memory,
+    adaptive_mutator,
+    actor: str,
+    confirmation: str,
+    operation_id: str | None = None,
+) -> dict:
+    """Clear elite memory only after authentication, confirmation and recovery setup."""
     if confirmation != CONFIRMATION:
         raise PermissionError("explicit clear-memory confirmation required")
+    if not actor:
+        raise PermissionError("authenticated actor required")
     try:
         operation = str(UUID(operation_id)) if operation_id else str(uuid7())
     except ValueError as exc:
         raise ValueError("operation_id must be a valid UUID") from exc
-    if not actor:
-        raise PermissionError("authenticated actor required")
 
     memory_path = Path(memory.path).resolve()
     backup_path = memory_path.parent / "memory-backups" / f"{operation}.json"
-    audit = MemoryClearAuditStore(__import__("app.core.config", fromlist=["get_settings"]).get_settings().GOVERNANCE_AUDIT_SIGNING_KEY)
+    audit = MemoryClearAuditStore(get_settings().GOVERNANCE_AUDIT_SIGNING_KEY)
 
     existing = audit.verify()
-    if any(json.loads(record.payload).get("operation_id") == operation for record in existing):
+    if any(
+        json.loads(record.payload).get("operation_id") == operation
+        for record in existing
+    ):
         raise ValueError("operation_id has already been used")
 
-    audit.append("memory.clear.requested", {
-        "operation_id": operation, "actor": actor, "target": SCOPE,
-    })
-    try:
-        digest = _atomic_json_backup(memory_path, backup_path)
-        audit.append("memory.clear.backup_verified", {
-            "operation_id": operation, "actor": actor,
-            "backup_path": str(backup_path), "backup_digest": digest,
-        })
-        adaptive_bias = adaptive_mutator.success_bias.copy()
-        adaptive_history = list(adaptive_mutator.mutation_history)
+    audit.append(
+        "memory.clear.requested",
+        {"operation_id": operation, "actor": actor, "target": SCOPE},
+    )
+
+    lease_token = None
+    with _CLEAR_LOCK:
         try:
-            memory.clear()
-            adaptive_mutator.reset()
-        except Exception:
-            adaptive_mutator.success_bias = adaptive_bias
-            adaptive_mutator.mutation_history = adaptive_history
+            lease_token = acquire_control_plane_lease(
+                owner_run_id=f"memory-clear:{operation}"
+            )
+        except Exception as exc:
+            audit.append(
+                "memory.clear.failed",
+                {
+                    "operation_id": operation,
+                    "actor": actor,
+                    "error": type(exc).__name__,
+                },
+            )
             raise
-        audit.append("memory.clear.succeeded", {
-            "operation_id": operation, "actor": actor,
-            "backup_path": str(backup_path), "backup_digest": digest,
-        })
-        return {
-            "operation_id": operation,
-            "status": "cleared",
-            "backup_path": str(backup_path),
-            "backup_digest": digest,
-        }
-    except Exception as exc:
-        audit.append("memory.clear.failed", {
-            "operation_id": operation, "actor": actor, "error": type(exc).__name__,
-        })
-        raise
+
+        try:
+            digest = _atomic_json_backup(memory_path, backup_path)
+            audit.append(
+                "memory.clear.backup_verified",
+                {
+                    "operation_id": operation,
+                    "actor": actor,
+                    "backup_path": str(backup_path),
+                    "backup_digest": digest,
+                },
+            )
+
+            adaptive_bias = adaptive_mutator.success_bias.copy()
+            adaptive_history = list(adaptive_mutator.mutation_history)
+            try:
+                memory.clear()
+                adaptive_mutator.reset()
+            except Exception:
+                adaptive_mutator.success_bias = adaptive_bias
+                adaptive_mutator.mutation_history = adaptive_history
+                raise
+
+            audit.append(
+                "memory.clear.succeeded",
+                {
+                    "operation_id": operation,
+                    "actor": actor,
+                    "backup_path": str(backup_path),
+                    "backup_digest": digest,
+                },
+            )
+            return {
+                "operation_id": operation,
+                "status": "cleared",
+                "backup_path": str(backup_path),
+                "backup_digest": digest,
+            }
+        except Exception as exc:
+            audit.append(
+                "memory.clear.failed",
+                {
+                    "operation_id": operation,
+                    "actor": actor,
+                    "error": type(exc).__name__,
+                },
+            )
+            raise
+        finally:
+            if lease_token is not None:
+                release_control_plane_lease(lease_token)

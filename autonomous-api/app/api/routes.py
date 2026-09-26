@@ -14,6 +14,9 @@ from app.api.ws import manager
 from app.storage.db import SessionLocal, get_db
 from app.storage.models import EvolutionRun
 from app.schemas.evolution import EvolutionRequest, EliteEvolutionRequest, EvolutionResponse, EliteEvolutionResponse, ProductionReadinessRequest, ProductionReadinessResponse, HealthCheckResponse
+from app.middleware.security import require_auth
+from pydantic import BaseModel, Field
+from app.core.memory_clear import clear_elite_memory
 import psutil
 import os
 
@@ -107,6 +110,21 @@ async def start_elite_evolution(request: EliteEvolutionRequest, background_tasks
 @router.get("/evolve/elite/insights")
 async def get_elite_insights(): return elite_engine.get_memory_insights()
 
+class EliteMemoryClearRequest(BaseModel):
+    confirmation: str = Field(min_length=1)
+    operation_id: str | None = None
+
+
 @router.post("/evolve/elite/clear-memory")
-async def clear_elite_memory():
-    elite_engine.clear_memory(); return {"message": "Memory cleared successfully"}
+async def clear_elite_memory_route(
+    request: EliteMemoryClearRequest,
+    auth=Depends(require_auth),
+):
+    return clear_elite_memory(
+        engine_instance=elite_engine,
+        memory=elite_engine.memory,
+        adaptive_mutator=elite_engine.adaptive_mutator,
+        actor=auth.subject,
+        confirmation=request.confirmation,
+        operation_id=request.operation_id,
+    )

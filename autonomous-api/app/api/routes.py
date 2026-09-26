@@ -17,6 +17,7 @@ from app.schemas.evolution import EvolutionRequest, EliteEvolutionRequest, Evolu
 from app.middleware.security import require_auth
 from pydantic import BaseModel, Field
 from app.core.memory_clear import MemoryClearAuditStore, clear_elite_memory
+from app.core.config import get_settings
 import psutil
 import os
 
@@ -131,7 +132,7 @@ async def clear_elite_memory_route(
 @router.get("/evolve/elite/clear-memory/audit")
 async def elite_memory_clear_audit(_auth=Depends(require_auth)):
     records = MemoryClearAuditStore(
-        __import__("app.core.config", fromlist=["get_settings"]).get_settings().GOVERNANCE_AUDIT_SIGNING_KEY
+        get_settings().GOVERNANCE_AUDIT_SIGNING_KEY
     ).verify()
     return {
         "target": "elite-memory",

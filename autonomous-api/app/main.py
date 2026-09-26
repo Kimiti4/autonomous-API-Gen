@@ -122,7 +122,7 @@ def _governance_certifiers() -> set[str]:
 
 
 governance = GovernanceSubsystem(
-    event_store=SqliteGovernanceEventStore(),
+    event_store=SqliteGovernanceEventStore(settings.GOVERNANCE_AUDIT_SIGNING_KEY or settings.SECRET_KEY),
     reference_store=SqliteGovernanceReferenceStore(),
     quorum_threshold=settings.GOVERNANCE_QUORUM_THRESHOLD,
     recognized_certifiers=_governance_certifiers() or None,

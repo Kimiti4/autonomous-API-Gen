@@ -151,6 +151,18 @@ def _verify_schema(engine: Engine) -> None:
             + ", ".join(sorted(missing_tables))
         )
 
+    audit_columns = {column["name"] for column in inspector.get_columns("governance_audit")}
+    required_audit_columns = {
+        "id", "candidate_id", "sequence", "event_type", "payload",
+        "previous_hash", "record_hash", "signature",
+    }
+    missing_audit_columns = required_audit_columns - audit_columns
+    if missing_audit_columns:
+        raise RuntimeError(
+            "Database schema verification failed for governance_audit; missing columns: "
+            + ", ".join(sorted(missing_audit_columns))
+        )
+
     lease_columns = {column["name"] for column in inspector.get_columns("control_plane_lease")}
     required_lease_columns = {
         "lease_key", "owner_token", "owner_run_id", "acquired_at",

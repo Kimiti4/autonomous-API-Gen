@@ -645,6 +645,78 @@ class TestEngineIntegration:
         result = engine.deploy(ctx)
         assert result.status == DeploymentStatus.FAILED
 
+    def test_rollout_failure_executes_authorized_rollback(self):
+        class FailingRollout:
+            def create_plan(self, ctx, config=None):
+                return RolloutPlan()
+
+            def execute_plan(self, plan, ctx):
+                return DeploymentResult(
+                    deployment_id=plan.rollout_id,
+                    status=DeploymentStatus.FAILED,
+                    metadata={"error": "rollout failed"},
+                )
+
+        isr = _make_isr()
+        ctx = DeploymentContext(
+            isr=isr,
+            metadata={"rollback_authorization_id": "auth-1"},
+        )
+        ctx.deployment_history.append(
+            DeploymentResult(
+                deployment_id="previous",
+                status=DeploymentStatus.RUNNING,
+                version="v1.0.0",
+                build_artifacts=(
+                    DeploymentArtifact(
+                        artifact_type="build",
+                        name="previous-build",
+                        location="./build/v1",
+                        checksum="sha-v1",
+                    ),
+                ),
+            )
+        )
+        calls = []
+
+        def executor(request):
+            calls.append(request)
+            return RollbackExecution(
+                success=True,
+                health_verified=True,
+                target="test-target",
+                restored_version=request["version"],
+            )
+
+        rollback = RollbackManager(
+            RollbackConfig(
+                executor=executor,
+                authorizer=lambda ctx, snapshot, authorization_id: (
+                    authorization_id == "auth-1"
+                    and snapshot.deployment_id == "previous"
+                ),
+            )
+        )
+        engine = DeploymentEngine(
+            rollout_manager=FailingRollout(),
+            rollback_manager=rollback,
+        )
+        pipeline = engine.pipeline
+        pipeline.register_stage(BuildStage())
+        pipeline.register_stage(PackageStage())
+        pipeline.register_stage(InfrastructureStage())
+        pipeline.register_stage(ProvisionStage())
+        pipeline.register_stage(ContainerStage())
+        pipeline.register_stage(DeployStage())
+        pipeline.register_stage(HealthStage())
+
+        result = engine.deploy(ctx)
+
+        assert result.status == DeploymentStatus.ROLLED_BACK
+        assert result.rollback_executed is True
+        assert len(calls) == 1
+        assert calls[0]["deployment_id"] == "previous"
+
     def test_engine_properties(self):
         engine = DeploymentEngine()
         assert engine.pipeline is not None

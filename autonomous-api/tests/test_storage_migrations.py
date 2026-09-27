@@ -72,26 +72,14 @@ def test_database_newer_than_application_fails_closed(tmp_path):
 
 def test_legacy_v5_memory_clear_schema_is_forward_repaired(tmp_path):
     engine = _engine(tmp_path)
+
+    # Start from a complete current schema, then emulate the pre-main v5
+    # window: schema stamped at 5 with the incorrect operation-wide UNIQUE.
+    assert migrate(engine) == LATEST_SCHEMA_VERSION
     with engine.begin() as connection:
-        connection.execute(text(
-            "CREATE TABLE schema_version (version INTEGER NOT NULL)"
-        ))
-        connection.execute(text("INSERT INTO schema_version(version) VALUES (5)"))
-        connection.execute(text("""
-            CREATE TABLE memory_clear_audit (
-                id INTEGER PRIMARY KEY,
-                scope VARCHAR NOT NULL,
-                sequence INTEGER NOT NULL,
-                operation_id VARCHAR NOT NULL,
-                event_type VARCHAR NOT NULL,
-                payload TEXT NOT NULL,
-                previous_hash VARCHAR NOT NULL,
-                record_hash VARCHAR NOT NULL,
-                signature VARCHAR NOT NULL,
-                UNIQUE(scope, sequence),
-                UNIQUE(scope, operation_id)
-            )
-        """))
+        connection.execute(text("DROP INDEX ux_memory_clear_audit_requested"))
+        connection.execute(text("CREATE UNIQUE INDEX legacy_memory_clear_operation_id ON memory_clear_audit (scope, operation_id)"))
+        connection.execute(text("UPDATE schema_version SET version = 5"))
         connection.execute(text("""
             INSERT INTO memory_clear_audit
             (id, scope, sequence, operation_id, event_type, payload,
@@ -130,7 +118,6 @@ def test_legacy_v5_memory_clear_schema_is_forward_repaired(tmp_path):
     assert version == LATEST_SCHEMA_VERSION
     assert count == 3
     assert migrate(engine) == LATEST_SCHEMA_VERSION
-
 
 def test_v0_database_upgrades_through_every_migration(tmp_path):
     engine = _engine(tmp_path)

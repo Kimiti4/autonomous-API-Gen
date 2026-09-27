@@ -47,14 +47,14 @@ import hashlib
 import json
 import os
 from dataclasses import asdict, dataclass, field
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
 GENESIS_HASH = "0" * 64
 
 SCHEMA_ID = "tiannara.governance.attempt"
 SCHEMA_VERSION = "1.0.0"
 
-DEFAULT_PATH = "release/evidence/cbc1-governance.jsonl"
+DEFAULT_PATH = os.environ.get("CERTIFICATION_GOVERNANCE_REGISTRY_PATH", "data/governance/certification-governance.jsonl")
 
 
 def _canonical(obj: Any) -> str:
@@ -150,21 +150,26 @@ class CertificationGovernanceRegistry:
     def __init__(self, path: str = DEFAULT_PATH) -> None:
         self.path = path
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        if os.path.exists(path) and not self.verify(path):
+            raise ValueError(f"certification governance registry integrity failure: {path}")
         self._prev = self._tail_hash() or GENESIS_HASH
-        self._count = 0
-        self._by_phase_attempt: dict[tuple[str, str], dict] = {}
+        existing = self.read_all(path)
+        self._count = len(existing)
+        self._by_phase_attempt = {
+            (e.get("record", {}).get("phase_id", ""), e.get("record", {}).get("attempt_id", "")): e
+            for e in existing
+        }
 
     def _tail_hash(self) -> str | None:
-        try:
-            last: dict | None = None
-            with open(self.path, encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line:
-                        last = json.loads(line)
-            return last["record_hash"] if last else None
-        except (FileNotFoundError, json.JSONDecodeError, KeyError):
+        if not os.path.exists(self.path):
             return None
+        last: dict | None = None
+        with open(self.path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    last = json.loads(line)
+        return last["record_hash"] if last else None
 
     @property
     def prev_hash(self) -> str:

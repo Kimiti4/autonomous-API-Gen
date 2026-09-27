@@ -127,3 +127,91 @@ def test_v0_database_upgrades_through_every_migration(tmp_path):
     with engine.connect() as connection:
         version = connection.execute(text("SELECT version FROM schema_version")).scalar_one()
         assert version == LATEST_SCHEMA_VERSION
+
+
+def test_legacy_v5_schema_is_repaired_without_data_loss(tmp_path):
+    engine = _engine(tmp_path)
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE schema_version (version INTEGER NOT NULL)"))
+        connection.execute(text("INSERT INTO schema_version(version) VALUES (5)"))
+        connection.execute(text("""
+            CREATE TABLE memory_clear_audit (
+                id INTEGER PRIMARY KEY,
+                scope VARCHAR NOT NULL,
+                sequence INTEGER NOT NULL,
+                operation_id VARCHAR NOT NULL,
+                event_type VARCHAR NOT NULL,
+                payload TEXT NOT NULL,
+                previous_hash VARCHAR NOT NULL,
+                record_hash VARCHAR NOT NULL,
+                signature VARCHAR NOT NULL,
+                UNIQUE(scope, sequence),
+                UNIQUE(scope, operation_id)
+            )
+        """))
+        connection.execute(text("""
+            INSERT INTO memory_clear_audit
+            VALUES
+            (1, 'elite-memory', 1, 'op-1', 'memory.clear.requested', '{}', '', 'h1', 's1'),
+            (2, 'elite-memory', 2, 'op-1', 'memory.clear.backup_verified', '{}', 'h1', 'h2', 's2'),
+            (3, 'elite-memory', 3, 'op-1', 'memory.clear.succeeded', '{}', 'h2', 'h3', 's3')
+        """))
+
+    assert migrate(engine) == LATEST_SCHEMA_VERSION
+
+    with engine.begin() as connection:
+        rows = connection.execute(
+            text(
+                "SELECT sequence, operation_id, event_type "
+                "FROM memory_clear_audit ORDER BY sequence"
+            )
+        ).all()
+        assert len(rows) == 3
+        assert [row[2] for row in rows] == [
+            "memory.clear.requested",
+            "memory.clear.backup_verified",
+            "memory.clear.succeeded",
+        ]
+
+        connection.execute(text("""
+            INSERT INTO memory_clear_audit
+            VALUES
+            (4, 'elite-memory', 4, 'op-1', 'memory.clear.failed', '{}', 'h3', 'h4', 's4')
+        """))
+
+        with pytest.raises(Exception):
+            connection.execute(text("""
+                INSERT INTO memory_clear_audit
+                VALUES
+                (5, 'elite-memory', 5, 'op-1', 'memory.clear.requested', '{}', 'h4', 'h5', 's5')
+            """))
+
+    assert migrate(engine) == LATEST_SCHEMA_VERSION
+
+
+def test_migration_upgrade_path_reaches_latest_from_v5(tmp_path):
+    engine = _engine(tmp_path)
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE schema_version (version INTEGER NOT NULL)"))
+        connection.execute(text("INSERT INTO schema_version(version) VALUES (5)"))
+        connection.execute(text("""
+            CREATE TABLE memory_clear_audit (
+                id INTEGER PRIMARY KEY,
+                scope VARCHAR NOT NULL,
+                sequence INTEGER NOT NULL,
+                operation_id VARCHAR NOT NULL,
+                event_type VARCHAR NOT NULL,
+                payload TEXT NOT NULL,
+                previous_hash VARCHAR NOT NULL,
+                record_hash VARCHAR NOT NULL,
+                signature VARCHAR NOT NULL,
+                UNIQUE(scope, sequence)
+            )
+        """))
+
+    assert migrate(engine) == 6
+
+    with engine.connect() as connection:
+        assert connection.execute(text(
+            "SELECT version FROM schema_version"
+        )).scalar_one() == 6

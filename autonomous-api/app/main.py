@@ -163,12 +163,6 @@ app.include_router(router, include_in_schema=False)
 app.include_router(observation_router, include_in_schema=False)
 app.include_router(governance_router, include_in_schema=False)
 
-@app.middleware("http")
-async def api_version_header(request: Request, call_next):
-    response = await call_next(request)
-    if request.url.path.startswith(API_V1_PREFIX):
-        response.headers["X-API-Version"] = "v1"
-    return response
 
 setup_metrics(app)
 

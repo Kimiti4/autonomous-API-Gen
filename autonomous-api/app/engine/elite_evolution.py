@@ -27,7 +27,7 @@ from app.storage.lease import (
 
 class EliteEvolutionEngine:
     """Advanced evolution engine with persistent memory, adaptation and multi-population search."""
-    _EVENT_TYPE_MAP = {"evolution_start":"evolution.stage_changed","generation_start":"evolution.stage_changed","new_best":"candidate.promoted","generation_complete":"fitness.evaluated","building_best":"evolution.stage_changed","docker_test":"evolution.stage_changed","evolution_complete":"evolution.stage_changed"}
+    _EVENT_TYPE_MAP = {"evolution_start":"evolution.stage_changed","generation_start":"evolution.stage_changed","new_best":"evolution.stage_changed","generation_complete":"fitness.evaluated","building_best":"evolution.stage_changed","docker_test":"evolution.stage_changed","evolution_complete":"evolution.stage_changed"}
     def __init__(self, target: BackendTarget = PYTHON_FASTAPI):
         self.target=target; self.memory=EvolutionMemory(); self.adaptive_mutator=AdaptiveMutator(); self.multi_pop=None; self.websocket_callback:Optional[Callable]=None; self.dispatcher=None; self.production_analyzer=ProductionReadinessAnalyzer()
     def set_websocket_callback(self, callback: Callable): self.websocket_callback=callback

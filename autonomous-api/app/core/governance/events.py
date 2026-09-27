@@ -33,6 +33,7 @@ class CertificationGranted(BaseModel):
 
 class CertificationRevoked(BaseModel):
     model_config = ConfigDict(frozen=True)
+    candidateId: str = Field(min_length=1)
     certificationId: str = Field(min_length=1)
     revokedAt: str
     revokedBy: str = Field(min_length=1)

@@ -18,6 +18,7 @@ from app.engine.builder import build_genome_output
 from app.engine.backend_contract import BackendTarget, PYTHON_FASTAPI
 from app.engine.production_readiness import ProductionReadinessAnalyzer
 from app.storage.db import SessionLocal
+from app.core.runtime_control import assert_evolution_enabled
 from app.storage.models import GenomeRecord, EvolutionRun
 from app.storage.lease import (
     acquire_control_plane_lease,
@@ -50,6 +51,7 @@ class EliteEvolutionEngine:
         else: final_fitness=base_fitness*.45+performance_score*.25+readiness["score"]*.30
         return round(final_fitness,3)
     async def run_elite_evolution(self,generations:int=10,population_size:int=8,use_multi_population:bool=True,enable_adaptive_mutation:bool=True,use_docker:bool=False,seed:Optional[int]=None)->dict:
+        assert_evolution_enabled()
         run_id=str(uuid.uuid4()); logger.info(f"Starting elite evolution run {run_id}"); previous_state=random.getstate()
         lease_token = acquire_control_plane_lease(owner_run_id=f"elite:{run_id}")
         if seed is not None: random.seed(seed)
@@ -59,9 +61,11 @@ class EliteEvolutionEngine:
             all_history={g:[] for g in groups}; global_best_genome=None; global_best_fitness=float("-inf")
             await self._emit_update({"type":"elite_evolution_start","run_id":run_id,"generations":generations,"groups":list(groups.keys()),"adaptive_mutation":enable_adaptive_mutation,"seed":seed,"evaluation_mode":"static","backend_id":self.target.backend_id},run_id=run_id)
             for gen in range(generations):
+                assert_evolution_enabled()
                 for group_name,population in groups.items():
                     fitness_scores=[]
                     for genome in population.individuals:
+                        assert_evolution_enabled()
                         fitness=await self.evaluate_genome(genome,group_name); heartbeat_control_plane_lease(lease_token); fitness_scores.append(fitness)
                         if enable_adaptive_mutation: self.adaptive_mutator.update(genome.encode(),fitness)
                         if fitness>global_best_fitness: global_best_fitness=fitness; global_best_genome=genome
@@ -78,6 +82,7 @@ class EliteEvolutionEngine:
             build_error = None
             output_path = None
             if global_best_genome:
+                assert_evolution_enabled()
                 if get_settings().GOVERNANCE_ENFORCEMENT_REQUIRED:
                     build_error = (
                         "governance promotion gate denied: elite evolution has no "

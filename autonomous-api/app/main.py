@@ -156,6 +156,7 @@ except Exception:  # pragma: no cover
 # Canonical public HTTP API surface. Legacy aliases remain available for existing clients
 # but are excluded from the published OpenAPI contract.
 API_V1_PREFIX = "/api/v1"
+app.include_router(ws_router)
 app.include_router(router, prefix=API_V1_PREFIX)
 app.include_router(observation_router, prefix=API_V1_PREFIX)
 app.include_router(governance_router, prefix=API_V1_PREFIX)

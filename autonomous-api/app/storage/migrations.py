@@ -9,7 +9,7 @@ from __future__ import annotations
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import Engine
 
-LATEST_SCHEMA_VERSION = 7
+LATEST_SCHEMA_VERSION = 6
 
 _REQUIRED_COLUMNS = {
     "genomes": {"id", "genome_data", "fitness_score", "generation", "created_at"},
@@ -240,34 +240,11 @@ def _apply_v6(engine: Engine) -> None:
 
 
 
-def _apply_v7(engine: Engine) -> None:
-    """Add durable runtime evolution kill-switch state."""
-    with engine.begin() as connection:
-        connection.execute(text("""
-            CREATE TABLE IF NOT EXISTS runtime_kill_switch (
-                id INTEGER PRIMARY KEY CHECK (id = 1),
-                enabled INTEGER NOT NULL DEFAULT 0,
-                reason VARCHAR NOT NULL DEFAULT '',
-                activated_by VARCHAR,
-                activated_at DATETIME,
-                deactivated_by VARCHAR,
-                deactivated_at DATETIME,
-                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )
-        """))
-        connection.execute(text("""
-            INSERT OR IGNORE INTO runtime_kill_switch (
-                id, enabled, reason, updated_at
-            ) VALUES (1, 0, '', CURRENT_TIMESTAMP)
-        """))
-        connection.execute(text("UPDATE schema_version SET version = 7"))
-
-
 def _verify_schema(engine: Engine) -> None:
     inspector = inspect(engine)
     tables = set(inspector.get_table_names())
     required_tables = set(_REQUIRED_COLUMNS) | {
-        "schema_version", "control_plane_lease", "runtime_kill_switch", "governance_events",
+        "schema_version", "control_plane_lease", "governance_events",
         "governance_council", "governance_gates", "governance_policies", "governance_audit", "memory_clear_audit",
     }
     missing_tables = required_tables - tables
@@ -357,10 +334,6 @@ def migrate(engine: Engine) -> int:
 
     if version < 6:
         _apply_v6(engine)
-        version = 6
-
-    if version < 7:
-        _apply_v7(engine)
 
     _verify_schema(engine)
     return LATEST_SCHEMA_VERSION

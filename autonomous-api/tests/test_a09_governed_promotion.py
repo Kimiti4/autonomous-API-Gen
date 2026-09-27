@@ -33,6 +33,20 @@ async def test_governance_denies_promotion_without_authorizing_decision(monkeypa
 
     assert await engine._governance_allows_promotion(genome) is False
 
+    called = False
+    def publisher(*_args, **_kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("publisher must not be reached when governance denies")
+
+    monkeypatch.setattr("app.engine.evolution.promote_verified_artifact", publisher)
+    with pytest.raises(ValueError, match="governance promotion gate denied"):
+        await engine._publish_governed_candidate(
+            genome,
+            {"verification_status": "verified", "artifact_path": "/tmp/a", "artifact_digest": "sha256:x"},
+        )
+    assert called is False
+
 
 @pytest.mark.asyncio
 async def test_governance_allows_promotion_only_after_authorizing_decision(monkeypatch):
@@ -57,6 +71,4 @@ def test_promotion_event_is_emitted_only_by_explicit_promotion_event():
 
     assert mapping["new_best"] == "evolution.stage_changed"
     assert mapping["candidate_promoted"] == "candidate.promoted"
-    assert "candidate.promoted" not in mapping.values() or list(mapping.values()).count(
-        "candidate.promoted"
-    ) == 1
+    assert list(mapping.values()).count("candidate.promoted") == 1

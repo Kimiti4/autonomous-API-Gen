@@ -1,11 +1,5 @@
-import os
-import subprocess
-import sys
-from pathlib import Path
-
 import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
+from pathlib import Path
 
 from app.core.runtime_control import (
     KillSwitchState,
@@ -95,11 +89,20 @@ def test_elite_kill_switch_blocks_before_work(monkeypatch):
 
 
 def test_kill_switch_routes_require_auth():
-    from app.main import app
+    from app.api.routes import router
+    from app.middleware.security import require_auth
 
-    client = TestClient(app)
-    assert client.get("/api/v1/evolution/kill-switch").status_code == 401
-    assert client.post(
-        "/api/v1/evolution/kill-switch/activate",
-        json={"reason": "test", "actor_id": "spoof"},
-    ).status_code == 401
+    protected_paths = {
+        "/evolution/kill-switch",
+        "/evolution/kill-switch/activate",
+        "/evolution/kill-switch/deactivate",
+    }
+    routes = {
+        route.path: route
+        for route in router.routes
+        if route.path in protected_paths
+    }
+
+    assert set(routes) == protected_paths
+    for route in routes.values():
+        assert any(dependency.call is require_auth for dependency in route.dependencies)

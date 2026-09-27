@@ -218,6 +218,36 @@ class TestConfiguration:
         assert settings.RATE_LIMIT_EVOLUTION == 20
 
 
+    def test_production_rejects_debug(self, monkeypatch):
+        from app.core.config import Settings
+        values = {
+            "ENVIRONMENT": "production",
+            "DEBUG": True,
+            "ADMIN_API_KEY": "admin-secret",
+            "SECRET_KEY": "s" * 32,
+            "CORS_ORIGINS": ["https://example.com"],
+            "GOVERNANCE_CERTIFIERS": "certifier",
+            "GOVERNANCE_ENFORCEMENT_REQUIRED": True,
+            "GOVERNANCE_AUDIT_SIGNING_KEY": "a" * 32,
+        }
+        with pytest.raises(ValueError, match="DEBUG must be false"):
+            Settings(**values)
+
+    def test_production_rejects_short_audit_signing_key(self):
+        from app.core.config import Settings
+        values = {
+            "ENVIRONMENT": "production",
+            "DEBUG": False,
+            "ADMIN_API_KEY": "admin-secret",
+            "SECRET_KEY": "s" * 32,
+            "CORS_ORIGINS": ["https://example.com"],
+            "GOVERNANCE_CERTIFIERS": "certifier",
+            "GOVERNANCE_ENFORCEMENT_REQUIRED": True,
+            "GOVERNANCE_AUDIT_SIGNING_KEY": "short",
+        }
+        with pytest.raises(ValueError, match="at least 32 characters"):
+            Settings(**values)
+
 class TestLogger:
     def test_logger_importable(self):
         from app.core.logger import logger

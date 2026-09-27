@@ -184,7 +184,7 @@ def _apply_v6(engine: Engine) -> None:
         legacy_unique = False
         for index in indexes:
             index_name = index["name"]
-            if not index["unique"]:
+            if not index["unique"] or index["partial"]:
                 continue
             columns = [
                 row[2]

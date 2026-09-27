@@ -119,6 +119,31 @@ def test_legacy_v5_memory_clear_schema_is_forward_repaired(tmp_path):
     assert count == 3
     assert migrate(engine) == LATEST_SCHEMA_VERSION
 
+def test_correct_v5_schema_is_advanced_without_rebuild(tmp_path):
+    engine = _engine(tmp_path)
+
+    # A correct schema already carries the partial replay index. The legacy
+    # detector must not treat that index as the removed table-wide constraint.
+    assert migrate(engine) == LATEST_SCHEMA_VERSION
+    with engine.begin() as connection:
+        connection.execute(
+            text("ALTER TABLE memory_clear_audit ADD COLUMN legacy_probe TEXT")
+        )
+        connection.execute(text("UPDATE schema_version SET version = 5"))
+
+    assert migrate(engine) == LATEST_SCHEMA_VERSION
+
+    with engine.connect() as connection:
+        columns = [
+            row[1]
+            for row in connection.execute(text("PRAGMA table_info('memory_clear_audit')")).all()
+        ]
+        version = connection.execute(text("SELECT version FROM schema_version")).scalar_one()
+
+    assert version == LATEST_SCHEMA_VERSION
+    assert "legacy_probe" in columns
+
+
 def test_v0_database_upgrades_through_every_migration(tmp_path):
     engine = _engine(tmp_path)
 

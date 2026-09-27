@@ -5,8 +5,39 @@ from app.main import app
 
 def test_openapi_publishes_only_canonical_v1_api_paths():
     paths = app.openapi()["paths"]
-    assert paths
-    assert any(path.startswith("/api/v1/") for path in paths)
+    expected = {
+        "/api/v1/health": {"get"},
+        "/api/v1/stream": {"get"},
+        "/api/v1/production/readiness": {"post"},
+        "/api/v1/evolve/start": {"post"},
+        "/api/v1/evolve/runs": {"get"},
+        "/api/v1/evolve/run/{run_id}": {"get"},
+        "/api/v1/evolve/sync": {"post"},
+        "/api/v1/evolve/elite/start": {"post"},
+        "/api/v1/evolve/elite/insights": {"get"},
+        "/api/v1/evolve/elite/clear-memory": {"post"},
+        "/api/v1/evolve/elite/clear-memory/audit": {"get"},
+        "/api/v1/observation/capabilities": {"get"},
+        "/api/v1/observation/fitness": {"get"},
+        "/api/v1/observation/isr": {"get"},
+        "/api/v1/observation/snapshot": {"get"},
+        "/api/v1/observation/state": {"get"},
+        "/api/v1/governance/council": {"post"},
+        "/api/v1/governance/gates": {"post"},
+        "/api/v1/governance/policies": {"post"},
+        "/api/v1/governance/gate-evaluations": {"post"},
+        "/api/v1/governance/decisions": {"post"},
+        "/api/v1/governance/certifications": {"post"},
+        "/api/v1/governance/certifications/revoke": {"post"},
+        "/api/v1/governance/candidate/{candidate_id}": {"get"},
+        "/api/v1/governance/generation/{generation}": {"get"},
+        "/api/v1/governance/audit/{candidate_id}": {"get"},
+    }
+    actual = {
+        path: {method for method in operation if method in {"get", "post", "put", "patch", "delete"}}
+        for path, operation in paths.items()
+    }
+    assert actual == expected
     assert not any(
         path.startswith(("/evolve", "/observation", "/governance"))
         for path in paths

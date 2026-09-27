@@ -34,6 +34,7 @@ async def test_governance_denies_promotion_without_authorizing_decision(monkeypa
     assert await engine._governance_allows_promotion(genome) is False
 
     called = False
+
     def publisher(*_args, **_kwargs):
         nonlocal called
         called = True
@@ -43,7 +44,11 @@ async def test_governance_denies_promotion_without_authorizing_decision(monkeypa
     with pytest.raises(ValueError, match="governance promotion gate denied"):
         await engine._publish_governed_candidate(
             genome,
-            {"verification_status": "verified", "artifact_path": "/tmp/a", "artifact_digest": "sha256:x"},
+            {
+                "verification_status": "verified",
+                "artifact_path": "/tmp/a",
+                "artifact_digest": "sha256:x",
+            },
         )
     assert called is False
 
@@ -64,6 +69,24 @@ async def test_governance_allows_promotion_only_after_authorizing_decision(monke
     genome = SimpleNamespace(genome_id="candidate-approved")
 
     assert await engine._governance_allows_promotion(genome) is True
+
+    published = []
+
+    def publisher(*args, **kwargs):
+        published.append((args, kwargs))
+        return "output/generated_api"
+
+    monkeypatch.setattr("app.engine.evolution.promote_verified_artifact", publisher)
+    output = await engine._publish_governed_candidate(
+        genome,
+        {
+            "verification_status": "verified",
+            "artifact_path": "/tmp/a",
+            "artifact_digest": "sha256:x",
+        },
+    )
+    assert output == "output/generated_api"
+    assert published
 
 
 def test_promotion_event_is_emitted_only_by_explicit_promotion_event():

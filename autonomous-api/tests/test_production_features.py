@@ -248,6 +248,54 @@ class TestConfiguration:
         with pytest.raises(ValueError, match="at least 32 characters"):
             Settings(**values)
 
+    @pytest.mark.parametrize(
+        ("overrides", "message"),
+        [
+            ({"ADMIN_API_KEY": ""}, "ADMIN_API_KEY is required in production"),
+            ({"SECRET_KEY": ""}, "SECRET_KEY must be explicitly configured in production"),
+            (
+                {"SECRET_KEY": "change-this-in-production"},
+                "SECRET_KEY must be explicitly configured in production",
+            ),
+            ({"CORS_ORIGINS": []}, "CORS_ORIGINS must be configured in production"),
+            ({"GOVERNANCE_CERTIFIERS": ""}, "GOVERNANCE_CERTIFIERS is required in production"),
+            ({"GOVERNANCE_CERTIFIERS": "   "}, "GOVERNANCE_CERTIFIERS is required in production"),
+            (
+                {"GOVERNANCE_QUORUM_THRESHOLD": 0},
+                "GOVERNANCE_QUORUM_THRESHOLD must be positive in production",
+            ),
+            (
+                {"GOVERNANCE_ENFORCEMENT_REQUIRED": False},
+                "GOVERNANCE_ENFORCEMENT_REQUIRED must be true in production",
+            ),
+            (
+                {"GOVERNANCE_AUDIT_SIGNING_KEY": ""},
+                "GOVERNANCE_AUDIT_SIGNING_KEY must be explicitly configured in production",
+            ),
+            (
+                {"GOVERNANCE_AUDIT_SIGNING_KEY": "development-only-audit-key"},
+                "GOVERNANCE_AUDIT_SIGNING_KEY must be explicitly configured in production",
+            ),
+        ],
+    )
+    def test_production_rejects_weak_configuration(self, overrides, message):
+        from app.core.config import Settings
+
+        values = {
+            "ENVIRONMENT": "production",
+            "DEBUG": False,
+            "ADMIN_API_KEY": "admin-secret",
+            "SECRET_KEY": "s" * 32,
+            "CORS_ORIGINS": ["https://example.com"],
+            "GOVERNANCE_CERTIFIERS": "certifier",
+            "GOVERNANCE_QUORUM_THRESHOLD": 1.0,
+            "GOVERNANCE_ENFORCEMENT_REQUIRED": True,
+            "GOVERNANCE_AUDIT_SIGNING_KEY": "a" * 32,
+            **overrides,
+        }
+        with pytest.raises(ValueError, match=message):
+            Settings(**values)
+
 class TestLogger:
     def test_logger_importable(self):
         from app.core.logger import logger

@@ -131,9 +131,11 @@ def test_v0_database_upgrades_through_every_migration(tmp_path):
 
 def test_legacy_v5_schema_is_repaired_without_data_loss(tmp_path):
     engine = _engine(tmp_path)
+    migrate(engine)
+
     with engine.begin() as connection:
-        connection.execute(text("CREATE TABLE schema_version (version INTEGER NOT NULL)"))
-        connection.execute(text("INSERT INTO schema_version(version) VALUES (5)"))
+        connection.execute(text("DROP TABLE memory_clear_audit"))
+        connection.execute(text("UPDATE schema_version SET version = 5"))
         connection.execute(text("""
             CREATE TABLE memory_clear_audit (
                 id INTEGER PRIMARY KEY,
@@ -144,7 +146,7 @@ def test_legacy_v5_schema_is_repaired_without_data_loss(tmp_path):
                 payload TEXT NOT NULL,
                 previous_hash VARCHAR NOT NULL,
                 record_hash VARCHAR NOT NULL,
-                signature VARCHAR NOT NULL,
+                signature TEXT NOT NULL,
                 UNIQUE(scope, sequence),
                 UNIQUE(scope, operation_id)
             )
@@ -191,9 +193,11 @@ def test_legacy_v5_schema_is_repaired_without_data_loss(tmp_path):
 
 def test_migration_upgrade_path_reaches_latest_from_v5(tmp_path):
     engine = _engine(tmp_path)
+    migrate(engine)
+
     with engine.begin() as connection:
-        connection.execute(text("CREATE TABLE schema_version (version INTEGER NOT NULL)"))
-        connection.execute(text("INSERT INTO schema_version(version) VALUES (5)"))
+        connection.execute(text("DROP TABLE memory_clear_audit"))
+        connection.execute(text("UPDATE schema_version SET version = 5"))
         connection.execute(text("""
             CREATE TABLE memory_clear_audit (
                 id INTEGER PRIMARY KEY,
@@ -204,14 +208,14 @@ def test_migration_upgrade_path_reaches_latest_from_v5(tmp_path):
                 payload TEXT NOT NULL,
                 previous_hash VARCHAR NOT NULL,
                 record_hash VARCHAR NOT NULL,
-                signature VARCHAR NOT NULL,
+                signature TEXT NOT NULL,
                 UNIQUE(scope, sequence)
             )
         """))
 
-    assert migrate(engine) == 6
+    assert migrate(engine) == LATEST_SCHEMA_VERSION
 
     with engine.connect() as connection:
         assert connection.execute(text(
             "SELECT version FROM schema_version"
-        )).scalar_one() == 6
+        )).scalar_one() == LATEST_SCHEMA_VERSION

@@ -4,6 +4,8 @@ import sys
 from pathlib import Path
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 from app.core.runtime_control import (
     KillSwitchState,
@@ -90,3 +92,19 @@ def test_elite_kill_switch_blocks_before_work(monkeypatch):
                 generations=1, population_size=2, use_multi_population=False
             )
         )
+
+
+def test_kill_switch_routes_require_auth():
+    from app.api.routes import router
+    from app.middleware.security import set_auth_provider, CompositeAuthProvider, ApiKeyAuthProvider
+
+    app = FastAPI()
+    app.include_router(router)
+    set_auth_provider(CompositeAuthProvider([ApiKeyAuthProvider(api_key="secret")]))
+
+    client = TestClient(app)
+    assert client.get("/evolution/kill-switch").status_code == 401
+    assert client.post(
+        "/evolution/kill-switch/activate",
+        json={"reason": "test", "actor_id": "spoof"},
+    ).status_code == 401

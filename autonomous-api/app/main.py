@@ -1,5 +1,5 @@
 """Composition root for the Autonomous Evolution Engine."""
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router

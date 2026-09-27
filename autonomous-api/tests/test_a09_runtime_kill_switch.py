@@ -2,17 +2,12 @@ import pytest
 from pathlib import Path
 
 from app.core.runtime_control import (
-    KillSwitchState,
     activate_kill_switch,
     assert_evolution_enabled,
     deactivate_kill_switch,
 )
 from app.storage.migrations import migrate
 from sqlalchemy import create_engine
-
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-APP_ROOT = REPO_ROOT / "autonomous-api"
 
 
 def test_kill_switch_is_durable_across_process_restart(tmp_path, monkeypatch):

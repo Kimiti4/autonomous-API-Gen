@@ -121,12 +121,14 @@ Effect: the documented invariant “recognized certifying authority” is **opti
 - `learning/governance/api.py` exposes `/evaluate`, `/sync`, `/approvals/*`, **kill-switch activate/deactivate** with **no `Depends(require_auth)` / API-key check** in the module (routes are plain handlers; `enable_learning_governance` only wires engine state).
 - Nothing in `autonomous-api` calls `enable_learning_governance` or imports `learning.governance` (grep: learning consumers are tests + `certification` + `release/gates`). **Product API has no kill switch.** (EV-A08-008 feature-flag gap reinforced from the governance angle.)
 
-### EV-A09-007 — Certification governance registry is hash-chained but lives on a gitignored path; local chain is not an audit system of record
-`[PARTIAL]` · Confidence **CONFIRMED**
+### EV-A09-007 — Certification governance registry is durable product state with restart reconstruction and fail-closed integrity
+`[IMPLEMENTED_REAL]` · Confidence **CONFIRMED**
 
-- `DEFAULT_PATH = "release/evidence/cbc1-governance.jsonl"`; header: “Per .gitignore, `release/evidence/` is gitignored. The registry file is **regenerated from the policy log** on every run; auditors archive their own copies.” (`.gitignore:27`).
-- CI release gates **do** upload `release/evidence/` as artifacts with 90-day retention and fail if `aggregate.yaml` ≠ CERTIFIED (`v1.4-release-gate.yml`, `cbc1-release-gate.yml`) — good episodic capture (010) — but the cross-phase regression ledger is not a durable, independently verifiable store between runs.
-- `detect_regressions()` logic is real and tested (`tests/cbc1/test_governance_registry.py`).
+- The registry default moved from gitignored `release/evidence/` to persistent product state: `data/governance/certification-governance.jsonl`. Deployments may explicitly set `CERTIFICATION_GOVERNANCE_REGISTRY_PATH`.
+- Startup now verifies the complete hash chain before resuming. Existing corruption or malformed state raises an integrity failure instead of being treated as an empty registry.
+- Restart reconstruction restores the tail hash, record count, and indexed phase/attempt state; subsequent records continue the existing chain rather than resetting it.
+- Added regression gates prove state survives reconstruction and corruption is fail-closed (`tests/cbc1/test_governance_registry.py`).
+- CI is required before closure; release artifacts remain episodic evidence, while the registry itself is now intended to live on persistent deployment storage.
 
 ### EV-A09-008 — Governance decisions are invisible on the product API (projector + adapter unrouted)
 `[PARTIAL]` · Confidence **CONFIRMED** (EV-A07-002 cross-ref)

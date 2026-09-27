@@ -1,7 +1,7 @@
 # EV-A09 — Governance
 
 **Audit:** evidence-first production readiness, sequence EV-A01 → … → EV-A08 → **EV-A09 Governance (final)**
-**Canonical audited state:** baseline `6e1aa1a`; remediated evidence head `cf5893f1` (PR #2)
+**Canonical audited state:** baseline `6e1aa1a`; remediated evidence head `4d1a9924` (PR #2)
 **Scope:** candidate lifecycle governance (G-1..G-7), Phase 28 Governance Kernel / PEP / evidence signing, approval workflows, learning kill-switch controls, certification registry, compiler production gate, marketplace governance gateway, and whether any of it is **enforced on the shipped API** (`autonomous-api/`). Read-only.
 **Taxonomy:** `IMPLEMENTED_REAL / IMPLEMENTED_BOUNDED / IMPLEMENTED_SIMULATED / PARTIAL / UNIMPLEMENTED / UNKNOWN` · Confidence `CONFIRMED / INFERRED / UNVERIFIED`.
 
@@ -21,7 +21,7 @@ The findings below are the **historical baseline** captured at `6e1aa1a`. Subseq
 | EV-A09-004 | **PASS** | SQLite event/reference stores survive real subprocess restart; gate/decision/certification state reconstructs; certification revocation is candidate-stream durable; tampered audit payload raises `AuditIntegrityError` |
 | EV-A09-005..012 | **OPEN** | Not yet re-certified in this sequence |
 
-The `autonomous-api` CI/CD run for `cf5893f1` completed **successfully**, with all three Python test jobs, lint, security scan, deployment/rollback boundary tests, compiler certification, and circuit-breaker certification green. The release/certification workflows on this head were also successful. No PASS is claimed for A09-005..012 yet.
+The `autonomous-api` CI/CD run for `4d1a9924` completed **successfully**, with all three Python test jobs, lint, security scan, deployment/rollback boundary tests, compiler certification, and circuit-breaker certification green. The release/certification workflows on this head were also successful. No PASS is claimed for A09-005..012 yet.
 
 The workspace contains several **well-built, well-tested governance stacks** — Phase 28 kernel with hash-chained audit and HMAC evidence signing, G-1..G-7 lifecycle invariants, learning kill-switch + human-approval interlocks, compiler certification gates, CBC-1 regression registry. Almost none of it is **wired into the product API**. The shipped service never constructs `GovernanceSubsystem`, `EvidenceSubsystem`, or `LineageSubsystem`; never imports `GovernanceKernel`, `PEPEnforcer`, or `EvolutionPromotionGuard`; evolution runs promote “best” candidates and emit `candidate.promoted` with **no gate, quorum, certification, or promotion guard**. Where the subsystem *is* exercised (tests), two default-config defects hollow out the authority model: empty `recognized_certifiers` **skips G-6 entirely**, and the Executive (allowed by G-5) has **voting weight 0** so can never satisfy G-7. Audit trails default to **in-memory** structures that vanish on restart; production Postgres stores for governance are comment-only. Signing is correct but **opt-in and off by default**.
 

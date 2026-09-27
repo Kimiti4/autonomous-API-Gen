@@ -16,6 +16,7 @@ from app.engine.candidate_evaluator import evaluate_candidate_async
 from app.engine.backends import get_backend, promote_verified_artifact
 from app.engine.production_readiness import ProductionReadinessAnalyzer
 from app.storage.db import SessionLocal
+from app.core.runtime_control import assert_evolution_enabled
 from app.storage.models import GenomeRecord, EvolutionRun
 from app.storage.lease import (
     ControlPlaneBusy,
@@ -112,6 +113,7 @@ class EvolutionEngine:
 
     async def run_async(self, generations: int = 10, population_size: int = 10, use_docker: bool = True, seed: Optional[int] = None) -> dict:
         if generations < 1 or population_size < 2: raise ValueError("generations must be >= 1 and population_size must be >= 2")
+        assert_evolution_enabled()
         run_id = str(uuid.uuid4())
         lease_token = acquire_control_plane_lease(owner_run_id=run_id)
         previous_state = random.getstate()
@@ -132,6 +134,7 @@ class EvolutionEngine:
             await self._emit_update({"type":"evolution_start","run_id":run_id,"generations":generations,"population_size":population_size,"evaluation_mode":evaluation_mode,"backend_id":self.target.backend_id,"seed":seed}, run_id=run_id)
             population = Population(size=population_size); history = []; best_genome = None; best_evidence = None; best_fitness = float("-inf"); output_path = None
             for gen in range(generations):
+                assert_evolution_enabled()
                 await self._emit_update({"type":"generation_start","run_id":run_id,"generation":gen+1,"total_generations":generations,"backend_id":self.target.backend_id}, run_id=run_id, generation=gen+1)
                 fitness_scores = []; genomes_to_save = []
                 for genome in population.individuals:
@@ -177,6 +180,7 @@ class EvolutionEngine:
             promotion_status = "not_attempted"
             if best_genome and best_evidence:
                 try:
+                    assert_evolution_enabled()
                     output_path = await self._publish_governed_candidate(
                         best_genome, best_evidence
                     )

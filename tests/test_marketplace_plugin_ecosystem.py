@@ -318,6 +318,15 @@ def test_governance_extensions_record_evidence_in_kernel_delegate():
     assert gateway._evidence.verify_chain()
 
 
+def test_governed_extensions_fail_closed_without_signing_key(monkeypatch):
+    from constitutional_architecture.governance import GovernanceKernel
+
+    monkeypatch.delenv("AUDIT_EVIDENCE_SIGNING_KEY", raising=False)
+
+    with pytest.raises(RuntimeError, match="AUDIT_EVIDENCE_SIGNING_KEY is required"):
+        GovernanceGateway(governance_kernel=GovernanceKernel())
+
+
 def test_governance_extensions_are_default_signed_and_durable(monkeypatch, tmp_path):
     from constitutional_architecture.governance.evidence_signing import SignedAuditEvidenceRecorder
     from constitutional_architecture.governance.versioning import FileBackedConstitutionVersionRepository

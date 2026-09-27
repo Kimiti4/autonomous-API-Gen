@@ -170,53 +170,6 @@ def _apply_v5(engine: Engine) -> None:
 
 
 def _apply_v6(engine: Engine) -> None:
-    """Repair the pre-main v5 memory-clear audit constraint."""
-    with engine.begin() as connection:
-        if connection.dialect.name != "sqlite":
-            raise RuntimeError("memory_clear_audit v6 repair requires SQLite")
-
-        connection.execute(text("DROP INDEX IF EXISTS ux_memory_clear_audit_requested"))
-        connection.execute(text("DROP INDEX IF EXISTS legacy_memory_clear_operation_id"))
-        connection.execute(text("""
-            CREATE TABLE memory_clear_audit_v6 (
-                id INTEGER PRIMARY KEY,
-                scope VARCHAR NOT NULL,
-                sequence INTEGER NOT NULL,
-                operation_id VARCHAR NOT NULL,
-                event_type VARCHAR NOT NULL,
-                payload TEXT NOT NULL,
-                previous_hash VARCHAR NOT NULL,
-                record_hash VARCHAR NOT NULL,
-                signature VARCHAR NOT NULL,
-                UNIQUE(scope, sequence)
-            )
-        """))
-        connection.execute(text("""
-            INSERT INTO memory_clear_audit_v6 (
-                id, scope, sequence, operation_id, event_type, payload,
-                previous_hash, record_hash, signature
-            )
-            SELECT
-                id, scope, sequence, operation_id, event_type, payload,
-                previous_hash, record_hash, signature
-            FROM memory_clear_audit
-            ORDER BY id
-        """))
-        connection.execute(text("DROP TABLE memory_clear_audit"))
-        connection.execute(text("ALTER TABLE memory_clear_audit_v6 RENAME TO memory_clear_audit"))
-        connection.execute(text(
-            "CREATE INDEX IF NOT EXISTS ix_memory_clear_audit_scope "
-            "ON memory_clear_audit (scope, sequence)"
-        ))
-        connection.execute(text(
-            "CREATE UNIQUE INDEX IF NOT EXISTS ux_memory_clear_audit_requested "
-            "ON memory_clear_audit (scope, operation_id) "
-            "WHERE event_type = 'memory.clear.requested'"
-        ))
-        connection.execute(text("UPDATE schema_version SET version = 6"))
-
-
-def _apply_v6(engine: Engine) -> None:
     """Repair the pre-release v5 memory-clear schema.
 
     Early v5 builds encoded UNIQUE(scope, operation_id) on the table itself.

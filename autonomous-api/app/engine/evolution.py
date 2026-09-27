@@ -26,7 +26,7 @@ from app.storage.lease import (
 
 class EvolutionEngine:
     """Main genetic evolution engine with durable lifecycle and provenance."""
-    _EVENT_TYPE_MAP = {"evolution_start":"evolution.stage_changed","generation_start":"evolution.stage_changed","new_best":"candidate.selected","candidate_promoted":"candidate.promoted","generation_complete":"fitness.evaluated","building_best":"evolution.stage_changed","docker_test":"evolution.stage_changed","evolution_complete":"evolution.stage_changed","evolution_failed":"evolution.stage_changed"}
+    _EVENT_TYPE_MAP = {"evolution_start":"evolution.stage_changed","generation_start":"evolution.stage_changed","new_best":"evolution.stage_changed","candidate_promoted":"candidate.promoted","generation_complete":"fitness.evaluated","building_best":"evolution.stage_changed","docker_test":"evolution.stage_changed","evolution_complete":"evolution.stage_changed","evolution_failed":"evolution.stage_changed"}
 
     def __init__(self, target: BackendTarget = PYTHON_FASTAPI):
         self.target = target

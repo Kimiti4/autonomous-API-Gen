@@ -37,7 +37,12 @@ def test_openapi_publishes_only_canonical_v1_api_paths():
         path: {method for method in operation if method in {"get", "post", "put", "patch", "delete"}}
         for path, operation in paths.items()
     }
-    assert actual == expected
+    assert actual["/"] == {"get"}
+    assert actual["/metrics"] == {"get"}
+    assert {
+        path: methods for path, methods in actual.items()
+        if path not in {"/", "/metrics"}
+    } == expected
     assert not any(
         path.startswith(("/evolve", "/observation", "/governance"))
         for path in paths

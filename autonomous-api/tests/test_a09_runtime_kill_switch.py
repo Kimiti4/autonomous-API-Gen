@@ -30,7 +30,7 @@ def test_kill_switch_is_durable_signed_and_tamper_evident(monkeypatch, tmp_path)
 
     # Reconstruct through a fresh SQLAlchemy session: no process-local state is used.
     import app.core.runtime_control as control
-    control.SessionLocal = sessionmaker(bind=create_engine(f"sqlite:///{tmp_path / 'evolution.db'}"))
+    monkeypatch.setattr(control, "SessionLocal", sessionmaker(bind=create_engine(f"sqlite:///{tmp_path / 'evolution.db'}")))
     assert get_kill_switch().enabled is True
     with pytest.raises(RuntimeError, match="runtime evolution kill switch is active"):
         assert_evolution_enabled()

@@ -85,4 +85,4 @@ def test_kill_switch_routes_require_auth():
     }
     routes = {route.path: route for route in router.routes if route.path in protected_paths}
     assert set(routes) == protected_paths
-    assert all(any(dep.call is require_auth for dep in route.dependencies) for route in routes.values())
+    assert all(any(dep.call is require_auth for dep in route.dependant.dependencies) for route in routes.values())

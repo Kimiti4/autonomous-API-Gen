@@ -273,8 +273,12 @@ def test_governance_kernel_delegates_approval():
     from marketplace_plugins.engine import GovernanceGateway
 
     engine = build_engine_with_publisher()
-    engine.governance = GovernanceGateway(governance_kernel=GovernanceKernel())
+    engine.governance = GovernanceGateway(
+        governance_kernel=GovernanceKernel(),
+        use_governance_extensions=False,
+    )
 
+    # The raw compatibility path is explicit; governed extensions are the default.
     # The default kernel has no plugin-specific policy, so it returns
     # Decision.ALLOW -> the manifest is auto-approved through the kernel.
     manifest = make_manifest(
@@ -312,3 +316,18 @@ def test_governance_extensions_record_evidence_in_kernel_delegate():
     assert gateway._evidence is not None
     assert len(gateway._evidence.entries) >= 1
     assert gateway._evidence.verify_chain()
+
+
+def test_governance_extensions_are_default_signed_and_durable(monkeypatch, tmp_path):
+    from constitutional_architecture.governance.evidence_signing import SignedAuditEvidenceRecorder
+    from constitutional_architecture.governance.versioning import FileBackedConstitutionVersionRepository
+    from constitutional_architecture.governance import GovernanceKernel
+
+    monkeypatch.setenv("AUDIT_EVIDENCE_SIGNING_KEY", "a" * 32)
+    monkeypatch.setenv("CONSTITUTION_VERSION_STORE_PATH", str(tmp_path / "versions"))
+
+    gateway = GovernanceGateway(governance_kernel=GovernanceKernel())
+
+    assert gateway._governance_extensions_enabled is True
+    assert isinstance(gateway._evidence, SignedAuditEvidenceRecorder)
+    assert isinstance(gateway._versions._repo, FileBackedConstitutionVersionRepository)

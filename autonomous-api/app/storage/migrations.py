@@ -9,7 +9,7 @@ from __future__ import annotations
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import Engine
 
-LATEST_SCHEMA_VERSION = 5
+LATEST_SCHEMA_VERSION = 6
 
 _REQUIRED_COLUMNS = {
     "genomes": {"id", "genome_data", "fitness_score", "generation", "created_at"},

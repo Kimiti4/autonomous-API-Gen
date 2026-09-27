@@ -254,3 +254,32 @@ def test_evidence_refs_preserved_in_regression(tmp_ledger):
     regressions = CertificationGovernanceRegistry.detect_regressions(tmp_ledger)
     assert regressions[0]["before"]["evidence_refs"] == ["cert-31-5-v1"]
     assert regressions[0]["after"]["evidence_refs"] == ["cert-31-5-v2", "canary-fail"]
+
+
+def test_registry_reconstructs_state_after_restart(tmp_path):
+    p = tmp_path / "registry.jsonl"
+    reg1 = CertificationGovernanceRegistry(str(p))
+    reg1.record(**_record_kwargs(attempt_id="persisted"))
+    reg2 = CertificationGovernanceRegistry(str(p))
+    assert reg2.prev_hash == reg1.prev_hash
+    assert reg2.summary()["record_count"] == 1
+    reg2.record(**_record_kwargs(attempt_id="after-restart"))
+    assert CertificationGovernanceRegistry.verify(str(p)) is True
+
+
+def test_registry_refuses_to_resume_corrupt_state(tmp_ledger):
+    reg = CertificationGovernanceRegistry(tmp_ledger)
+    reg.record(**_record_kwargs(attempt_id="a"))
+    with open(tmp_ledger, encoding="utf-8") as f:
+        line = f.readline()
+    entry = json.loads(line)
+    entry["record"]["verdict"] = "NOT_CERTIFIED"
+    with open(tmp_ledger, "w", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
+    with pytest.raises(ValueError, match="integrity failure"):
+        CertificationGovernanceRegistry(tmp_ledger)
+
+
+def test_default_registry_is_product_state():
+    from certification.governance import registry
+    assert registry.DEFAULT_PATH == "data/governance/certification-governance.jsonl"

@@ -107,21 +107,12 @@ jobs:
         # mypy is advisory in v1.1; tighten in v1.2
 
       - name: Unit tests (excluding integration)
-        run: python -m pytest tests -m "not integration" --cov=app --cov-report=term --cov-report=xml -q --junitxml=pytest-results.xml
+        run: python -m pytest tests -m "not integration" --cov=app --cov-report=term --cov-report=xml -q
 
       - name: Reducer equivalence — fixture must be committed and in sync
         # The Python test verifies the fold matches the committed vectors.json.
         # If the fold changed without a fixture regeneration, this fails.
         run: python -m pytest tests/observation/test_reducer_equivalence.py -v
-
-      - name: Upload pytest diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: v1.1-platform-pytest-results
-          path: ${{ env.PLATFORM_DIR }}/pytest-results.xml
-          retention-days: 3
-          if-no-files-found: warn
 
       - name: Upload coverage
         if: always()

@@ -157,13 +157,14 @@ class GovernanceSubsystem:
 
     async def revoke_certification(self, cmd: RevokeCertification):
         event = CertificationRevoked(
+            candidateId=cmd.candidateId,
             certificationId=cmd.certificationId,
             revokedAt=_now_iso(),
             revokedBy=cmd.revokedBy,
         )
-        # Revocation events go to the registry stream; the aggregate finds
-        # them via load_generation / full-log scans.
-        await self._events.append("_registry", [event])
+        # Keep revocation in the candidate stream so materialization and
+        # audit verification reconstruct the same certification state after restart.
+        await self._events.append(cmd.candidateId, [event])
 
     async def update_council(self, cmd: UpdateCouncil):
         composition = CouncilComposition(

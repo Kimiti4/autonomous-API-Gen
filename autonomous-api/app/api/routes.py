@@ -23,6 +23,13 @@ import psutil
 import os
 
 router = APIRouter()
+
+def _assert_runtime_evolution_enabled() -> None:
+    try:
+        assert_evolution_enabled()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
 reasoning_engine = ReasoningEngine()
 evolution_engine = EvolutionEngine()
 elite_engine = EliteEvolutionEngine()
@@ -74,7 +81,7 @@ async def analyze_production_readiness(request: ProductionReadinessRequest):
 
 @router.post("/evolve/start", response_model=EvolutionResponse)
 async def start_evolution(request: EvolutionRequest, background_tasks: BackgroundTasks):
-    assert_evolution_enabled()
+    _assert_runtime_evolution_enabled()
     logger.info(f"Starting evolution: {request.generations} generations, pop size {request.population_size}, runtime={request.use_docker}, seed={request.seed}")
     evolution_engine.set_websocket_callback(manager.broadcast)
     background_tasks.add_task(evolution_engine.run_async, generations=request.generations, population_size=request.population_size, use_docker=request.use_docker, seed=request.seed)
@@ -100,13 +107,13 @@ async def get_evolution_run(run_id: str, db: Session = Depends(get_db)):
 
 @router.post("/evolve/sync")
 async def run_evolution_sync(generations: int = 5, population_size: int = 8):
-    assert_evolution_enabled()
+    _assert_runtime_evolution_enabled()
     logger.info("Running synchronous evolution in worker thread")
     return await asyncio.to_thread(evolution_engine.run_synchronous, generations=generations, population_size=population_size, use_docker=False)
 
 @router.post("/evolve/elite/start", response_model=EliteEvolutionResponse)
 async def start_elite_evolution(request: EliteEvolutionRequest, background_tasks: BackgroundTasks):
-    assert_evolution_enabled()
+    _assert_runtime_evolution_enabled()
     logger.info(f"Starting elite evolution: {request.generations} generations, runtime={request.use_docker}, seed={request.seed}")
     elite_engine.set_websocket_callback(manager.broadcast)
     background_tasks.add_task(elite_engine.run_elite_evolution, generations=request.generations, population_size=request.population_size, use_multi_population=request.use_multi_population, enable_adaptive_mutation=request.enable_adaptive_mutation, use_docker=request.use_docker, seed=request.seed)

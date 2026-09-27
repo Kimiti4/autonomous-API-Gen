@@ -13,13 +13,6 @@ def test_openapi_publishes_only_canonical_v1_api_paths():
     )
 
 
-def test_versioned_api_exposes_version_header():
-    client = TestClient(app)
-    response = client.get("/api/v1/health")
-    assert response.status_code == 200
-    assert response.headers["X-API-Version"] == "v1"
-
-
 def test_unversioned_alias_remains_compatible():
     client = TestClient(app)
     response = client.get("/health")

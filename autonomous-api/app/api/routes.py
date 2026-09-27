@@ -17,6 +17,7 @@ from app.schemas.evolution import EvolutionRequest, EliteEvolutionRequest, Evolu
 from app.middleware.security import require_auth
 from pydantic import BaseModel, Field
 from app.core.memory_clear import MemoryClearAuditStore, clear_elite_memory
+from app.core.runtime_control import assert_evolution_enabled
 from app.core.config import get_settings
 import psutil
 import os
@@ -73,6 +74,7 @@ async def analyze_production_readiness(request: ProductionReadinessRequest):
 
 @router.post("/evolve/start", response_model=EvolutionResponse)
 async def start_evolution(request: EvolutionRequest, background_tasks: BackgroundTasks):
+    assert_evolution_enabled()
     logger.info(f"Starting evolution: {request.generations} generations, pop size {request.population_size}, runtime={request.use_docker}, seed={request.seed}")
     evolution_engine.set_websocket_callback(manager.broadcast)
     background_tasks.add_task(evolution_engine.run_async, generations=request.generations, population_size=request.population_size, use_docker=request.use_docker, seed=request.seed)
@@ -98,11 +100,13 @@ async def get_evolution_run(run_id: str, db: Session = Depends(get_db)):
 
 @router.post("/evolve/sync")
 async def run_evolution_sync(generations: int = 5, population_size: int = 8):
+    assert_evolution_enabled()
     logger.info("Running synchronous evolution in worker thread")
     return await asyncio.to_thread(evolution_engine.run_synchronous, generations=generations, population_size=population_size, use_docker=False)
 
 @router.post("/evolve/elite/start", response_model=EliteEvolutionResponse)
 async def start_elite_evolution(request: EliteEvolutionRequest, background_tasks: BackgroundTasks):
+    assert_evolution_enabled()
     logger.info(f"Starting elite evolution: {request.generations} generations, runtime={request.use_docker}, seed={request.seed}")
     elite_engine.set_websocket_callback(manager.broadcast)
     background_tasks.add_task(elite_engine.run_elite_evolution, generations=request.generations, population_size=request.population_size, use_multi_population=request.use_multi_population, enable_adaptive_mutation=request.enable_adaptive_mutation, use_docker=request.use_docker, seed=request.seed)
@@ -149,3 +153,33 @@ async def elite_memory_clear_audit(_auth=Depends(require_auth)):
             for record in records
         ],
     }
+
+
+class KillSwitchControlRequest(BaseModel):
+    reason: str = ""
+    actor_id: str = Field(min_length=1)
+
+
+@router.get("/evolution/kill-switch")
+async def get_evolution_kill_switch(_auth=Depends(require_auth)):
+    from app.core.runtime_control import get_kill_switch
+    state = get_kill_switch()
+    return state.__dict__
+
+
+@router.post("/evolution/kill-switch/activate")
+async def activate_evolution_kill_switch(
+    payload: KillSwitchControlRequest,
+    auth=Depends(require_auth),
+):
+    from app.core.runtime_control import activate_kill_switch
+    return activate_kill_switch(reason=payload.reason, actor=auth.subject).__dict__
+
+
+@router.post("/evolution/kill-switch/deactivate")
+async def deactivate_evolution_kill_switch(
+    payload: KillSwitchControlRequest,
+    auth=Depends(require_auth),
+):
+    from app.core.runtime_control import deactivate_kill_switch
+    return deactivate_kill_switch(actor=auth.subject, reason=payload.reason).__dict__

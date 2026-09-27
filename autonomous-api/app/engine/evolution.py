@@ -95,6 +95,21 @@ class EvolutionEngine:
             and decision.authorizesTransition
         )
 
+    async def _publish_governed_candidate(self, genome: Genome, evidence: dict) -> str:
+        """Cross the publication boundary only after verification and governance."""
+        if evidence.get("verification_status") not in ("verified", "static_verified"):
+            raise ValueError("best candidate is not verified")
+        if not await self._governance_allows_promotion(genome):
+            raise ValueError(
+                "governance promotion gate denied: candidate lacks an approving "
+                "decision at certified/selected lifecycle state"
+            )
+        return promote_verified_artifact(
+            evidence["artifact_path"],
+            "output/generated_api",
+            expected_digest=evidence["artifact_digest"],
+        )
+
     async def run_async(self, generations: int = 10, population_size: int = 10, use_docker: bool = True, seed: Optional[int] = None) -> dict:
         if generations < 1 or population_size < 2: raise ValueError("generations must be >= 1 and population_size must be >= 2")
         run_id = str(uuid.uuid4())
@@ -162,14 +177,9 @@ class EvolutionEngine:
             promotion_status = "not_attempted"
             if best_genome and best_evidence:
                 try:
-                    if best_evidence.get("verification_status") not in ("verified", "static_verified"):
-                        raise ValueError("best candidate is not verified")
-                    if not await self._governance_allows_promotion(best_genome):
-                        raise ValueError(
-                            "governance promotion gate denied: candidate lacks an approving "
-                            "decision at certified/selected lifecycle state"
-                        )
-                    output_path = promote_verified_artifact(best_evidence["artifact_path"], "output/generated_api", expected_digest=best_evidence["artifact_digest"])
+                    output_path = await self._publish_governed_candidate(
+                        best_genome, best_evidence
+                    )
                     promotion_status = "published"
                     await self._emit_update(
                         {"type": "candidate_promoted", "run_id": run_id,

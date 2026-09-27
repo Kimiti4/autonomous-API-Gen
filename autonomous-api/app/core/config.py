@@ -70,6 +70,8 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _validate_production_security(self):
         if self.ENVIRONMENT == "production":
+            if self.DEBUG:
+                raise ValueError("DEBUG must be false in production")
             if not self.ADMIN_API_KEY:
                 raise ValueError("ADMIN_API_KEY is required in production")
             if not self.SECRET_KEY or self.SECRET_KEY == "change-this-in-production":
@@ -82,8 +84,17 @@ class Settings(BaseSettings):
                 raise ValueError("GOVERNANCE_QUORUM_THRESHOLD must be positive in production")
             if not self.GOVERNANCE_ENFORCEMENT_REQUIRED:
                 raise ValueError("GOVERNANCE_ENFORCEMENT_REQUIRED must be true in production")
-            if not self.GOVERNANCE_AUDIT_SIGNING_KEY or self.GOVERNANCE_AUDIT_SIGNING_KEY == "development-only-audit-key":
-                raise ValueError("GOVERNANCE_AUDIT_SIGNING_KEY must be explicitly configured in production")
+            if (
+                not self.GOVERNANCE_AUDIT_SIGNING_KEY
+                or self.GOVERNANCE_AUDIT_SIGNING_KEY == "development-only-audit-key"
+            ):
+                raise ValueError(
+                    "GOVERNANCE_AUDIT_SIGNING_KEY must be explicitly configured in production"
+                )
+            if len(self.GOVERNANCE_AUDIT_SIGNING_KEY) < 32:
+                raise ValueError(
+                    "GOVERNANCE_AUDIT_SIGNING_KEY must be at least 32 characters in production"
+                )
         return self
 
     model_config = SettingsConfigDict(

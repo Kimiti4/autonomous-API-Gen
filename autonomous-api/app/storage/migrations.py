@@ -258,6 +258,10 @@ def migrate(engine: Engine) -> int:
 
     if version < 5:
         _apply_v5(engine)
+        version = 5
+
+    if version < 6:
+        _apply_v6(engine)
 
     _verify_schema(engine)
     return LATEST_SCHEMA_VERSION

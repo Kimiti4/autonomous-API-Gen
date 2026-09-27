@@ -62,7 +62,12 @@ class GovernanceGateway:
             )
             import os
 
-            self._evidence = new_evidence_recorder()
+            signing_key = os.getenv("AUDIT_EVIDENCE_SIGNING_KEY")
+            if not signing_key:
+                raise RuntimeError(
+                    "AUDIT_EVIDENCE_SIGNING_KEY is required for governed marketplace extensions"
+                )
+            self._evidence = new_evidence_recorder(key=signing_key)
             version_root = os.getenv(
                 "CONSTITUTION_VERSION_STORE_PATH", "data/constitution_versions"
             )

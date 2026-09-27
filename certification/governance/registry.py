@@ -143,8 +143,8 @@ class AttemptRecord:
 class CertificationGovernanceRegistry:
     """Append-only, hash-chained, cross-phase certification registry.
 
-    Default path is `release/evidence/cbc1-governance.jsonl` (gitignored).
-    Tests can override the path.
+    Default path is persistent product state under `data/governance/`.
+    Deployments may override it with CERTIFICATION_GOVERNANCE_REGISTRY_PATH; tests can override the path.
     """
 
     def __init__(self, path: str = DEFAULT_PATH) -> None:

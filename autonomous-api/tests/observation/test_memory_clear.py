@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine, text
@@ -135,3 +136,67 @@ def test_memory_clear_audit_tamper_fails_closed(tmp_path, monkeypatch, isolated_
         )
     with pytest.raises(AuditIntegrityError):
         MemoryClearAuditStore(get_settings().GOVERNANCE_AUDIT_SIGNING_KEY).verify()
+
+
+def test_clear_memory_route_requires_authentication(client):
+    response = client.post(
+        "/evolve/elite/clear-memory", json={"confirmation": CONFIRMATION}
+    )
+    assert response.status_code == 401
+
+
+def test_clear_memory_audit_route_requires_authentication(client):
+    response = client.get("/evolve/elite/clear-memory/audit")
+    assert response.status_code == 401
+
+
+def test_clear_memory_route_authenticated_round_trip(
+    client, auth_headers, tmp_path, monkeypatch, isolated_clear_lease
+):
+    import app.core.memory_clear as clear_module
+    from app.api.routes import elite_engine
+
+    monkeypatch.setattr(clear_module, "engine", _db(tmp_path))
+    memory = EvolutionMemory(str(tmp_path / "elite_memory.json"))
+    memory.record_run({"auth": "jwt"}, 0.9, 0.1, 1, "run-1")
+    monkeypatch.setattr(elite_engine, "memory", memory)
+    monkeypatch.setattr(elite_engine, "adaptive_mutator", AdaptiveMutator())
+
+    response = client.post(
+        "/evolve/elite/clear-memory",
+        json={
+            "confirmation": CONFIRMATION,
+            "operation_id": "019a0000-0000-7000-8000-000000000007",
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "cleared"
+    assert json.loads(Path(body["backup_path"]).read_text())["statistics"]["total_runs"] == 1
+
+    audit = client.get("/evolve/elite/clear-memory/audit", headers=auth_headers)
+    assert audit.status_code == 200
+    payload = audit.json()
+    assert payload["verified"] is True
+    assert [record["eventType"] for record in payload["records"]] == [
+        "memory.clear.requested",
+        "memory.clear.backup_verified",
+        "memory.clear.succeeded",
+    ]
+
+    # Replay rejection end-to-end: the ValueError surfaces through TestClient
+    # (production maps it to the generic 500 envelope with no detail leak).
+    with pytest.raises(ValueError, match="already been used"):
+        client.post(
+            "/evolve/elite/clear-memory",
+            json={
+                "confirmation": CONFIRMATION,
+                "operation_id": "019a0000-0000-7000-8000-000000000007",
+            },
+            headers=auth_headers,
+        )
+
+    audit_after = client.get("/evolve/elite/clear-memory/audit", headers=auth_headers)
+    assert audit_after.status_code == 200
+    assert len(audit_after.json()["records"]) == 3

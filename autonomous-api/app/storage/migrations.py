@@ -150,13 +150,20 @@ def _apply_v5(engine: Engine) -> None:
                 previous_hash VARCHAR NOT NULL,
                 record_hash VARCHAR NOT NULL,
                 signature VARCHAR NOT NULL,
-                UNIQUE(scope, sequence),
-                UNIQUE(scope, operation_id)
+                UNIQUE(scope, sequence)
             )
         """))
         connection.execute(text(
             "CREATE INDEX IF NOT EXISTS ix_memory_clear_audit_scope "
             "ON memory_clear_audit (scope, sequence)"
+        ))
+        # One 'requested' record per operation: enforces replay rejection at
+        # the database level while the lifecycle chain (requested ->
+        # backup_verified -> succeeded/failed) stays free to grow.
+        connection.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_memory_clear_audit_requested "
+            "ON memory_clear_audit (scope, operation_id) "
+            "WHERE event_type = 'memory.clear.requested'"
         ))
         connection.execute(text("UPDATE schema_version SET version = 5"))
 

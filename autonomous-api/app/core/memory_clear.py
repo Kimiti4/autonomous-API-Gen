@@ -11,6 +11,7 @@ from pathlib import Path
 from uuid import UUID
 
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 
 from app.core.config import get_settings
 from app.core.governance.audit import AuditRecord, GovernanceAuditSigner, verify_chain
@@ -57,7 +58,8 @@ def _atomic_json_backup(source: Path, destination: Path) -> str:
         shutil.copy2(source, temporary)
         if json.loads(temporary.read_text(encoding="utf-8")) != data:
             raise RuntimeError("memory backup verification failed")
-        with temporary.open("rb") as handle:
+        # rb+ (not rb): os.fsync needs a writable descriptor on Windows.
+        with temporary.open("rb+") as handle:
             os.fsync(handle.fileno())
         os.replace(temporary, destination)
         return _sha256(destination)
@@ -163,10 +165,14 @@ def clear_elite_memory(
     ):
         raise ValueError("operation_id has already been used")
 
-    audit.append(
-        "memory.clear.requested",
-        {"operation_id": operation, "actor": actor, "target": SCOPE},
-    )
+    try:
+        audit.append(
+            "memory.clear.requested",
+            {"operation_id": operation, "actor": actor, "target": SCOPE},
+        )
+    except IntegrityError as exc:
+        # A concurrent caller won the race to record this operation_id.
+        raise ValueError("operation_id has already been used") from exc
 
     lease_token = None
     with _CLEAR_LOCK:

@@ -1,5 +1,5 @@
 """Composition root for the Autonomous Evolution Engine."""
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router
@@ -153,10 +153,23 @@ try:
 except Exception:  # pragma: no cover
     logger.warning("Evolution engine dispatcher injection deferred")
 
-app.include_router(router)
-app.include_router(ws_router)
-app.include_router(observation_router)
-app.include_router(governance_router)
+# Canonical public HTTP API surface. Legacy aliases remain available for existing clients
+# but are excluded from the published OpenAPI contract.
+API_V1_PREFIX = "/api/v1"
+app.include_router(router, prefix=API_V1_PREFIX)
+app.include_router(observation_router, prefix=API_V1_PREFIX)
+app.include_router(governance_router, prefix=API_V1_PREFIX)
+app.include_router(router, include_in_schema=False)
+app.include_router(observation_router, include_in_schema=False)
+app.include_router(governance_router, include_in_schema=False)
+
+@app.middleware("http")
+async def api_version_header(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith(API_V1_PREFIX):
+        response.headers["X-API-Version"] = "v1"
+    return response
+
 setup_metrics(app)
 
 

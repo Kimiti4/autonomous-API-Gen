@@ -26,7 +26,7 @@ from app.storage.lease import (
 
 class EvolutionEngine:
     """Main genetic evolution engine with durable lifecycle and provenance."""
-    _EVENT_TYPE_MAP = {"evolution_start":"evolution.stage_changed","generation_start":"evolution.stage_changed","new_best":"candidate.promoted","generation_complete":"fitness.evaluated","building_best":"evolution.stage_changed","docker_test":"evolution.stage_changed","evolution_complete":"evolution.stage_changed","evolution_failed":"evolution.stage_changed"}
+    _EVENT_TYPE_MAP = {"evolution_start":"evolution.stage_changed","generation_start":"evolution.stage_changed","new_best":"candidate.selected","candidate_promoted":"candidate.promoted","generation_complete":"fitness.evaluated","building_best":"evolution.stage_changed","docker_test":"evolution.stage_changed","evolution_complete":"evolution.stage_changed","evolution_failed":"evolution.stage_changed"}
 
     def __init__(self, target: BackendTarget = PYTHON_FASTAPI):
         self.target = target
@@ -171,6 +171,15 @@ class EvolutionEngine:
                         )
                     output_path = promote_verified_artifact(best_evidence["artifact_path"], "output/generated_api", expected_digest=best_evidence["artifact_digest"])
                     promotion_status = "published"
+                    await self._emit_update(
+                        {"type": "candidate_promoted", "run_id": run_id,
+                         "generation": generations,
+                         "genome": best_genome.encode(),
+                         "artifact_digest": best_evidence["artifact_digest"],
+                         "output_path": output_path},
+                        run_id=run_id,
+                        generation=generations,
+                    )
                 except (KeyError, ValueError) as exc:
                     output_path = None
                     build_error = f"verified artifact promotion failed: {exc}"

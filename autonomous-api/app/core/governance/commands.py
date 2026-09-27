@@ -53,6 +53,7 @@ class GrantCertification(BaseModel):
 
 class RevokeCertification(BaseModel):
     model_config = ConfigDict(frozen=True)
+    candidateId: str = Field(min_length=1)
     certificationId: str = Field(min_length=1)
     revokedBy: str = Field(min_length=1)
     reason: str

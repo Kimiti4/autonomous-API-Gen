@@ -21,7 +21,7 @@ from app.core.exceptions import UnauthenticatedError
 # HTTP paths that mutate or inspect evolution state. Keep this deny-by-default
 # list close to the security boundary so new evolution routes cannot silently
 # become public when they are added without an explicit security dependency.
-PROTECTED_CONTROL_PREFIXES = ("/evolve", "/production/readiness")
+PROTECTED_CONTROL_PREFIXES = ("/evolve", "/production/readiness", "/api/v1/evolve", "/api/v1/production/readiness")
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):

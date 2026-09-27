@@ -95,16 +95,11 @@ def test_elite_kill_switch_blocks_before_work(monkeypatch):
 
 
 def test_kill_switch_routes_require_auth():
-    from app.api.routes import router
-    from app.middleware.security import set_auth_provider, CompositeAuthProvider, ApiKeyAuthProvider
-
-    app = FastAPI()
-    app.include_router(router)
-    set_auth_provider(CompositeAuthProvider([ApiKeyAuthProvider(api_key="secret")]))
+    from app.main import app
 
     client = TestClient(app)
-    assert client.get("/evolution/kill-switch").status_code == 401
+    assert client.get("/api/v1/evolution/kill-switch").status_code == 401
     assert client.post(
-        "/evolution/kill-switch/activate",
+        "/api/v1/evolution/kill-switch/activate",
         json={"reason": "test", "actor_id": "spoof"},
     ).status_code == 401

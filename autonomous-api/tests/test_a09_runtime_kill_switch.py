@@ -86,3 +86,74 @@ def test_kill_switch_routes_require_auth():
     routes = {route.path: route for route in router.routes if route.path in protected_paths}
     assert set(routes) == protected_paths
     assert all(any(dep.call is require_auth for dep in route.dependant.dependencies) for route in routes.values())
+
+
+def test_evolution_routes_map_active_kill_switch_to_503(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+
+    from app.middleware.security import (
+        ApiKeyAuthProvider,
+        CompositeAuthProvider,
+        set_auth_provider,
+    )
+
+    _bind_control_store(monkeypatch, tmp_path)
+    activate_kill_switch(reason="incident", actor="operator")
+
+    from app.main import app
+
+    import app.middleware.security as security
+
+    previous_provider = security._auth_provider
+    try:
+        set_auth_provider(CompositeAuthProvider([ApiKeyAuthProvider(api_key="a09-key")]))
+
+        client = TestClient(app)
+        headers = {"X-API-Key": "a09-key"}
+        body = {"generations": 1, "population_size": 4}
+        responses = [
+            client.post("/api/v1/evolve/start", json=body, headers=headers),
+            client.post("/api/v1/evolve/sync", params=body, headers=headers),
+            client.post("/api/v1/evolve/elite/start", json=body, headers=headers),
+        ]
+        for response in responses:
+            assert response.status_code == 503, response.text
+            assert "kill switch is active" in response.text
+    finally:
+        security._auth_provider = previous_provider
+
+
+def test_kill_switch_aborts_run_at_generation_boundary(monkeypatch):
+    import asyncio
+
+    from app.engine.evolution import EvolutionEngine
+    from app.storage.db import SessionLocal
+    from app.storage.models import EvolutionRun
+
+    calls = {"count": 0}
+
+    def _boundary(*_args, **_kwargs):
+        calls["count"] += 1
+        if calls["count"] >= 2:
+            raise RuntimeError("runtime evolution kill switch is active: flipped mid-run")
+
+    monkeypatch.setattr("app.engine.evolution.assert_evolution_enabled", _boundary)
+
+    with pytest.raises(RuntimeError, match="kill switch is active"):
+        asyncio.run(
+            EvolutionEngine().run_async(
+                generations=2, population_size=4, use_docker=False, seed=5
+            )
+        )
+
+    assert calls["count"] == 2
+
+    db = SessionLocal()
+    try:
+        failed = db.query(EvolutionRun).filter(EvolutionRun.status == "failed").all()
+        assert any("flipped mid-run" in str(record.history) for record in failed)
+        assert not any(
+            "candidate.promoted" in str(record.history) for record in failed
+        )
+    finally:
+        db.close()

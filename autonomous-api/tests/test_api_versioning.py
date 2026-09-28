@@ -7,6 +7,9 @@ def test_openapi_publishes_only_canonical_v1_api_paths():
     paths = app.openapi()["paths"]
     expected = {
         "/api/v1/health": {"get"},
+        "/api/v1/auth/login": {"post"},
+        "/api/v1/auth/logout": {"post"},
+        "/api/v1/auth/session": {"get"},
         "/api/v1/stream": {"get"},
         "/api/v1/production/readiness": {"post"},
         "/api/v1/evolve/start": {"post"},

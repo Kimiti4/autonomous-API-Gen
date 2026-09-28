@@ -43,9 +43,10 @@ session_provider = SessionAuthProvider(
     cookie_name=settings.OPERATOR_SESSION_COOKIE,
     ttl_seconds=settings.OPERATOR_SESSION_TTL_SECONDS,
 )
-auth_providers = [session_provider]
+auth_providers = []
 if settings.ADMIN_API_KEY:
     auth_providers.append(ApiKeyAuthProvider(api_key=settings.ADMIN_API_KEY))
+auth_providers.append(session_provider)
 validate_auth_config(settings.ENVIRONMENT, auth_providers)
 set_auth_provider(CompositeAuthProvider(auth_providers))
 

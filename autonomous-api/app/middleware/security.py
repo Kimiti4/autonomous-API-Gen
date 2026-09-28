@@ -21,7 +21,7 @@ from starlette.responses import JSONResponse
 from app.core.exceptions import UnauthenticatedError
 
 
-PROTECTED_CONTROL_PREFIXES = ("/evolve", "/production/readiness", "/governance", "/api/v1/evolve", "/api/v1/production/readiness", "/api/v1/governance")
+PROTECTED_CONTROL_PREFIXES = ("/evolve", "/evolution", "/production/readiness", "/governance", "/api/v1/evolve", "/api/v1/evolution", "/api/v1/production/readiness", "/api/v1/governance")
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):

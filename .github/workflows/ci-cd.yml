@@ -141,6 +141,7 @@ jobs:
           flake8 output/ci-template-smoke/ --count --select=F821 --show-source --statistics
       - name: Run Black check (non-blocking; repo has pre-existing formatting debt)
         run: black app/ --check
+        continue-on-error: true
 
   security-scan:
     runs-on: ubuntu-latest

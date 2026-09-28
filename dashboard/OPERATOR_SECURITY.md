@@ -21,7 +21,7 @@ configuration contains no API keys, bearer tokens, or other credentials.
 Observation requests use same-origin credentials so an upstream authenticated
 session/cookie can be forwarded to the platform API.
 
-The platform now provides the operator session boundary. The dashboard login
+The platform now provides the operator session boundary. The issued dashboard session has observation scope only; control-plane prefixes still require the existing control-scoped API-key authority. The dashboard login
 POSTs the operator credential to same-origin `/auth/login`; the platform
 validates it against `ADMIN_API_KEY` and returns a signed, HttpOnly,
 SameSite=Lax session cookie. Subsequent observation and WebSocket requests use

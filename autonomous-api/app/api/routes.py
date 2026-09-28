@@ -44,7 +44,8 @@ async def operator_login(payload: OperatorLoginRequest, response: Response):
     provider = _operator_session_provider()
     value, _expires_at = provider.issue("admin")
     provider.set_cookie(response, value, secure=settings.ENVIRONMENT == "production")
-    return Response(status_code=204)
+    response.status_code = 204
+    return response
 
 @router.get("/auth/session")
 async def operator_session(auth=Depends(require_auth)):
@@ -53,7 +54,8 @@ async def operator_session(auth=Depends(require_auth)):
 @router.post("/auth/logout", status_code=204)
 async def operator_logout(response: Response):
     _operator_session_provider().clear_cookie(response)
-    return Response(status_code=204)
+    response.status_code = 204
+    return response
 
 
 def _assert_runtime_evolution_enabled() -> None:

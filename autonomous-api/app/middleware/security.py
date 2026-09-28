@@ -185,13 +185,13 @@ class SessionAuthProvider:
     async def authenticate_ws(self, websocket: WebSocket) -> Optional[AuthContext]:
         return self._verify(websocket.cookies.get(self.cookie_name))
 
-    def set_cookie(self, response: Response, value: str) -> None:
+    def set_cookie(self, response: Response, value: str, *, secure: bool) -> None:
         response.set_cookie(
             key=self.cookie_name,
             value=value,
             max_age=self.ttl_seconds,
             httponly=True,
-            secure=getattr(response, "_operator_cookie_secure", False),
+            secure=secure,
             samesite="lax",
             path="/",
         )

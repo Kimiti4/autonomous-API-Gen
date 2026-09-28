@@ -17,6 +17,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ['3.11', '3.12', '3.13']
     services:
@@ -140,7 +141,6 @@ jobs:
           flake8 output/ci-template-smoke/ --count --select=F821 --show-source --statistics
       - name: Run Black check (non-blocking; repo has pre-existing formatting debt)
         run: black app/ --check
-        continue-on-error: true
 
   security-scan:
     runs-on: ubuntu-latest
@@ -155,6 +155,7 @@ jobs:
       - name: Run Bandit security scan (fail on MEDIUM/HIGH only; LOW findings reported not blocking)
         run: bandit -ll -r app/ -f json -o bandit-report.json
       - name: Upload security report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: security-report

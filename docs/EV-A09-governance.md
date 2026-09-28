@@ -226,7 +226,7 @@ Only enforcement actually live on PR#1 `6e1aa1a` for the shipped API: **admin AP
 | EV-A06 | `docs/EV-A06-observability.md` | FAIL | 001..012 |
 | EV-A07 | `docs/EV-A07-schema-observation-integrity.md` | FAIL | 001..012 |
 | EV-A08 | `docs/EV-A08-change-safety.md` | FAIL | 001..012 |
-| **EV-A09** | **`docs/EV-A09-governance.md`** | **FAIL — remediation in progress** | **001..012** |
+| **EV-A09** | **`docs/EV-A09-governance.md`** | **CLOSED — A09-010 PASS** | **001..010 + close-out** |
 
 **Bandit-fix verification track** remains separate (PR #1 head last known `6e1aa1a`; main `1f26e42`).
 

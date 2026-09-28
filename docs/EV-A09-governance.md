@@ -231,3 +231,87 @@ Only enforcement actually live on PR#1 `6e1aa1a` for the shipped API: **admin AP
 **Bandit-fix verification track** remains separate (PR #1 head last known `6e1aa1a`; main `1f26e42`).
 
 *(End of EV-A01…EV-A09 sequence. Optional follow-ups: consolidated executive summary across nine reports; collaborator remediation re-audit when PR #1 moves.)*
+
+
+---
+
+## A09-010 — Governance close-out and claim-to-code reconciliation
+
+**Close-out verdict: PASS for EV-A09.**
+
+This section supersedes the earlier "remediation in progress" conclusion for the A09 sequence only. It does **not** re-certify EV-A01 through EV-A08; those reports retain their own scope, findings, and remediation status.
+
+### 1. Final A09 register
+
+| Gate | Final state | Evidence / boundary |
+|---|---|---|
+| A09-001 | **PASS** | Production composition constructs the canonical GovernanceSubsystem; governed publication is the single promotion seam; verified evidence is required before publication. |
+| A09-002 | **PASS** | G-6 is fail-closed; an explicitly empty certifier set is rejected and unknown certifiers cannot be granted certification. |
+| A09-003 | **PASS** | G-7 uses explicit executive voting weight (0.6 default) supplied by the composition root and covered by regression tests. |
+| A09-004 | **PASS** | SQLite governance event/reference stores reconstruct across real process restarts; certification revocation is persisted in the candidate stream; audit tampering fails closed. |
+| A09-005 | **PASS** | Marketplace governance extensions default on when a kernel is supplied; evidence signing is required and constitution versions use the file-backed repository. |
+| A09-006 | **PASS** | Runtime kill switch is durable, signed, verified on read, mounted on the product API, auth-gated, and checked at evolution entry/generation/promotion boundaries; mid-run activation aborts before promotion. |
+| A09-007 | **PASS** | Certification governance registry is persistent product state under data/governance/, reconstructs its chain/index, and refuses corrupted state. |
+| A09-008 | **PASS** | Governance observations are exposed through authenticated, canonical-backed projection routes with fail-closed 503 behavior when unconfigured. |
+| A09-009 | **PASS** | Shipped dashboard uses same-origin signed sessions, has no embedded platform credential, proxies only to versioned observation/auth surfaces, and keeps control authority in the platform API. |
+| A09-010 | **PASS** | Cross-gate reconciliation completed; no contradictory runtime path was identified that reopens A09-001..009. |
+
+### 2. Authority chain verified
+
+The remediated product authority chain is now:
+
+operator authentication → authenticated API boundary → evolution runtime kill-switch check → candidate evidence verification → durable governance materialization → lifecycle/decision authorization → verified artifact publication → durable run state/event evidence.
+
+The standard evolution engine's _publish_governed_candidate() is the publication boundary. It refuses unverified evidence, materializes the candidate from the durable governance subsystem, requires an approving decision at an allowed lifecycle state, and only then calls promote_verified_artifact().
+
+Production configuration independently requires GOVERNANCE_ENFORCEMENT_REQUIRED=true, non-empty GOVERNANCE_CERTIFIERS, a positive quorum threshold, and a non-development audit signing key. Therefore the development/test compatibility switch does not constitute a production governance bypass.
+
+The elite engine does not have an equivalent evidence-backed publication path; under production governance enforcement it fails closed rather than building/publishing an ungoverned artifact. This is treated as a deliberate bounded limitation, not as evidence of an alternative promotion path.
+
+### 3. Authentication and privilege separation
+
+The operator session is deliberately scoped to observe only. The API-key provider retains control scope. /api/v1/evolution/* is explicitly inside the control-plane middleware boundary, preventing an observation-only session from activating/deactivating the kill switch. Provider ordering gives an explicit API key control authority precedence over an observation-only session when both credentials are present.
+
+The React dashboard never receives the ADMIN_API_KEY as runtime configuration. The key is submitted only to the server-side login endpoint and is exchanged for an HttpOnly, signed, expiring session cookie. Logout clears the browser cookie.
+
+**Residual:** logout is browser-side revocation only; a previously issued signed session remains cryptographically valid until its maximum eight-hour TTL unless the signing secret is rotated. This is documented as a residual and is not an A09 closure blocker because the session is observation-only and cannot cross the control boundary.
+
+### 4. Evidence and CI reconciliation
+
+Authoritative re-certification evidence for the remediated A09 head:
+
+- 1619dd3 — A09-009 final closure and root-suite/dependency-contract CI fixes.
+- A09-002..A09-007 were re-certified together at a697553 with all 8 required workflows successful.
+- A09-008 was certified at 8a62f37 with all 8 required workflows successful; canonical Gate 2 was 281 passed, 3 deselected.
+- A09-009 final evidence at 1619dd3: canonical Gate 2 284 passed, 3 deselected; root suite 4262 passed, 2 skipped; Python 3.11/3.12/3.13 matrix 287 passed per interpreter; all 8 workflows successful.
+- The root repository unit suite is now a first-class CI job, removing the previous visibility gap in which the 4,000+ test root suite was not continuously exercised by the authoritative workflow.
+
+CI status statements above are tied to the cited commits and are not inferred from an older workflow run.
+
+### 5. Claim-to-code result
+
+The original A09 claims that were previously aspirational or unwired are now classified as follows:
+
+- Governance composition: live in the product composition root.
+- Promotion authorization: enforced at the standard artifact publication seam.
+- Durable governance state: SQLite-backed and restart-reconstructable for the shipped governance subsystem.
+- Evidence signing: required for the governed marketplace extension path and for production governance audit configuration.
+- Runtime brake: live, authenticated, durable, tamper-evident, and checked during evolution.
+- Governance observation: live through authenticated canonical projections.
+- Operator surface: live through a platform-recognized session boundary without browser-held control credentials.
+- Certification registry: durable product state rather than an ephemeral CI-only ledger.
+
+No claim is made that every historical Phase-28 library component is itself the product runtime. The close-out distinguishes library/reference planes from the canonical autonomous-api production path.
+
+### 6. Remaining bounded follow-ups
+
+These are not A09 blockers:
+
+1. Add server-side session revocation if immediate logout invalidation is required by a future security policy.
+2. Extend evidence-backed governance publication semantics to the elite engine if elite evolution is intended to become a production publishing path; until then its production behavior remains fail-closed under governance enforcement.
+3. Reconcile EV-A01..EV-A08 independently; A09 closure does not imply those reports are closed.
+4. Keep the legacy Phase-28 dashboard/reference plane explicitly separate from the shipped operator console to avoid reintroducing a second authority surface.
+
+**A09 sequence status: CLOSED.**
+
+**A09-010 conclusion:** the remediated repository now has a coherent, fail-closed governance authority chain on the shipped evolution API, with durable state, authenticated observation/control separation, runtime kill-switch enforcement, and regression/CI evidence sufficient to close EV-A09 within its audited scope.

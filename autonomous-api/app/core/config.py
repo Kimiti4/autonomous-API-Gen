@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     SECRET_KEY: str = ""
     API_KEY_HEADER: str = "X-API-Key"
     ADMIN_API_KEY: str = ""
+    OPERATOR_SESSION_COOKIE: str = "esap_operator_session"
+    OPERATOR_SESSION_TTL_SECONDS: int = 28800
 
     RATE_LIMIT_GENERAL: int = 100
     RATE_LIMIT_EVOLUTION: int = 20
@@ -65,6 +67,13 @@ class Settings(BaseSettings):
     def _positive_limits(cls, v):
         if v <= 0:
             raise ValueError("rate-limit settings must be positive")
+        return v
+
+    @field_validator("OPERATOR_SESSION_TTL_SECONDS")
+    @classmethod
+    def _positive_session_ttl(cls, v):
+        if v <= 0:
+            raise ValueError("OPERATOR_SESSION_TTL_SECONDS must be positive")
         return v
 
     @model_validator(mode="after")

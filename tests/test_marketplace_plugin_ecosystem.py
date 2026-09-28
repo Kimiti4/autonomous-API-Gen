@@ -292,12 +292,15 @@ def test_governance_kernel_delegates_approval():
     assert any("Auto-approved" in event for event in listing.audit_trail)
 
 
-def test_governance_extensions_record_evidence_in_kernel_delegate():
-    """Phase 28 GovernedKernel wrapper records evidence when enabled (opt-in)."""
+def test_governance_extensions_record_evidence_in_kernel_delegate(monkeypatch, tmp_path):
+    """Phase 28 GovernedKernel wrapper records evidence (default-on, signed, durable)."""
     from constitutional_architecture.governance import GovernanceKernel
     from constitutional_architecture.governance.integration import GovernedKernel
 
     from marketplace_plugins.engine import GovernanceGateway
+
+    monkeypatch.setenv("AUDIT_EVIDENCE_SIGNING_KEY", "b" * 32)
+    monkeypatch.setenv("CONSTITUTION_VERSION_STORE_PATH", str(tmp_path / "versions"))
 
     engine = build_engine_with_publisher()
     engine.governance = GovernanceGateway(
@@ -321,6 +324,8 @@ def test_governance_extensions_record_evidence_in_kernel_delegate():
 def test_governed_extensions_fail_closed_without_signing_key(monkeypatch):
     from constitutional_architecture.governance import GovernanceKernel
 
+    from marketplace_plugins.engine import GovernanceGateway
+
     monkeypatch.delenv("AUDIT_EVIDENCE_SIGNING_KEY", raising=False)
 
     with pytest.raises(RuntimeError, match="AUDIT_EVIDENCE_SIGNING_KEY is required"):
@@ -331,6 +336,8 @@ def test_governance_extensions_are_default_signed_and_durable(monkeypatch, tmp_p
     from constitutional_architecture.governance.evidence_signing import SignedAuditEvidenceRecorder
     from constitutional_architecture.governance.versioning import FileBackedConstitutionVersionRepository
     from constitutional_architecture.governance import GovernanceKernel
+
+    from marketplace_plugins.engine import GovernanceGateway
 
     monkeypatch.setenv("AUDIT_EVIDENCE_SIGNING_KEY", "a" * 32)
     monkeypatch.setenv("CONSTITUTION_VERSION_STORE_PATH", str(tmp_path / "versions"))

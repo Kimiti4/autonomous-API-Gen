@@ -7,6 +7,24 @@
 
 ---
 
+## Remediation addendum — A09-008 certified; A09-009 in progress
+
+**Authoritative A09-008 evidence:** 8a62f37 — PASS, 8/8 required workflows green; CI Gate 2 `281 passed, 3 deselected`; local governance-observation 4/4, API-versioning 3/3, root 4257 passed/2 skipped, flake8/bandit clean. The certified implementation composes GovernanceSubsystem → GovernanceObservationAdapter → GovernanceProjector and exposes authenticated candidate/generation governance observations. The 503 path and OpenAPI surface are regression-pinned.
+
+### EV-A09-009 — Dashboard/operator surface
+
+**Current verdict: PARTIAL / OPEN.**
+
+The repository contains two distinct surfaces. constitutional_architecture/governance/dashboard/ is the Phase-28 kernel reference/admin BFF; it has real session TTL, CSRF, role permissions, fail-closed kernel error handling, and kernel-side authorization, but its sessions are in-memory and its demo users make it unsuitable as the authentication authority for the shipped autonomous-api governance path. It remains a separate reference/admin plane.
+
+The shipped React dashboard/ is the intended read-only operator surface. It consumes observation projections and does not implement governance mutation or an independent governance store. A concrete deployment defect was fixed: dashboard nginx now rewrites /observation/* to the certified versioned API path /api/v1/observation/*.
+
+The dashboard runtime contains no API key/bearer credential and observation clients use same-origin credentials. A production deployment still requires an explicit authenticated upstream session/gateway that establishes the platform-recognized cookie; no credential is embedded in browser code or runtime ConfigMaps. This remains the principal A09-009 closure item.
+
+A09-009 regression pins were added in tests/test_a09_dashboard_operator_surface.py for the canonical proxy path, absence of platform credentials from dashboard runtime configuration, and same-origin credential use.
+
+The root repository unit suite is now also added to .github/workflows/ci-cd.yml as a dedicated root-suite job, closing the previously identified CI visibility gap for the 4,257-test root suite.
+
 ## STATUS: **FAIL — BASELINE; REMEDIATION IN PROGRESS**
 
 ### Remediation addendum — current evidence state (`cf5893f1`)

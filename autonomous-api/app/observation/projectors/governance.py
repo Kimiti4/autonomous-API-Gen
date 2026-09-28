@@ -10,7 +10,7 @@ class GovernanceProjector:
     async def get_generation(self, generation: int):
         states = await self._accessor.get_generation_governance(generation)
         return {
-            "metadata": {"contractId": ProjectionContract.CANDIDATES[0], "schemaVersion": ProjectionContract.CANDIDATES[1]},
+            "metadata": {"contractId": "platform.observation.governance", "schemaVersion": "1.0.0"},
             "provenance": {"sourceSubsystem": "governance", "sourceRevision": "1.0.0"},
             "generation": generation,
             "candidates": states,
@@ -19,7 +19,7 @@ class GovernanceProjector:
     async def get_candidate(self, candidate_id: str):
         state = await self._accessor.get_candidate_governance(candidate_id)
         return {
-            "metadata": {"contractId": ProjectionContract.CANDIDATES[0], "schemaVersion": ProjectionContract.CANDIDATES[1]},
+            "metadata": {"contractId": "platform.observation.governance", "schemaVersion": "1.0.0"},
             "provenance": {"sourceSubsystem": "governance", "sourceRevision": "1.0.0"},
             "candidateId": candidate_id,
             "governance": state,

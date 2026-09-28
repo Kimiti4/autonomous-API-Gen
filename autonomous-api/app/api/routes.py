@@ -1,11 +1,12 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Response
 from sse_starlette.sse import EventSourceResponse
 import asyncio
+import hmac
 from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.core.logger import logger
-from app.core.exceptions import ObservationDomainError
+from app.core.exceptions import ObservationDomainError, UnauthenticatedError
 from app.engine.reasoning.orchestrator import ReasoningEngine
 from app.engine.evolution import EvolutionEngine
 from app.engine.elite_evolution import EliteEvolutionEngine
@@ -14,7 +15,7 @@ from app.api.ws import manager
 from app.storage.db import SessionLocal, get_db
 from app.storage.models import EvolutionRun
 from app.schemas.evolution import EvolutionRequest, EliteEvolutionRequest, EvolutionResponse, EliteEvolutionResponse, ProductionReadinessRequest, ProductionReadinessResponse, HealthCheckResponse
-from app.middleware.security import require_auth
+from app.middleware.security import require_auth, SessionAuthProvider
 from pydantic import BaseModel, Field
 from app.core.memory_clear import MemoryClearAuditStore, clear_elite_memory
 from app.core.runtime_control import assert_evolution_enabled
@@ -23,6 +24,37 @@ import psutil
 import os
 
 router = APIRouter()
+
+class OperatorLoginRequest(BaseModel):
+    api_key: str = Field(min_length=1)
+
+def _operator_session_provider() -> SessionAuthProvider:
+    settings = get_settings()
+    return SessionAuthProvider(
+        secret=settings.SECRET_KEY or settings.GOVERNANCE_AUDIT_SIGNING_KEY,
+        cookie_name=settings.OPERATOR_SESSION_COOKIE,
+        ttl_seconds=settings.OPERATOR_SESSION_TTL_SECONDS,
+    )
+
+@router.post("/auth/login", status_code=204)
+async def operator_login(payload: OperatorLoginRequest, response: Response):
+    settings = get_settings()
+    if not settings.ADMIN_API_KEY or not hmac.compare_digest(payload.api_key, settings.ADMIN_API_KEY):
+        raise UnauthenticatedError("Authentication required")
+    provider = _operator_session_provider()
+    value, _expires_at = provider.issue("admin")
+    provider.set_cookie(response, value, secure=settings.ENVIRONMENT == "production")
+    return Response(status_code=204)
+
+@router.get("/auth/session")
+async def operator_session(auth=Depends(require_auth)):
+    return {"authenticated": True, "subject": auth.subject}
+
+@router.post("/auth/logout", status_code=204)
+async def operator_logout(response: Response):
+    _operator_session_provider().clear_cookie(response)
+    return Response(status_code=204)
+
 
 def _assert_runtime_evolution_enabled() -> None:
     try:

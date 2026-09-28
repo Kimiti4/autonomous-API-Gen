@@ -20,6 +20,8 @@ from app.middleware.security import (
 )
 from app.observation.gateway.dispatcher import EventDispatcher
 from app.observation.projectors.fitness import FitnessProjector
+from app.observation.projectors.governance import GovernanceProjector
+from app.governance.observation_adapter import GovernanceObservationAdapter
 from app.observation.sequences.memory import InMemorySequenceStore
 from app.core.contracts.events import EventSource
 from app.storage.db import init_db, engine as db_engine
@@ -129,6 +131,17 @@ governance = GovernanceSubsystem(
     executive_voting_weight=settings.GOVERNANCE_EXECUTIVE_WEIGHT,
 )
 configure_governance(governance)
+
+governance_projector = GovernanceProjector(
+    GovernanceObservationAdapter(governance)
+)
+
+configure_observation(
+    store=store,
+    dispatcher=dispatcher,
+    fitness_projector=fitness_projector,
+    governance_projector=governance_projector,
+)
 
 
 async def manager_broadcast(envelope) -> None:

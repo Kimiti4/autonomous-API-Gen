@@ -66,13 +66,14 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.13'
       - name: Install root and platform dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e .
           pip install -e autonomous-api
           pip install pyyaml hypothesis alembic
+          pip install fastapi==0.136.0 uvicorn==0.45.0 pydantic==2.13.0
       - name: Run canonical root unit suite
         run: pytest -q
 

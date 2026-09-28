@@ -21,14 +21,20 @@ configuration contains no API keys, bearer tokens, or other credentials.
 Observation requests use same-origin credentials so an upstream authenticated
 session/cookie can be forwarded to the platform API.
 
-A production deployment MUST provide an authenticated gateway/session mechanism
-that establishes the platform-recognized cookie before exposing the dashboard
-to operators. The dashboard must not embed an API key in JavaScript, runtime
-ConfigMaps, URLs, or WebSocket query parameters.
+The platform now provides the operator session boundary. The dashboard login
+POSTs the operator credential to same-origin `/auth/login`; the platform
+validates it against `ADMIN_API_KEY` and returns a signed, HttpOnly,
+SameSite=Lax session cookie. Subsequent observation and WebSocket requests use
+that cookie and are authenticated by the canonical platform auth provider.
 
-Until such an upstream identity/session mechanism is configured, the dashboard
-is intentionally fail-closed: the platform returns 401 and the UI must treat
-the observation as unavailable rather than fabricate state.
+The dashboard must not embed an API key in JavaScript, runtime ConfigMaps,
+URLs, or WebSocket query parameters. The credential is held only in the
+login form while it is submitted over the same-origin HTTPS connection; it is
+not persisted in browser storage.
+
+Without a valid platform session, `/auth/session` and observation endpoints
+return 401 and the UI remains at the login boundary rather than fabricating
+state. Production cookies are marked Secure.
 
 ## Legacy Phase-28 dashboard
 
@@ -51,5 +57,7 @@ authentication/governance gates.
 A09-009 tests assert:
 
 - the dashboard proxy targets `/api/v1/observation/`;
+- the dashboard auth proxy targets `/api/v1/auth/`;
+- the platform session is HttpOnly and signed;
 - no platform credential appears in dashboard runtime ConfigMap;
 - observation clients use same-origin credentials.

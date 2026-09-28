@@ -21,7 +21,7 @@ from starlette.responses import JSONResponse
 from app.core.exceptions import UnauthenticatedError
 
 
-PROTECTED_CONTROL_PREFIXES = ("/evolve", "/production/readiness", "/api/v1/evolve", "/api/v1/production/readiness")
+PROTECTED_CONTROL_PREFIXES = ("/evolve", "/production/readiness", "/governance", "/api/v1/evolve", "/api/v1/production/readiness", "/api/v1/governance")
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -38,6 +38,12 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
                 response = JSONResponse(
                     status_code=401,
                     content={"code": "SEC_UNAUTHENTICATED", "message": "Authentication required"},
+                )
+                return self._secure(response)
+            if "control" not in ctx.scopes:
+                response = JSONResponse(
+                    status_code=403,
+                    content={"code": "SEC_UNAUTHORIZED", "message": "Control scope required"},
                 )
                 return self._secure(response)
 

@@ -7,7 +7,10 @@ Constitutional rules enforced here:
 """
 from __future__ import annotations
 
+import base64
+import hashlib
 import hmac
+import time
 from dataclasses import dataclass
 from typing import Optional, Protocol, runtime_checkable
 
@@ -18,9 +21,6 @@ from starlette.responses import JSONResponse
 from app.core.exceptions import UnauthenticatedError
 
 
-# HTTP paths that mutate or inspect evolution state. Keep this deny-by-default
-# list close to the security boundary so new evolution routes cannot silently
-# become public when they are added without an explicit security dependency.
 PROTECTED_CONTROL_PREFIXES = ("/evolve", "/production/readiness", "/api/v1/evolve", "/api/v1/production/readiness")
 
 
@@ -37,10 +37,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             if ctx is None:
                 response = JSONResponse(
                     status_code=401,
-                    content={
-                        "code": "SEC_UNAUTHENTICATED",
-                        "message": "Authentication required",
-                    },
+                    content={"code": "SEC_UNAUTHENTICATED", "message": "Authentication required"},
                 )
                 return self._secure(response)
 
@@ -60,19 +57,15 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         if "server" in response.headers:
             del response.headers["server"]
         response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
-            "style-src 'self' 'unsafe-inline'; "
-            "img-src 'self' data: https:; "
-            "font-src 'self'; "
-            "connect-src 'self' ws: wss: http://localhost:* http://127.0.0.1:*; "
+            "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+            "style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; "
+            "font-src 'self'; connect-src 'self' ws: wss: http://localhost:* http://127.0.0.1:*; "
             "frame-ancestors 'none';"
         )
         return response
 
 
 def validate_cors_origins(origins: list) -> list:
-    """Validate and sanitize CORS origins."""
     validated = []
     for origin in origins:
         origin = origin.strip()
@@ -95,7 +88,6 @@ class AuthContext:
 
 @runtime_checkable
 class AuthProvider(Protocol):
-    """Plugin-first authentication provider contract."""
     async def authenticate(self, request: Request) -> Optional[AuthContext]:
         ...
 
@@ -144,6 +136,70 @@ class ApiKeyAuthProvider:
         return None
 
 
+class SessionAuthProvider:
+    """Verifies an HttpOnly, signed operator session cookie.
+
+    The cookie contains only an opaque signed subject/expiry pair. The ADMIN_API_KEY
+    never enters the browser's runtime configuration and is exchanged only at login.
+    """
+
+    def __init__(self, *, secret: str, cookie_name: str, ttl_seconds: int) -> None:
+        if not secret:
+            raise RuntimeError("Session authentication requires a signing secret")
+        self._secret = secret.encode("utf-8")
+        self.cookie_name = cookie_name
+        self.ttl_seconds = ttl_seconds
+
+    def _signature(self, value: str) -> str:
+        return hmac.new(self._secret, value.encode("utf-8"), hashlib.sha256).hexdigest()
+
+    def issue(self, subject: str, *, now: Optional[int] = None) -> tuple[str, int]:
+        issued_at = int(time.time()) if now is None else now
+        expires_at = issued_at + self.ttl_seconds
+        payload = f"{subject}:{expires_at}"
+        encoded = base64.urlsafe_b64encode(payload.encode("utf-8")).decode("ascii").rstrip("=")
+        value = f"{encoded}.{self._signature(encoded)}"
+        return value, expires_at
+
+    def _verify(self, value: Optional[str], *, now: Optional[int] = None) -> Optional[AuthContext]:
+        if not value or "." not in value:
+            return None
+        encoded, signature = value.rsplit(".", 1)
+        expected = self._signature(encoded)
+        if not hmac.compare_digest(signature, expected):
+            return None
+        try:
+            padded = encoded + "=" * (-len(encoded) % 4)
+            subject, expires_raw = base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8").rsplit(":", 1)
+            expires_at = int(expires_raw)
+        except (ValueError, UnicodeError):
+            return None
+        current = int(time.time()) if now is None else now
+        if not subject or expires_at <= current:
+            return None
+        return AuthContext(subject=subject, scopes=("observe",))
+
+    async def authenticate(self, request: Request) -> Optional[AuthContext]:
+        return self._verify(request.cookies.get(self.cookie_name))
+
+    async def authenticate_ws(self, websocket: WebSocket) -> Optional[AuthContext]:
+        return self._verify(websocket.cookies.get(self.cookie_name))
+
+    def set_cookie(self, response: Response, value: str) -> None:
+        response.set_cookie(
+            key=self.cookie_name,
+            value=value,
+            max_age=self.ttl_seconds,
+            httponly=True,
+            secure=getattr(response, "_operator_cookie_secure", False),
+            samesite="lax",
+            path="/",
+        )
+
+    def clear_cookie(self, response: Response) -> None:
+        response.delete_cookie(self.cookie_name, path="/", samesite="lax")
+
+
 class CompositeAuthProvider:
     """Tries providers in order; first success wins. Fail-closed otherwise."""
 
@@ -169,11 +225,9 @@ class CompositeAuthProvider:
 
 
 def validate_auth_config(environment: str, providers: list) -> None:
-    """Called at startup. Fail-closed in production."""
     if environment == "production" and not providers:
         raise RuntimeError(
-            "FATAL: production requires configured auth providers. "
-            "Refusing to start (fail-closed)."
+            "FATAL: production requires configured auth providers. Refusing to start (fail-closed)."
         )
 
 

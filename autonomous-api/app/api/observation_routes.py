@@ -5,7 +5,7 @@ Dependencies are injected by the composition root via configure_observation().
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Path, Query
 
 from app.core.contracts.observations import (
     CapabilityContract,
@@ -136,7 +136,7 @@ async def governance_candidate(
 
 @router.get("/governance/generation/{generation}")
 async def governance_generation(
-    generation: int = Query(ge=0),
+    generation: int = Path(ge=0),
     projector: GovernanceProjector = Depends(get_governance_projector),
     _auth=Depends(require_auth),
 ):

@@ -31,7 +31,13 @@ def test_operator_login_establishes_platform_recognized_session():
     assert session.json() == {"authenticated": True, "subject": "admin"}
 
     kill_switch = client.get("/api/v1/evolution/kill-switch")
-    assert kill_switch.status_code == 200
+    assert kill_switch.status_code == 403
+
+    control = client.get(
+        "/api/v1/evolution/kill-switch",
+        headers={"X-API-Key": "test-admin-key"},
+    )
+    assert control.status_code == 200
 
     logout = client.post("/api/v1/auth/logout")
     assert logout.status_code == 204

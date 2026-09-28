@@ -12,14 +12,14 @@ class _FakeGovernanceProjector:
         return {"generation": generation, "candidates": []}
 
 
-def test_governance_observation_candidate_requires_auth(client):
-    observation_routes._governance_projector = _FakeGovernanceProjector()
+def test_governance_observation_candidate_requires_auth(client, monkeypatch):
+    monkeypatch.setattr(observation_routes, "_governance_projector", _FakeGovernanceProjector())
     response = client.get("/api/v1/observation/governance/candidate/c1")
     assert response.status_code == 401
 
 
-def test_governance_observation_candidate_is_served(client, auth_headers):
-    observation_routes._governance_projector = _FakeGovernanceProjector()
+def test_governance_observation_candidate_is_served(client, auth_headers, monkeypatch):
+    monkeypatch.setattr(observation_routes, "_governance_projector", _FakeGovernanceProjector())
     response = client.get(
         "/api/v1/observation/governance/candidate/c1",
         headers=auth_headers,
@@ -31,8 +31,8 @@ def test_governance_observation_candidate_is_served(client, auth_headers):
     }
 
 
-def test_governance_observation_generation_is_served(client, auth_headers):
-    observation_routes._governance_projector = _FakeGovernanceProjector()
+def test_governance_observation_generation_is_served(client, auth_headers, monkeypatch):
+    monkeypatch.setattr(observation_routes, "_governance_projector", _FakeGovernanceProjector())
     response = client.get(
         "/api/v1/observation/governance/generation/7",
         headers=auth_headers,
@@ -41,8 +41,8 @@ def test_governance_observation_generation_is_served(client, auth_headers):
     assert response.json() == {"generation": 7, "candidates": []}
 
 
-def test_governance_observation_unconfigured_fails_closed(client, auth_headers):
-    observation_routes._governance_projector = None
+def test_governance_observation_unconfigured_fails_closed(client, auth_headers, monkeypatch):
+    monkeypatch.setattr(observation_routes, "_governance_projector", None)
     response = client.get(
         "/api/v1/observation/governance/candidate/c1",
         headers=auth_headers,

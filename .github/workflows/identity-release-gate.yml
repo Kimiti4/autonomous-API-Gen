@@ -27,7 +27,10 @@ jobs:
           cache: pip
           cache-dependency-path: autonomous-api/requirements*.txt
       - name: Install platform dependencies
-        run: pip install -r autonomous-api/requirements.txt -r autonomous-api/requirements-dev.txt
+        run: |
+          pip install uv==0.11.3
+          uv export --locked --no-hashes --no-emit-project --directory autonomous-api -o "$RUNNER_TEMP/uv-constraints.txt"
+          pip install -r autonomous-api/requirements.txt -r autonomous-api/requirements-dev.txt -c "$RUNNER_TEMP/uv-constraints.txt"
       - name: Run identity unit gates
         run: pytest tests/identity -q
 
@@ -44,7 +47,10 @@ jobs:
           cache: pip
           cache-dependency-path: autonomous-api/requirements*.txt
       - name: Install platform dependencies
-        run: pip install -r autonomous-api/requirements.txt -r autonomous-api/requirements-dev.txt
+        run: |
+          pip install uv==0.11.3
+          uv export --locked --no-hashes --no-emit-project --directory autonomous-api -o "$RUNNER_TEMP/uv-constraints.txt"
+          pip install -r autonomous-api/requirements.txt -r autonomous-api/requirements-dev.txt -c "$RUNNER_TEMP/uv-constraints.txt"
       - name: Run identity integration orchestrator
         run: bash release/run-identity-gates.sh
       - name: Capture run id

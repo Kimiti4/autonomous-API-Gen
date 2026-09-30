@@ -13,7 +13,10 @@ on:
       - "observation-client/package-lock.json"
       - "dashboard/package.json"
       - "dashboard/package-lock.json"
-      - "Dockerfile"
+      - "package.json"
+      - "package-lock.json"
+      - "autonomous-api/Dockerfile"
+      - "dashboard/Dockerfile"
       - ".github/workflows/**"
       - ".github/dependabot.yml"
 

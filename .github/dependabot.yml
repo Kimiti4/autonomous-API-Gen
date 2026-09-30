@@ -26,7 +26,12 @@ updates:
       interval: monthly
     open-pull-requests-limit: 5
   - package-ecosystem: docker
-    directory: "/"
+    directory: "/autonomous-api"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+  - package-ecosystem: docker
+    directory: "/dashboard"
     schedule:
       interval: monthly
     open-pull-requests-limit: 5

@@ -1,8 +1,25 @@
-"""Technology-neutral implementation IRs derived from canonical API contracts."""
+"""Richer technology-neutral frontend/backend implementation IR."""
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 from .api_ir import ApiContractIR
+
+
+@dataclass(frozen=True)
+class ModuleIR:
+    module_id: str
+    responsibility: str
+    dependencies: tuple[str, ...] = ()
+    invariants: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class DataFlowIR:
+    flow_id: str
+    source: str
+    destination: str
+    contract: str
+    failure_policy: str
 
 
 @dataclass(frozen=True)
@@ -15,9 +32,16 @@ class BackendIR:
     persistence_targets: tuple[str, ...] = ()
     event_targets: tuple[str, ...] = ()
     observability_requirements: tuple[str, ...] = ()
+    modules: tuple[ModuleIR, ...] = ()
+    data_flows: tuple[DataFlowIR, ...] = ()
+    security_boundaries: tuple[str, ...] = ()
+    failure_modes: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
-        return self.__dict__.copy()
+        d = self.__dict__.copy()
+        d["modules"] = [m.__dict__ for m in self.modules]
+        d["data_flows"] = [f.__dict__ for f in self.data_flows]
+        return d
 
 
 @dataclass(frozen=True)
@@ -31,32 +55,24 @@ class FrontendIR:
     interaction_flows: tuple[str, ...] = ()
     accessibility_requirements: tuple[str, ...] = ()
     observability_requirements: tuple[str, ...] = ()
+    modules: tuple[ModuleIR, ...] = ()
+    data_flows: tuple[DataFlowIR, ...] = ()
+    security_boundaries: tuple[str, ...] = ()
+    failure_states: tuple[str, ...] = ()
+    design_constraints: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
-        return self.__dict__.copy()
+        d = self.__dict__.copy()
+        d["modules"] = [m.__dict__ for m in self.modules]
+        d["data_flows"] = [f.__dict__ for f in self.data_flows]
+        return d
 
 
-def backend_from_api(
-    api: ApiContractIR,
-    quality_obligation_ids: tuple[str, ...] = (),
-) -> BackendIR:
-    return BackendIR(
-        schema_version=api.schema_version,
-        contract_id=f"backend:{api.contract_id}",
-        domain_modules=tuple(sorted({o.operation_id.split("_", 1)[0] for o in api.operations})),
-        api_contract_id=api.contract_id,
-        quality_obligation_ids=quality_obligation_ids,
-    )
+def backend_from_api(api: ApiContractIR, quality_obligation_ids: tuple[str, ...] = ()) -> BackendIR:
+    domains = tuple(sorted({o.operation_id.split("_", 1)[0] for o in api.operations}))
+    return BackendIR(api.schema_version, f"backend:{api.contract_id}", domains, api.contract_id, quality_obligation_ids)
 
 
-def frontend_from_api(
-    api: ApiContractIR,
-    quality_obligation_ids: tuple[str, ...] = (),
-) -> FrontendIR:
-    return FrontendIR(
-        schema_version=api.schema_version,
-        contract_id=f"frontend:{api.contract_id}",
-        routes=tuple(sorted({o.path for o in api.operations})),
-        api_contract_id=api.contract_id,
-        quality_obligation_ids=quality_obligation_ids,
-    )
+def frontend_from_api(api: ApiContractIR, quality_obligation_ids: tuple[str, ...] = ()) -> FrontendIR:
+    routes = tuple(sorted({o.path for o in api.operations}))
+    return FrontendIR(api.schema_version, f"frontend:{api.contract_id}", routes, api.contract_id, quality_obligation_ids)

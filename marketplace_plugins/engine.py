@@ -38,9 +38,7 @@ class GovernanceGateway:
     When ``use_governance_extensions`` is enabled (and a kernel is supplied),
     the kernel is wrapped in a Phase 28 ``GovernedKernel`` composition
     wrapper that records tamper-evident evidence for every decision and
-    provides fail-closed amendment-authorisation. This is opt-in: the default
-    gateway delegates to the raw kernel unchanged, preserving
-    ``test_governance_kernel_delegates_approval``.
+    provides fail-closed amendment-authorisation. The extension path is enabled by default when a kernel is supplied; callers that explicitly disable it retain the raw-kernel compatibility path.
     """
 
     HIGH_RISK_CAPABILITIES = {
@@ -52,20 +50,29 @@ class GovernanceGateway:
     def __init__(
         self,
         governance_kernel: Optional[object] = None,
-        use_governance_extensions: bool = False,
+        use_governance_extensions: bool = True,
     ) -> None:
         self._governance_extensions_enabled = use_governance_extensions
         if use_governance_extensions and governance_kernel is not None:
-            from constitutional_architecture.governance.audit import AuditEvidenceRecorder
+            from constitutional_architecture.governance.evidence_signing import new_evidence_recorder
             from constitutional_architecture.governance.integration import GovernedKernel
             from constitutional_architecture.governance.versioning import (
-                InMemoryConstitutionVersionRepository,
+                FileBackedConstitutionVersionRepository,
                 VersionManager,
             )
+            import os
 
-            self._evidence = AuditEvidenceRecorder()
+            signing_key = os.getenv("AUDIT_EVIDENCE_SIGNING_KEY")
+            if not signing_key:
+                raise RuntimeError(
+                    "AUDIT_EVIDENCE_SIGNING_KEY is required for governed marketplace extensions"
+                )
+            self._evidence = new_evidence_recorder(key=signing_key)
+            version_root = os.getenv(
+                "CONSTITUTION_VERSION_STORE_PATH", "data/constitution_versions"
+            )
             self._versions = VersionManager(
-                InMemoryConstitutionVersionRepository(),
+                FileBackedConstitutionVersionRepository(version_root),
                 evidence=self._evidence,
             )
             self.governance_kernel = GovernedKernel(

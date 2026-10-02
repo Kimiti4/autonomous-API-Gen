@@ -6,10 +6,12 @@ import { EvolutionPage } from '@/presentation/pages/EvolutionPage';
 import { FitnessPage } from '@/presentation/pages/FitnessPage';
 import { GovernancePage } from '@/presentation/pages/GovernancePage';
 import { LineagePage } from '@/presentation/pages/LineagePage';
+import { AuthGate } from '@/presentation/components/AuthGate';
 
 export default function App(): JSX.Element {
   return (
-    <Layout>
+    <AuthGate>
+      <Layout>
       <Routes>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/isr" element={<IsrPage />} />
@@ -19,6 +21,7 @@ export default function App(): JSX.Element {
         <Route path="/lineage" element={<LineagePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </Layout>
+      </Layout>
+    </AuthGate>
   );
 }

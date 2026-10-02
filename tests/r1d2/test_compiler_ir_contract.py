@@ -354,7 +354,7 @@ class TestNoArchitecturalBypasses(unittest.TestCase):
 
 
 class TestTierABaselinePreserved(unittest.TestCase):
-    """The Tier-A baseline (243 tests) is preserved."""
+    """The Tier-A baseline (246 tests) is preserved."""
 
     def test_tier_a_tests_count_unchanged(self):
         """The Tier-A test directory has the expected number of tests."""
@@ -363,14 +363,14 @@ class TestTierABaselinePreserved(unittest.TestCase):
             ["python", "-m", "pytest", "tests/cbc1/", "--collect-only", "-q"],
             capture_output=True, text=True
         )
-        # Parse "243/244 tests collected" format (243 passed, 244 collected, 1 deselected)
+        # Parse "246/247 tests collected" format (246 passed, 247 collected, 1 deselected)
         import re
         for line in result.stdout.splitlines():
             match = re.search(r"(\d+)/(\d+)\s+tests?\s+collected", line)
             if match:
                 collected = int(match.group(2))
-                # 244 collected, 1 deselected = 243 active
-                self.assertEqual(collected, 244)
+                # 247 collected, 1 deselected = 246 active
+                self.assertEqual(collected, 247)
                 return
         self.fail(f"Could not determine Tier-A test count. Output: {result.stdout[-500:]}")
 

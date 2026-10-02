@@ -4,15 +4,21 @@ version = "0.1.0"
 description = "Phase 23 Enterprise Knowledge Graph runtime"
 requires-python = ">=3.11"
 dependencies = [
-  "fastapi>=0.111",
-  "uvicorn>=0.30",
-  "pydantic>=2.7",
-  "httpx>=0.27",
+  # Deployment contract (vertical_slice/deployment.py DEPENDENCY_VERSIONS):
+  # pinned exactly so uv.lock resolves the same versions the vs1 contract
+  # asserts; tests/vs1/test_deployment.py fails CI if the two drift.
+  "fastapi==0.136.0",
+  "uvicorn==0.45.0",
+  "pydantic==2.13.0",
+  "httpx==0.28.1",
 ]
 
 [project.optional-dependencies]
 dev = [
   "pytest>=8.0",
+  "pyyaml>=6.0",
+  "hypothesis>=6.0",
+  "alembic>=1.13",
 ]
 
 [tool.setuptools.packages.find]

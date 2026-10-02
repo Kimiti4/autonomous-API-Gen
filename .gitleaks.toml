@@ -1,0 +1,30 @@
+# Gitleaks configuration — autonomous-API-Gen
+#
+# [extend] useDefault keeps the FULL default rule set active (a config
+# without it replaces the rules with nothing — a fail-open scan).
+#
+# Allowlist: triaged false positives from a full-history local scan with
+# gitleaks 8.30.1 (8/8 findings reviewed — none are credentials):
+#   1. dashboard/nginx.conf + its test copy — nginx proxy target
+#      "platform-api:8080/api/v1/observation/" (internal URL, not a key)
+#   2. docs/EV-A04-security-boundary.md — audit prose "auth, middleware-429
+#      shape" (EV-A04-015 test-gap row; keyword+entropy heuristic match)
+#   3. tests/test_deployment_compiler.py — fixture name
+#      "operational_intelligence_v1" (×3)
+#   4. tests/test_security_privacy_audit_hardening.py — synthetic
+#      "api_key_abcdef123456789" and the canonical jwt.io example token
+#      (rickroll suffix, never a live credential)
+title = "autonomous-API-Gen"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Triaged false positives (internal URLs, fixture names, synthetic test credentials)"
+regexes = [
+    '''middleware-429''',
+    '''8080/api/v1/observation''',
+    '''operational_intelligence_v1''',
+    '''api_key_abcdef123456789''',
+    '''dQw4w9WgXcQ''',
+]

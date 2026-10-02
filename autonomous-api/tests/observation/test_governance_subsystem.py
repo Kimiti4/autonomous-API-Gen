@@ -185,6 +185,29 @@ async def test_g7_requires_quorum_weight():
         ))
 
 
+@pytest.mark.asyncio
+async def test_g7_executive_has_explicit_quorum_weight():
+    g, _e, refs = _subsystem(quorum=1.0)
+    await _candidate_in_evaluating(g, refs)
+    # Executive contributes the configured 0.6 weight; m2 contributes 0.4.
+    decision = await g.request_decision(_evaluating_to_verified_cmd(
+        decidedBy=["executive", "m2"],
+    ))
+    assert decision.verdict == "approve"
+
+
+@pytest.mark.asyncio
+async def test_g6_empty_certifier_configuration_fails_closed():
+    events = InMemoryGovernanceEventStore()
+    refs = InMemoryGovernanceReferenceStore()
+    with pytest.raises(ValueError, match="recognized_certifiers"):
+        GovernanceSubsystem(
+            event_store=events,
+            reference_store=refs,
+            recognized_certifiers=set(),
+        )
+
+
 # ---- G-4 / G-6 / round-trip ------------------------------------------------
 
 @pytest.mark.asyncio

@@ -96,17 +96,38 @@ class DeploymentEngine:
             DeploymentEvent.emit(DeploymentEventType.DEPLOYMENT_FAILED, {
                 "error": "Rollout execution failed",
             })
+            authorization_id = ctx.metadata.get("rollback_authorization_id")
+            rollback_result = self._rollback.rollback(
+                ctx,
+                reason="deployment_error",
+                authorization_id=authorization_id,
+            )
+            if rollback_result.status == DeploymentStatus.ROLLED_BACK:
+                return rollback_result
             return rollout_result
 
         DeploymentEvent.emit(DeploymentEventType.DEPLOYMENT_COMPLETED, {
             "duration_seconds": overall_duration,
         })
 
-        ctx.deployment_history.append(pipeline_result)
-
-        return DeploymentResult(
+        build_result = ctx.get_stage_result("build")
+        container_result = ctx.get_stage_result("containerize")
+        infrastructure_result = ctx.get_stage_result("infrastructure")
+        deployment_result = DeploymentResult(
+            deployment_id=ctx.metadata.get("deployment_id") or rollout_plan.rollout_id,
             status=DeploymentStatus.RUNNING,
             duration_seconds=overall_duration,
             version=ctx.isr.system.name,
-            metadata={"message": f"Deployment of {ctx.isr.system.name} completed ({strategy.value})"},
+            build_artifacts=tuple(build_result.artifacts) if build_result else (),
+            container_images=tuple(container_result.artifacts) if container_result else (),
+            infrastructure_artifacts=(
+                tuple(infrastructure_result.artifacts)
+                if infrastructure_result
+                else ()
+            ),
+            metadata={
+                "message": f"Deployment of {ctx.isr.system.name} completed ({strategy.value})"
+            },
         )
+        ctx.deployment_history.append(deployment_result)
+        return deployment_result

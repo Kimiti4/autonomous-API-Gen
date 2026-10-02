@@ -67,7 +67,7 @@ class CouncilMember(BaseModel):
 
 class CouncilComposition(BaseModel):
     model_config = ConfigDict(frozen=True)
-    members: list = Field(default_factory=list)
+    members: list[CouncilMember] = Field(default_factory=list)
     updatedAt: Optional[str] = None
 
 
@@ -84,7 +84,7 @@ class GovernanceGate(BaseModel):
     gateId: str = Field(min_length=1)
     name: str = Field(min_length=1)
     category: GateCategory
-    guards: list = Field(default_factory=list)
+    guards: list[TransitionRef] = Field(default_factory=list)
     description: Optional[str] = None
 
 

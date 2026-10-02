@@ -42,6 +42,7 @@ def get_db():
 
 
 def init_db():
-    """Initialize database tables"""
-    from app.storage.models import GenomeRecord, EvolutionRun
-    Base.metadata.create_all(bind=engine)
+    """Apply versioned schema migrations and verify the resulting schema."""
+    from app.storage.migrations import migrate
+
+    return migrate(engine)

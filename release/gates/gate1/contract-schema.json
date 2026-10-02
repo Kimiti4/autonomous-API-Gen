@@ -252,7 +252,7 @@
       "fields": {
         "members": {
           "required": false,
-          "type": "list"
+          "type": "list[CouncilMember]"
         },
         "updatedAt": {
           "required": false,
@@ -668,7 +668,7 @@
         },
         "guards": {
           "required": false,
-          "type": "list"
+          "type": "list[TransitionRef]"
         },
         "name": {
           "required": true,

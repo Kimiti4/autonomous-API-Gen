@@ -7,7 +7,7 @@ SERVICES = [
     "auth", "users", "payments", "analytics", "notifications", "search",
     "files", "admin", "products", "orders", "inventory", "reports"
 ]
-AUTH_OPTIONS = ["jwt", "oauth2", "api_key", "basic"]
+AUTH_OPTIONS = ["jwt", "api_key", "basic"]
 DATABASE_OPTIONS = ["postgres", "sqlite", "mysql"]
 LOG_LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR"]
 API_VERSIONS = ["v1", "v2", "v3"]
@@ -88,7 +88,9 @@ def mutate(genome: Genome, mutation_rate: float = 0.2) -> Genome:
 
     # These are derived from cache/services/auth and must not remain stale.
     child = Genome(genome_data=data)
-    child.backends = child._generate_backends()
+    # Random search stays within the currently lowerable envelope; external
+    # backend descriptors remain explicit inputs only.
+    child.backends = []
     child.middleware = child._generate_middleware()
     child.security_policies = child._generate_security_policies()
     child.metrics = type(child.metrics)()

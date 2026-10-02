@@ -6,12 +6,16 @@ import hashlib
 import json
 import os
 import time
+import py_compile
+import subprocess
 from typing import Any
 
 import httpx
 
 from app.core.logger import logger
 from app.engine.builder import build_genome_output
+from app.engine.backend_contract import BackendTarget, PYTHON_FASTAPI
+from app.engine.backends import get_backend
 from app.engine.capability_evidence import inspect_artifact, summarize
 from app.engine.docker_runner import DockerRunner
 from app.engine.fitness import calculate_fitness
@@ -21,6 +25,35 @@ from app.engine.genome import Genome
 def _hash_genome(genome: Genome) -> str:
     payload = json.dumps(genome.encode(), sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def _static_compile(artifact_dir: str, target: BackendTarget) -> tuple[bool, dict[str, Any]]:
+    """Compiler-check the materialized artifact before static evidence is trusted."""
+    checks: dict[str, Any] = {"backend": target.backend_id}
+    if target.backend_id == PYTHON_FASTAPI.backend_id:
+        failures: list[str] = []
+        for root, _, files in os.walk(artifact_dir):
+            for name in files:
+                if name.endswith(".py"):
+                    path = os.path.join(root, name)
+                    try:
+                        py_compile.compile(path, doraise=True)
+                    except py_compile.PyCompileError as exc:
+                        failures.append(f"{path}: {exc.msg}")
+        checks["failures"] = failures
+        return not failures, checks
+    if target.backend_id == "go-nethttp":
+        try:
+            result = subprocess.run(["go", "build", "./..."], cwd=artifact_dir,
+                                    capture_output=True, text=True, timeout=120, check=False)
+        except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+            checks["error"] = str(exc)
+            return False, checks
+        checks["returncode"] = result.returncode
+        checks["stderr"] = result.stderr[-4000:]
+        return result.returncode == 0, checks
+    checks["error"] = "no static compiler defined for backend"
+    return False, checks
 
 
 def _runtime_score(health_ok: bool, openapi_ok: bool, auth_boundary_ok: bool, crud_ok: bool, contract_ok: bool) -> float:
@@ -52,28 +85,53 @@ def _verify_crud(client: httpx.Client, service_url: str, headers: dict[str, str]
     return all(checks.values()), checks
 
 
-def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: str = "output/candidates") -> dict[str, Any]:
+def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: str = "output/candidates", target: BackendTarget = PYTHON_FASTAPI) -> dict[str, Any]:
     """Build a candidate and collect artifact plus runtime capability evidence."""
     genome_hash = _hash_genome(genome)
     candidate_dir = os.path.join(output_dir, genome_hash[:16])
     evidence: dict[str, Any] = {
-        "candidate_id": genome.genome_id, "genome_hash": genome_hash, "artifact_path": candidate_dir,
+        "candidate_id": genome.genome_id, "genome_hash": genome_hash, "artifact_path": candidate_dir, "backend_id": target.backend_id,
         "evaluation_mode": "static" if not use_docker else "runtime_failed", "build_ok": False,
+        "artifact_compile_ok": False, "artifact_compile_checks": {}, "verification_status": "unverified", "artifact_digest": None,
         "health_ok": False, "openapi_ok": False, "auth_boundary_ok": False, "crud_ok": False,
         "crud_checks": {}, "contract_ok": False, "artifact_capabilities": {}, "capability_evidence": {},
         "runtime_capabilities": {}, "runtime_score": 0.0 if use_docker else None,
         "static_score": calculate_fitness(genome) if not use_docker else None, "error": None,
     }
     try:
-        build_genome_output(genome, candidate_dir)
+        build_genome_output(genome, candidate_dir, target=target)
         evidence["build_ok"] = True
-        evidence["artifact_capabilities"] = inspect_artifact(genome, candidate_dir)
-        evidence["capability_evidence"] = summarize(evidence["artifact_capabilities"])
+        manifest_path = os.path.join(candidate_dir, "artifact-manifest.json")
+        if os.path.isfile(manifest_path):
+            manifest = json.loads(open(manifest_path, encoding="utf-8").read())
+            evidence["artifact_digest"] = manifest.get("artifact_digest")
+        if target == PYTHON_FASTAPI:
+            evidence["artifact_capabilities"] = inspect_artifact(genome, candidate_dir)
+            evidence["capability_evidence"] = summarize(evidence["artifact_capabilities"])
+        else:
+            evidence["capability_evidence"] = {
+                "backend_id": target.backend_id,
+                "verified": False,
+                "reason": "backend runtime verification is not implemented",
+            }
     except Exception as exc:
         evidence["error"] = f"candidate build failed: {exc}"
         logger.error("Candidate build failed", exc_info=True)
         return evidence
-    if not use_docker:
+    compile_ok, compile_checks = _static_compile(candidate_dir, target)
+    evidence["artifact_compile_ok"] = compile_ok
+    evidence["artifact_compile_checks"] = compile_checks
+    if not compile_ok:
+        evidence["evaluation_mode"] = "static_failed"
+        evidence["static_score"] = 0.0
+        evidence["error"] = evidence["error"] or "materialized artifact failed compiler validation"
+        return evidence
+    if not use_docker or not get_backend(target.backend_id).runtime_supported:
+        evidence["evaluation_mode"] = "static"
+        evidence["static_score"] = calculate_fitness(genome)
+        evidence["verification_status"] = (
+            "static_verified" if evidence["artifact_digest"] else "unverified"
+        )
         return evidence
 
     runner = DockerRunner()
@@ -203,6 +261,7 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
             evidence["contract_ok"] = not failed and runtime_required.issubset(runtime_verified) and not runtime_failed
 
         evidence["evaluation_mode"] = "runtime"
+        evidence["verification_status"] = "verified" if evidence["artifact_compile_ok"] and evidence["contract_ok"] and evidence["artifact_digest"] else "unverified"
         evidence["runtime_score"] = _runtime_score(evidence["health_ok"], evidence["openapi_ok"], evidence["auth_boundary_ok"], evidence["crud_ok"], evidence["contract_ok"])
         if evidence["runtime_score"] < 1.0:
             evidence["error"] = evidence["error"] or "runtime capability or contract probes did not fully pass"
@@ -215,5 +274,5 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
         runner.stop_container(container_name)
 
 
-async def evaluate_candidate_async(genome: Genome, *, use_docker: bool = True, output_dir: str = "output/candidates") -> dict[str, Any]:
-    return await asyncio.to_thread(evaluate_candidate, genome, use_docker=use_docker, output_dir=output_dir)
+async def evaluate_candidate_async(genome: Genome, *, use_docker: bool = True, output_dir: str = "output/candidates", target: BackendTarget = PYTHON_FASTAPI) -> dict[str, Any]:
+    return await asyncio.to_thread(evaluate_candidate, genome, use_docker=use_docker, output_dir=output_dir, target=target)

@@ -24,10 +24,18 @@ class Settings(BaseSettings):
     SECRET_KEY: str = ""
     API_KEY_HEADER: str = "X-API-Key"
     ADMIN_API_KEY: str = ""
+    OPERATOR_SESSION_COOKIE: str = "esap_operator_session"
+    OPERATOR_SESSION_TTL_SECONDS: int = 28800
 
     RATE_LIMIT_GENERAL: int = 100
     RATE_LIMIT_EVOLUTION: int = 20
     RATE_LIMIT_WINDOW: int = 60
+
+    GOVERNANCE_CERTIFIERS: str = ""
+    GOVERNANCE_QUORUM_THRESHOLD: float = 1.0
+    GOVERNANCE_EXECUTIVE_WEIGHT: float = 0.6
+    GOVERNANCE_ENFORCEMENT_REQUIRED: bool = False
+    GOVERNANCE_AUDIT_SIGNING_KEY: str = "development-only-audit-key"
 
     LOG_LEVEL: str = "INFO"
     LOG_FILE: str = "logs/app.log"
@@ -47,6 +55,13 @@ class Settings(BaseSettings):
             raise ValueError("ENVIRONMENT must be development, test, staging, or production")
         return value
 
+    @field_validator("GOVERNANCE_QUORUM_THRESHOLD", "GOVERNANCE_EXECUTIVE_WEIGHT")
+    @classmethod
+    def _non_negative_governance_weights(cls, v):
+        if v < 0:
+            raise ValueError("governance quorum and executive weight must be non-negative")
+        return v
+
     @field_validator("RATE_LIMIT_GENERAL", "RATE_LIMIT_EVOLUTION", "RATE_LIMIT_WINDOW")
     @classmethod
     def _positive_limits(cls, v):
@@ -54,15 +69,41 @@ class Settings(BaseSettings):
             raise ValueError("rate-limit settings must be positive")
         return v
 
+    @field_validator("OPERATOR_SESSION_TTL_SECONDS")
+    @classmethod
+    def _positive_session_ttl(cls, v):
+        if v <= 0:
+            raise ValueError("OPERATOR_SESSION_TTL_SECONDS must be positive")
+        return v
+
     @model_validator(mode="after")
     def _validate_production_security(self):
         if self.ENVIRONMENT == "production":
+            if self.DEBUG:
+                raise ValueError("DEBUG must be false in production")
             if not self.ADMIN_API_KEY:
                 raise ValueError("ADMIN_API_KEY is required in production")
             if not self.SECRET_KEY or self.SECRET_KEY == "change-this-in-production":
                 raise ValueError("SECRET_KEY must be explicitly configured in production")
             if not self.CORS_ORIGINS:
                 raise ValueError("CORS_ORIGINS must be configured in production")
+            if not self.GOVERNANCE_CERTIFIERS.strip():
+                raise ValueError("GOVERNANCE_CERTIFIERS is required in production")
+            if self.GOVERNANCE_QUORUM_THRESHOLD <= 0:
+                raise ValueError("GOVERNANCE_QUORUM_THRESHOLD must be positive in production")
+            if not self.GOVERNANCE_ENFORCEMENT_REQUIRED:
+                raise ValueError("GOVERNANCE_ENFORCEMENT_REQUIRED must be true in production")
+            if (
+                not self.GOVERNANCE_AUDIT_SIGNING_KEY
+                or self.GOVERNANCE_AUDIT_SIGNING_KEY == "development-only-audit-key"
+            ):
+                raise ValueError(
+                    "GOVERNANCE_AUDIT_SIGNING_KEY must be explicitly configured in production"
+                )
+            if len(self.GOVERNANCE_AUDIT_SIGNING_KEY) < 32:
+                raise ValueError(
+                    "GOVERNANCE_AUDIT_SIGNING_KEY must be at least 32 characters in production"
+                )
         return self
 
     model_config = SettingsConfigDict(

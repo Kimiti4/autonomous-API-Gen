@@ -90,6 +90,10 @@ def fitness_projector():
 
 @pytest.fixture()
 def client(sequence_store, dispatcher, fitness_projector):
+    from app.main import app
+    import app.middleware.security as security
+
+    previous_provider = security._auth_provider
     settings = get_settings()
     settings.ADMIN_API_KEY = TEST_API_KEY
 
@@ -102,10 +106,11 @@ def client(sequence_store, dispatcher, fitness_projector):
         fitness_projector=fitness_projector,
     )
 
-    from app.main import app
-
-    with TestClient(app) as c:
-        yield c
+    try:
+        with TestClient(app) as c:
+            yield c
+    finally:
+        security._auth_provider = previous_provider
 
 
 @pytest.fixture()

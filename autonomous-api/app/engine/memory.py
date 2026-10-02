@@ -1,5 +1,6 @@
 import json
 import os
+import tempfile
 from typing import List, Dict, Any
 from datetime import datetime
 from app.core.logger import logger
@@ -34,7 +35,7 @@ class EvolutionMemory:
                     self.data.update(loaded_data)
                     logger.info(f"Loaded memory from {path}")
             except Exception as e:
-                logger.warning(f"Failed to load memory: {e}, starting fresh")
+                raise RuntimeError(f"Persistent evolution memory is unreadable: {path}") from e
     
     def record_run(self, best_genome: Dict[str, Any], best_score: float, 
                    worst_score: float, generation: int, run_id: str):
@@ -206,13 +207,22 @@ class EvolutionMemory:
         }
     
     def _save(self):
-        """Save memory to disk"""
+        """Atomically persist memory; never expose a partial JSON file."""
+        directory = os.path.dirname(self.path) or "."
+        os.makedirs(directory, exist_ok=True)
+        fd, temp_path = tempfile.mkstemp(prefix=".memory-", suffix=".tmp", dir=directory)
         try:
-            os.makedirs(os.path.dirname(self.path), exist_ok=True)
-            with open(self.path, "w") as f:
+            with os.fdopen(fd, "w") as f:
                 json.dump(self.data, f, indent=2, default=str)
-        except Exception as e:
-            logger.error(f"Failed to save memory: {e}")
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(temp_path, self.path)
+        except Exception:
+            try:
+                os.unlink(temp_path)
+            except FileNotFoundError:
+                pass
+            raise
     
     def clear(self):
         """Clear all memory"""

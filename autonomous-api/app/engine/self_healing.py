@@ -7,6 +7,7 @@ learn from failures and automatically improve candidate architectures.
 """
 
 import json
+from app.storage.atomic import atomic_write_json
 import re
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass, field
@@ -612,8 +613,7 @@ class SelfHealingEvolutionEngine:
             "statistics": self.get_healing_statistics()
         }
         
-        with open(file_path, 'w') as f:
-            json.dump(data, f, indent=2)
+        atomic_write_json(file_path, data)
     
     def clear_old_failures(self, days: int = 30):
         """Clear failure records older than specified days"""

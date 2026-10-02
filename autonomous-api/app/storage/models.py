@@ -29,7 +29,7 @@ class EvolutionRun(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     run_id = Column(String, unique=True, index=True)
-    status = Column(String, default="running")  # running, completed, failed
+    status = Column(String, default="running")  # running, completed, failed, abandoned
     total_generations = Column(Integer, default=0)
     best_fitness = Column(Float, default=0.0)
     best_genome = Column(JSON)
@@ -47,5 +47,15 @@ class EvolutionRun(Base):
             "best_genome": self.best_genome,
             "history": self.history,
             "started_at": str(self.started_at) if self.started_at else None,
-            "completed_at": str(self.completed_at) if self.completed_at else None
+            "completed_at": str(self.completed_at) if self.completed_at else None,
+            "authoritative": bool(
+                self.status == "completed"
+                and self.completed_at is not None
+                and isinstance(self.history, dict)
+                and self.history.get("schema_version") == 1
+                and self.history.get("phase") == "completed"
+                and self.history.get("promotion_status") == "published"
+                and self.history.get("best_artifact_digest")
+                and self.best_genome
+            )
         }

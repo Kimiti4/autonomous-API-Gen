@@ -17,6 +17,7 @@ htmlcov/
 
 # Build outputs
 build/
+!constitutional_architecture/core/build/
 dist/
 *.egg-info/
 .next/

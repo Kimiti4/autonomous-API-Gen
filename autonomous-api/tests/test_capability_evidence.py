@@ -110,3 +110,105 @@ def test_invalid_timeout_is_rejected_during_generation(tmp_path):
     except ValueError:
         return
     raise AssertionError("non-positive request timeout must fail closed")
+
+
+def test_materialized_artifact_has_content_addressed_manifest(tmp_path):
+    genome = _genome()
+    build_genome_output(genome, str(tmp_path))
+    import json
+    manifest = json.loads((tmp_path / "artifact-manifest.json").read_text())
+    assert manifest["artifact_digest"]
+    assert manifest["architecture_hash"]
+    assert manifest["files"]["main.py"]
+
+
+def test_materialization_rejects_path_traversal(tmp_path):
+    from app.engine.backends import materialize
+    from app.engine.backend_contract import CompiledArtifact
+    artifact = CompiledArtifact(
+        backend_id="test",
+        files={"../escape.py": "print('escape')"},
+        metadata={"architecture_hash": "test"},
+    )
+    try:
+        materialize(artifact, str(tmp_path / "candidate"))
+    except ValueError as exc:
+        assert "escapes output directory" in str(exc)
+    else:
+        raise AssertionError("path traversal must fail closed")
+
+def test_verified_artifact_promotion_rejects_tampering(tmp_path):
+    from app.engine.backends import promote_verified_artifact
+    genome = _genome()
+    source = tmp_path / "candidate"
+    destination = tmp_path / "promoted"
+    build_genome_output(genome, str(source))
+    import json
+    manifest = json.loads((source / "artifact-manifest.json").read_text())
+    (source / "main.py").write_text("# tampered\n")
+    try:
+        promote_verified_artifact(str(source), str(destination), expected_digest=manifest["artifact_digest"])
+    except ValueError as exc:
+        assert "digest" in str(exc)
+    else:
+        raise AssertionError("tampered verified artifact must not be promoted")
+
+
+def test_logging_level_is_bound_to_generated_artifact(tmp_path):
+    genome = _genome(logging_level="WARNING")
+    build_genome_output(genome, str(tmp_path))
+    evidence = inspect_artifact(genome, str(tmp_path))
+    assert evidence["logging_level"]["verified"]
+    assert evidence["logging_level"]["checks"]["configured_level"]
+
+
+def test_go_authentication_defaults_fail_closed():
+    from app.engine.backends import GoHTTPBackend
+    from app.engine.backend_contract import make_compilation_request
+    genome = _genome(auth="api_key")
+    request = make_compilation_request(genome.encode(), GoHTTPBackend.target)
+    artifact = GoHTTPBackend().compile(request)
+    source = artifact.files["main.go"]
+    assert "generated-api-key" not in source
+    assert "API_KEY is not configured" in source
+    assert "generated-user" not in GoHTTPBackend._AUTH_BASIC
+    assert "generated-pass" not in GoHTTPBackend._AUTH_BASIC
+    assert "generated-jwt-secret" not in GoHTTPBackend._AUTH_JWT
+
+
+def test_verified_artifact_promotion_preserves_live_artifact_on_publish_failure(tmp_path, monkeypatch):
+    from app.engine.backends import promote_verified_artifact
+    import json
+    import shutil
+
+    genome = _genome()
+    source = tmp_path / "candidate"
+    destination = tmp_path / "promoted"
+    build_genome_output(genome, str(source))
+    destination.mkdir()
+    (destination / "sentinel.txt").write_text("live")
+
+    manifest = json.loads((source / "artifact-manifest.json").read_text())
+    original_copy2 = shutil.copy2
+    calls = {"count": 0}
+
+    def failing_copy2(src, dst, *args, **kwargs):
+        calls["count"] += 1
+        if calls["count"] == 2:
+            raise OSError("simulated publication failure")
+        return original_copy2(src, dst, *args, **kwargs)
+
+    monkeypatch.setattr(shutil, "copy2", failing_copy2)
+
+    try:
+        promote_verified_artifact(
+            str(source),
+            str(destination),
+            expected_digest=manifest["artifact_digest"],
+        )
+    except OSError as exc:
+        assert "publication failure" in str(exc)
+    else:
+        raise AssertionError("publication failure must propagate")
+
+    assert (destination / "sentinel.txt").read_text() == "live"

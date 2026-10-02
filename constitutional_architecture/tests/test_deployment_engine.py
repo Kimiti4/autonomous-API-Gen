@@ -29,7 +29,7 @@ from constitutional_architecture.deployment.targets.kubernetes_target import Kub
 from constitutional_architecture.deployment.targets.local_target import LocalTarget
 from constitutional_architecture.deployment.targets.target_interface import DeploymentTarget, TargetResult
 from constitutional_architecture.deployment.rollout.rollout_manager import RolloutManager, RolloutConfig, RolloutStrategy, RolloutPlan
-from constitutional_architecture.deployment.rollout.rollback_manager import RollbackManager, RollbackConfig, RollbackReason
+from constitutional_architecture.deployment.rollout.rollback_manager import RollbackExecution, RollbackManager, RollbackConfig, RollbackReason
 from constitutional_architecture.deployment.rollout.promotion_manager import PromotionManager, PromotionConfig, PromotionEnvironment
 from constitutional_architecture.deployment.health.health_monitor import HealthMonitor, HealthCheckConfig, HealthStatus
 
@@ -300,40 +300,156 @@ class TestRollout:
 # ---------------------------------------------------------------------------
 
 class TestRollback:
-    def test_rollback_with_history(self):
+    def _rollback_manager(self, calls):
+        def executor(request):
+            calls.append(request)
+            return RollbackExecution(
+                success=True,
+                health_verified=True,
+                target="test-target",
+                restored_version=request["version"],
+            )
+
+        return RollbackManager(
+            RollbackConfig(
+                executor=executor,
+                authorizer=lambda ctx, snapshot, authorization_id: (
+                    authorization_id == "auth-1"
+                    and snapshot.version == "v1.0.0"
+                ),
+            )
+        )
+
+    def _rollback_context(self):
+        isr = _make_isr()
+        ctx = DeploymentContext(isr=isr)
+        ctx.deployment_history.append(
+            DeploymentResult(
+                deployment_id="dep-1",
+                status=DeploymentStatus.RUNNING,
+                version="v1.0.0",
+                build_artifacts=(
+                    DeploymentArtifact(
+                        artifact_type="build",
+                        name="app-v1",
+                        location="./build/v1",
+                        checksum="sha-v1",
+                    ),
+                ),
+            )
+        )
+        return ctx
+
+    def test_rollback_executes_bounded_target_and_returns_rolled_back(self):
+        calls = []
+        mgr = self._rollback_manager(calls)
+        result = mgr.rollback(
+            self._rollback_context(),
+            RollbackReason.HEALTH_CHECK_FAILURE,
+            authorization_id="auth-1",
+        )
+
+        assert result.status == DeploymentStatus.ROLLED_BACK
+        assert result.rollback_executed is True
+        assert result.version == "v1.0.0"
+        assert len(calls) == 1
+        assert calls[0]["deployment_id"] == "dep-1"
+        assert calls[0]["artifact"].checksum == "sha-v1"
+        assert calls[0]["authorization_id"] == "auth-1"
+
+    def test_rollback_requires_concrete_executor(self):
+        ctx = self._rollback_context()
+        mgr = RollbackManager(
+            RollbackConfig(
+                authorizer=lambda *_: True,
+            )
+        )
+        result = mgr.rollback(ctx, authorization_id="auth-1")
+        assert result.status == DeploymentStatus.FAILED
+        assert "executor" in result.metadata["error"]
+
+    def test_rollback_requires_authorization(self):
+        calls = []
+        mgr = self._rollback_manager(calls)
+        result = mgr.rollback(self._rollback_context())
+        assert result.status == DeploymentStatus.FAILED
+        assert calls == []
+
+    def test_rollback_rejects_authorization_replay(self):
+        calls = []
+        mgr = self._rollback_manager(calls)
+        first = mgr.rollback(
+            self._rollback_context(),
+            authorization_id="auth-1",
+        )
+        second = mgr.rollback(
+            self._rollback_context(),
+            authorization_id="auth-1",
+        )
+        assert first.status == DeploymentStatus.ROLLED_BACK
+        assert second.status == DeploymentStatus.FAILED
+        assert len(calls) == 1
+
+    def test_rollback_requires_verified_execution(self):
+        def executor(_request):
+            return RollbackExecution(
+                success=True,
+                health_verified=False,
+                target="test-target",
+            )
+
+        mgr = RollbackManager(
+            RollbackConfig(
+                executor=executor,
+                authorizer=lambda *_: True,
+            )
+        )
+        result = mgr.rollback(
+            self._rollback_context(),
+            authorization_id="auth-1",
+        )
+        assert result.status == DeploymentStatus.FAILED
+        assert result.rollback_executed is False
+
+    def test_rollback_no_usable_snapshot(self):
         isr = _make_isr()
         ctx = DeploymentContext(isr=isr)
         ctx.deployment_history.append(
             DeploymentResult(status=DeploymentStatus.RUNNING, version="v1.0.0")
         )
-        mgr = RollbackManager()
-        result = mgr.rollback(ctx, RollbackReason.HEALTH_CHECK_FAILURE)
-        assert result.status == DeploymentStatus.RUNNING
-
-    def test_rollback_no_history(self):
-        isr = _make_isr()
-        ctx = DeploymentContext(isr=isr)
-        mgr = RollbackManager(RollbackConfig(auto_rollback=True))
-        result = mgr.rollback(ctx, RollbackReason.MANUAL_INTERVENTION)
+        mgr = RollbackManager(
+            RollbackConfig(
+                executor=lambda _: RollbackExecution(True, True),
+                authorizer=lambda *_: True,
+            )
+        )
+        result = mgr.rollback(ctx, authorization_id="auth-1")
         assert result.status == DeploymentStatus.FAILED
 
     def test_rollback_disabled(self):
-        isr = _make_isr()
-        ctx = DeploymentContext(isr=isr)
-        mgr = RollbackManager(RollbackConfig(auto_rollback=False))
-        result = mgr.rollback(ctx)
+        ctx = self._rollback_context()
+        mgr = RollbackManager(
+            RollbackConfig(
+                auto_rollback=False,
+                executor=lambda _: RollbackExecution(True, True),
+                authorizer=lambda *_: True,
+            )
+        )
+        result = mgr.rollback(ctx, authorization_id="auth-1")
         assert result.status == DeploymentStatus.FAILED
 
     def test_get_history(self):
-        isr = _make_isr()
-        ctx = DeploymentContext(isr=isr)
-        ctx.deployment_history.append(
-            DeploymentResult(status=DeploymentStatus.RUNNING, version="v1.0.0")
+        calls = []
+        mgr = self._rollback_manager(calls)
+        result = mgr.rollback(
+            self._rollback_context(),
+            authorization_id="auth-1",
         )
-        mgr = RollbackManager()
-        mgr.rollback(ctx)
         history = mgr.get_history()
-        assert len(history) >= 1
+        assert result.status == DeploymentStatus.ROLLED_BACK
+        assert len(history) == 1
+        assert history[0]["deployment_id"] == "dep-1"
+        assert history[0]["status"] == "rolled_back"
 
 
 # ---------------------------------------------------------------------------
@@ -528,6 +644,78 @@ class TestEngineIntegration:
 
         result = engine.deploy(ctx)
         assert result.status == DeploymentStatus.FAILED
+
+    def test_rollout_failure_executes_authorized_rollback(self):
+        class FailingRollout:
+            def create_plan(self, ctx, config=None):
+                return RolloutPlan()
+
+            def execute_plan(self, plan, ctx):
+                return DeploymentResult(
+                    deployment_id=plan.rollout_id,
+                    status=DeploymentStatus.FAILED,
+                    metadata={"error": "rollout failed"},
+                )
+
+        isr = _make_isr()
+        ctx = DeploymentContext(
+            isr=isr,
+            metadata={"rollback_authorization_id": "auth-1"},
+        )
+        ctx.deployment_history.append(
+            DeploymentResult(
+                deployment_id="previous",
+                status=DeploymentStatus.RUNNING,
+                version="v1.0.0",
+                build_artifacts=(
+                    DeploymentArtifact(
+                        artifact_type="build",
+                        name="previous-build",
+                        location="./build/v1",
+                        checksum="sha-v1",
+                    ),
+                ),
+            )
+        )
+        calls = []
+
+        def executor(request):
+            calls.append(request)
+            return RollbackExecution(
+                success=True,
+                health_verified=True,
+                target="test-target",
+                restored_version=request["version"],
+            )
+
+        rollback = RollbackManager(
+            RollbackConfig(
+                executor=executor,
+                authorizer=lambda ctx, snapshot, authorization_id: (
+                    authorization_id == "auth-1"
+                    and snapshot.deployment_id == "previous"
+                ),
+            )
+        )
+        engine = DeploymentEngine(
+            rollout_manager=FailingRollout(),
+            rollback_manager=rollback,
+        )
+        pipeline = engine.pipeline
+        pipeline.register_stage(BuildStage())
+        pipeline.register_stage(PackageStage())
+        pipeline.register_stage(InfrastructureStage())
+        pipeline.register_stage(ProvisionStage())
+        pipeline.register_stage(ContainerStage())
+        pipeline.register_stage(DeployStage())
+        pipeline.register_stage(HealthStage())
+
+        result = engine.deploy(ctx)
+
+        assert result.status == DeploymentStatus.ROLLED_BACK
+        assert result.rollback_executed is True
+        assert len(calls) == 1
+        assert calls[0]["deployment_id"] == "previous"
 
     def test_engine_properties(self):
         engine = DeploymentEngine()

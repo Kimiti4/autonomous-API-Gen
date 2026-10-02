@@ -5,7 +5,7 @@ Dependencies are injected by the composition root via configure_observation().
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Path, Query
 
 from app.core.contracts.observations import (
     CapabilityContract,
@@ -24,6 +24,7 @@ from app.observation.capabilities import build_capabilities
 from app.observation.gateway.dispatcher import EventDispatcher
 from app.observation.projectors.fitness import FitnessProjector
 from app.observation.projectors.isr import IsrProjector
+from app.observation.projectors.governance import GovernanceProjector
 from app.observation.sequences.store import SequenceStore
 
 router = APIRouter(prefix="/observation", tags=["observation"])
@@ -33,6 +34,7 @@ _store: SequenceStore | None = None
 _dispatcher: EventDispatcher | None = None
 _fitness_projector: FitnessProjector | None = None
 _isr_projector: IsrProjector | None = None
+_governance_projector: GovernanceProjector | None = None
 
 
 def configure_observation(
@@ -41,12 +43,14 @@ def configure_observation(
     dispatcher: EventDispatcher,
     fitness_projector: FitnessProjector | None = None,
     isr_projector: IsrProjector | None = None,
+    governance_projector: GovernanceProjector | None = None,
 ) -> None:
-    global _store, _dispatcher, _fitness_projector, _isr_projector
+    global _store, _dispatcher, _fitness_projector, _isr_projector, _governance_projector
     _store = store
     _dispatcher = dispatcher
     _fitness_projector = fitness_projector
     _isr_projector = isr_projector
+    _governance_projector = governance_projector
 
 
 def get_store() -> SequenceStore:
@@ -105,6 +109,38 @@ async def _materialize_state(store: SequenceStore, stream_id: str,
         "consistentThrough": sequence,
         "lastEvent": last_event,
     }
+
+
+
+
+
+def get_governance_projector() -> GovernanceProjector:
+    if _governance_projector is None:
+        raise ObservationDomainError(
+            "Governance projector not configured",
+            code="PLATFORM_UNAVAILABLE",
+            http_status=503,
+            context={"operation": "observation.governance"},
+        )
+    return _governance_projector
+
+
+@router.get("/governance/candidate/{candidate_id}")
+async def governance_candidate(
+    candidate_id: str,
+    projector: GovernanceProjector = Depends(get_governance_projector),
+    _auth=Depends(require_auth),
+):
+    return await projector.get_candidate(candidate_id)
+
+
+@router.get("/governance/generation/{generation}")
+async def governance_generation(
+    generation: int = Path(ge=0),
+    projector: GovernanceProjector = Depends(get_governance_projector),
+    _auth=Depends(require_auth),
+):
+    return await projector.get_generation(generation)
 
 
 @router.get("/capabilities", response_model=CapabilityContract)

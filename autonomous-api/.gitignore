@@ -69,7 +69,8 @@ htmlcov/
 .python-version
 
 # uv package manager
-uv.lock
+# uv.lock is committed on purpose: deterministic dependency resolution
+# (A01-004) — CI installs constrained by `uv export --locked`.
 
 # Backup files
 *.bak

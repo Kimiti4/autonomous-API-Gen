@@ -33,11 +33,17 @@ class ObservationDomainError(Exception):
         *,
         recovery: Optional[RecoveryHint] = None,
         context: Optional[dict] = None,
+        code: Optional[ErrorCode] = None,
+        http_status: Optional[int] = None,
     ) -> None:
         super().__init__(message)
         self.message = message
         self.recovery = recovery or RecoveryHint()
         self.context = context or {}
+        if code is not None:
+            self.code = code
+        if http_status is not None:
+            self.http_status = http_status
 
 
 class UnauthenticatedError(ObservationDomainError):

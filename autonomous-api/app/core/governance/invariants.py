@@ -104,11 +104,19 @@ def check_g7_quorum_weight(
     decided_by: list[str],
     council: CouncilComposition,
     threshold: float,
+    executive_weight: float = 0.0,
 ) -> None:
-    """G-7: approving decisions need combined votingWeight >= threshold."""
-    weights = {
-        m.memberId: m.votingWeight for m in council.members
-    }
+    """G-7: approving decisions need combined votingWeight >= threshold.
+
+    The Executive is a real G-5 authority, so its quorum contribution is
+    explicit rather than silently becoming zero. A zero weight remains a
+    valid configuration for deployments that intentionally require council
+    quorum for every approval.
+    """
+    weights = {m.memberId: m.votingWeight for m in council.members}
+    if executive_weight < 0:
+        raise ValueError("executive_weight must be non-negative")
+    weights[EXECUTIVE_ID] = executive_weight
     total = sum(weights.get(d, 0.0) for d in decided_by)
     if total < threshold:
         raise GovernanceInvariantError(

@@ -99,8 +99,9 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
+          pip install uv==0.11.3
+          uv export --locked --no-hashes --no-emit-project -o "$RUNNER_TEMP/uv-constraints.txt"
+          pip install -r requirements.txt -r requirements-dev.txt -c "$RUNNER_TEMP/uv-constraints.txt"
 
       - name: Typecheck
         run: python -m mypy app --ignore-missing-imports || true
@@ -168,8 +169,9 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
+          pip install uv==0.11.3
+          uv export --locked --no-hashes --no-emit-project -o "$RUNNER_TEMP/uv-constraints.txt"
+          pip install -r requirements.txt -r requirements-dev.txt -c "$RUNNER_TEMP/uv-constraints.txt"
 
       - name: Verify Postgres is healthy
         run: |
@@ -290,8 +292,9 @@ jobs:
         working-directory: ${{ env.PLATFORM_DIR }}
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
+          pip install uv==0.11.3
+          uv export --locked --no-hashes --no-emit-project -o "$RUNNER_TEMP/uv-constraints.txt"
+          pip install -r requirements.txt -r requirements-dev.txt -c "$RUNNER_TEMP/uv-constraints.txt"
 
       - name: Run v1.1 integration orchestrator
         run: bash release/run-v1.1-gates.sh

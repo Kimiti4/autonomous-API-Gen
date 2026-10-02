@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router
 from app.api.ws import router as ws_router
 from app.api.observation_routes import router as observation_router
+from app.api.governance_routes import router as governance_router
 from app.core.config import get_settings
 from app.core.logger import logger
 from app.middleware.error_handler import ErrorHandlingConfig, install_error_handlers
@@ -12,6 +13,7 @@ from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.security import (
     ApiKeyAuthProvider,
     CompositeAuthProvider,
+    SessionAuthProvider,
     SecurityHeadersMiddleware,
     set_auth_provider,
     validate_auth_config,
@@ -19,24 +21,34 @@ from app.middleware.security import (
 )
 from app.observation.gateway.dispatcher import EventDispatcher
 from app.observation.projectors.fitness import FitnessProjector
+from app.observation.projectors.governance import GovernanceProjector
+from app.governance.observation_adapter import GovernanceObservationAdapter
 from app.observation.sequences.memory import InMemorySequenceStore
 from app.core.contracts.events import EventSource
 from app.storage.db import init_db, engine as db_engine
 from app.storage.models import GenomeRecord
 from app.core.metrics import setup_metrics
+from app.engine.evolution import EvolutionEngine
+from app.governance.subsystem import GovernanceSubsystem
+from app.governance.adapters.sqlite import (
+    SqliteGovernanceEventStore,
+    SqliteGovernanceReferenceStore,
+)
+from app.governance.runtime import configure_governance
 
 settings = get_settings()
 
+session_provider = SessionAuthProvider(
+    secret=settings.SECRET_KEY or settings.GOVERNANCE_AUDIT_SIGNING_KEY,
+    cookie_name=settings.OPERATOR_SESSION_COOKIE,
+    ttl_seconds=settings.OPERATOR_SESSION_TTL_SECONDS,
+)
 auth_providers = []
 if settings.ADMIN_API_KEY:
     auth_providers.append(ApiKeyAuthProvider(api_key=settings.ADMIN_API_KEY))
+auth_providers.append(session_provider)
 validate_auth_config(settings.ENVIRONMENT, auth_providers)
-if auth_providers:
-    set_auth_provider(CompositeAuthProvider(auth_providers))
-else:
-    logger.warning(
-        "No ADMIN_API_KEY configured — protected endpoints will reject requests."
-    )
+set_auth_provider(CompositeAuthProvider(auth_providers))
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -105,6 +117,35 @@ configure_observation(
 )
 
 
+def _governance_certifiers() -> set[str]:
+    return {
+        value.strip()
+        for value in settings.GOVERNANCE_CERTIFIERS.split(",")
+        if value.strip()
+    }
+
+
+governance = GovernanceSubsystem(
+    event_store=SqliteGovernanceEventStore(settings.GOVERNANCE_AUDIT_SIGNING_KEY or settings.SECRET_KEY),
+    reference_store=SqliteGovernanceReferenceStore(),
+    quorum_threshold=settings.GOVERNANCE_QUORUM_THRESHOLD,
+    recognized_certifiers=_governance_certifiers() or None,
+    executive_voting_weight=settings.GOVERNANCE_EXECUTIVE_WEIGHT,
+)
+configure_governance(governance)
+
+governance_projector = GovernanceProjector(
+    GovernanceObservationAdapter(governance)
+)
+
+configure_observation(
+    store=store,
+    dispatcher=dispatcher,
+    fitness_projector=fitness_projector,
+    governance_projector=governance_projector,
+)
+
+
 async def manager_broadcast(envelope) -> None:
     await ws_manager.broadcast(envelope.model_dump(mode="json"))
 
@@ -127,9 +168,18 @@ try:
 except Exception:  # pragma: no cover
     logger.warning("Evolution engine dispatcher injection deferred")
 
-app.include_router(router)
+# Canonical public HTTP API surface. Legacy aliases remain available for existing clients
+# but are excluded from the published OpenAPI contract.
+API_V1_PREFIX = "/api/v1"
 app.include_router(ws_router)
-app.include_router(observation_router)
+app.include_router(router, prefix=API_V1_PREFIX)
+app.include_router(observation_router, prefix=API_V1_PREFIX)
+app.include_router(governance_router, prefix=API_V1_PREFIX)
+app.include_router(router, include_in_schema=False)
+app.include_router(observation_router, include_in_schema=False)
+app.include_router(governance_router, include_in_schema=False)
+
+
 setup_metrics(app)
 
 
@@ -151,6 +201,11 @@ async def startup_event():
     logger.info(f"Model: {settings.OLLAMA_MODEL}")
     try:
         init_db()
+        recovered = EvolutionEngine.recover_interrupted_runs()
+        if recovered:
+            logger.warning(
+                "Recovered %s interrupted evolution run(s) as abandoned", recovered
+            )
         logger.info("Database initialized successfully")
     except Exception:
         logger.exception("Database initialization failed; refusing to start")

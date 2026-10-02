@@ -47,6 +47,7 @@ def decompose_statements(statements: Iterable[str], source: str = "user") -> Dec
     No LLM or framework knowledge is required. Each input statement becomes one
     requirement, while ambiguity remains a warning until explicitly resolved.
     """
+    statements = list(statements)
     requirements: list[Requirement] = []
     for index, statement in enumerate(statements, 1):
         text = statement.strip()

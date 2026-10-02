@@ -179,3 +179,15 @@ jobs:
           assert result["contract_ok"] is True
           assert result["runtime_score"] == 1.0
           PY
+
+  governance-gate:
+    name: A01-006 merge governance gate
+    runs-on: ubuntu-latest
+    needs: [test, lint, security-scan, capability-runtime]
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Verify all merge-gating jobs completed successfully
+        run: |
+          echo "A01-006 governance gate passed."
+          echo "Required PR gates: test, lint, security-scan, capability-runtime."
+          echo "Server-side branch protection is intentionally not configured by this workflow."

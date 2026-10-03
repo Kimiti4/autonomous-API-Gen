@@ -1,11 +1,11 @@
-"""Evidenced Pareto frontier as an evolvable architectural population."""
+"""Promote evidence-backed Pareto architectures into lineage-preserving populations."""
 from __future__ import annotations
 from dataclasses import dataclass
-from .pareto_architecture import ArchitectureScore, Objective, build_frontier
+from .pareto_architecture import ArchitectureScore, build_frontier
 
 
 @dataclass(frozen=True)
-class Lineage:
+class ArchitectureLineage:
     architecture_id: str
     parent_ids: tuple[str, ...]
     generation: int
@@ -13,80 +13,55 @@ class Lineage:
 
 
 @dataclass(frozen=True)
-class PopulationMember:
+class EvolutionMember:
+    lineage: ArchitectureLineage
     score: ArchitectureScore
-    lineage: Lineage
-    active: bool = True
 
 
 @dataclass(frozen=True)
 class EvolutionPopulation:
-    members: tuple[PopulationMember, ...]
     generation: int
+    members: tuple[EvolutionMember, ...]
 
 
-def seed_population(scores: tuple[ArchitectureScore, ...]) -> EvolutionPopulation:
-    if not scores:
-        raise ValueError("population-requires-seeds")
-    return EvolutionPopulation(
-        tuple(
-            PopulationMember(
-                score=s,
-                lineage=Lineage(s.architecture_id, (), 0, s.evidence),
-            )
-            for s in scores
-        ),
-        0,
+def promote_frontier(members, objectives, generation: int) -> EvolutionPopulation:
+    if generation < 0:
+        raise ValueError("invalid-generation")
+    if not members:
+        raise ValueError("population-requires-members")
+    frontier = build_frontier(tuple(m.score for m in members), objectives)
+    kept = tuple(m for m in members if m.lineage.architecture_id in frontier.frontier)
+    return EvolutionPopulation(generation, kept)
+
+
+def spawn_mutation(parent, child_id, score, generation: int) -> EvolutionMember:
+    if generation <= parent.lineage.generation:
+        raise ValueError("child-generation-must-increase")
+    if score.architecture_id != child_id:
+        raise ValueError("child-score-id-mismatch")
+    if not score.evidence:
+        raise ValueError("child-requires-evidence")
+    return EvolutionMember(
+        ArchitectureLineage(child_id, (parent.lineage.architecture_id,), generation, score.evidence),
+        score,
     )
 
 
-def select_frontier(
-    population: EvolutionPopulation,
-    objectives: tuple[Objective, ...],
-) -> EvolutionPopulation:
-    active = tuple(m for m in population.members if m.active)
-    result = build_frontier(tuple(m.score for m in active), objectives)
-    keep = set(result.frontier)
-    return EvolutionPopulation(
-        tuple(
-            PopulationMember(m.score, m.lineage, m.score.architecture_id in keep)
-            for m in active
-        ),
-        population.generation,
-    )
-
-
-def add_offspring(
-    population: EvolutionPopulation,
-    offspring: tuple[PopulationMember, ...],
-) -> EvolutionPopulation:
-    if any(m.lineage.generation <= population.generation for m in offspring):
-        raise ValueError("offspring-generation-must-increase")
-    ids = {m.score.architecture_id for m in population.members}
-    if any(m.score.architecture_id in ids for m in offspring):
-        raise ValueError("duplicate-architecture-id")
-    return EvolutionPopulation(
-        population.members + offspring,
-        max(m.lineage.generation for m in offspring),
-    )
-
-
-def crossover(
-    left: PopulationMember,
-    right: PopulationMember,
-    child_id: str,
-    child_score: ArchitectureScore,
-) -> PopulationMember:
-    if left.score.architecture_id == right.score.architecture_id:
+def crossover(left, right, child_id, score, generation: int) -> EvolutionMember:
+    if left.lineage.architecture_id == right.lineage.architecture_id:
         raise ValueError("crossover-requires-distinct-parents")
-    if not child_score.evidence:
-        raise ValueError("offspring-requires-evidence")
-    return PopulationMember(
-        child_score,
-        Lineage(
+    if generation <= max(left.lineage.generation, right.lineage.generation):
+        raise ValueError("child-generation-must-increase")
+    if score.architecture_id != child_id:
+        raise ValueError("child-score-id-mismatch")
+    if not score.evidence:
+        raise ValueError("child-requires-evidence")
+    return EvolutionMember(
+        ArchitectureLineage(
             child_id,
-            (left.score.architecture_id, right.score.architecture_id),
-            max(left.lineage.generation, right.lineage.generation) + 1,
-            child_score.evidence,
+            tuple(sorted((left.lineage.architecture_id, right.lineage.architecture_id))),
+            generation,
+            score.evidence,
         ),
+        score,
     )

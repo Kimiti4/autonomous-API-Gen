@@ -25,15 +25,16 @@ def synthesize_strategies(
     problem: ProblemModel,
 ) -> tuple[SynthesizedStrategy, ...]:
     signals = []
+    text_constraints = " ".join(problem.constraints).lower()
     if problem.workflows:
         signals.append("workflow-structure")
     if problem.failure_modes:
         signals.append("explicit-failure-model")
     if problem.opportunities:
         signals.append("opportunity-driven-design")
-    if "offline" in " ".join(problem.constraints).lower():
+    if "offline" in text_constraints:
         signals.append("offline-capability")
-    if "high throughput" in " ".join(problem.constraints).lower():
+    if "high throughput" in text_constraints:
         signals.append("throughput-first")
 
     families = ["domain_composed", "workflow_composed", "data_composed"]

@@ -81,7 +81,8 @@ def close_repair_and_dependencies(
         residuals.append("unrepaired-domain:" + domain)
 
     report_domains = {r.domain for r in dependent_reports}
-    for domain in sorted(invalidated - report_domains):
+    satisfied_domains = repaired_domains | report_domains
+    for domain in sorted(invalidated - satisfied_domains):
         residuals.append("missing-dependent-reverification:" + domain)
 
     if repairs:

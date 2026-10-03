@@ -6,12 +6,13 @@ from .cross_domain_evolution import CoEvolutionResult
 from .dependency_reexecution import DependencyExecutionResult, execute_dependent_reverification
 from .evidence_scoring import DerivedArchitectureScore, derive_architecture_score
 from .candidate_measurements import CandidateMeasurementResult, execute_candidate_measurements, measurement_evidence_map
-from .repair_coevolution import RepairExecution, execute_repairs
+from .repair_coevolution import execute_repairs
 from .successor_admission import SuccessorAdmission, SuccessorEvent, admit_successor, materialize_successor_event
 from .evolution_population import EvolutionMember
 from .pareto_architecture import Objective
 from .specialized_mutations import EngineeringMutationSpec
 from .fullstack_genome import FullStackGenome
+from .transaction_evidence import TransactionEvidenceRecord, materialize_transaction_evidence
 
 
 @dataclass(frozen=True)
@@ -23,6 +24,7 @@ class EvolutionTransaction:
     derived_score: DerivedArchitectureScore
     successor: SuccessorEvent
     admission: SuccessorAdmission
+    audit_record: TransactionEvidenceRecord
 
 
 def execute_evolution_transaction(
@@ -43,6 +45,7 @@ def execute_evolution_transaction(
     successor_architecture_id: str,
     generation: int,
     contracts_by_domain: Mapping[str, tuple[Any, ...]] | None = None,
+    parent_evidence_digest: str | None = None,
 ) -> EvolutionTransaction:
     repairs_result = execute_repairs(
         source, source_member, genome, repair_specs, verifiers, observations,
@@ -93,6 +96,18 @@ def execute_evolution_transaction(
         objectives,
         generation,
     )
+    audit_record = materialize_transaction_evidence(
+        transaction_id=event_id,
+        source_event_id=source.event.event_id,
+        source_architecture_id=source.architecture_id,
+        successor=successor,
+        repairs=repairs_result.repairs,
+        dependency=dependency_result,
+        measurements=measurements,
+        score=score,
+        admission=admission,
+        parent_digest=parent_evidence_digest,
+    )
 
     return EvolutionTransaction(
         source.event.event_id,
@@ -102,4 +117,5 @@ def execute_evolution_transaction(
         score,
         successor,
         admission,
+        audit_record,
     )

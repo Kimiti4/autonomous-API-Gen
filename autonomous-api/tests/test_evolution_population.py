@@ -1,41 +1,37 @@
 from app.engine.evolution_population import *
-from app.engine.pareto_architecture import ArchitectureScore, Objective
+from app.engine.pareto_architecture import Objective, ArchitectureScore
 
-def s(i,q,l,e=("e",)):
-    return ArchitectureScore(i,{"quality":q,"latency":l},e)
+def m(i,q,l,g=0,p=()):
+    return EvolutionMember(ArchitectureLineage(i,p,g,(f"e-{i}",)),ArchitectureScore(i,{"q":q,"l":l},(f"e-{i}",)))
 
-def test_seed_population_creates_generation_zero_lineages():
-    p=seed_population((s("a",10,100),s("b",8,80)))
-    assert p.generation==0
-    assert p.members[0].lineage.parent_ids==()
+def test_frontier_promotes_multiple_viable_lineages():
+    pop=promote_frontier((m("a",10,100),m("b",8,80),m("c",7,120)),
+                         (Objective("q","maximize"),Objective("l","minimize")),1)
+    assert {x.lineage.architecture_id for x in pop.members}=={"a","b"}
 
-def test_frontier_selection_deactivates_dominated_members():
-    p=seed_population((s("a",10,100),s("b",8,80),s("c",7,120)))
-    p=select_frontier(p,(Objective("quality","maximize"),Objective("latency","minimize")))
-    active={m.score.architecture_id for m in p.members if m.active}
-    assert active=={"a","b"}
+def test_mutation_preserves_parent_lineage():
+    child=spawn_mutation(m("a",10,100), "a2",
+        ArchitectureScore("a2",{"q":11,"l":100},("e-a2",)),1)
+    assert child.lineage.parent_ids==("a",)
 
-def test_crossover_preserves_two_parent_lineage():
-    p=seed_population((s("a",10,100),s("b",8,80)))
-    child=crossover(p.members[0],p.members[1],"c",s("c",9,90))
+def test_crossover_preserves_two_parents():
+    child=crossover(m("a",10,100),m("b",8,80),"ab",
+        ArchitectureScore("ab",{"q":11,"l":75},("e-ab",)),1)
     assert child.lineage.parent_ids==("a","b")
-    assert child.lineage.generation==1
 
-def test_crossover_requires_evidence():
-    p=seed_population((s("a",1,1),s("b",2,2)))
+def test_unevidenced_child_is_rejected():
     try:
-        crossover(p.members[0],p.members[1],"c",s("c",2,1,()))
+        spawn_mutation(m("a",1,1),"a2",ArchitectureScore("a2",{"q":2,"l":1},()),1)
     except ValueError as e:
-        assert str(e)=="offspring-requires-evidence"
+        assert str(e)=="child-requires-evidence"
         return
     assert False
 
-def test_offspring_generation_must_increase():
-    p=seed_population((s("a",1,1),))
-    child=PopulationMember(s("b",2,2),Lineage("b",("a",),0,("e",)))
+def test_crossover_requires_distinct_parents():
+    a=m("a",1,1)
     try:
-        add_offspring(p,(child,))
+        crossover(a,a,"x",ArchitectureScore("x",{"q":2,"l":1},("e",)),1)
     except ValueError as e:
-        assert str(e)=="offspring-generation-must-increase"
+        assert str(e)=="crossover-requires-distinct-parents"
         return
     assert False

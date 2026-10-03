@@ -1,4 +1,4 @@
-from app.engine.transaction_evidence import materialize_transaction_evidence
+from dataclasses import replace\nfrom app.engine.transaction_evidence import materialize_transaction_evidence
 from app.engine.evolution_transaction import execute_evolution_transaction
 from app.engine.cross_domain_evolution import CoEvolutionEvent, CoEvolutionResult, DomainChange
 from app.engine.evolution_population import ArchitectureLineage, EvolutionMember

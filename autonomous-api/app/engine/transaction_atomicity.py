@@ -23,6 +23,7 @@ class AtomicTransactionResult(Generic[T]):
     disposition: TransactionDisposition
     value: T | None
     abort: TransactionAbort | None
+    evidence: object | None = None
 
 
 def run_atomic_transaction(

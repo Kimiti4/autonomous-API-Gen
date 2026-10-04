@@ -35,6 +35,12 @@ def resolve_mutation_factory(contract: WorkCapabilityContract) -> Callable:
         raise ValueError(f"missing-capability-mutation-factory:{contract.mode.mode.value}") from exc
 
 
+def build_capability_mutation(contract: WorkCapabilityContract, mutation_id, paths, rationale, evidence, operator):
+    """Construct the mode-required mutation with explicit caller-supplied evidence."""
+    factory = resolve_mutation_factory(contract)
+    return factory(mutation_id, paths, rationale, evidence, operator)
+
+
 def validate_mutation_domains(contract: WorkCapabilityContract, domains: tuple[str, ...]) -> None:
     required = required_mutation_domain(contract)
     if required is not None and required not in domains:

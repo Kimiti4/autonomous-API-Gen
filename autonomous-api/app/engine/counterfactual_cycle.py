@@ -45,7 +45,6 @@ def execute_counterfactual_cycle(
     objectives: tuple[Objective, ...],
     measurement_runners: Mapping[str, Any],
     measurement_context: Mapping[str, Any],
-    *,
     event_id: str,
     successor_architecture_id: str,
     generation: int,
@@ -57,28 +56,42 @@ def execute_counterfactual_cycle(
     if not execution.executions:
         raise ValueError("counterfactual-cycle-requires-execution")
 
-    # Counterfactual mutations are treated as repairs to the rejected candidate.
-    from .repair_coevolution import RepairExecution
-    from .verification_plans import VerificationReport
-    # Downstream re-execution requires counterexamples from the original result.
-    # The original failed result remains the causal source; the counterfactual
-    # work supplies the repaired genome through a synthetic repair boundary.
-    repair_results = tuple(
-        RepairExecution(
-            type("Candidate", (), {
-                "domain": item.evaluation.domain,
-                "repair_mutation_id": item.mutation_id,
-                "counterexample_properties": item.evaluation.evidence,
-            })(),
-            item.evaluation,
-            VerificationReport(
-                item.evaluation.mutation_id,
-                (),
-                True,
-            ),
+    # Counterfactual mutations become ordinary ESAP repair executions only
+    # after their own verification gates have passed.
+    from .repair_coevolution import RepairCandidate, RepairExecution
+    from .verification_plans import build_verification_plan, execute_verification
+
+    repair_results = []
+    for item in execution.executions:
+        spec = mutation_specs_by_objective.get(item.objective)
+        if spec is None:
+            raise ValueError("counterfactual-cycle-missing-mutation:" + item.objective)
+        plan = build_verification_plan(spec, verifiers)
+        evidence_by_gate = {
+            f"{spec.mutation.request.domain}:{prop}": tuple(
+                evidence_by_property.get(prop, ())
+            )
+            for prop in spec.verification_properties
+        }
+        report = execute_verification(plan, observations, evidence_by_gate)
+        if not report.passed:
+            raise ValueError(
+                "counterfactual-repair-verification-failed:" + item.objective
+            )
+        repair_results.append(
+            RepairExecution(
+                RepairCandidate(
+                    source_mutation_id=item.work_id,
+                    repair_mutation_id=item.mutation_id,
+                    domain=spec.mutation.request.domain,
+                    rationale=spec.mutation.request.rationale,
+                    counterexample_properties=tuple(item.acceptance_properties),
+                ),
+                item.evaluation.genome,
+                report,
+            )
         )
-        for item in execution.executions
-    )
+    repair_results = tuple(repair_results)
     dependency = execute_dependent_reverification(
         source, repair_results, dependency_graph, dependent_specs,
         verifiers, observations, evidence_by_property,

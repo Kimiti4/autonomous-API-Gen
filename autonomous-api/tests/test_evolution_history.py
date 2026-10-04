@@ -104,3 +104,32 @@ def test_unknown_architecture_is_explicit():
     ledger = EvidenceLedger()
     result = explain_architecture_decision(ledger, "unknown")
     assert result["status"] == "no-evolution-record"
+
+
+def test_reconstructed_decision_exposes_rejection_when_present():
+    from dataclasses import replace
+    from app.engine.transaction_evidence import TransactionEvidenceRecord
+
+    first = transaction("event-1", "successor-1").audit_record
+    rejected = replace(
+        first,
+        admission={"admitted": False, "architecture_id": None, "generation": None},
+        rejection={
+            "status": "rejected",
+            "reasons": ["successor-dominated"],
+            "frontier": ["frontier"],
+            "counterfactuals": [{"objective": "quality", "required_value": 0.95}],
+        },
+    )
+    payload = rejected.canonical_payload()
+    rejected = replace(
+        rejected,
+        digest=__import__("hashlib").sha256(
+            __import__("json").dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
+    )
+    ledger = EvidenceLedger().append(rejected)
+    explanation = explain_architecture_decision(ledger, "successor-1")
+    assert explanation["status"] == "not-admitted"
+    assert explanation["rejection"]["status"] == "rejected"
+    assert explanation["rejection"]["counterfactuals"]

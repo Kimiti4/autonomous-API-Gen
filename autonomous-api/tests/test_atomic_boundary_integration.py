@@ -4,7 +4,7 @@ from app.engine.abort_evidence import build_abort_evidence
 from app.engine.atomic_evolution_transaction import execute_evolution_transaction_atomic
 from app.engine.transaction_atomicity import TransactionDisposition
 from app.engine.transaction_evidence import TransactionEvidenceRecord
-from app.engine.transaction_isolation import TransactionIsolationRegistry
+from app.engine.transaction_isolation import TransactionIsolationRegistry, transaction_lock_key
 from app.engine.trust_boundary import TrustContext, TrustBoundaryViolation
 
 
@@ -47,7 +47,7 @@ def test_atomic_entry_enforces_isolation_before_execution(monkeypatch):
     import app.engine.atomic_evolution_transaction as module
     registry = TransactionIsolationRegistry()
     with registry.exclusive(
-        module.transaction_isolation.transaction_lock_key("source", "candidate")
+        transaction_lock_key("source", "candidate")
     ):
         called = {"value": False}
 

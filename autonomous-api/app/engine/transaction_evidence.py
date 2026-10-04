@@ -67,7 +67,7 @@ class TransactionEvidenceRecord:
 
 
     @classmethod
-    def from_abort_record(cls, record: AbortEvidenceRecord) -> "TransactionEvidenceRecord":
+    def from_abort_record(\n        cls, record: AbortEvidenceRecord, *, parent_digest: str | None = None\n    ) -> "TransactionEvidenceRecord":
         payload = {
             "schema_version": "esap.transaction-evidence.v2",
             "transaction_id": record.transaction_id,
@@ -84,7 +84,7 @@ class TransactionEvidenceRecord:
             "rejection": {"status": "ABORTED", "reasons": [record.reason], "frontier": [], "counterfactuals": []},
             "residuals": record.residuals,
             "evidence": record.verification_evidence,
-            "parent_digest": None,
+            "parent_digest": parent_digest,
             "verification": {"disposition": "ABORTED", "evidence_digests": record.verification_evidence},
         }
         return cls(**payload, digest=_digest(payload))

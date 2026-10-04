@@ -8,7 +8,7 @@ from .admission_verification import CandidateVerification, materialize_candidate
 from .execution_policy import ExecutionPolicy
 from .verification_acceptance import VerificationAcceptancePolicy, assess_verification_suite
 from .verification_artifacts import VerificationArtifactResult, collect_verification_outputs
-from .verification_executor import VerificationResult, VerificationSpec, execute_verification_suite
+from .verification_executor import VerificationKind, VerificationResult, VerificationSpec, execute_verification_suite
 
 
 @dataclass(frozen=True)
@@ -24,9 +24,7 @@ def execute_transaction_verification(
     *,
     root: str,
 ) -> CandidateVerification:
-    policies = {}
-    for kind, policy in config.policies.items():
-        policies[next(k for k in __import__("app.engine.verification_executor", fromlist=["VerificationKind"]).VerificationKind if k.value == kind)] = policy
+    policies = {VerificationKind(kind): policy for kind, policy in config.policies.items()}
 
     results = execute_verification_suite(
         config.specs, root=root, policies=policies,

@@ -12,7 +12,9 @@ from .fullstack_genome import FullStackGenome
 from .cross_domain_evolution import CoEvolutionResult
 from .evolution_population import EvolutionMember
 from .pareto_architecture import Objective
-from .transaction_verification import TransactionVerificationConfig\nfrom .work_mode_scope_validation import validate_mode_surface\nfrom .capability_domain_resolution import validate_mutation_domains
+from .transaction_verification import TransactionVerificationConfig
+from .work_mode_scope_validation import validate_mode_surface
+from .capability_domain_resolution import validate_mutation_domains
 
 
 def execute_governed_evolution_transaction(
@@ -40,7 +42,9 @@ def execute_governed_evolution_transaction(
 ) -> EvolutionTransaction:
     """Fail closed unless the requested mutations satisfy the Bucket 2 contract."""
     validate_work_capability(capability)
-    capability.authorize(mutations)\n    domains = tuple(getattr(spec.mutation, "domain", "") for spec in (*repair_specs, *dependent_specs))\n    validate_mutation_domains(capability, domains)
+    capability.authorize(mutations)
+    domains = tuple(getattr(spec.mutation, "domain", "") for spec in (*repair_specs, *dependent_specs))
+    validate_mutation_domains(capability, domains)
     return execute_evolution_transaction(
         source=source,
         source_member=source_member,

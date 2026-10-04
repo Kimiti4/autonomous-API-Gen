@@ -63,3 +63,29 @@ def test_transaction_rejects_missing_measurement_runner():
             (Objective("quality","maximize"),Objective("risk","minimize")),
             {"quality":lambda g,c:{"quality":1.0,"_evidence":["q"]}},{},
             event_id="event",successor_architecture_id="successor",generation=1)
+
+
+def test_transaction_records_dominated_candidate_instead_of_raising():
+    out = execute_evolution_transaction(
+        source(),member(),genome(),
+        (repair_spec(),),(dependent_spec(),),
+        {"frontend":("backend",)},
+        {"state":lambda _:True,"contract":lambda _:True},{},
+        {"state":("repair:evidence",),"contract":("backend:fresh",)},
+        (Objective("quality","maximize"),Objective("risk","minimize")),
+        {
+            "quality":lambda g,c:{"quality":0.50,"_evidence":["measurement:quality"]},
+            "risk":lambda g,c:{"risk":5.10,"_evidence":["measurement:risk"]},
+        },{},
+        event_id="rejected-event",
+        successor_architecture_id="rejected-successor",
+        generation=1,
+    )
+    assert out.admission is None
+    assert out.rejection is not None
+    assert out.rejection.status == "rejected"
+    assert out.rejection.reasons == ("successor-dominated",)
+    assert out.audit_record.rejection["status"] == "rejected"
+    assert out.audit_record.admission["admitted"] is False
+    assert out.audit_record.verify_digest()
+    assert out.audit_record.rejection["counterfactuals"]

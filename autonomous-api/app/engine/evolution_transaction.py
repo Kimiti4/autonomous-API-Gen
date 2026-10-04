@@ -15,6 +15,7 @@ from .fullstack_genome import FullStackGenome
 from .transaction_evidence import TransactionEvidenceRecord, materialize_transaction_evidence
 from .rejection_analysis import RejectionRecord, record_rejection, derive_counterfactual_requirements
 from .transaction_verification import CandidateVerification, TransactionVerificationConfig, execute_transaction_verification
+from .repair_reexecution import reexecute_repaired_candidate
 
 @dataclass(frozen=True)
 class EvolutionTransaction:
@@ -50,11 +51,27 @@ def execute_evolution_transaction(
     parent_evidence_digest: str | None = None,
     verification_config: TransactionVerificationConfig | None = None,
     verification_root: str | None = None,
+    repair_reexecution_context: Mapping[str, Any] | None = None,
 ) -> EvolutionTransaction:
     repairs_result = execute_repairs(source, source_member, genome, repair_specs, verifiers, observations, evidence_by_property, contracts_by_domain=contracts_by_domain)
     dependency_result = execute_dependent_reverification(source, repairs_result.repairs, dependency_graph, dependent_specs, verifiers, observations, evidence_by_property, successor_architecture_id=successor_architecture_id)
     if dependency_result.final_architecture is None:
         raise ValueError("transaction-missing-final-architecture")
+    # Optional explicit context makes the repaired genome authoritative for
+    # the final dependency traversal before measurement and admission.
+    if repair_reexecution_context is not None and repairs_result.repairs:
+        context = repair_reexecution_context
+        repaired = reexecute_repaired_candidate(
+            source,
+            repairs_result.repairs[0],
+            dependency_graph=context["dependency_graph"],
+            dependent_specs=tuple(context["dependent_specs"]),
+            verifiers=context["verifiers"],
+            observations=context["observations"],
+            evidence_by_property=context["evidence_by_property"],
+            successor_architecture_id=successor_architecture_id,
+        )
+        dependency_result = repaired.dependency
     measurements = execute_candidate_measurements(successor_architecture_id, dependency_result.final_architecture, objectives, measurement_runners, measurement_context)
     score = derive_architecture_score(successor_architecture_id, repairs_result.repairs, dependency_result, objectives, measurement_evidence=measurement_evidence_map(measurements))
     successor = materialize_successor_event(source, dependency_result, event_id=event_id, source_member=source_member, score=score.score)

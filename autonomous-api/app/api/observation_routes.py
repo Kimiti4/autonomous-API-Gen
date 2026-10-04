@@ -24,7 +24,7 @@ from app.observation.capabilities import build_capabilities
 from app.observation.gateway.dispatcher import EventDispatcher
 from app.observation.projectors.fitness import FitnessProjector
 from app.observation.projectors.isr import IsrProjector
-from app.observation.sequences.store import SequenceStore\nfrom app.engine.generation_scope import GenerationScope, validate_scope\nfrom app.engine.project_scope import ChangeKind, ProjectIntent, ProjectScope, validate_project_scope
+from app.observation.sequences.store import SequenceStore\nfrom app.engine.generation_scope import GenerationScope, validate_scope\nfrom app.engine.project_scope import ChangeKind, ProjectIntent, ProjectScope, validate_project_scope\nfrom app.observation.work_scope_lifecycle import project_work_scope_lifecycle
 
 router = APIRouter(prefix="/observation", tags=["observation"])
 
@@ -219,4 +219,44 @@ async def work_scope(
         generationScope=generation.scope.value,
         allowedSurfaces=[s for s in surfaces if generation.allows(s)],
         preservedSurfaces=[s for s in surfaces if not generation.allows(s)],
+    )
+
+
+@router.get("/work-scope/lifecycle", response_model=WorkScopeLifecycleObservation)
+async def work_scope_lifecycle(
+    streamId: str = Query(),
+    store: SequenceStore = Depends(get_store),
+    _auth=Depends(require_auth),
+):
+    current = await store.current(streamId)
+    if current < 0:
+        raise StreamNotFoundError(
+            f"Unknown stream: {streamId}", context={"streamId": streamId}
+        )
+    events = await store.replay(streamId, -1, current + 1)
+    try:
+        lifecycle = project_work_scope_lifecycle(events)
+        scope = lifecycle.scope
+    except ValueError as exc:
+        raise ObservationDomainError(
+            str(exc), code="INVALID_WORK_SCOPE_LIFECYCLE", http_status=409,
+            context={"operation": "observation.work_scope.lifecycle", "streamId": streamId},
+        ) from exc
+    return WorkScopeLifecycleObservation(
+        scope=WorkScopeObservation(
+            projectIntent=scope.projectIntent,
+            projectKind=scope.projectKind,
+            generationScope=scope.generationScope,
+            allowedSurfaces=scope.allowedSurfaces,
+            preservedSurfaces=scope.preservedSurfaces,
+        ),
+        authorizedCount=lifecycle.authorized_count,
+        blockedCount=lifecycle.blocked_count,
+        executedCount=lifecycle.executed_count,
+        failedExecutionCount=lifecycle.failed_execution_count,
+        abortedExecutionCount=lifecycle.aborted_execution_count,
+        verifiedCount=lifecycle.verified_count,
+        failedVerificationCount=lifecycle.failed_verification_count,
+        admittedCount=lifecycle.admitted_count,
+        rejectedCount=lifecycle.rejected_count,
     )

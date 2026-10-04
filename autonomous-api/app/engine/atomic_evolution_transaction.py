@@ -8,6 +8,18 @@ from .abort_evidence import build_abort_evidence
 from .transaction_evidence import TransactionEvidenceRecord
 
 
+def _execute_and_validate(*args, **kwargs) -> EvolutionTransaction:
+    value = execute_evolution_transaction(*args, **kwargs)
+    if value is None:
+        raise RuntimeError("atomic-transaction-missing-committed-value")
+    audit = getattr(value, "audit_record", None)
+    if not isinstance(audit, TransactionEvidenceRecord):
+        raise RuntimeError("atomic-transaction-missing-audit-record")
+    if not audit.verify_digest():
+        raise RuntimeError("atomic-transaction-invalid-audit-digest")
+    return value
+
+
 def execute_evolution_transaction_atomic(
     *args,
     abort_context: dict | None = None,
@@ -21,18 +33,10 @@ def execute_evolution_transaction_atomic(
     transaction value.
     """
     result = run_atomic_transaction(
-        lambda: execute_evolution_transaction(*args, **kwargs),
+        lambda: _execute_and_validate(*args, **kwargs),
         stage="evolution-transaction",
     )
     if result.abort is None:
-        value = result.value
-        if value is None:
-            raise RuntimeError("atomic-transaction-missing-committed-value")
-        audit = getattr(value, "audit_record", None)
-        if not isinstance(audit, TransactionEvidenceRecord):
-            raise RuntimeError("atomic-transaction-missing-audit-record")
-        if not audit.verify_digest():
-            raise RuntimeError("atomic-transaction-invalid-audit-digest")
         return result
 
     context = abort_context or {}

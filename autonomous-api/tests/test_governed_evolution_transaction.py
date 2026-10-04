@@ -27,3 +27,13 @@ def test_governed_entry_point_requires_valid_capability():
     with pytest.raises(ValueError, match="invalid-work-capability"):
         from app.engine.capability_contract import validate_work_capability
         validate_work_capability("invalid")
+
+
+from app.engine.work_mode_scope_validation import validate_mode_surface
+
+def test_transaction_boundary_rejects_incompatible_mode_scope():
+    capability = WorkCapabilityContract.create(
+        ProjectScope.improve_existing(), WorkMode.SEO, GenerationScope.BACKEND_ONLY
+    )
+    with pytest.raises(ValueError, match="incompatible-work-mode-and-generation-scope"):
+        validate_mode_surface(capability)

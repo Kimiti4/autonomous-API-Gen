@@ -20,6 +20,9 @@ from .verification_plans import (
     build_verification_plan,
     execute_verification,
 )
+from .transaction_verification import CandidateVerification, TransactionVerificationConfig, execute_transaction_verification
+from .verification_command_planner import VerificationCommandRule
+from .work_scope_verification import derive_work_verification_plan
 
 
 @dataclass(frozen=True)
@@ -36,6 +39,7 @@ class ExecutableCoEvolutionResult:
     candidate_architecture_id: str
     domain_executions: tuple[DomainExecution, ...]
     result: CoEvolutionResult
+    executable_verification: CandidateVerification | None = None
 
 
 def execute_materialized_coevolution(
@@ -50,6 +54,9 @@ def execute_materialized_coevolution(
     event_id: str,
     candidate_architecture_id: str | None = None,
     contracts_by_domain: Mapping[str, tuple[Any, ...]] | None = None,
+    verification_command_rules: tuple[VerificationCommandRule, ...] = (),
+    verification_root: str | None = None,
+    verification_workspace_id: str | None = None,
 ) -> ExecutableCoEvolutionResult:
     """Turn materialized domain work into candidates, verification reports, and a closed event.
 
@@ -116,9 +123,30 @@ def execute_materialized_coevolution(
     child_id = candidate_architecture_id or f"{source.lineage.architecture_id}:{event_id}"
     result = complete_coevolution(event, child_id, tuple(reports))
 
+    executable_verification = None
+    configured = bool(verification_command_rules) or verification_root is not None or verification_workspace_id is not None
+    if configured:
+        if not verification_command_rules or verification_root is None or verification_workspace_id is None:
+            raise ValueError("incomplete-work-verification-configuration")
+        work_plan = derive_work_verification_plan(
+            (item.domain for item in work.work),
+            workspace_id=verification_workspace_id,
+            command_rules=verification_command_rules,
+        )
+        executable_verification = execute_transaction_verification(
+            TransactionVerificationConfig(
+                specs=work_plan.executable.specs,
+                policies=work_plan.executable.policies,
+                acceptance=work_plan.obligations.acceptance,
+                expected_artifacts={},
+            ),
+            root=verification_root,
+        )
+
     return ExecutableCoEvolutionResult(
         event,
         child_id,
         tuple(executions),
         result,
+        executable_verification,
     )

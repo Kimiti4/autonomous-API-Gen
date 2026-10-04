@@ -37,6 +37,7 @@ class TransactionEvidenceRecord:
     parent_digest: str | None
     verification: Mapping[str, Any]
     digest: str
+    capability_context: Mapping[str, Any] | None = None
 
     def canonical_payload(self) -> dict[str, Any]:
         return {
@@ -57,6 +58,7 @@ class TransactionEvidenceRecord:
             "evidence": list(self.evidence),
             "parent_digest": self.parent_digest,
             "verification": dict(self.verification),
+            "capability_context": dict(self.capability_context) if self.capability_context is not None else None,
         }
 
     def verify_digest(self) -> bool:
@@ -67,7 +69,9 @@ class TransactionEvidenceRecord:
 
 
     @classmethod
-    def from_abort_record(\n        cls, record: AbortEvidenceRecord, *, parent_digest: str | None = None\n    ) -> "TransactionEvidenceRecord":
+    def from_abort_record(
+        cls, record: AbortEvidenceRecord, *, parent_digest: str | None = None
+    ) -> "TransactionEvidenceRecord":
         payload = {
             "schema_version": "esap.transaction-evidence.v2",
             "transaction_id": record.transaction_id,
@@ -105,6 +109,7 @@ def materialize_transaction_evidence(
     rejection: RejectionRecord | None = None,
     counterfactuals: Sequence[Mapping[str, Any]] = (),
     verification: Any | None = None,
+    capability_context: Mapping[str, Any] | None = None,
 ) -> TransactionEvidenceRecord:
     mutation_rows = tuple(
         {"domain": c.domain, "mutation_id": c.mutation_id, "properties": list(c.properties)}
@@ -180,6 +185,7 @@ def materialize_transaction_evidence(
         "evidence": list(evidence),
         "parent_digest": parent_digest,
         "verification": verification_row,
+        "capability_context": dict(capability_context) if capability_context is not None else None,
     }
     return TransactionEvidenceRecord(**payload, digest=_digest(payload))
 

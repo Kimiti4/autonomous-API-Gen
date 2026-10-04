@@ -14,7 +14,7 @@ from .specialized_mutations import EngineeringMutationSpec
 from .fullstack_genome import FullStackGenome
 from .transaction_evidence import TransactionEvidenceRecord, materialize_transaction_evidence
 from .rejection_analysis import RejectionRecord, record_rejection, derive_counterfactual_requirements
-
+from .transaction_verification import CandidateVerification, TransactionVerificationConfig, execute_transaction_verification
 
 @dataclass(frozen=True)
 class EvolutionTransaction:
@@ -23,11 +23,11 @@ class EvolutionTransaction:
     dependency_execution: DependencyExecutionResult
     measurements: CandidateMeasurementResult
     derived_score: DerivedArchitectureScore
+    verification: CandidateVerification
     successor: SuccessorEvent
     admission: SuccessorAdmission | None
     rejection: RejectionRecord | None
     audit_record: TransactionEvidenceRecord
-
 
 def execute_evolution_transaction(
     source: CoEvolutionResult,
@@ -48,77 +48,36 @@ def execute_evolution_transaction(
     generation: int,
     contracts_by_domain: Mapping[str, tuple[Any, ...]] | None = None,
     parent_evidence_digest: str | None = None,
+    verification_config: TransactionVerificationConfig | None = None,
+    verification_root: str | None = None,
 ) -> EvolutionTransaction:
-    repairs_result = execute_repairs(
-        source, source_member, genome, repair_specs, verifiers, observations,
-        evidence_by_property, contracts_by_domain=contracts_by_domain,
-    )
-    dependency_result = execute_dependent_reverification(
-        source, repairs_result.repairs, dependency_graph, dependent_specs,
-        verifiers, observations, evidence_by_property,
-        successor_architecture_id=successor_architecture_id,
-    )
+    repairs_result = execute_repairs(source, source_member, genome, repair_specs, verifiers, observations, evidence_by_property, contracts_by_domain=contracts_by_domain)
+    dependency_result = execute_dependent_reverification(source, repairs_result.repairs, dependency_graph, dependent_specs, verifiers, observations, evidence_by_property, successor_architecture_id=successor_architecture_id)
     if dependency_result.final_architecture is None:
         raise ValueError("transaction-missing-final-architecture")
+    measurements = execute_candidate_measurements(successor_architecture_id, dependency_result.final_architecture, objectives, measurement_runners, measurement_context)
+    score = derive_architecture_score(successor_architecture_id, repairs_result.repairs, dependency_result, objectives, measurement_evidence=measurement_evidence_map(measurements))
+    successor = materialize_successor_event(source, dependency_result, event_id=event_id, source_member=source_member, score=score.score)
 
-    measurements = execute_candidate_measurements(
-        successor_architecture_id, dependency_result.final_architecture,
-        objectives, measurement_runners, measurement_context,
-    )
-    score = derive_architecture_score(
-        successor_architecture_id, repairs_result.repairs, dependency_result,
-        objectives, measurement_evidence=measurement_evidence_map(measurements),
-    )
-    successor = materialize_successor_event(
-        source, dependency_result, event_id=event_id,
-        source_member=source_member, score=score.score,
-    )
+    if verification_config is None or verification_root is None:
+        raise ValueError("transaction-missing-verification-config")
+    verification = execute_transaction_verification(verification_config, root=verification_root)
 
     admission = None
     rejection = None
     counterfactuals = ()
     try:
-        admission = admit_successor(
-            source_member, successor, score.score, objectives, generation,
-        )
+        admission = admit_successor(source_member, successor, score.score, objectives, generation)
     except ValueError as exc:
         if str(exc) != "successor-dominated":
             raise
-        rejection = record_rejection(
-            score.score,
-            reasons=("successor-dominated",),
-            frontier_scores=(source_member.score,),
-            objectives=objectives,
-        )
-        counterfactuals = tuple(
-            {
-                "objective": item.objective,
-                "direction": item.direction,
-                "current_value": item.current_value,
-                "required_value": item.required_value,
-                "delta": item.delta,
-                "evidence": list(item.evidence),
-            }
-            for item in derive_counterfactual_requirements(
-                rejection, (source_member.score,), objectives
-            )
-        )
+        rejection = record_rejection(score.score, reasons=("successor-dominated",), frontier_scores=(source_member.score,), objectives=objectives)
+        counterfactuals = tuple({"objective": item.objective, "direction": item.direction, "current_value": item.current_value, "required_value": item.required_value, "delta": item.delta, "evidence": list(item.evidence)} for item in derive_counterfactual_requirements(rejection, (source_member.score,), objectives))
 
     audit_record = materialize_transaction_evidence(
-        transaction_id=event_id,
-        source_event_id=source.event.event_id,
-        source_architecture_id=source.architecture_id,
-        successor=successor,
-        repairs=repairs_result.repairs,
-        dependency=dependency_result,
-        measurements=measurements,
-        score=score,
-        admission=admission,
-        parent_digest=parent_evidence_digest,
-        rejection=rejection,
-        counterfactuals=counterfactuals,
+        transaction_id=event_id, source_event_id=source.event.event_id, source_architecture_id=source.architecture_id,
+        successor=successor, repairs=repairs_result.repairs, dependency=dependency_result, measurements=measurements,
+        score=score, admission=admission, parent_digest=parent_evidence_digest, rejection=rejection,
+        counterfactuals=counterfactuals, verification=verification,
     )
-    return EvolutionTransaction(
-        source.event.event_id, source.architecture_id, dependency_result,
-        measurements, score, successor, admission, rejection, audit_record,
-    )
+    return EvolutionTransaction(source.event.event_id, source.architecture_id, dependency_result, measurements, score, verification, successor, admission, rejection, audit_record)

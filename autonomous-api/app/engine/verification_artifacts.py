@@ -1,6 +1,9 @@
 """Target-neutral executable verification artifact model."""
 from __future__ import annotations
 from dataclasses import dataclass
+import hashlib
+from pathlib import Path
+from typing import Sequence
 from .verification_compiler import VerificationAdapter, VerificationPlan
 
 
@@ -68,4 +71,62 @@ def record_execution(
     )
     return VerificationExecution(
         artifact.artifact_id, status, evidence, artifact.executor_kind
+    )
+
+
+@dataclass(frozen=True)
+class VerifiedOutputArtifact:
+    path: str
+    digest: str
+    size_bytes: int
+
+
+@dataclass(frozen=True)
+class VerificationArtifactResult:
+    verification_id: str
+    passed: bool
+    artifacts: tuple[VerifiedOutputArtifact, ...]
+    missing: tuple[str, ...]
+    artifact_digest: str
+
+
+def collect_verification_outputs(
+    result,
+    *,
+    root: str,
+    expected_paths: Sequence[str],
+) -> VerificationArtifactResult:
+    """Hash expected output files and require every declared output to exist."""
+    base = Path(root).resolve()
+    artifacts = []
+    missing = []
+
+    for relative in expected_paths:
+        target = (base / relative).resolve()
+        if base not in target.parents:
+            raise ValueError("verification-artifact-path-escape:" + relative)
+        if not target.exists() or not target.is_file():
+            missing.append(relative)
+            continue
+        data = target.read_bytes()
+        artifacts.append(
+            VerifiedOutputArtifact(
+                path=relative,
+                digest=hashlib.sha256(data).hexdigest(),
+                size_bytes=len(data),
+            )
+        )
+
+    ordered = tuple(sorted(artifacts, key=lambda a: a.path))
+    payload = "|".join(
+        f"{a.path}:{a.digest}:{a.size_bytes}" for a in ordered
+    )
+    artifact_digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    return VerificationArtifactResult(
+        verification_id=result.verification_id,
+        passed=result.passed and not missing,
+        artifacts=ordered,
+        missing=tuple(sorted(missing)),
+        artifact_digest=artifact_digest,
     )

@@ -7,6 +7,7 @@ import json
 from typing import Any, Mapping, Sequence
 
 from .candidate_measurements import CandidateMeasurementResult
+from .abort_evidence import AbortEvidenceRecord
 from .dependency_reexecution import DependencyExecutionResult
 from .evidence_scoring import DerivedArchitectureScore
 from .repair_coevolution import RepairExecution
@@ -63,6 +64,30 @@ class TransactionEvidenceRecord:
 
     def to_json(self) -> str:
         return json.dumps(self.canonical_payload(), sort_keys=True, separators=(",", ":"))
+
+
+    @classmethod
+    def from_abort_record(cls, record: AbortEvidenceRecord) -> "TransactionEvidenceRecord":
+        payload = {
+            "schema_version": "esap.transaction-evidence.v2",
+            "transaction_id": record.transaction_id,
+            "source_event_id": "",
+            "source_architecture_id": record.source_architecture_id,
+            "successor_event_id": "",
+            "successor_architecture_id": record.candidate_architecture_id,
+            "mutations": tuple({"mutation": x} for x in record.attempted_mutations),
+            "repair_reports": (),
+            "dependency_reports": (),
+            "measurements": (),
+            "score": {},
+            "admission": {"admitted": False, "architecture_id": None, "generation": None},
+            "rejection": {"status": "ABORTED", "reasons": [record.reason], "frontier": [], "counterfactuals": []},
+            "residuals": record.residuals,
+            "evidence": record.verification_evidence,
+            "parent_digest": None,
+            "verification": {"disposition": "ABORTED", "evidence_digests": record.verification_evidence},
+        }
+        return cls(**payload, digest=_digest(payload))
 
 
 def materialize_transaction_evidence(

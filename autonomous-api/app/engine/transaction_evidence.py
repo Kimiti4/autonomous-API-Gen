@@ -10,6 +10,7 @@ from .candidate_measurements import CandidateMeasurementResult
 from .dependency_reexecution import DependencyExecutionResult
 from .evidence_scoring import DerivedArchitectureScore
 from .repair_coevolution import RepairExecution
+from .rejection_analysis import RejectionRecord
 from .successor_admission import SuccessorAdmission, SuccessorEvent
 
 
@@ -29,6 +30,7 @@ class TransactionEvidenceRecord:
     measurements: tuple[Mapping[str, Any], ...]
     score: Mapping[str, Any]
     admission: Mapping[str, Any]
+    rejection: Mapping[str, Any] | None
     residuals: tuple[str, ...]
     evidence: tuple[str, ...]
     parent_digest: str | None
@@ -48,6 +50,7 @@ class TransactionEvidenceRecord:
             "measurements": list(self.measurements),
             "score": dict(self.score),
             "admission": dict(self.admission),
+            "rejection": dict(self.rejection) if self.rejection is not None else None,
             "residuals": list(self.residuals),
             "evidence": list(self.evidence),
             "parent_digest": self.parent_digest,
@@ -70,52 +73,58 @@ def materialize_transaction_evidence(
     dependency: DependencyExecutionResult,
     measurements: CandidateMeasurementResult,
     score: DerivedArchitectureScore,
-    admission: SuccessorAdmission,
+    admission: SuccessorAdmission | None,
     parent_digest: str | None = None,
+    rejection: RejectionRecord | None = None,
+    counterfactuals: Sequence[Mapping[str, Any]] = (),
 ) -> TransactionEvidenceRecord:
     mutation_rows = tuple(
-        {
-            "domain": change.domain,
-            "mutation_id": change.mutation_id,
-            "properties": list(change.properties),
-        }
-        for change in successor.event.changes
+        {"domain": c.domain, "mutation_id": c.mutation_id, "properties": list(c.properties)}
+        for c in successor.event.changes
     )
     repair_rows = tuple(
         {
-            "domain": repair.candidate.domain,
-            "mutation_id": repair.candidate.repair_mutation_id,
-            "passed": repair.verification.passed,
-            "evidence": [e for gate in repair.verification.results for e in gate.evidence],
+            "domain": r.candidate.domain,
+            "mutation_id": r.candidate.repair_mutation_id,
+            "passed": r.verification.passed,
+            "evidence": [e for gate in r.verification.results for e in gate.evidence],
         }
-        for repair in repairs
+        for r in repairs
     )
     dependency_rows = tuple(
         {
-            "domain": execution.domain,
-            "mutation_id": execution.mutation_id,
-            "passed": execution.verification.passed,
-            "evidence": [e for gate in execution.verification.results for e in gate.evidence],
+            "domain": x.domain,
+            "mutation_id": x.mutation_id,
+            "passed": x.verification.passed,
+            "evidence": [e for gate in x.verification.results for e in gate.evidence],
         }
-        for execution in dependency.executions
+        for x in dependency.executions
     )
     measurement_rows = tuple(
-        {
-            "objective": measurement.objective,
-            "value": measurement.value,
-            "evidence": list(measurement.evidence),
-        }
-        for measurement in measurements.measurements
+        {"objective": m.objective, "value": m.value, "evidence": list(m.evidence)}
+        for m in measurements.measurements
     )
     residuals = tuple(sorted(dependency.closure.residuals))
     evidence = tuple(sorted(set(successor.evidence) | set(score.score.evidence)))
     admission_row = {
-        "admitted": successor.passed and admission.member.lineage.architecture_id == successor.architecture_id,
-        "architecture_id": admission.member.lineage.architecture_id,
-        "generation": admission.member.lineage.generation,
+        "admitted": (
+            admission is not None
+            and successor.passed
+            and admission.member.lineage.architecture_id == successor.architecture_id
+        ),
+        "architecture_id": admission.member.lineage.architecture_id if admission else None,
+        "generation": admission.member.lineage.generation if admission else None,
     }
+    rejection_row = None
+    if rejection is not None:
+        rejection_row = {
+            "status": rejection.status,
+            "reasons": list(rejection.reasons),
+            "frontier": list(rejection.frontier),
+            "counterfactuals": [dict(x) for x in counterfactuals],
+        }
     payload = {
-        "schema_version": "esap.transaction-evidence.v1",
+        "schema_version": "esap.transaction-evidence.v2",
         "transaction_id": transaction_id,
         "source_event_id": source_event_id,
         "source_architecture_id": source_architecture_id,
@@ -131,14 +140,12 @@ def materialize_transaction_evidence(
             "evidence": list(score.score.evidence),
         },
         "admission": admission_row,
+        "rejection": rejection_row,
         "residuals": list(residuals),
         "evidence": list(evidence),
         "parent_digest": parent_digest,
     }
-    return TransactionEvidenceRecord(
-        **payload,
-        digest=_digest(payload),
-    )
+    return TransactionEvidenceRecord(**payload, digest=_digest(payload))
 
 
 def _digest(payload: Mapping[str, Any]) -> str:

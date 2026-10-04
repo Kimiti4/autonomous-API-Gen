@@ -34,6 +34,7 @@ class TransactionEvidenceRecord:
     residuals: tuple[str, ...]
     evidence: tuple[str, ...]
     parent_digest: str | None
+    verification: Mapping[str, Any]
     digest: str
 
     def canonical_payload(self) -> dict[str, Any]:
@@ -54,6 +55,7 @@ class TransactionEvidenceRecord:
             "residuals": list(self.residuals),
             "evidence": list(self.evidence),
             "parent_digest": self.parent_digest,
+            "verification": dict(self.verification),
         }
 
     def verify_digest(self) -> bool:
@@ -77,6 +79,7 @@ def materialize_transaction_evidence(
     parent_digest: str | None = None,
     rejection: RejectionRecord | None = None,
     counterfactuals: Sequence[Mapping[str, Any]] = (),
+    verification: Any | None = None,
 ) -> TransactionEvidenceRecord:
     mutation_rows = tuple(
         {"domain": c.domain, "mutation_id": c.mutation_id, "properties": list(c.properties)}
@@ -123,6 +126,13 @@ def materialize_transaction_evidence(
             "frontier": list(rejection.frontier),
             "counterfactuals": [dict(x) for x in counterfactuals],
         }
+    verification_row = {
+        "disposition": verification.disposition.disposition.value,
+        "evidence_digests": list(verification.evidence_digests),
+        "failed_verifications": list(verification.disposition.failed_verifications),
+        "timed_out_verifications": list(verification.disposition.timed_out_verifications),
+        "missing_artifacts": list(verification.disposition.missing_artifacts),
+    } if verification is not None else None
     payload = {
         "schema_version": "esap.transaction-evidence.v2",
         "transaction_id": transaction_id,
@@ -144,6 +154,7 @@ def materialize_transaction_evidence(
         "residuals": list(residuals),
         "evidence": list(evidence),
         "parent_digest": parent_digest,
+        "verification": verification_row,
     }
     return TransactionEvidenceRecord(**payload, digest=_digest(payload))
 

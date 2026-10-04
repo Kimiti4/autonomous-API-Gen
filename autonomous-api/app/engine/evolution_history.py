@@ -23,6 +23,7 @@ class EvolutionDecision:
     residuals: tuple[str, ...]
     evidence: tuple[str, ...]
     digest: str
+    rejection: dict[str, Any] | None
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,7 @@ def _decision(record: TransactionEvidenceRecord) -> EvolutionDecision:
         residuals=record.residuals,
         evidence=record.evidence,
         digest=record.digest,
+        rejection=dict(record.rejection) if record.rejection is not None else None,
     )
 
 
@@ -123,4 +125,5 @@ def explain_architecture_decision(
         "residuals": final.residuals,
         "evidence": final.evidence,
         "decision_digest": final.digest,
+        "rejection": final.rejection,
     }

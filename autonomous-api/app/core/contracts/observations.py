@@ -148,3 +148,17 @@ class WorkScopeObservation(BaseModel):
     generationScope: str
     allowedSurfaces: list[str]
     preservedSurfaces: list[str]
+
+
+class WorkScopeLifecycleObservation(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    scope: WorkScopeObservation
+    authorizedCount: int
+    blockedCount: int
+    executedCount: int
+    failedExecutionCount: int
+    abortedExecutionCount: int
+    verifiedCount: int
+    failedVerificationCount: int
+    admittedCount: int
+    rejectedCount: int

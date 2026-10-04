@@ -90,4 +90,4 @@ def validate_trust_context(
     )
     if command is not None:
         validate_allowed_commands(command, allowed_commands=context.allowed_commands)
-    validate_environment(environment, allowed_environment=context.allowed_commands)
+    validate_environment(environment, allowed_environment=())

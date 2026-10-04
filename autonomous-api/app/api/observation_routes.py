@@ -12,7 +12,7 @@ from app.core.contracts.observations import (
     FitnessReport,
     ISRObservation,
     ObservationSnapshotWrapper,
-    RecoveryResult,
+    RecoveryResult,\n    WorkScopeObservation,
 )
 from app.core.exceptions import (
     ObservationDomainError,
@@ -24,7 +24,7 @@ from app.observation.capabilities import build_capabilities
 from app.observation.gateway.dispatcher import EventDispatcher
 from app.observation.projectors.fitness import FitnessProjector
 from app.observation.projectors.isr import IsrProjector
-from app.observation.sequences.store import SequenceStore
+from app.observation.sequences.store import SequenceStore\nfrom app.engine.generation_scope import GenerationScope, validate_scope\nfrom app.engine.project_scope import ChangeKind, ProjectIntent, ProjectScope, validate_project_scope
 
 router = APIRouter(prefix="/observation", tags=["observation"])
 
@@ -193,4 +193,30 @@ async def recover_state(
         state=state,
         sequence=consistent_to,
         replayEvents=[e.model_dump(mode="json") for e in events],
+    )
+
+@router.get("/work-scope", response_model=WorkScopeObservation)
+async def work_scope(
+    projectIntent: str = Query(),
+    projectKind: str = Query(),
+    generationScope: str = Query(),
+    _auth=Depends(require_auth),
+):
+    """Authoritative read-only work-scope projection for Dashboard/Observatory."""
+    try:
+        project = ProjectScope(ProjectIntent(projectIntent), ChangeKind(projectKind))
+        project = validate_project_scope(project)
+        generation = validate_scope(GenerationScope(generationScope))
+    except ValueError as exc:
+        raise ObservationDomainError(
+            str(exc), code="INVALID_WORK_SCOPE", http_status=400,
+            context={"operation": "observation.work_scope"},
+        ) from exc
+    surfaces = ("frontend", "backend", "api_contract")
+    return WorkScopeObservation(
+        projectIntent=project.intent.value,
+        projectKind=project.change_kind.value,
+        generationScope=generation.scope.value,
+        allowedSurfaces=[s for s in surfaces if generation.allows(s)],
+        preservedSurfaces=[s for s in surfaces if not generation.allows(s)],
     )

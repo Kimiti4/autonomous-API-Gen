@@ -34,7 +34,7 @@ EventType = Literal[
     "operational.feedback_received",
     "observation.error",
     "event.dropped",
-    "observation.heartbeat",\n    "scope.declared",\n    "mutation.authorization",
+    "observation.heartbeat",\n    "scope.declared",\n    "mutation.authorization",\n    "mutation.execution",
 ]
 
 

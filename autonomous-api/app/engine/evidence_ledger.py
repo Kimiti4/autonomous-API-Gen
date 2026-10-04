@@ -33,6 +33,8 @@ class EvidenceLedger:
             raise ValueError("ledger-duplicate-transaction:" + record.transaction_id)
 
         expected_parent = self.head_digest
+        if self.head is not None and not bool(self.head.admission.get("admitted", False)):
+            raise ValueError("ledger-cannot-extend-rejected-head")
         if record.parent_digest != expected_parent:
             if expected_parent is None and record.parent_digest is not None:
                 raise ValueError("ledger-unexpected-parent-digest")

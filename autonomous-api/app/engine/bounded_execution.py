@@ -8,6 +8,8 @@ import time
 from pathlib import Path
 from typing import Mapping, Sequence
 
+from .execution_policy import ExecutionPolicy, validate_command, validate_execution_environment
+
 
 @dataclass(frozen=True)
 class ExecutionSpec:
@@ -37,6 +39,7 @@ def execute_bounded(
     *,
     root: str,
     allowed_commands: Sequence[str],
+    policy: ExecutionPolicy | None = None,
 ) -> ExecutionResult:
     if not spec.execution_id:
         raise ValueError("execution-missing-id")
@@ -49,13 +52,17 @@ def execute_bounded(
     if spec.command[0] not in set(allowed_commands):
         raise ValueError("execution-command-not-allowed:" + spec.command[0])
 
+    if policy is not None:
+        validate_command(spec.command, policy=policy, timeout_seconds=spec.timeout_seconds)
+        env = validate_execution_environment(
+            requested_environment=spec.environment, policy=policy
+        )
+    else:
+        env = None if spec.environment is None else dict(spec.environment)
+
     base = Path(root).resolve()
     if not base.exists() or not base.is_dir():
         raise ValueError("execution-invalid-root")
-
-    env = None
-    if spec.environment is not None:
-        env = dict(spec.environment)
 
     started = time.monotonic()
     try:

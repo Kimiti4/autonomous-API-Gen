@@ -12,7 +12,7 @@ from .fullstack_genome import FullStackGenome
 from .cross_domain_evolution import CoEvolutionResult
 from .evolution_population import EvolutionMember
 from .pareto_architecture import Objective
-from .transaction_verification import TransactionVerificationConfig
+from .transaction_verification import TransactionVerificationConfig\nfrom .work_mode_scope_validation import validate_mode_surface
 
 
 def execute_governed_evolution_transaction(

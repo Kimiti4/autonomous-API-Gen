@@ -1,24 +1,40 @@
 """Atomic entry point for the ESAP evolution transaction."""
+
 from __future__ import annotations
 
 from .evolution_transaction import EvolutionTransaction, execute_evolution_transaction
 from .transaction_atomicity import AtomicTransactionResult, run_atomic_transaction
 from .abort_evidence import build_abort_evidence
+from .transaction_evidence import TransactionEvidenceRecord
 
 
-def execute_evolution_transaction_atomic(*args, abort_context: dict | None = None, **kwargs) -> AtomicTransactionResult[EvolutionTransaction]:
-    """Run the existing evolution transaction with explicit COMMITTED/ABORTED semantics.
+def execute_evolution_transaction_atomic(
+    *args,
+    abort_context: dict | None = None,
+    **kwargs,
+) -> AtomicTransactionResult[EvolutionTransaction]:
+    """Execute one evolution transaction with a strict atomic boundary.
 
-    The underlying transaction remains responsible for its full evidence/audit
-    construction. An exception at any stage produces an ABORTED result and no
-    partially constructed EvolutionTransaction is returned.
+    COMMITTED is returned only when the underlying transaction produced a
+    structurally valid, self-authenticating audit record. Any exception or
+    malformed committed result becomes ABORTED and never exposes a partial
+    transaction value.
     """
     result = run_atomic_transaction(
         lambda: execute_evolution_transaction(*args, **kwargs),
         stage="evolution-transaction",
     )
     if result.abort is None:
+        value = result.value
+        if value is None:
+            raise RuntimeError("atomic-transaction-missing-committed-value")
+        audit = getattr(value, "audit_record", None)
+        if not isinstance(audit, TransactionEvidenceRecord):
+            raise RuntimeError("atomic-transaction-missing-audit-record")
+        if not audit.verify_digest():
+            raise RuntimeError("atomic-transaction-invalid-audit-digest")
         return result
+
     context = abort_context or {}
     evidence = build_abort_evidence(
         transaction_id=context.get("transaction_id", "atomic-abort"),

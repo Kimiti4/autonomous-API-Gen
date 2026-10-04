@@ -99,3 +99,23 @@ def test_replay_reconstructs_same_chain():
     ledger = replay_ledger((first, second))
     assert ledger.verify()
     assert tuple(r.digest for r in ledger.records) == (first.digest, second.digest)
+
+
+def test_ledger_cannot_extend_rejected_head():
+    from dataclasses import replace
+    first = transaction("event-1", "successor-1").audit_record
+    rejected = replace(
+        first,
+        admission={"admitted": False, "architecture_id": None, "generation": None},
+        rejection={"status": "rejected", "reasons": ["successor-dominated"], "frontier": [], "counterfactuals": []},
+    )
+    import hashlib, json
+    payload = rejected.canonical_payload()
+    rejected = replace(
+        rejected,
+        digest=hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+    )
+    ledger = EvidenceLedger().append(rejected)
+    next_record = transaction("event-2", "successor-2", parent_digest=rejected.digest).audit_record
+    with pytest.raises(ValueError, match="ledger-cannot-extend-rejected-head"):
+        ledger.append(next_record)

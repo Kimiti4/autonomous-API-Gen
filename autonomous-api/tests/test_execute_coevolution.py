@@ -7,6 +7,9 @@ from app.engine.impact_discovery import ImpactRelation, ImpactRequest, discover_
 from app.engine.impact_to_coevolution import build_coevolution_plan
 from app.engine.materialize_coevolution import materialize_coevolution_work
 from app.engine.specialized_mutations import backend_mutation, frontend_mutation
+from app.engine.execution_policy import ExecutionPolicy
+from app.engine.verification_command_planner import VerificationCommandRule
+from app.engine.verification_executor import VerificationKind
 from app.engine.evolution_population import ArchitectureLineage, EvolutionMember
 from app.engine.pareto_architecture import ArchitectureScore
 from app.engine.fullstack_genome import (
@@ -95,6 +98,15 @@ def evidence_map():
     }
 
 
+
+def command_rule(kind):
+    return VerificationCommandRule(
+        kind,
+        ("python", "-c", "print('scope-verified')"),
+        5,
+        ExecutionPolicy(("python",), max_timeout_seconds=5),
+    )
+
 def test_materialized_work_executes_each_domain_and_closes_event():
     p = plan()
     s = specs()
@@ -120,6 +132,26 @@ def test_materialized_work_executes_each_domain_and_closes_event():
     assert {x.mutation_id for x in result.result.reports} == {"f1", "b1"}
     assert "impact-trace" in result.event.evidence
     assert "verify:contract" in result.event.evidence
+
+    executable = execute_materialized_coevolution(
+        work,
+        source(),
+        genome(),
+        s,
+        verifier_map(),
+        {},
+        evidence_map(),
+        event_id="evt-verified",
+        verification_command_rules=(
+            command_rule(VerificationKind.BUILD),
+            command_rule(VerificationKind.TEST),
+            command_rule(VerificationKind.TYPECHECK),
+        ),
+        verification_root=str(__import__("pathlib").Path.cwd()),
+        verification_workspace_id="candidate-verified",
+    )
+    assert executable.executable_verification is not None
+    assert executable.executable_verification.evidence_digests
 
 
 def test_verification_failure_is_retained_in_cross_domain_result():

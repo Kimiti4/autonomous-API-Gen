@@ -7,6 +7,10 @@ from app.engine.pareto_architecture import ArchitectureScore, Objective
 from app.engine.repair_coevolution import RepairCandidate, RepairExecution
 from app.engine.verification_plans import GateResult, VerificationReport
 from app.engine.specialized_mutations import backend_mutation
+from app.engine.transaction_verification import TransactionVerificationConfig
+from app.engine.execution_policy import ExecutionPolicy
+from app.engine.verification_acceptance import VerificationAcceptancePolicy
+from app.engine.verification_executor import VerificationKind, VerificationSpec
 
 def genome():
     return FullStackGenome(
@@ -25,13 +29,21 @@ def source():
 def member():
     return EvolutionMember(ArchitectureLineage("parent",(),0,("parent",)),ArchitectureScore("parent",{"quality":1.0,"risk":5.0},("parent",)))
 
+def verification_config():
+    return TransactionVerificationConfig(
+        specs=(VerificationSpec("build", "successor", VerificationKind.BUILD, ("python", "-c", "print('verified')"), 2),),
+        policies={"BUILD": ExecutionPolicy(("python",), max_timeout_seconds=5)},
+        acceptance=VerificationAcceptancePolicy(required_kinds=("BUILD",)),
+        expected_artifacts={},
+    )
+
 def repair_spec():
     return backend_mutation("f1-repair",("frontend.state",),"repair frontend",("state",),lambda g:g)
 
 def dependent_spec():
     return backend_mutation("b1",("backend.api",),"reverify backend",("contract",),lambda g:g)
 
-def test_full_transaction_closes_and_admits_candidate():
+def test_full_transaction_closes_and_admits_candidate(tmp_path):
     out=execute_evolution_transaction(
         source(),member(),genome(),
         (repair_spec(),),(dependent_spec(),),
@@ -47,12 +59,13 @@ def test_full_transaction_closes_and_admits_candidate():
         event_id="successor-event",
         successor_architecture_id="successor",
         generation=1,
+        verification_config=verification_config(), verification_root=str(tmp_path),
     )
     assert out.successor.passed
     assert out.derived_score.score.values=={"quality":0.93,"risk":0.17}
     assert out.admission.member.lineage.parent_ids==("parent",)
 
-def test_transaction_rejects_missing_measurement_runner():
+def test_transaction_rejects_missing_measurement_runner(tmp_path):
     with pytest.raises(ValueError,match="missing-measurement-runner:risk"):
         execute_evolution_transaction(
             source(),member(),genome(),
@@ -62,10 +75,10 @@ def test_transaction_rejects_missing_measurement_runner():
             {"state":("repair",),"contract":("fresh",)},
             (Objective("quality","maximize"),Objective("risk","minimize")),
             {"quality":lambda g,c:{"quality":1.0,"_evidence":["q"]}},{},
-            event_id="event",successor_architecture_id="successor",generation=1)
+            event_id="event",successor_architecture_id="successor",generation=1, verification_config=verification_config(), verification_root=str(tmp_path))
 
 
-def test_transaction_records_dominated_candidate_instead_of_raising():
+def test_transaction_records_dominated_candidate_instead_of_raising(tmp_path):
     out = execute_evolution_transaction(
         source(),member(),genome(),
         (repair_spec(),),(dependent_spec(),),
@@ -80,6 +93,7 @@ def test_transaction_records_dominated_candidate_instead_of_raising():
         event_id="rejected-event",
         successor_architecture_id="rejected-successor",
         generation=1,
+        verification_config=verification_config(), verification_root=str(tmp_path),
     )
     assert out.admission is None
     assert out.rejection is not None

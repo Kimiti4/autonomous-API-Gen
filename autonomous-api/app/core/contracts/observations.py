@@ -139,3 +139,12 @@ class CapabilityContract(BaseModel):
     eventTypes: list
     supportedStreamIds: list
     features: list
+
+class WorkScopeObservation(BaseModel):
+    """Read-only dashboard/Observatory projection of the declared ESAP work scope."""
+    model_config = ConfigDict(frozen=True)
+    projectIntent: str
+    projectKind: str
+    generationScope: str
+    allowedSurfaces: list[str]
+    preservedSurfaces: list[str]

@@ -9,6 +9,8 @@ defmodule Tiannara.Observatory.Gateway do
   defdelegate knowledge(id \ nil), to: API.Knowledge, as: :get
   defdelegate governance(), to: API.Governance
   defdelegate repair(id), to: Query
+  defdelegate repair_notification(id), to: API.Notifications, as: :repair
+  defdelegate recent_notifications(limit \\ 20), to: API.Notifications, as: :recent
   defdelegate timeline(opts \ []), to: Query
   defdelegate health(), to: Query
   defdelegate trace(id), to: Tracer

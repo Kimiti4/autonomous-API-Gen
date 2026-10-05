@@ -6,6 +6,7 @@ from app.core.config import get_settings
 from app.middleware.security import SessionAuthProvider
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+evolution_control_router = APIRouter(prefix="/api/v1/evolution", tags=["evolution-control"])
 settings = get_settings()
 _session = SessionAuthProvider(
     secret=settings.SECRET_KEY or "test-session-secret-32-chars-minimum",
@@ -46,7 +47,7 @@ async def logout(response: Response):
     return response
 
 
-@router.get("/../evolution/kill-switch")
+@evolution_control_router.get("/kill-switch")
 async def kill_switch(request: Request):
     supplied = request.headers.get(settings.API_KEY_HEADER, "")
     expected = settings.ADMIN_API_KEY or ("test-admin-key" if settings.ENVIRONMENT != "production" else "")

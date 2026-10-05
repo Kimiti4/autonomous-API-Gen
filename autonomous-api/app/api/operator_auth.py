@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import get_settings
 from app.middleware.security import SessionAuthProvider
+from app.core.runtime_control import activate_kill_switch, deactivate_kill_switch, get_kill_switch
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 evolution_control_router = APIRouter(prefix="/api/v1/evolution", tags=["evolution-control"])
@@ -53,4 +54,24 @@ async def kill_switch(request: Request):
     expected = settings.ADMIN_API_KEY or ("test-admin-key" if settings.ENVIRONMENT != "production" else "")
     if not supplied or not expected or supplied != expected:
         return JSONResponse(status_code=403, content={"detail": "control authorization required"})
-    return {"enabled": True, "authorized": True}
+    return get_kill_switch().__dict__
+
+
+@evolution_control_router.post("/kill-switch/activate")
+async def activate_switch(request: Request):
+    supplied = request.headers.get(settings.API_KEY_HEADER, "")
+    expected = settings.ADMIN_API_KEY or ("test-admin-key" if settings.ENVIRONMENT != "production" else "")
+    if not supplied or not expected or supplied != expected:
+        return JSONResponse(status_code=403, content={"detail": "control authorization required"})
+    body = await request.json()
+    return activate_kill_switch(reason=str(body.get("reason", "")), actor=str(body.get("actor", "admin"))).__dict__
+
+
+@evolution_control_router.post("/kill-switch/deactivate")
+async def deactivate_switch(request: Request):
+    supplied = request.headers.get(settings.API_KEY_HEADER, "")
+    expected = settings.ADMIN_API_KEY or ("test-admin-key" if settings.ENVIRONMENT != "production" else "")
+    if not supplied or not expected or supplied != expected:
+        return JSONResponse(status_code=403, content={"detail": "control authorization required"})
+    body = await request.json()
+    return deactivate_kill_switch(reason=str(body.get("reason", "")), actor=str(body.get("actor", "admin"))).__dict__

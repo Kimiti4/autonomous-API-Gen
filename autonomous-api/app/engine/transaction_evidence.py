@@ -192,4 +192,4 @@ def materialize_transaction_evidence(
 
 def _digest(payload: Mapping[str, Any]) -> str:
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return hashlib.sha256(canonical).hexdigest()
+    return hashlib.sha256(canonical, usedforsecurity=False).hexdigest()

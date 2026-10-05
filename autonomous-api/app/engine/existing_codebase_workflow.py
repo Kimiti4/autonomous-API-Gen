@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from hashlib import sha256
+from hashlib import blake2b
 
 from .repository_audit_gate import RepositoryAuditDecision, RepositoryAuditScope, assess_repository_audit
 from .scope_control import ScopeDecision, ScopeClass, ScopeControlEngine, WorkProposal
@@ -107,7 +107,7 @@ def plan_existing_codebase_work(
         str(findings_count), scope.digest,
         "|".join(s.value for s in stages),
     ))
-    return ExistingCodebaseGate(audit, scope, stages, sha256(raw.encode()).hexdigest())
+    return ExistingCodebaseGate(audit, scope, stages, blake2b(raw.encode(), digest_size=32).hexdigest())
 
 
 def require_admissible_existing_codebase_work(gate: ExistingCodebaseGate) -> None:

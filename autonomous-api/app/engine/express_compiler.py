@@ -1,13 +1,11 @@
-"""CAP-003 Node/Express backend target compiler.
-
-Express-specific lowering lives entirely in this compiler. The source Backend
-IR remains technology-neutral and immutable.
-"""
+"""CAP-003 Node/Express backend target compiler."""
 from __future__ import annotations
+
 import json
 import re
-from .backend_ir import BackendProjectIR, BackendEndpoint, validate_backend_ir
+
 from .backend_compiler import BackendCompilation, GeneratedArtifact
+from .backend_ir import BackendProjectIR, validate_backend_ir
 
 
 def _name(value: str) -> str:
@@ -23,85 +21,65 @@ class ExpressBackendCompiler:
         if findings:
             return BackendCompilation(self.target, ir.schema_version, (), findings)
 
-        routes = "
-".join(
-            f'router.{e.method.lower()}("{e.path}", async (req, res) => {{
-'
-            f'  const result = await service.{_name(e.operation)}(req.body);
-'
-            "  res.json(result);
-"
-            "});
-"
+        routes = "\n".join(
+            f'''router.{e.method.lower()}("{e.path}", async (req, res) => {{
+  const result = await service.{_name(e.operation)}(req.body);
+  res.json(result);
+}});'''
             for e in ir.endpoints
         )
         main = (
-            "const express = require('express');
-"
-            "const app = express();
-"
-            "app.use(express.json());
-"
-            "const router = express.Router();
-
-"
-            f"{routes}
-"
-            "app.get('/health', (_req, res) => res.json({status: 'ok'}));
-"
-            "app.use(router);
-
-"
-            "module.exports = app;
-"
+            "const express = require('express');\n"
+            "const app = express();\n"
+            "app.use(express.json());\n"
+            "const router = express.Router();\n\n"
+            + routes
+            + "\napp.get('/health', (_req, res) => res.json({status: 'ok'}));\n"
+            + "app.use(router);\n\n"
+            + "module.exports = app;\n"
         )
-        service = "
-".join(
-            f"async function {_name(e.operation)}(payload) {{
-"
-            f"  return repository.{_name(e.operation)}(payload);
-"
-            "}
-"
+        service = "\n".join(
+            f'''async function {_name(e.operation)}(payload) {{
+  return repository.{_name(e.operation)}(payload);
+}}'''
             for e in ir.endpoints
-        ) or "module.exports = {};
-"
-        service = "const repository = require('./repository');
-
-" + service + "
-module.exports = {
-" + ",
-".join(f"  {_name(e.operation)}" for e in ir.endpoints) + "
-};
-"
-        repository = "
-".join(
-            f"async function {_name(e.operation)}(_payload) {{
-"
-            "  throw new Error('Repository operation not implemented');
-"
-            "}
-"
+        ) or "module.exports = {};\n"
+        service = (
+            "const repository = require('./repository');\n\n"
+            + service
+            + "\nmodule.exports = {\n"
+            + ",\n".join(f"  {_name(e.operation)}" for e in ir.endpoints)
+            + "\n};\n"
+        )
+        repository = "\n".join(
+            f'''async function {_name(e.operation)}(_payload) {{
+  throw new Error('Repository operation not implemented');
+}}'''
             for e in ir.endpoints
-        ) or "const noop = async () => undefined;
-"
-        repository += "
-module.exports = {
-" + ",
-".join(f"  {_name(e.operation)}" for e in ir.endpoints) + "
-};
-"
-        package = json.dumps({
-            "private": True,
-            "scripts": {"start": "node server.js", "test": "node --test"},
-            "dependencies": {"express": "^5.1.0"},
-        }, indent=2, sort_keys=True) + "
-"
-        server = "const app = require('./app');
-app.listen(process.env.PORT || 3000);
-"
-        errors = json.dumps({"contract": ir.error_contract, "lifecycle": list(ir.lifecycle)}, indent=2, sort_keys=True) + "
-"
+        ) or "const noop = async () => undefined;\n"
+        repository += (
+            "\nmodule.exports = {\n"
+            + ",\n".join(f"  {_name(e.operation)}" for e in ir.endpoints)
+            + "\n};\n"
+        )
+        package = json.dumps(
+            {
+                "private": True,
+                "scripts": {"start": "node server.js", "test": "node --test"},
+                "dependencies": {"express": "^5.1.0"},
+            },
+            indent=2,
+            sort_keys=True,
+        ) + "\n"
+        server = "const app = require('./app');\napp.listen(process.env.PORT || 3000);\n"
+        errors = (
+            json.dumps(
+                {"contract": ir.error_contract, "lifecycle": list(ir.lifecycle)},
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n"
+        )
         artifacts = (
             GeneratedArtifact("app.js", main, "source"),
             GeneratedArtifact("service.js", service, "source"),
@@ -111,11 +89,9 @@ app.listen(process.env.PORT || 3000);
             GeneratedArtifact("contracts/errors.json", errors, "contract"),
             GeneratedArtifact(
                 "test/health.test.js",
-                "const test = require('node:test');
-const assert = require('node:assert');
-"
-                "test('health contract exists', () => assert.ok(true));
-",
+                "const test = require('node:test');\n"
+                "const assert = require('node:assert');\n"
+                "test('health contract exists', () => assert.ok(true));\n",
                 "test",
             ),
         )

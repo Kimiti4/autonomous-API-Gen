@@ -43,6 +43,8 @@ def close_existing_codebase_work(
 
     if not audit.audit_decision.may_claim_full_audit:
         reasons.append("repository-audit-incomplete")
+    if not audit.audit_decision.may_certify_repair:
+        reasons.append("repair-certification-evidence-incomplete")
     if not completion.complete:
         reasons.append("authoritative-obligations-incomplete")
     if not verification_complete:

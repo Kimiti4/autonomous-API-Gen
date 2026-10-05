@@ -91,7 +91,7 @@ class RequirementGraph:
                         (req.requirement_id, conflict),
                         f"{req.requirement_id} conflicts with unknown requirement {conflict}",
                     ))
-                elif req.requirement_id in self.requirements[conflict].depends_on:
+                elif (req.requirement_id in self.requirements[conflict].depends_on or conflict in req.depends_on):
                     issues.append(RequirementIssue(
                         f"CONTRADICTION-{req.requirement_id}-{conflict}", "error",
                         (req.requirement_id, conflict),

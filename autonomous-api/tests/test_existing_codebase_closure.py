@@ -43,3 +43,19 @@ def test_closure_continues_when_any_final_gate_is_missing():
     )
     assert result.decision is ClosureDecision.CONTINUE
     assert "verification-incomplete" in result.reasons
+
+
+def test_closure_cannot_stop_without_repair_certification_evidence():
+    audit = audit_existing_codebase(
+        (("app.py", "def main():\n    return 1\n"),),
+        expected_files=1,
+        repair_evidence_complete=False,
+    )
+    result = close_existing_codebase_work(
+        audit, _state(),
+        verification_complete=True,
+        documentation_complete=True,
+        deployment_ready=True,
+    )
+    assert result.decision is ClosureDecision.CONTINUE
+    assert "repair-certification-evidence-incomplete" in result.reasons

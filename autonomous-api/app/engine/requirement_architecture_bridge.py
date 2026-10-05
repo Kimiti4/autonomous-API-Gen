@@ -29,7 +29,7 @@ def derive_architecture_plan(
     obligations_by_requirement: Mapping[str, tuple[ArchitectureObligation, ...]],
 ) -> ArchitecturePlan:
     if graph.issues:
-        return ArchitecturePlan((), tuple(sorted(r.requirement_id for r in graph.requirements)))
+        return ArchitecturePlan((), tuple(sorted({rid for issue in graph.issues for rid in issue.requirement_ids})))
     links=[]
     unresolved=[]
     for req in graph.requirements:

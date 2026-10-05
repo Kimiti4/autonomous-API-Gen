@@ -90,6 +90,7 @@ class TransactionEvidenceRecord:
             "evidence": record.verification_evidence,
             "parent_digest": parent_digest,
             "verification": {"disposition": "ABORTED", "evidence_digests": record.verification_evidence},
+            "capability_context": None,
         }
         return cls(**payload, digest=_digest(payload))
 

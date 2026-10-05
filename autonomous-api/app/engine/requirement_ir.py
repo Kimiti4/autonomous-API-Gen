@@ -49,6 +49,18 @@ class Requirement:
     source: str = "user"
 
     def __post_init__(self) -> None:
+        # Preserve the historical positional constructor shape used by the
+        # pre-Bucket-3 callers while retaining the explicit keyword API.
+        if isinstance(self.acceptance_criteria, str):
+            legacy_source = self.acceptance_criteria
+            if self.depends_on and all(isinstance(x, AcceptanceCriterion) for x in self.depends_on):
+                object.__setattr__(self, "acceptance_criteria", tuple(self.depends_on))
+                object.__setattr__(self, "depends_on", ())
+            else:
+                object.__setattr__(self, "acceptance_criteria", ())
+            object.__setattr__(self, "source", legacy_source)
+        if self.depends_on and not all(isinstance(x, str) for x in self.depends_on):
+            object.__setattr__(self, "depends_on", tuple(str(x) for x in self.depends_on))
         if not self.requirement_id.strip():
             raise ValueError("requirement_id must not be empty")
         if not self.statement.strip():

@@ -135,3 +135,7 @@ def verified_feature(genome: Genome, name: str) -> bool:
         if result.name == name:
             return result.requested and result.implemented
     return False
+
+
+# Backward-compatible alias for the authoritative governed work capability.
+from app.engine.work_capability import WorkCapabilityContract  # noqa: E402,F401

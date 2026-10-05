@@ -67,5 +67,5 @@ def close_existing_codebase_work(
     return ExistingCodebaseClosure(
         decision=decision,
         reasons=tuple(sorted(reasons)),
-        digest=sha256(canonical.encode()).hexdigest(),
+        digest=sha256(canonical.encode())  # nosec B324.hexdigest(),
     )

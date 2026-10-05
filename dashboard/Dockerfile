@@ -30,7 +30,7 @@ RUN cd observation-client && npm run build \
  && cd ../dashboard && npm run build
 
 # ---- runtime stage: static assets behind nginx ------------------------------
-FROM nginxinc/nginx-unprivileged:1.27-alpine
+FROM nginxinc/nginx-unprivileged:1.29-alpine
 
 COPY --from=build /app/dashboard/dist /usr/share/nginx/html
 COPY dashboard/nginx.conf /etc/nginx/conf.d/default.conf

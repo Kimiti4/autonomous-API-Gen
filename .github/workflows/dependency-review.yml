@@ -1,0 +1,37 @@
+name: Dependency Review
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "pyproject.toml"
+      - "uv.lock"
+      - "autonomous-api/pyproject.toml"
+      - "autonomous-api/uv.lock"
+      - "autonomous-api/requirements*.txt"
+      - "observation-client/package.json"
+      - "observation-client/package-lock.json"
+      - "dashboard/package.json"
+      - "dashboard/package-lock.json"
+      - "package.json"
+      - "package-lock.json"
+      - "autonomous-api/Dockerfile"
+      - "dashboard/Dockerfile"
+      - ".github/workflows/**"
+      - ".github/dependabot.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+      - name: Dependency review
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high

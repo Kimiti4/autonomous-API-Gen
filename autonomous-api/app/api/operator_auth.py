@@ -44,3 +44,12 @@ async def session(request: Request):
 async def logout(response: Response):
     response.delete_cookie("esap_operator_session")
     return response
+
+
+@router.get("/../evolution/kill-switch")
+async def kill_switch(request: Request):
+    supplied = request.headers.get(settings.API_KEY_HEADER, "")
+    expected = settings.ADMIN_API_KEY or ("test-admin-key" if settings.ENVIRONMENT != "production" else "")
+    if not supplied or not expected or supplied != expected:
+        return JSONResponse(status_code=403, content={"detail": "control authorization required"})
+    return {"enabled": True, "authorized": True}

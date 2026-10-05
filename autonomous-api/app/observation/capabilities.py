@@ -32,7 +32,8 @@ async def build_capabilities(store, source_revision: str) -> CapabilityContract:
                 ProjectionContract.ISR,
                 ProjectionContract.FITNESS,
                 ProjectionContract.CANDIDATES,
-                ProjectionContract.LINEAGE,\n                ProjectionContract.WORK_SCOPE,
+                ProjectionContract.LINEAGE,
+                ProjectionContract.WORK_SCOPE,
             )
         ],
         eventTypes=list(EventType.__args__),  # type: ignore[attr-defined]
@@ -41,6 +42,7 @@ async def build_capabilities(store, source_revision: str) -> CapabilityContract:
             CapabilityFeature(id="error_envelope", version="1.0.0"),
             CapabilityFeature(id="event_envelope", version="1.0.0"),
             CapabilityFeature(id="stream_replay", version="1.0.0"),
-            CapabilityFeature(id="authoritative_pareto", version="1.0.0"),\n            CapabilityFeature(id="work_scope_observation", version="1.0.0"),
+            CapabilityFeature(id="authoritative_pareto", version="1.0.0"),
+            CapabilityFeature(id="work_scope_observation", version="1.0.0"),
         ],
     )

@@ -43,7 +43,7 @@ class ProjectMemory:
 
     def canonical_payload(self) -> dict:
         return {
-            "schema_version": "esap.project-memory.v1",
+            "schema_version": self.schema_version,
             "memory_id": self.memory_id,
             "project_id": self.project_id,
             "kind": self.kind,

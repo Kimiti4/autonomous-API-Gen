@@ -6,6 +6,7 @@ from app.api.routes import router
 from app.api.ws import router as ws_router
 from app.api.observation_routes import router as observation_router
 from app.api.operator_auth import router as operator_auth_router, evolution_control_router
+from app.api.operator_auth import router as operator_auth_router, evolution_control_router
 from app.core.config import get_settings
 from app.core.logger import logger
 from app.middleware.error_handler import ErrorHandlingConfig, install_error_handlers
@@ -131,6 +132,8 @@ except Exception:  # pragma: no cover
 app.include_router(router)
 app.include_router(ws_router)
 app.include_router(observation_router)
+app.include_router(operator_auth_router)
+app.include_router(evolution_control_router)
 app.include_router(operator_auth_router)
 app.include_router(evolution_control_router)
 setup_metrics(app)

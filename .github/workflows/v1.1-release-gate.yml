@@ -37,7 +37,7 @@ jobs:
       run:
         working-directory: ${{ env.OBSERVATION_CLIENT_DIR }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v4
         with:
@@ -88,7 +88,7 @@ jobs:
       run:
         working-directory: ${{ env.PLATFORM_DIR }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v5
         with:
@@ -157,7 +157,7 @@ jobs:
       TEST_PG_DSN: postgresql+asyncpg://esap:esap@127.0.0.1:5432/esap_test
       OBSERVATION_SCHEMA_SQL: ${{ github.workspace }}/autonomous-api/app/observation/sequences/schema.sql
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v5
         with:
@@ -208,7 +208,7 @@ jobs:
       run:
         working-directory: ${{ env.DASHBOARD_DIR }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v4
         with:
@@ -274,7 +274,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v5
         with:
@@ -336,7 +336,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Download integration evidence
         uses: actions/download-artifact@v4

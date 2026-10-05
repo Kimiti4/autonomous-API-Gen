@@ -32,7 +32,7 @@ jobs:
         run: bash release/run-campaign-a.sh
       - name: Archive behavioral evidence ledger
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cbc1-a-evidence
           path: release/evidence/

@@ -114,7 +114,7 @@ jobs:
       - name: Run Bandit security scan (fail on MEDIUM/HIGH only; LOW findings reported not blocking)
         run: bandit -ll -r app/ -f json -o bandit-report.json
       - name: Upload security report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: security-report
           path: autonomous-api/bandit-report.json

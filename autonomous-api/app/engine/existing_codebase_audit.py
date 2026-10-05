@@ -41,7 +41,9 @@ def audit_existing_codebase(
     ordered = tuple(sorted(files, key=lambda x: x[0]))
     code_scan = scan_repository(ordered, root=root)
     structure_scan = analyze_repository_structure(ordered)
-    expected = code_scan.files_scanned if expected_files is None else expected_files
+    # A scan cannot prove repository completeness merely because every supplied
+    # file was scanned. Full-audit authority requires an explicit inventory size.
+    expected = -1 if expected_files is None else expected_files
     scope = RepositoryAuditScope(
         expected_files=expected,
         scanned_files=code_scan.files_scanned,

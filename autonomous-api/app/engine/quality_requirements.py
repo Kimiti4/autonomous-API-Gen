@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Mapping
 
-from .requirement_ir import RequirementGraph, RequirementKind
+from .requirement_ir import RequirementGraph, RequirementKind, RequirementPriority
 
 
 @dataclass(frozen=True)

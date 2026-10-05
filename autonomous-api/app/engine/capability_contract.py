@@ -139,10 +139,4 @@ def verified_feature(genome: Genome, name: str) -> bool:
 
 
 # Backward-compatible governed capability validation used by the transaction layer.
-def validate_work_capability(contract: WorkCapabilityContract) -> tuple[str, ...]:
-    errors: list[str] = []
-    if not contract.scope.allows_project(contract.project_kind):
-        errors.append("project kind is outside the authorized project scope")
-    if not contract.allows_surface(contract.surface):
-        errors.append("surface is outside the authorized work capability")
-    return tuple(errors)
+from app.engine.work_capability import WorkCapabilityContract, validate_work_capability  # noqa: E402,F401

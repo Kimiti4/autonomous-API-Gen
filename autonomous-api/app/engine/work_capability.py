@@ -27,7 +27,7 @@ class WorkCapabilityContract:
         return authorize_mutations(self.generation, mutations)
 
     def allows_surface(self, surface: str) -> bool:
-        return self.generation.allows(surface)
+        return self.mode.allows_surface(surface) and self.generation.allows(surface)
 
 
 def validate_work_capability(contract: WorkCapabilityContract) -> WorkCapabilityContract:

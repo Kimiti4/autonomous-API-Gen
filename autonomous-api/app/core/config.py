@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = ""
     API_KEY_HEADER: str = "X-API-Key"
     ADMIN_API_KEY: str = ""
+    GOVERNANCE_AUDIT_SIGNING_KEY: str = ""
 
     RATE_LIMIT_GENERAL: int = 100
     RATE_LIMIT_EVOLUTION: int = 20

@@ -66,6 +66,8 @@ class Bucket3IntegrationEngine:
         if not nfr_ok:
             reasons.append("nfr-admission-failed")
 
+        # Completion is a stop boundary. Even an explicitly authorized new
+        # proposal must first create a governed reopened obligation.
         if complete:
             decision: Decision = "STOP"
         elif all((scope_ok, impact_ok, consistency_ok, nfr_ok)):

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass
-from threading import RLock
+from threading import RLock, Lock
 from typing import Iterator
 
 
@@ -29,11 +29,11 @@ class TransactionIsolationRegistry:
 
     def __init__(self) -> None:
         self._guard = RLock()
-        self._locks: dict[TransactionLockKey, RLock] = {}
+        self._locks: dict[TransactionLockKey, Lock] = {}
 
     def _lock_for(self, key: TransactionLockKey) -> RLock:
         with self._guard:
-            return self._locks.setdefault(key, RLock())
+            return self._locks.setdefault(key, Lock())
 
     @contextmanager
     def exclusive(self, key: TransactionLockKey) -> Iterator[None]:

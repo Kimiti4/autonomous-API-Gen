@@ -26,7 +26,18 @@ from app.observation.capabilities import build_capabilities
 from app.observation.gateway.dispatcher import EventDispatcher
 from app.observation.projectors.fitness import FitnessProjector
 from app.observation.projectors.isr import IsrProjector
-from app.observation.sequences.store import SequenceStore\nfrom app.engine.generation_scope import GenerationScope, validate_scope\nfrom app.engine.project_scope import ChangeKind, ProjectIntent, ProjectScope, validate_project_scope\nfrom app.observation.work_scope_lifecycle import project_work_scope_lifecycle\nfrom app.observation.work_scope_lifecycle_validation import validate_work_scope_lifecycle
+from app.observation.sequences.store import SequenceStore
+from app.engine.generation_scope import GenerationScope, validate_scope
+from app.engine.project_scope import (
+    ChangeKind,
+    ProjectIntent,
+    ProjectScope,
+    validate_project_scope,
+)
+from app.observation.work_scope_lifecycle import project_work_scope_lifecycle
+from app.observation.work_scope_lifecycle_validation import (
+    validate_work_scope_lifecycle,
+)
 
 router = APIRouter(prefix="/observation", tags=["observation"])
 

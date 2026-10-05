@@ -485,7 +485,7 @@ def compile_architecture(request: CompilationRequest) -> CompiledArtifact:
     metadata = dict(artifact.metadata)
     metadata.setdefault(
         "architecture_hash",
-        hashlib.sha256(architecture_payload).hexdigest(),
+        hashlib.sha256(architecture_payload, usedforsecurity=False).hexdigest(),
     )
     metadata.setdefault("backend_id", artifact.backend_id)
     return CompiledArtifact(
@@ -506,7 +506,8 @@ def _artifact_manifest_payload(manifest: dict) -> dict:
 
 def _artifact_manifest_digest(manifest: dict) -> str:
     return hashlib.sha256(
-        json.dumps(_artifact_manifest_payload(manifest), sort_keys=True, separators=(",", ":")).encode("utf-8")
+        json.dumps(_artifact_manifest_payload(manifest), sort_keys=True, separators=(",", ":")).encode("utf-8"),
+        usedforsecurity=False,
     ).hexdigest()
 
 
@@ -532,7 +533,7 @@ def _validate_verified_artifact(artifact_dir: str, expected_digest: str) -> dict
         path = (root / relative).resolve()
         if root not in path.parents or not path.is_file():
             raise ValueError(f"artifact file is missing: {relative}")
-        actual = hashlib.sha256(path.read_bytes()).hexdigest()
+        actual = hashlib.sha256(path.read_bytes(), usedforsecurity=False).hexdigest()
         if actual != expected_file_digest:
             raise ValueError(f"artifact file digest mismatch: {relative}")
     return manifest

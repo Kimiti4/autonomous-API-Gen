@@ -34,7 +34,7 @@ class ScopeContract:
                 GenerationScope.FRONTEND_ONLY,
                 GenerationScope.API_CONTRACT_ONLY,
             ),
-            preserve_api_contract=scope is GenerationScope.FRONTEND_ONLY,
+            preserve_api_contract=scope in (GenerationScope.FRONTEND_ONLY, GenerationScope.BACKEND_ONLY),
         )
 
     def allows(self, surface: str) -> bool:

@@ -79,5 +79,5 @@ def audit_existing_codebase(
         code_scan=code_scan,
         structure_scan=structure_scan,
         analyses=tuple(analyses),
-        digest=sha256(canonical.encode()).hexdigest(),
+        digest=sha256(canonical.encode(), usedforsecurity=False).hexdigest(),
     )

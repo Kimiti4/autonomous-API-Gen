@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from hashlib import sha256
+from hashlib import blake2b
 
 from .existing_codebase_audit import ExistingCodebaseAudit
 from .project_completion import CompletionState
@@ -67,5 +67,5 @@ def close_existing_codebase_work(
     return ExistingCodebaseClosure(
         decision=decision,
         reasons=tuple(sorted(reasons)),
-        digest=sha256(canonical.encode()).hexdigest(),  # nosec B324
+        digest=blake2b(canonical.encode(), digest_size=32).hexdigest(),
     )

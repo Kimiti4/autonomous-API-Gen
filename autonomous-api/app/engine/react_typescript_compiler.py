@@ -1,7 +1,9 @@
 """Contract-complete React/TypeScript frontend compiler."""
 from __future__ import annotations
+
 import json
 import re
+
 from .frontend_ir import FrontendProjectIR, validate_frontend_ir
 from .frontend_registry import FrontendCompilation
 
@@ -37,10 +39,10 @@ class ReactTypeScriptCompiler:
     <main
       aria-label={json.dumps(screen.title)}
       data-screen-id={json.dumps(screen.screen_id)}
-      data-auth-policy={authorizationPolicy}
-      data-data-contract={dataContract}
-      data-actions={JSON.stringify(actions)}
-      data-accessibility={JSON.stringify(accessibilityRequirements)}
+      data-auth-policy={{authorizationPolicy}}
+      data-data-contract={{dataContract}}
+      data-actions={{JSON.stringify(actions)}}
+      data-accessibility={{JSON.stringify(accessibilityRequirements)}}
     >
       <h1>{screen.title}</h1>
     </main>
@@ -62,35 +64,46 @@ class ReactTypeScriptCompiler:
             f"export const {key} = import.meta.env.{key};"
             for key in ir.configuration_keys
         ) + ("\n" if ir.configuration_keys else "")
-        contract = json.dumps(
-            {
-                "schema_version": ir.schema_version,
-                "application_id": ir.application_id,
-                "api_contract_version": ir.api_contract_version,
-                "screens": [
-                    {
-                        "screen_id": s.screen_id,
-                        "route": s.route,
-                        "title": s.title,
-                        "data_contract": s.data_contract,
-                        "authorization_policy": s.authorization_policy,
-                        "actions": list(s.actions),
-                        "accessibility_requirements": list(s.accessibility_requirements),
-                    }
-                    for s in ir.screens
-                ],
-                "platform_requirements": list(ir.platform_requirements),
-                "configuration_keys": list(ir.configuration_keys),
-            },
-            indent=2,
-            sort_keys=True,
-        ) + "\n"
+        contract = (
+            json.dumps(
+                {
+                    "schema_version": ir.schema_version,
+                    "application_id": ir.application_id,
+                    "api_contract_version": ir.api_contract_version,
+                    "screens": [
+                        {
+                            "screen_id": s.screen_id,
+                            "route": s.route,
+                            "title": s.title,
+                            "data_contract": s.data_contract,
+                            "authorization_policy": s.authorization_policy,
+                            "actions": list(s.actions),
+                            "accessibility_requirements": list(
+                                s.accessibility_requirements
+                            ),
+                        }
+                        for s in ir.screens
+                    ],
+                    "platform_requirements": list(ir.platform_requirements),
+                    "configuration_keys": list(ir.configuration_keys),
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n"
+        )
         artifacts = tuple(
-            type("Artifact", (), {"path": path, "content": body, "kind": kind})()
+            type(
+                "Artifact",
+                (),
+                {"path": path, "content": body, "kind": kind},
+            )()
             for path, body, kind in (
                 ("src/App.tsx", app, "source"),
                 ("src/config.ts", config, "source"),
                 ("src/contracts.json", contract, "contract"),
             )
         )
-        return FrontendCompilation(self.target, ir.schema_version, artifacts, ())
+        return FrontendCompilation(
+            self.target, ir.schema_version, artifacts, ()
+        )

@@ -61,7 +61,12 @@ def analyze_finding_impact(
     digest=sha256(f"{finding_id}|{source_path}|{canonical}".encode()).hexdigest()
     return ImpactAnalysis(finding_id,source_path,affected,digest)
 
-def _module_name(path:str)->str:
+def _module_name(path: str) -> str:
     if path.endswith(".py"):
-        return path[:-3].replace("/","\.").replace("\","_").replace(".__init__","")
-    return path.replace("/","\.").replace("\","_")
+        return (
+            path[:-3]
+            .replace("/", ".")
+            .replace("\\", "_")
+            .replace(".__init__", "")
+        )
+    return path.replace("/", ".").replace("\\", "_")

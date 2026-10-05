@@ -8,6 +8,9 @@ same CompilerBackend contract without changing the ISR-facing model.
 import os
 import json
 import hashlib
+import shutil
+import tempfile
+from pathlib import Path
 from typing import Dict
 
 from app.engine.backend_contract import (
@@ -490,6 +493,101 @@ def compile_architecture(request: CompilationRequest) -> CompiledArtifact:
         files=artifact.files,
         metadata=metadata,
     )
+
+
+def _artifact_manifest_payload(manifest: dict) -> dict:
+    return {
+        "manifest_version": manifest["manifest_version"],
+        "backend_id": manifest["backend_id"],
+        "architecture_hash": manifest["architecture_hash"],
+        "files": manifest["files"],
+    }
+
+
+def _artifact_manifest_digest(manifest: dict) -> str:
+    return hashlib.sha256(
+        json.dumps(_artifact_manifest_payload(manifest), sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
+def _validate_verified_artifact(artifact_dir: str, expected_digest: str) -> dict:
+    root = Path(artifact_dir).resolve()
+    manifest_path = root / "artifact-manifest.json"
+    if not root.is_dir() or not manifest_path.is_file():
+        raise ValueError("verified artifact manifest is missing")
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError("verified artifact manifest is invalid") from exc
+    if manifest.get("manifest_version") != 1:
+        raise ValueError("unsupported artifact manifest version")
+    if manifest.get("artifact_digest") != expected_digest:
+        raise ValueError("artifact digest mismatch")
+    if _artifact_manifest_digest(manifest) != expected_digest:
+        raise ValueError("artifact manifest digest mismatch")
+    files = manifest.get("files")
+    if not isinstance(files, dict) or not files:
+        raise ValueError("verified artifact manifest has no files")
+    for relative, expected_file_digest in files.items():
+        path = (root / relative).resolve()
+        if root not in path.parents or not path.is_file():
+            raise ValueError(f"artifact file is missing: {relative}")
+        actual = hashlib.sha256(path.read_bytes()).hexdigest()
+        if actual != expected_file_digest:
+            raise ValueError(f"artifact file digest mismatch: {relative}")
+    return manifest
+
+
+def backup_verified_artifact(source_dir: str, backup_dir: str, *, expected_digest: str) -> str:
+    _validate_verified_artifact(source_dir, expected_digest)
+    source = Path(source_dir).resolve()
+    destination = Path(backup_dir).resolve()
+    if destination.exists():
+        shutil.rmtree(destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source, destination)
+    _validate_verified_artifact(str(destination), expected_digest)
+    return expected_digest
+
+
+def restore_verified_artifact(backup_dir: str, destination_dir: str, *, expected_digest: str) -> str:
+    _validate_verified_artifact(backup_dir, expected_digest)
+    backup = Path(backup_dir).resolve()
+    destination = Path(destination_dir).resolve()
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=f".{destination.name}.restore-", dir=str(destination.parent)))
+    staging_artifact = staging / "artifact"
+    try:
+        shutil.copytree(backup, staging_artifact)
+        _validate_verified_artifact(str(staging_artifact), expected_digest)
+        if destination.exists():
+            shutil.rmtree(destination)
+        staging_artifact.rename(destination)
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging)
+    _validate_verified_artifact(str(destination), expected_digest)
+    return expected_digest
+
+
+def promote_verified_artifact(source_dir: str, destination_dir: str, *, expected_digest: str) -> str:
+    _validate_verified_artifact(source_dir, expected_digest)
+    destination = Path(destination_dir).resolve()
+    if destination.exists():
+        previous = destination.with_name(f".{destination.name}.previous")
+        if previous.exists():
+            shutil.rmtree(previous)
+        destination.rename(previous)
+    try:
+        return restore_verified_artifact(source_dir, str(destination), expected_digest=expected_digest)
+    except Exception:
+        if destination.exists():
+            shutil.rmtree(destination)
+        previous = destination.with_name(f".{destination.name}.previous")
+        if previous.exists():
+            previous.rename(destination)
+        raise
+
 
 
 def materialize(artifact: CompiledArtifact, output_dir: str) -> str:

@@ -16,7 +16,7 @@ class ArchitectureObligation:
     source_id: str
     obligation_type: str
     statement: str
-    verification: tuple[str, ...]
+    verification: tuple[str, ...] = ()
     required_properties: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:

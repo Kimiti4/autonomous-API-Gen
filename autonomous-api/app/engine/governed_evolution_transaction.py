@@ -1,5 +1,4 @@
 """Governed entry point for Bucket 2 capability-aware evolution."""
-
 from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
@@ -14,7 +13,8 @@ from .evolution_population import EvolutionMember
 from .pareto_architecture import Objective
 from .transaction_verification import TransactionVerificationConfig
 from .work_mode_scope_validation import validate_mode_surface
-from .capability_domain_resolution import validate_mutation_domains\nfrom .capability_verification import verification_profile
+from .capability_domain_resolution import validate_mutation_domains
+from .capability_verification import verification_profile
 
 
 def execute_governed_evolution_transaction(
@@ -43,8 +43,14 @@ def execute_governed_evolution_transaction(
     """Fail closed unless the requested mutations satisfy the Bucket 2 contract."""
     validate_work_capability(capability)
     capability.authorize(mutations)
-    domains = tuple(getattr(spec.mutation, "domain", "") for spec in (*repair_specs, *dependent_specs))
-    validate_mutation_domains(capability, domains)\n    verification_profile(capability.mode.mode).validate_evidence(dict(evidence_by_property))
+    domains = tuple(
+        getattr(spec.mutation, "domain", "")
+        for spec in (*repair_specs, *dependent_specs)
+    )
+    validate_mutation_domains(capability, domains)
+    verification_profile(capability.mode.mode).validate_evidence(
+        dict(evidence_by_property)
+    )
     return execute_evolution_transaction(
         source=source,
         source_member=source_member,

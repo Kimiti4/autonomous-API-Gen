@@ -1,13 +1,10 @@
-"""CAP-003 layered Python/FastAPI lowering.
-
-Generates separate API, schema, service and repository boundaries from the
-technology-neutral Backend IR. Persistence implementation is intentionally
-left behind the repository interface.
-"""
+"""CAP-003 layered Python/FastAPI lowering."""
 from __future__ import annotations
+
 import re
-from .backend_ir import BackendProjectIR
+
 from .backend_compiler import BackendCompilation, GeneratedArtifact
+from .backend_ir import BackendProjectIR
 from .fastapi_compiler import FastAPIBackendCompiler
 
 
@@ -24,71 +21,47 @@ class LayeredFastAPICompiler(FastAPIBackendCompiler):
         if base.diagnostics:
             return base
 
-        operations = "
-".join(
-            f"    async def {_name(e.operation)}(self, payload=None):
-"
-            f"        return await self.repository.{_name(e.operation)}(payload)
-"
+        operations = "\n".join(
+            f"""    async def {_name(e.operation)}(self, payload=None):
+        return await self.repository.{_name(e.operation)}(payload)"""
             for e in ir.endpoints
-        ) or "    pass
-"
+        ) or "    pass\n"
 
-        schemas = "
-".join(
-            f"class {_name(e.operation).title().replace('_', '')}Request(BaseModel):
-"
-            "    pass
-"
+        schemas = "\n".join(
+            f"""class {_name(e.operation).title().replace('_', '')}Request(BaseModel):
+    pass"""
             for e in ir.endpoints
-        ) or "class EmptyRequest(BaseModel):
-    pass
-"
+        ) or "class EmptyRequest(BaseModel):\n    pass\n"
 
-        repository = "
-".join(
-            f"    async def {_name(e.operation)}(self, payload=None):
-"
-            "        raise NotImplementedError
-"
+        repository = "\n".join(
+            f"""    async def {_name(e.operation)}(self, payload=None):
+        raise NotImplementedError"""
             for e in ir.endpoints
-        ) or "    pass
-"
+        ) or "    pass\n"
 
         artifacts = list(base.artifacts)
-        artifacts.extend([
-            GeneratedArtifact(
-                "app/schemas.py",
-                "from pydantic import BaseModel
-
-" + schemas + "
-",
-                "schema",
-            ),
-            GeneratedArtifact(
-                "app/repository.py",
-                "class Repository:
-" + repository + "
-",
-                "repository",
-            ),
-            GeneratedArtifact(
-                "app/service.py",
-                "from .repository import Repository
-
-"
-                "class Service:
-"
-                "    def __init__(self, repository: Repository):
-"
-                "        self.repository = repository
-
-"
-                + operations + "
-",
-                "service",
-            ),
-        ])
-        return BackendCompilation(
-            self.target, ir.schema_version, tuple(artifacts), ()
+        artifacts.extend(
+            [
+                GeneratedArtifact(
+                    "app/schemas.py",
+                    "from pydantic import BaseModel\n\n" + schemas + "\n",
+                    "schema",
+                ),
+                GeneratedArtifact(
+                    "app/repository.py",
+                    "class Repository:\n" + repository + "\n",
+                    "repository",
+                ),
+                GeneratedArtifact(
+                    "app/service.py",
+                    "from .repository import Repository\n\n"
+                    "class Service:\n"
+                    "    def __init__(self, repository: Repository):\n"
+                    "        self.repository = repository\n\n"
+                    + operations
+                    + "\n",
+                    "service",
+                ),
+            ]
         )
+        return BackendCompilation(self.target, ir.schema_version, tuple(artifacts), ())

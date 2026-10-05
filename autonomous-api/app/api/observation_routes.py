@@ -12,7 +12,9 @@ from app.core.contracts.observations import (
     FitnessReport,
     ISRObservation,
     ObservationSnapshotWrapper,
-    RecoveryResult,\n    WorkScopeObservation,
+    RecoveryResult,
+    WorkScopeObservation,
+    WorkScopeLifecycleObservation,
 )
 from app.core.exceptions import (
     ObservationDomainError,

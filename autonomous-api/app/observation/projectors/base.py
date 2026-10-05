@@ -32,4 +32,5 @@ class ProjectionContract:
     ISR = ("platform.observation.isr", "1.0.0")
     FITNESS = ("platform.observation.fitness", "1.0.0")
     CANDIDATES = ("platform.observation.candidates", "1.0.0")
-    LINEAGE = ("platform.observation.lineage", "1.0.0")\n    WORK_SCOPE = ("platform.observation.work-scope", "1.0.0")
+    LINEAGE = ("platform.observation.lineage", "1.0.0")
+    WORK_SCOPE = ("platform.observation.work-scope", "1.0.0")

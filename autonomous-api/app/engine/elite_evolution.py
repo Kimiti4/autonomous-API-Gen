@@ -14,6 +14,7 @@ from app.engine.adaptive import AdaptiveMutator
 from app.engine.multi_population import MultiPopulationSystem
 from app.engine.benchmark import benchmark_api_performance, calculate_performance_fitness
 from app.engine.builder import build_genome_output
+from app.engine.backend_contract import BackendTarget, PYTHON_FASTAPI
 from app.engine.production_readiness import ProductionReadinessAnalyzer
 from app.storage.db import SessionLocal
 from app.storage.models import GenomeRecord, EvolutionRun
@@ -21,8 +22,8 @@ from app.storage.models import GenomeRecord, EvolutionRun
 class EliteEvolutionEngine:
     """Advanced evolution engine with persistent memory, adaptation and multi-population search."""
     _EVENT_TYPE_MAP = {"evolution_start":"evolution.stage_changed","generation_start":"evolution.stage_changed","new_best":"candidate.promoted","generation_complete":"fitness.evaluated","building_best":"evolution.stage_changed","docker_test":"evolution.stage_changed","evolution_complete":"evolution.stage_changed"}
-    def __init__(self):
-        self.memory=EvolutionMemory(); self.adaptive_mutator=AdaptiveMutator(); self.multi_pop=None; self.websocket_callback:Optional[Callable]=None; self.dispatcher=None; self.production_analyzer=ProductionReadinessAnalyzer()
+    def __init__(self, target: BackendTarget = PYTHON_FASTAPI):
+        self.target=target; self.memory=EvolutionMemory(); self.adaptive_mutator=AdaptiveMutator(); self.multi_pop=None; self.websocket_callback:Optional[Callable]=None; self.dispatcher=None; self.production_analyzer=ProductionReadinessAnalyzer()
     def set_websocket_callback(self, callback: Callable): self.websocket_callback=callback
     def set_dispatcher(self, dispatcher): self.dispatcher=dispatcher
     async def _emit_update(self, data:dict, *, run_id:str="global", generation:int=0):
@@ -49,7 +50,7 @@ class EliteEvolutionEngine:
             if use_multi_population: self.multi_pop=MultiPopulationSystem(population_size=population_size); groups=self.multi_pop.groups
             else: groups={"balanced":Population(size=population_size*4)}
             all_history={g:[] for g in groups}; global_best_genome=None; global_best_fitness=float("-inf")
-            await self._emit_update({"type":"elite_evolution_start","run_id":run_id,"generations":generations,"groups":list(groups.keys()),"adaptive_mutation":enable_adaptive_mutation,"seed":seed,"evaluation_mode":"static"},run_id=run_id)
+            await self._emit_update({"type":"elite_evolution_start","run_id":run_id,"generations":generations,"groups":list(groups.keys()),"adaptive_mutation":enable_adaptive_mutation,"seed":seed,"evaluation_mode":"static","backend_id":self.target.backend_id},run_id=run_id)
             for gen in range(generations):
                 for group_name,population in groups.items():
                     fitness_scores=[]
@@ -70,7 +71,7 @@ class EliteEvolutionEngine:
             build_error = None
             if global_best_genome:
                 try:
-                    output_path = build_genome_output(global_best_genome)
+                    output_path = build_genome_output(global_best_genome, target=self.target)
                 except ValueError as exc:
                     output_path = None
                     build_error = f"best genome not lowerable: {exc}"

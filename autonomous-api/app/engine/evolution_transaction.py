@@ -80,6 +80,14 @@ def execute_evolution_transaction(
         raise ValueError("transaction-missing-verification-config")
     verification = execute_transaction_verification(verification_config, root=verification_root)
 
+    # E2E certification is an admission prerequisite. A transaction may
+    # produce evidence for investigation, but it cannot be admitted when the
+    # required verification gate is absent, failed, or evidence-free.
+    if verification.disposition != "PASSED":
+        raise ValueError("transaction-e2e-verification-failed")
+    if not getattr(verification, "evidence_ids", ()):
+        raise ValueError("transaction-e2e-verification-missing-evidence")
+
     admission = None
     rejection = None
     counterfactuals = ()

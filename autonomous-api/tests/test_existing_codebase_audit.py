@@ -29,3 +29,8 @@ def test_advisory_structural_findings_do_not_create_repair_candidates():
     audit = audit_existing_codebase(files, expected_files=1)
     assert audit.structure_scan.findings[0].rule == "long-line"
     assert audit.analyses == ()
+
+
+def test_missing_inventory_size_cannot_claim_full_audit():
+    audit = audit_existing_codebase(FILES)
+    assert not audit.audit_decision.may_claim_full_audit

@@ -17,6 +17,8 @@ import type {
   ProvenanceAudit,
   ProvenanceSummary,
   RuntimeState,
+  RepairNotification,
+  RepairState,
   TimelineEntry
 } from "./types";
 
@@ -225,6 +227,10 @@ export const api = {
 
     return `${OBSERVATORY_API_BASE}/observatory/export/events?${params.toString()}`;
   },
+
+  recentNotifications(limit = 20): Promise<RepairNotification[]> { return request<RepairNotification[]>(`/observatory/notifications?limit=${limit}`); },
+
+  repair(repairId: string): Promise<RepairState> { return request<RepairState>(`/observatory/repair/${encodeURIComponent(repairId)}`); },
 
   auditBundleUrl(subjectId: string): string {
     return `${OBSERVATORY_API_BASE}/observatory/audit-bundle/${encodeURIComponent(subjectId)}`;

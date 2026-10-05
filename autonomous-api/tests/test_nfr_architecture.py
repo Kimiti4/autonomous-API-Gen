@@ -14,8 +14,8 @@ def engine():
         project_id="p1",
         constraints=[
             NFRConstraint("SEC-1", "security", "security score", 0.9, "mandatory", "min"),
-            NFRConstraint("PERF-1", "performance", "latency budget", 200, "mandatory", "min"),
-            NFRConstraint("COST-1", "cost", "cost ceiling", 100, "mandatory", "min"),
+            NFRConstraint("PERF-1", "performance", "latency budget", 200, "mandatory", "max"),
+            NFRConstraint("COST-1", "cost", "cost ceiling", 100, "mandatory", "max"),
             NFRConstraint("OPS-1", "operability", "operability", 0.8, "advisory", "min"),
         ],
     )
@@ -26,8 +26,8 @@ def test_candidate_is_admissible_only_when_mandatory_constraints_have_current_pa
         "arch-A",
         [
             NFRMeasurement("SEC-1", 0.95, "E-SEC"),
-            NFRMeasurement("PERF-1", 250, "E-PERF"),
-            NFRMeasurement("COST-1", 120, "E-COST"),
+            NFRMeasurement("PERF-1", 150, "E-PERF"),
+            NFRMeasurement("COST-1", 80, "E-COST"),
             NFRMeasurement("OPS-1", 0.7, "E-OPS"),
         ],
     )
@@ -70,7 +70,7 @@ def test_direction_is_explicit():
     result = NFRArchitectureEngine(
         project_id="p1",
         constraints=[
-            NFRConstraint("C", "cost", "maximum cost", 100, "mandatory", "min"),
+            NFRConstraint("C", "cost", "maximum cost", 100, "mandatory", "max"),
         ],
     ).assess("arch", [NFRMeasurement("C", 99, "E")])
 
@@ -91,7 +91,7 @@ def test_duplicate_measurements_fail_closed():
 def test_deterministic_assessment_digest():
     measurements = [
         NFRMeasurement("SEC-1", 0.95, "E1"),
-        NFRMeasurement("PERF-1", 220, "E2"),
+        NFRMeasurement("PERF-1", 180, "E2"),
         NFRMeasurement("COST-1", 90, "E3"),
         NFRMeasurement("OPS-1", 0.9, "E4"),
     ]

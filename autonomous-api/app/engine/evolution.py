@@ -1,3 +1,5 @@
+from app.core.runtime_control import assert_evolution_enabled
+
 import asyncio
 import uuid
 import random
@@ -61,6 +63,7 @@ class EvolutionEngine:
         return float(score) if score is not None else 0.0
 
     async def run_async(self, generations: int = 10, population_size: int = 10, use_docker: bool = True, seed: Optional[int] = None) -> dict:
+        assert_evolution_enabled()
         if generations < 1 or population_size < 2: raise ValueError("generations must be >= 1 and population_size must be >= 2")
         run_id = str(uuid.uuid4())
         previous_state = random.getstate()

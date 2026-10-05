@@ -13,6 +13,10 @@ class ArchitectureMutation:
     request: MutationRequest
     apply: Callable[[FullStackGenome], FullStackGenome]
 
+    @property
+    def domain(self) -> str:
+        return self.request.domain
+
 
 @dataclass(frozen=True)
 class MutationEvaluation:

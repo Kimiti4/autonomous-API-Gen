@@ -42,23 +42,34 @@ class RepositoryScan:
 
 
 def scan_repository(files: Iterable[tuple[str, str]], *, root: str = ".") -> RepositoryScan:
-    """Scan supplied source files deterministically; never executes them."""
+    """Scan supplied source files deterministically; never execute source."""
     findings: list[CodeFinding] = []
     count = 0
     for path, source in sorted(files, key=lambda x: x[0]):
         count += 1
-        lines = source.splitlines()
-        for number, line in enumerate(lines, 1):
+        for number, line in enumerate(source.splitlines(), 1):
             stripped = line.strip()
             if "TODO" in stripped or "FIXME" in stripped:
-                findings.append(_finding(path, number, "code-smell", "low", "unfinished-marker", stripped, True))
-            if re.search(r"except\\s*:\\s*$", stripped):
-                findings.append(_finding(path, number, "bug-risk", "high", "bare-except", stripped, True))
-            if re.search(r"except Exception\\s*:", stripped):
-                findings.append(_finding(path, number, "bug-risk", "medium", "broad-exception", stripped, True))
+                findings.append(
+                    _finding(path, number, "code-smell", "low",
+                             "unfinished-marker", stripped, True)
+                )
+            if re.search(r"except\s*:\s*$", stripped):
+                findings.append(
+                    _finding(path, number, "bug-risk", "high",
+                             "bare-except", stripped, True)
+                )
+            if re.search(r"except\s+Exception\s*:", stripped):
+                findings.append(
+                    _finding(path, number, "bug-risk", "medium",
+                             "broad-exception", stripped, True)
+                )
             if "pass  # stub" in stripped.lower():
-                findings.append(_finding(path, number, "code-smell", "high", "stub-pass", stripped, True))
-    canonical = "\n".join(f"{f.digest}" for f in findings)
+                findings.append(
+                    _finding(path, number, "code-smell", "high",
+                             "stub-pass", stripped, True)
+                )
+    canonical = "\n".join(f.digest for f in findings)
     digest = sha256((root + "|" + str(count) + "|" + canonical).encode()).hexdigest()
     return RepositoryScan(root, tuple(findings), count, digest)
 

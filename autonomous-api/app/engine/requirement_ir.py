@@ -58,6 +58,9 @@ class Requirement:
                 object.__setattr__(self, "depends_on", ())
             else:
                 object.__setattr__(self, "acceptance_criteria", ())
+            if self.conflicts_with and not self.tags:
+                object.__setattr__(self, "tags", tuple(self.conflicts_with))
+                object.__setattr__(self, "conflicts_with", ())
             object.__setattr__(self, "source", legacy_source)
         if self.depends_on and not all(isinstance(x, str) for x in self.depends_on):
             object.__setattr__(self, "depends_on", tuple(str(x) for x in self.depends_on))

@@ -9,7 +9,7 @@ class ContractLink:
     producer_id: str
     consumer_id: str
     contract_kind: str
-    compatibility: str  # compatible, breaking, unknown
+    compatibility: str = "unknown"  # compatible, breaking, unknown
 
 
 @dataclass(frozen=True)

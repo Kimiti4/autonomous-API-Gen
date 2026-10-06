@@ -18,6 +18,7 @@ from app.engine.backends import get_backend
 from app.engine.production_readiness import ProductionReadinessAnalyzer
 from app.storage.db import SessionLocal
 from app.storage.models import GenomeRecord, EvolutionRun
+from app.storage.lease import acquire_control_plane_lease, heartbeat_control_plane_lease, release_control_plane_lease
 
 class EvolutionEngine:
     """Main genetic evolution engine with durable lifecycle and provenance."""
@@ -29,6 +30,54 @@ class EvolutionEngine:
 
     def set_websocket_callback(self, callback: Callable): self.websocket_callback = callback
     def set_dispatcher(self, dispatcher): self.dispatcher = dispatcher
+
+    @staticmethod
+    def _is_authoritative(record) -> bool:
+        history = getattr(record, "history", {}) or {}
+        return (
+            getattr(record, "status", None) == "completed"
+            and history.get("phase") == "completed"
+            and history.get("promotion_status") == "published"
+            and bool(history.get("best_artifact_digest"))
+        )
+
+    @staticmethod
+    def recover_interrupted_runs() -> int:
+        from datetime import datetime, timezone
+        from app.storage.lease import lease_is_live
+        db = SessionLocal()
+        recovered = 0
+        try:
+            for record in db.query(EvolutionRun).filter(EvolutionRun.status == "running").all():
+                if lease_is_live():
+                    continue
+                record.status = "abandoned"
+                record.completed_at = datetime.now(timezone.utc)
+                history = dict(getattr(record, "history", {}) or {})
+                history["phase"] = "abandoned"
+                record.history = history
+                recovered += 1
+            if recovered:
+                db.commit()
+            return recovered
+        finally:
+            db.close()
+
+    async def run_async(self, generations=10, population_size=10, use_docker=True, seed=None):
+        owner = "evolution:" + str(uuid.uuid4())
+        token = acquire_control_plane_lease(owner_run_id=owner)
+        try:
+            return await self._run_async_unleased(generations, population_size, use_docker, seed)
+        finally:
+            release_control_plane_lease(token)
+
+    def run_synchronous(self, generations=10, population_size=10, use_docker=False):
+        owner = "evolution:" + str(uuid.uuid4())
+        token = acquire_control_plane_lease(owner_run_id=owner)
+        try:
+            return self._run_synchronous_unleased(generations, population_size, use_docker)
+        finally:
+            release_control_plane_lease(token)
 
     async def _emit_update(self, data: dict, *, run_id: str = "global", generation: int = 0):
         if self.websocket_callback:
@@ -62,7 +111,7 @@ class EvolutionEngine:
             return 0.0
         return float(score) if score is not None else 0.0
 
-    async def run_async(self, generations: int = 10, population_size: int = 10, use_docker: bool = True, seed: Optional[int] = None) -> dict:
+    async def _run_async_unleased(self, generations: int = 10, population_size: int = 10, use_docker: bool = True, seed: Optional[int] = None) -> dict:
         assert_evolution_enabled()
         if generations < 1 or population_size < 2: raise ValueError("generations must be >= 1 and population_size must be >= 2")
         run_id = str(uuid.uuid4())
@@ -79,6 +128,7 @@ class EvolutionEngine:
                 fitness_scores = []; genomes_to_save = []
                 for genome in population.individuals:
                     evidence = await evaluate_candidate_async(genome, use_docker=use_docker, target=self.target)
+                    heartbeat_control_plane_lease(self._active_lease_token) if hasattr(self, "_active_lease_token") else None
                     fitness = self._fitness_from_evidence(evidence)
                     fitness_scores.append(fitness)
                     payload = genome.encode(); payload["lineage"] = self._lineage_payload(genome); payload["evaluation"] = evidence; payload["provenance"] = {"run_id": run_id, "generation": gen + 1, "seed": seed, "evaluation_mode": evidence["evaluation_mode"], "backend_id": self.target.backend_id}
@@ -132,11 +182,14 @@ class EvolutionEngine:
         finally:
             if seed is not None: random.setstate(previous_state)
 
-    def run_synchronous(self, generations: int = 10, population_size: int = 10, use_docker: bool = False) -> dict:
+    def _run_synchronous_unleased(self, generations: int = 10, population_size: int = 10, use_docker: bool = False) -> dict:
         if generations < 1 or population_size < 2: raise ValueError("generations must be >= 1 and population_size must be >= 2")
         population = Population(size=population_size); history = []; best_genome = None; best_fitness = float("-inf"); output_path = None
         for gen in range(generations):
-            fitness_scores = [calculate_fitness(g) for g in population.individuals]
+            fitness_scores = []
+            for g in population.individuals:
+                fitness_scores.append(calculate_fitness(g))
+                heartbeat_control_plane_lease(self._active_lease_token) if hasattr(self, "_active_lease_token") else None
             for fitness, genome in zip(fitness_scores, population.individuals):
                 if fitness > best_fitness: best_fitness, best_genome = fitness, genome
             history.append({"generation": gen + 1, "scores": fitness_scores, "best_score": max(fitness_scores), "avg_score": sum(fitness_scores) / len(fitness_scores)})

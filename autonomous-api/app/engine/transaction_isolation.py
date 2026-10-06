@@ -8,12 +8,18 @@ from contextlib import contextmanager
 from threading import RLock
 from typing import Iterator
 
-class TransactionIsolationConflict(RuntimeError):
-    """Raised when another transaction owns the requested isolation key."""
+class TransactionIsolationError(RuntimeError):
+    """Raised when transaction isolation cannot be acquired."""
+
+# Backward-compatible canonical name retained for callers that used the
+# earlier implementation-specific exception.
+TransactionIsolationConflict = TransactionIsolationError
 
 def transaction_lock_key(source_architecture_id: str, candidate_architecture_id: str) -> str:
     if not source_architecture_id or not candidate_architecture_id:
-        raise ValueError("transaction-isolation-requires-identities")
+        if not source_architecture_id:
+            raise ValueError("missing-source-architecture-id")
+        raise ValueError("missing-candidate-architecture-id")
     return f"{source_architecture_id}->{candidate_architecture_id}"
 
 class TransactionIsolationRegistry:
@@ -34,3 +40,17 @@ class TransactionIsolationRegistry:
         finally:
             with self._guard:
                 self._locks.pop(key, None)
+
+
+@contextmanager
+def isolated_transaction(
+    source_architecture_id: str,
+    candidate_architecture_id: str,
+    *,
+    registry: TransactionIsolationRegistry | None = None,
+) -> Iterator[None]:
+    """Acquire the canonical isolation boundary for one source/candidate pair."""
+    active_registry = registry or TransactionIsolationRegistry()
+    key = transaction_lock_key(source_architecture_id, candidate_architecture_id)
+    with active_registry.exclusive(key):
+        yield

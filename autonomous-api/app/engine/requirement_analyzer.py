@@ -23,12 +23,12 @@ class DecompositionResult:
 
     @property
     def ready_for_isr(self) -> bool:
-        return not any(i.severity == "error" for i in self.unresolved)
+        return not self.unresolved
 
 
 def classify_statement(statement: str) -> RequirementKind:
     text = statement.lower()
-    if any(x in text for x in ("must authenticate", "authorize", "permission", "credential", "secret", "encrypt")):
+    if any(x in text for x in ("must authenticate", "authenticate", "authorize", "permission", "credential", "secret", "encrypt")):
         return RequirementKind.SECURITY
     if any(x in text for x in ("latency", "throughput", "availability", "uptime", "response time", "within ")):
         return RequirementKind.NON_FUNCTIONAL

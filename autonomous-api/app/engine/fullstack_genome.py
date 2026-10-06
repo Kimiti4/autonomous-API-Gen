@@ -47,6 +47,10 @@ class SecurityGenome:
     threat_controls: tuple[str, ...]
     secret_handling: str
 
+    @property
+    def threat_model(self) -> str:
+        return self.threat_controls[0] if self.threat_controls else ""
+
 
 @dataclass(frozen=True)
 class OperationalGenome:

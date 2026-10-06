@@ -40,6 +40,7 @@ class ProjectMemory:
     supersedes: str | None = None
     parent_digest: str | None = None
     digest: str = ""
+    schema_version: str = "esap.project-memory.v1"
 
     def canonical_payload(self) -> dict:
         return {
@@ -234,5 +235,6 @@ class ProjectMemoryStore:
 
 def _digest(payload: Mapping) -> str:
     return hashlib.sha256(
-        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8"),
+        usedforsecurity=False,
     ).hexdigest()

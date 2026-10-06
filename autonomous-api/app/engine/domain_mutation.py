@@ -28,18 +28,6 @@ _ALLOWED = {
     "security": ("security.",),
     "operations": ("operations.",),
     "fullstack": ("frontend.", "backend.", "data.", "security.", "operations."),
-    # Capability-level operators are governed independently; their targets may be
-    # symbolic capability paths rather than genome-layer paths.
-    "documentation": ("documentation.", "docs.", "x"),
-    "testing": ("testing.", "tests.", "x"),
-    "architecture": ("architecture.", "x"),
-    "migration": ("migration.", "data.", "x"),
-    "refactor": ("refactor.", "x"),
-    "generate": ("generate.", "x"),
-    "maintain": ("maintain.", "x"),
-    "improve": ("improve.", "x"),
-    "seo": ("seo.", "x"),
-    "crossstack": ("crossstack.", "x"),
 }
 
 

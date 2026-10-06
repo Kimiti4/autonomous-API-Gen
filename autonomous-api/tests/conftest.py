@@ -17,6 +17,8 @@ from pathlib import Path
 # so protected control endpoints (e.g. /production/readiness) are testable.
 os.environ.setdefault("ADMIN_API_KEY", "test-admin-key")
 
+os.environ.setdefault("GOVERNANCE_AUDIT_SIGNING_KEY", "test-governance-audit-key")
+
 import pytest_asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine

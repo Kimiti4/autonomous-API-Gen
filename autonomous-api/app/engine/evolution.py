@@ -14,7 +14,9 @@ from app.engine.fitness import calculate_fitness
 from app.engine.builder import build_genome_output
 from app.engine.backend_contract import BackendTarget, PYTHON_FASTAPI
 from app.engine.candidate_evaluator import evaluate_candidate_async
-from app.engine.backends import get_backend
+from app.engine.backends import get_backend, promote_verified_artifact
+from app.governance.runtime import get_governance
+from app.core.config import get_settings
 from app.engine.production_readiness import ProductionReadinessAnalyzer
 from app.storage.db import SessionLocal
 from app.storage.models import GenomeRecord, EvolutionRun
@@ -22,7 +24,7 @@ from app.storage.lease import acquire_control_plane_lease, heartbeat_control_pla
 
 class EvolutionEngine:
     """Main genetic evolution engine with durable lifecycle and provenance."""
-    _EVENT_TYPE_MAP = {"evolution_start":"evolution.stage_changed","generation_start":"evolution.stage_changed","new_best":"candidate.promoted","generation_complete":"fitness.evaluated","building_best":"evolution.stage_changed","docker_test":"evolution.stage_changed","evolution_complete":"evolution.stage_changed","evolution_failed":"evolution.stage_changed"}
+    _EVENT_TYPE_MAP = {"evolution_start":"evolution.stage_changed","generation_start":"evolution.stage_changed","new_best":"evolution.stage_changed","candidate_promoted":"candidate.promoted","generation_complete":"fitness.evaluated","building_best":"evolution.stage_changed","docker_test":"evolution.stage_changed","evolution_complete":"evolution.stage_changed","evolution_failed":"evolution.stage_changed"}
 
     def __init__(self, target: BackendTarget = PYTHON_FASTAPI):
         self.target = target
@@ -115,8 +117,29 @@ class EvolutionEngine:
             return 0.0
         return float(score) if score is not None else 0.0
 
+    async def _governance_allows_promotion(self, genome) -> bool:
+        if not getattr(get_settings(), "GOVERNANCE_ENFORCEMENT_REQUIRED", False):
+            return True
+        state = await get_governance().materialize_candidate(genome.genome_id)
+        decision = state.latest_decision()
+        if decision is None:
+            return False
+        return (
+            getattr(decision, "verdict", None) == "approve"
+            and bool(getattr(decision, "authorizesTransition", False))
+        )
+
+    async def _publish_governed_candidate(self, genome, evidence: dict):
+        if not await self._governance_allows_promotion(genome):
+            raise ValueError("governance promotion gate denied")
+        source = evidence.get("artifact_path") or evidence.get("output_path")
+        destination = evidence.get("output_path") or evidence.get("artifact_path")
+        digest = str(evidence.get("artifact_digest") or "")
+        if digest.startswith("sha256:"):
+            digest = digest[len("sha256:"):]
+        return promote_verified_artifact(source, destination, expected_digest=digest)
+
     async def _run_async_unleased(self, generations: int = 10, population_size: int = 10, use_docker: bool = True, seed: Optional[int] = None) -> dict:
-        assert_evolution_enabled()
         if generations < 1 or population_size < 2: raise ValueError("generations must be >= 1 and population_size must be >= 2")
         run_id = str(uuid.uuid4())
         previous_state = random.getstate()
@@ -126,8 +149,9 @@ class EvolutionEngine:
         finally: db.close()
         try:
             await self._emit_update({"type":"evolution_start","run_id":run_id,"generations":generations,"population_size":population_size,"evaluation_mode":"runtime" if use_docker and get_backend(self.target.backend_id).runtime_supported else "static","backend_id":self.target.backend_id,"seed":seed}, run_id=run_id)
-            population = Population(size=population_size); history = []; best_genome = None; best_fitness = float("-inf"); output_path = None
+            population = Population(size=population_size); history = []; best_genome = None; best_fitness = float("-inf"); output_path = None; best_evidence = None
             for gen in range(generations):
+                assert_evolution_enabled()
                 await self._emit_update({"type":"generation_start","run_id":run_id,"generation":gen+1,"total_generations":generations,"backend_id":self.target.backend_id}, run_id=run_id, generation=gen+1)
                 fitness_scores = []; genomes_to_save = []
                 for genome in population.individuals:
@@ -139,6 +163,7 @@ class EvolutionEngine:
                     genomes_to_save.append({"genome_data":payload,"fitness_score":fitness,"generation":gen+1})
                     if evidence["build_ok"] and fitness > 0.0 and fitness > best_fitness:
                         best_fitness, best_genome = fitness, genome
+                        best_evidence = dict(evidence)
                         await self._emit_update({"type":"new_best","run_id":run_id,"generation":gen+1,"fitness":fitness,"genome":payload}, run_id=run_id, generation=gen+1)
                 db = SessionLocal()
                 try: db.add_all([GenomeRecord(**item) for item in genomes_to_save]); db.commit()
@@ -160,6 +185,17 @@ class EvolutionEngine:
                     build_error = f"best genome not lowerable: {exc}"
                     logger.error("Best genome build failed: %s", exc)
                 await self._emit_update({"type":"building_best","run_id":run_id,"output_path":output_path}, run_id=run_id)
+                if output_path and not build_error and getattr(get_settings(), "GOVERNANCE_ENFORCEMENT_REQUIRED", False):
+                    publish_evidence = dict(best_evidence or {})
+                    publish_evidence["output_path"] = output_path
+                    publish_evidence.setdefault("artifact_path", output_path)
+                    try:
+                        output_path = await self._publish_governed_candidate(best_genome, publish_evidence)
+                        await self._emit_update({"type":"candidate_promoted","run_id":run_id,"output_path":output_path}, run_id=run_id)
+                    except ValueError as exc:
+                        output_path = None
+                        build_error = str(exc)
+                        logger.error("Governed promotion denied: %s", exc)
             elif best_genome is None:
                 build_error = "no candidate could be lowered by the selected backend"
             result = {"run_id":run_id,"best_genome":best_genome.encode() if best_genome and not build_error else None,"best_fitness":best_fitness if best_genome and not build_error else 0.0,"production_readiness":self.production_analyzer.analyze(best_genome) if best_genome and not build_error else None,"history":history,"output_path":output_path,"build_error":build_error,"total_generations":generations,"evaluation_mode":"runtime" if use_docker and get_backend(self.target.backend_id).runtime_supported else "static","backend_id":self.target.backend_id,"seed":seed}
@@ -167,7 +203,14 @@ class EvolutionEngine:
             try:
                 record = db.query(EvolutionRun).filter(EvolutionRun.run_id == run_id).first()
                 if record:
-                    record.status="failed" if build_error else "completed"; record.best_fitness=result["best_fitness"]; record.best_genome=result["best_genome"]; record.history={"generations": history, "build_error": build_error} if build_error else history; record.completed_at=datetime.utcnow(); db.commit()
+                    record.status="failed" if build_error else "completed"; record.best_fitness=result["best_fitness"]; record.best_genome=result["best_genome"]; record.completed_at=datetime.utcnow()
+                    if build_error:
+                        record.history={"schema_version":1,"phase":"failed","promotion_status":"failed","generations":history,"build_error":build_error,"error":build_error}
+                    else:
+                        record.history={"schema_version":1,"phase":"completed","promotion_status":"published","generations":history,"build_error":None}
+                        if best_evidence and best_evidence.get("artifact_digest"):
+                            record.history["best_artifact_digest"]=best_evidence["artifact_digest"]
+                    db.commit()
             finally: db.close()
             if build_error:
                 await self._emit_update({"type":"evolution_failed","run_id":run_id,"error":build_error}, run_id=run_id)
@@ -179,7 +222,7 @@ class EvolutionEngine:
             db = SessionLocal()
             try:
                 record = db.query(EvolutionRun).filter(EvolutionRun.run_id == run_id).first()
-                if record: record.status="failed"; record.completed_at=datetime.utcnow(); record.history={"error":str(exc)}; db.commit()
+                if record: record.status="failed"; record.completed_at=datetime.utcnow(); record.history={"schema_version":1,"phase":"failed","promotion_status":"failed","error":str(exc)}; db.commit()
             except Exception: db.rollback(); logger.error("Failed to persist evolution failure state", exc_info=True)
             finally: db.close()
             await self._emit_update({"type":"evolution_failed","run_id":run_id,"error":"Evolution run failed"}, run_id=run_id); raise

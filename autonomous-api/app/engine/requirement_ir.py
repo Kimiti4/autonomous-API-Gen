@@ -110,7 +110,8 @@ class RequirementGraph:
                     issues.append(RequirementIssue(
                         f"CONTRADICTION-{req.requirement_id}-{conflict}", "error",
                         (req.requirement_id, conflict),
-                        "a requirement depends on a requirement it explicitly conflicts with",
+                        f"contradiction: {req.requirement_id} depends on {conflict} "
+                        "which it explicitly conflicts with",
                     ))
             if not req.acceptance_criteria:
                 issues.append(RequirementIssue(

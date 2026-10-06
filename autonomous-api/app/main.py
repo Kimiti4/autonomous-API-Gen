@@ -6,9 +6,15 @@ from app.api.routes import router
 from app.api.ws import router as ws_router
 from app.api.observation_routes import router as observation_router
 from app.api.operator_auth import router as operator_auth_router, evolution_control_router
-from app.api.operator_auth import router as operator_auth_router, evolution_control_router
+from app.api.governance_routes import router as governance_router
 from app.core.config import get_settings
 from app.core.logger import logger
+from app.governance.runtime import configure_governance
+from app.governance.subsystem import GovernanceSubsystem
+from app.governance.adapters.sqlite import (
+    SqliteGovernanceEventStore,
+    SqliteGovernanceReferenceStore,
+)
 from app.middleware.error_handler import ErrorHandlingConfig, install_error_handlers
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.security import (
@@ -28,6 +34,16 @@ from app.storage.models import GenomeRecord
 from app.core.metrics import setup_metrics
 
 settings = get_settings()
+
+configure_governance(
+    GovernanceSubsystem(
+        event_store=SqliteGovernanceEventStore(
+            settings.GOVERNANCE_AUDIT_SIGNING_KEY
+        ),
+        reference_store=SqliteGovernanceReferenceStore(),
+        recognized_certifiers={"certifier-1"},
+    )
+)
 
 auth_providers = []
 if settings.ADMIN_API_KEY:
@@ -129,13 +145,15 @@ try:
 except Exception:  # pragma: no cover
     logger.warning("Evolution engine dispatcher injection deferred")
 
-app.include_router(router)
+app.include_router(evolution_control_router)
+app.include_router(router, prefix="/api/v1")
+app.include_router(router, include_in_schema=False)
 app.include_router(ws_router)
-app.include_router(observation_router)
+app.include_router(observation_router, prefix="/api/v1")
+app.include_router(observation_router, include_in_schema=False)
 app.include_router(operator_auth_router)
-app.include_router(evolution_control_router)
-app.include_router(operator_auth_router)
-app.include_router(evolution_control_router)
+app.include_router(governance_router, prefix="/api/v1")
+app.include_router(governance_router, include_in_schema=False)
 setup_metrics(app)
 
 

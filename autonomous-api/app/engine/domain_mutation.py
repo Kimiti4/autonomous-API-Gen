@@ -28,6 +28,16 @@ _ALLOWED = {
     "security": ("security.",),
     "operations": ("operations.",),
     "fullstack": ("frontend.", "backend.", "data.", "security.", "operations."),
+    "documentation": ("documentation.", "docs.", "x"),
+    "testing": ("testing.", "tests.", "x"),
+    "architecture": ("architecture.", "x"),
+    "migration": ("migration.", "data.", "x"),
+    "refactor": ("refactor.", "x"),
+    "generate": ("generate.", "x"),
+    "maintain": ("maintain.", "x"),
+    "improve": ("improve.", "x"),
+    "seo": ("seo.", "x"),
+    "crossstack": ("crossstack.", "x"),
 }
 
 

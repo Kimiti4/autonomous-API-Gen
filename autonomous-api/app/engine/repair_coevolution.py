@@ -1,7 +1,7 @@
 """Turn failed co-evolution verification into bounded repair candidates."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Mapping, Any
 
 from .architecture_mutation import execute_mutation
@@ -73,15 +73,27 @@ def extract_counterexamples(result: CoEvolutionResult) -> tuple[Counterexample, 
     return tuple(out)
 
 
+def _repair_spec_for(
+    repair_specs: tuple[EngineeringMutationSpec, ...],
+    source_mutation_id: str,
+) -> EngineeringMutationSpec | None:
+    for spec in repair_specs:
+        if spec.mutation.mutation_id == source_mutation_id:
+            return spec
+    for spec in repair_specs:
+        if spec.mutation.mutation_id.startswith(source_mutation_id + "-"):
+            return spec
+    return None
+
+
 def build_repair_candidates(
     result: CoEvolutionResult,
     repair_specs: tuple[EngineeringMutationSpec, ...],
 ) -> tuple[RepairCandidate, ...]:
     counterexamples = extract_counterexamples(result)
-    specs_by_id = {s.mutation.mutation_id: s for s in repair_specs}
     candidates = []
     for counterexample in counterexamples:
-        spec = specs_by_id.get(counterexample.mutation_id)
+        spec = _repair_spec_for(repair_specs, counterexample.mutation_id)
         if spec is None:
             # A repair is intentionally not guessed: missing repair operators are
             # surfaced as an explicit bounded residual.
@@ -90,7 +102,7 @@ def build_repair_candidates(
             RepairCandidate(
                 counterexample.mutation_id,
                 spec.mutation.mutation_id,
-                spec.mutation.request.domain,
+                counterexample.domain,
                 spec.mutation.request.rationale,
                 counterexample.failed_properties,
             )
@@ -127,10 +139,11 @@ def execute_repairs(
         contracts = () if contracts_by_domain is None else contracts_by_domain.get(candidate.domain, ())
         evaluation = execute_mutation(current, spec.mutation, tuple(contracts), dict(observations))
         current = evaluation.genome
-        plan = build_verification_plan(spec, verifiers)
+        restricted = replace(spec, verification_properties=cx.failed_properties)
+        plan = build_verification_plan(restricted, verifiers, domain=cx.domain)
         evidence_by_gate = {
             f"{candidate.domain}:{p}": tuple(evidence_by_property.get(p, ()))
-            for p in spec.verification_properties
+            for p in cx.failed_properties
         }
         report = execute_verification(plan, observations, evidence_by_gate)
         executions.append(RepairExecution(candidate, current, report))

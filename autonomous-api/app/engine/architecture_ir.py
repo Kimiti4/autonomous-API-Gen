@@ -67,7 +67,7 @@ def validate_architecture(candidate: ArchitectureCandidate) -> tuple[str, ...]:
     if not candidate.rationale.strip():
         findings.append("architecture has no rationale")
     if not candidate.failure_modes:
-        findings.append("architecture has no explicit failure modes")
+        findings.append("architecture has no failure modes")
     if not candidate.tradeoffs:
         findings.append("architecture has no explicit trade-offs")
     return tuple(findings)

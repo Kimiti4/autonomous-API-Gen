@@ -104,12 +104,17 @@ def check_g7_quorum_weight(
     decided_by: list[str],
     council: CouncilComposition,
     threshold: float,
+    *,
+    executive_weight: float = 0.0,
 ) -> None:
     """G-7: approving decisions need combined votingWeight >= threshold."""
     weights = {
         m.memberId: m.votingWeight for m in council.members
     }
-    total = sum(weights.get(d, 0.0) for d in decided_by)
+    total = sum(
+        executive_weight if d == EXECUTIVE_ID else weights.get(d, 0.0)
+        for d in decided_by
+    )
     if total < threshold:
         raise GovernanceInvariantError(
             "G-7 violated: voting weight %.2f < quorum threshold %.2f"

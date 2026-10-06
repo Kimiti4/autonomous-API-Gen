@@ -32,7 +32,7 @@ def derive_architecture_plan(
         return ArchitecturePlan((), tuple(sorted({rid for issue in graph.issues for rid in issue.requirement_ids})))
     links=[]
     unresolved=[]
-    for req in graph.requirements:
+    for req in graph.requirements.values():
         obligations=obligations_by_requirement.get(req.requirement_id, ())
         if not obligations:
             unresolved.append(req.requirement_id)

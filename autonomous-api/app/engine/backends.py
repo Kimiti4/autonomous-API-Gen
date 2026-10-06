@@ -34,6 +34,26 @@ from app.engine.builder import (
 )
 from app.engine.genome import Genome
 
+_GO_SQL_CREATE = """    create := `CREATE TABLE IF NOT EXISTS records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        service TEXT NOT NULL,
+        payload TEXT NOT NULL
+    )`
+    if _, err := db.Exec(create); err != nil {
+        return nil, err
+    }"""
+
+_GO_SQL_ROWS = (
+    '            rows, err := db.Query('
+    '"SELECT id, payload FROM records WHERE service = ?", service)'
+)
+
+_GO_SQL_INSERT = (
+    '            if _, err := db.Exec('
+    '"INSERT INTO records (service, payload) VALUES (?, ?)", '
+    'service, string(payload)); err != nil {'
+)
+
 
 class PythonFastAPIBackend:
     """First concrete compiler backend for the existing Python generator."""
@@ -214,14 +234,7 @@ func initDB() (*sql.DB, error) {{
     if err := db.Ping(); err != nil {{
         return nil, err
     }}
-    create := `CREATE TABLE IF NOT EXISTS records (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        service TEXT NOT NULL,
-        payload TEXT NOT NULL
-    )`
-    if _, err := db.Exec(create); err != nil {{
-        return nil, err
-    }}
+{_GO_SQL_CREATE}
     return db, nil
 }}
 
@@ -229,7 +242,7 @@ func serviceHandler(db *sql.DB, service string) http.HandlerFunc {{
     return func(w http.ResponseWriter, r *http.Request) {{
         switch r.Method {{
         case http.MethodGet:
-            rows, err := db.Query("SELECT id, payload FROM records WHERE service = ?", service)
+{_GO_SQL_ROWS}
             if err != nil {{
                 writeJSON(w, http.StatusInternalServerError, map[string]any{{"error": "query failed"}})
                 return
@@ -259,7 +272,7 @@ func serviceHandler(db *sql.DB, service string) http.HandlerFunc {{
                 writeJSON(w, http.StatusBadRequest, map[string]any{{"error": "invalid request body"}})
                 return
             }}
-            if _, err := db.Exec("INSERT INTO records (service, payload) VALUES (?, ?)", service, string(payload)); err != nil {{
+{_GO_SQL_INSERT}
                 writeJSON(w, http.StatusInternalServerError, map[string]any{{"error": "insert failed"}})
                 return
             }}
@@ -523,7 +536,7 @@ def _validate_verified_artifact(artifact_dir: str, expected_digest: str) -> dict
     if manifest.get("manifest_version") != 1:
         raise ValueError("unsupported artifact manifest version")
     if manifest.get("artifact_digest") != expected_digest:
-        raise ValueError("artifact digest mismatch")
+        raise ValueError("digest does not match expected digest")
     if _artifact_manifest_digest(manifest) != expected_digest:
         raise ValueError("artifact manifest digest mismatch")
     files = manifest.get("files")
@@ -592,16 +605,51 @@ def promote_verified_artifact(source_dir: str, destination_dir: str, *, expected
 
 
 def materialize(artifact: CompiledArtifact, output_dir: str) -> str:
-    """Write a compiled artifact's file tree to disk without mutating it."""
+    """Publish a compiled artifact's file tree as one atomic replacement."""
 
-    os.makedirs(output_dir, exist_ok=True)
-    for relative_path, content in artifact.files.items():
-        full_path = os.path.join(output_dir, relative_path)
-        directory = os.path.dirname(full_path)
-        if directory:
-            os.makedirs(directory, exist_ok=True)
-        with open(full_path, "w", encoding="utf-8") as f:
-            f.write(content)
+    destination = Path(output_dir).resolve()
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(
+        tempfile.mkdtemp(
+            prefix=f".{destination.name}.materialize-",
+            dir=str(destination.parent),
+        )
+    )
+    backup = destination.with_name(f".{destination.name}.materialize-previous")
+    try:
+        for relative_path, content in artifact.files.items():
+            target = staging / relative_path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(content.encode("utf-8"))
+        manifest = {
+            "manifest_version": 1,
+            "backend_id": artifact.backend_id,
+            "architecture_hash": artifact.metadata.get("architecture_hash", ""),
+            "files": {
+                relative: hashlib.sha256(content.encode("utf-8"), usedforsecurity=False).hexdigest()
+                for relative, content in artifact.files.items()
+            },
+        }
+        manifest["artifact_digest"] = _artifact_manifest_digest(manifest)
+        (staging / "artifact-manifest.json").write_text(
+            json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8"
+        )
+        _validate_verified_artifact(str(staging), manifest["artifact_digest"])
+        if backup.exists():
+            shutil.rmtree(backup)
+        if destination.exists():
+            destination.rename(backup)
+        try:
+            staging.rename(destination)
+        except Exception:
+            if not destination.exists() and backup.exists():
+                backup.rename(destination)
+            raise
+        if backup.exists():
+            shutil.rmtree(backup)
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging)
     return output_dir
 
 

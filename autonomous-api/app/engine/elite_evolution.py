@@ -18,10 +18,12 @@ from app.engine.backend_contract import BackendTarget, PYTHON_FASTAPI
 from app.engine.production_readiness import ProductionReadinessAnalyzer
 from app.storage.db import SessionLocal
 from app.storage.models import GenomeRecord, EvolutionRun
+from app.core.runtime_control import assert_evolution_enabled
+from app.storage.lease import acquire_control_plane_lease, release_control_plane_lease
 
 class EliteEvolutionEngine:
     """Advanced evolution engine with persistent memory, adaptation and multi-population search."""
-    _EVENT_TYPE_MAP = {"evolution_start":"evolution.stage_changed","generation_start":"evolution.stage_changed","new_best":"candidate.promoted","generation_complete":"fitness.evaluated","building_best":"evolution.stage_changed","docker_test":"evolution.stage_changed","evolution_complete":"evolution.stage_changed"}
+    _EVENT_TYPE_MAP = {"evolution_start":"evolution.stage_changed","generation_start":"evolution.stage_changed","new_best":"evolution.stage_changed","generation_complete":"fitness.evaluated","building_best":"evolution.stage_changed","docker_test":"evolution.stage_changed","evolution_complete":"evolution.stage_changed"}
     def __init__(self, target: BackendTarget = PYTHON_FASTAPI):
         self.target=target; self.memory=EvolutionMemory(); self.adaptive_mutator=AdaptiveMutator(); self.multi_pop=None; self.websocket_callback:Optional[Callable]=None; self.dispatcher=None; self.production_analyzer=ProductionReadinessAnalyzer()
     def set_websocket_callback(self, callback: Callable): self.websocket_callback=callback
@@ -44,6 +46,8 @@ class EliteEvolutionEngine:
         else: final_fitness=base_fitness*.45+performance_score*.25+readiness["score"]*.30
         return round(final_fitness,3)
     async def run_elite_evolution(self,generations:int=10,population_size:int=8,use_multi_population:bool=True,enable_adaptive_mutation:bool=True,use_docker:bool=False,seed:Optional[int]=None)->dict:
+        assert_evolution_enabled()
+        _lease_token = acquire_control_plane_lease(owner_run_id="elite:" + str(uuid.uuid4()))
         run_id=str(uuid.uuid4()); logger.info(f"Starting elite evolution run {run_id}"); previous_state=random.getstate()
         if seed is not None: random.seed(seed)
         try:
@@ -79,5 +83,6 @@ class EliteEvolutionEngine:
             return {"run_id":run_id,"best_genome":global_best_genome.encode() if global_best_genome and not build_error else None,"best_fitness":global_best_fitness if global_best_genome and not build_error else 0.0,"production_readiness":self.production_analyzer.analyze(global_best_genome) if global_best_genome and not build_error else None,"history":all_history,"output_path":output_path,"build_error":build_error,"total_generations":generations,"insights":self.memory.get_pattern_insights(),"top_features":self.adaptive_mutator.get_top_features(5) if enable_adaptive_mutation else [],"memory_stats":self.memory.get_statistics(),"seed":seed,"evaluation_mode":"static"}
         finally:
             if seed is not None: random.setstate(previous_state)
+            release_control_plane_lease(_lease_token)
     def get_memory_insights(self)->dict: return {"statistics":self.memory.get_statistics(),"pattern_insights":self.memory.get_pattern_insights(),"suggested_genome":self.memory.get_suggested_genome(),"adaptive_bias":self.adaptive_mutator.get_bias_report() if self.adaptive_mutator else None}
     def clear_memory(self): self.memory.clear(); self.adaptive_mutator.reset(); logger.info("All memory cleared")

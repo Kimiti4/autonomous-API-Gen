@@ -23,6 +23,7 @@ async def login(payload: dict, response: Response):
     if not supplied or not expected or supplied != expected:
         return JSONResponse(status_code=401, content={"detail": "invalid credentials"})
     token, expires_at = _session.issue("admin", now=__import__("time").time())
+    response.status_code = 204
     response.set_cookie(
         "esap_operator_session",
         token,
@@ -44,6 +45,7 @@ async def session(request: Request):
 
 @router.post("/logout", status_code=204)
 async def logout(response: Response):
+    response.status_code = 204
     response.delete_cookie("esap_operator_session")
     return response
 

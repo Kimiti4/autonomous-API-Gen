@@ -61,13 +61,6 @@ def derive_architecture_obligations(isr: EngineeringISR) -> tuple[ArchitectureOb
             (f"authorization/control-path verification for {policy.policy_id}",),
             ("policy enforcement at the relevant trust boundary",),
         ))
-    for interface in isr.interfaces:
-        obligations.append(ArchitectureObligation(
-            f"AO-{interface.interface_id}", interface.interface_id, "interface",
-            interface.statement,
-            (f"contract verification for {interface.interface_id}",),
-            ("explicit input/output contract",),
-        ))
     return tuple(obligations)
 
 

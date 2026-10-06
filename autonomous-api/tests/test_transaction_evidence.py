@@ -8,6 +8,30 @@ from app.engine.pareto_architecture import ArchitectureScore, Objective
 from app.engine.verification_plans import GateResult, VerificationReport
 from app.engine.specialized_mutations import backend_mutation
 
+import tempfile
+from pathlib import Path
+
+from app.engine.transaction_verification import TransactionVerificationConfig
+from app.engine.execution_policy import ExecutionPolicy
+from app.engine.verification_acceptance import VerificationAcceptancePolicy
+from app.engine.verification_executor import VerificationKind, VerificationSpec
+
+
+def verification_config():
+    return TransactionVerificationConfig(
+        specs=(VerificationSpec("build", "successor", VerificationKind.BUILD, ("python", "-c", "print('verified')"), 2),),
+        policies={"BUILD": ExecutionPolicy(("python",), max_timeout_seconds=5)},
+        acceptance=VerificationAcceptancePolicy(required_kinds=("BUILD",)),
+        expected_artifacts={},
+    )
+
+
+def verification_root():
+    root = Path(tempfile.gettempdir()) / "esap-transaction-verification"
+    root.mkdir(parents=True, exist_ok=True)
+    return str(root)
+
+
 
 def genome():
     return FullStackGenome(
@@ -55,13 +79,14 @@ def run_transaction():
         event_id="successor-event",
         successor_architecture_id="successor",
         generation=1,
+        verification_config=verification_config(), verification_root=verification_root(),
     )
 
 
 def test_transaction_contains_content_addressed_audit_record():
     out = run_transaction()
     record = out.audit_record
-    assert record.schema_version == "esap.transaction-evidence.v1"
+    assert record.schema_version == "esap.transaction-evidence.v2"
     assert record.transaction_id == "successor-event"
     assert record.successor_architecture_id == "successor"
     assert record.verify_digest()
@@ -88,6 +113,7 @@ def test_parent_digest_is_bound_into_record():
             "risk":lambda g,c:{"risk":0.17,"_evidence":["measurement:risk"]},
         },{},
         event_id="successor-event",successor_architecture_id="successor",
-        generation=1,parent_evidence_digest="previous-record-digest")
+        generation=1,parent_evidence_digest="previous-record-digest",
+        verification_config=verification_config(), verification_root=verification_root())
     assert out.audit_record.parent_digest == "previous-record-digest"
     assert out.audit_record.verify_digest()

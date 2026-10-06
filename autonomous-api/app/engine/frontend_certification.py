@@ -48,6 +48,12 @@ def certify_frontend_compiler(
     )
     manifest = frontend_contract_manifest(ir)
     for screen in manifest["screens"]:
+        if len(screen["actions"]) < 2:
+            findings.append(f"missing screen action semantics: {screen['screen_id']}")
+        if len(screen["accessibility_requirements"]) < 2:
+            findings.append(
+                f"missing screen accessibility semantics: {screen['screen_id']}"
+            )
         for key in ("screen_id", "route", "title"):
             if screen[key] not in content:
                 findings.append(f"missing screen contract field: {key}={screen[key]}")

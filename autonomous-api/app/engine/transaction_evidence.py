@@ -113,7 +113,7 @@ def materialize_transaction_evidence(
     capability_context: Mapping[str, Any] | None = None,
 ) -> TransactionEvidenceRecord:
     mutation_rows = tuple(
-        {"domain": c.domain, "mutation_id": c.mutation_id, "properties": list(c.properties)}
+        {"domain": c.domain, "mutation_id": c.mutation_id, "properties": list(c.verification_properties)}
         for c in successor.event.changes
     )
     repair_rows = tuple(
@@ -171,10 +171,10 @@ def materialize_transaction_evidence(
         "source_architecture_id": source_architecture_id,
         "successor_event_id": successor.event.event_id,
         "successor_architecture_id": successor.architecture_id,
-        "mutations": list(mutation_rows),
-        "repair_reports": list(repair_rows),
-        "dependency_reports": list(dependency_rows),
-        "measurements": list(measurement_rows),
+        "mutations": tuple(mutation_rows),
+        "repair_reports": repair_rows,
+        "dependency_reports": dependency_rows,
+        "measurements": measurement_rows,
         "score": {
             "architecture_id": score.score.architecture_id,
             "values": dict(score.score.values),
@@ -182,8 +182,8 @@ def materialize_transaction_evidence(
         },
         "admission": admission_row,
         "rejection": rejection_row,
-        "residuals": list(residuals),
-        "evidence": list(evidence),
+        "residuals": residuals,
+        "evidence": evidence,
         "parent_digest": parent_digest,
         "verification": verification_row,
         "capability_context": dict(capability_context) if capability_context is not None else None,

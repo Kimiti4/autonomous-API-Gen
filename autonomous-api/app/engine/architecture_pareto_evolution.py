@@ -87,5 +87,5 @@ def evolve_architecture_population(
         tuple(sorted(set(offspring_ids).intersection(frontier_ids))),
         (),
         "evolved",
-        "Admitted evidence-backed offspring and retained the non-dominated Pareto frontier; no single optimum was selected.",
+        "Admitted evidence-backed offspring and retained the non-dominated Pareto frontier; no single global optimum was selected.",
     )

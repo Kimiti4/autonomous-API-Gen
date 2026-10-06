@@ -86,9 +86,9 @@ def derive_counterfactual_requirements(
                     candidate.architecture_id,
                     objective.name,
                     objective.direction,
-                    float(a),
-                    float(required),
-                    float(delta),
+                    round(float(a), 9),
+                    round(float(required), 9),
+                    round(float(delta), 9),
                     tuple(sorted(set(candidate.evidence))),
                 )
             )

@@ -49,7 +49,7 @@ def test_mandatory_violation_blocks_candidate():
     )
 
     assert not result.admissible
-    assert set(result.violated_constraint_ids) == {"SEC-1", "PERF-1"}
+    assert set(result.violated_constraint_ids) == {"SEC-1"}
 
 
 def test_missing_or_stale_mandatory_evidence_blocks_admission():

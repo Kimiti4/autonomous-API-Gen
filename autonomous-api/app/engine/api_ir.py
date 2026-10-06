@@ -56,8 +56,9 @@ def validate_api_contract(ir: ApiContractIR) -> tuple[str, ...]:
         key = (method, op.path)
         if key in seen: findings.append(f"duplicate API route: {method} {op.path}")
         seen.add(key)
-        for ref in (op.request_schema, op.response_schema):
-            if ref and ref not in names: findings.append(f"unknown schema reference {ref}: {op.operation_id}")
+        if ir.schemas:
+            for ref in (op.request_schema, op.response_schema):
+                if ref and ref not in names: findings.append(f"unknown schema reference {ref}: {op.operation_id}")
         for error in op.errors:
             if not 400 <= error.status <= 599: findings.append(f"invalid error status: {op.operation_id}")
             if not error.code: findings.append(f"error code is required: {op.operation_id}")

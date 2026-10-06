@@ -34,7 +34,9 @@ class EvolutionMemory:
                     self.data.update(loaded_data)
                     logger.info(f"Loaded memory from {path}")
             except Exception as e:
-                logger.warning(f"Failed to load memory: {e}, starting fresh")
+                raise RuntimeError(
+                    "Persistent evolution memory is unreadable"
+                ) from e
     
     def record_run(self, best_genome: Dict[str, Any], best_score: float, 
                    worst_score: float, generation: int, run_id: str):

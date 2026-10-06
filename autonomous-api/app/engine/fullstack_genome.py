@@ -1,3 +1,4 @@
+from .pareto_architecture import Objective
 """Technology-neutral full-stack genome for evolutionary software architecture."""
 from __future__ import annotations
 from dataclasses import dataclass, field
@@ -12,6 +13,10 @@ class FrontendGenome:
     accessibility_strategy: str
     resilience_strategy: str
 
+    @property
+    def framework(self) -> str:
+        return self.rendering_model
+
 
 @dataclass(frozen=True)
 class BackendGenome:
@@ -20,6 +25,10 @@ class BackendGenome:
     concurrency_model: str
     resilience_strategy: str
     contract_strategy: str
+
+    @property
+    def framework(self) -> str:
+        return self.service_model
 
 
 @dataclass(frozen=True)

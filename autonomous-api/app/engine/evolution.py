@@ -67,6 +67,7 @@ class EvolutionEngine:
         owner = "evolution:" + str(uuid.uuid4())
         token = acquire_control_plane_lease(owner_run_id=owner)
         try:
+            self._active_lease_token = token
             return await self._run_async_unleased(generations, population_size, use_docker, seed)
         finally:
             release_control_plane_lease(token)
@@ -75,8 +76,10 @@ class EvolutionEngine:
         owner = "evolution:" + str(uuid.uuid4())
         token = acquire_control_plane_lease(owner_run_id=owner)
         try:
+            self._active_lease_token = token
             return self._run_synchronous_unleased(generations, population_size, use_docker)
         finally:
+            self._active_lease_token = None
             release_control_plane_lease(token)
 
     async def _emit_update(self, data: dict, *, run_id: str = "global", generation: int = 0):

@@ -213,6 +213,7 @@ jobs:
     needs: [test, lint, security-scan, capability-runtime]
     if: github.event_name == 'pull_request'
     steps:
+      - uses: actions/checkout@v7
       - name: Verify all merge-gating jobs completed successfully
         run: |
           echo "A01-006 governance gate passed."

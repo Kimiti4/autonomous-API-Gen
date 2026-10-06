@@ -63,7 +63,7 @@ def evaluate_competing_repairs(
     silently dropped. This preserves an auditable explanation of why a
     candidate was not comparable.
     """
-    by_id = {e.candidate_id: e for e in evaluations}
+    if isinstance(evaluations, CandidateEvaluation):\n        evaluations = (evaluations,)\n    by_id = {e.candidate_id: e for e in evaluations}
     result: list[RepairEvaluation] = []
 
     for candidate in candidates:

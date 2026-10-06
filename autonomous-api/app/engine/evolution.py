@@ -70,6 +70,7 @@ class EvolutionEngine:
             self._active_lease_token = token
             return await self._run_async_unleased(generations, population_size, use_docker, seed)
         finally:
+            self._active_lease_token = None
             release_control_plane_lease(token)
 
     def run_synchronous(self, generations=10, population_size=10, use_docker=False):

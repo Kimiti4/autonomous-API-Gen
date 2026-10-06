@@ -37,19 +37,18 @@ def execute_evolution_transaction_atomic(
     transaction value.
     """
     context = abort_context or {}
-    try:
+    registry = isolation_registry or transaction_isolation.TransactionIsolationRegistry()
+    source_id = context.get("source_architecture_id", getattr(trust_context, "source_architecture_id", ""))
+    candidate_id = context.get("candidate_architecture_id", getattr(trust_context, "candidate_architecture_id", ""))
+    key = transaction_isolation.transaction_lock_key(source_id, candidate_id)
+
+    def guarded_operation():
         if trust_context is not None:
             trust_context.validate()
-        registry = isolation_registry or transaction_isolation.TransactionIsolationRegistry()
-        source_id = context.get("source_architecture_id", getattr(trust_context, "source_architecture_id", ""))
-        candidate_id = context.get("candidate_architecture_id", getattr(trust_context, "candidate_architecture_id", ""))
-        key = transaction_isolation.transaction_lock_key(source_id, candidate_id)
-        def guarded_operation():
-            with registry.exclusive(key):
-                return _execute_and_validate(*args, **kwargs)
-        result = run_atomic_transaction(guarded_operation, stage="evolution-transaction")
-    except Exception as exc:
-        result = run_atomic_transaction(lambda: (_ for _ in ()).throw(exc), stage="evolution-transaction")
+        with registry.exclusive(key):
+            return _execute_and_validate(*args, **kwargs)
+
+    result = run_atomic_transaction(guarded_operation, stage="evolution-transaction")
     if result.abort is None:
         return result
 

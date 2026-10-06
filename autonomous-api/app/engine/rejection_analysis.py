@@ -110,7 +110,4 @@ def _dominates(
     right: ArchitectureScore,
     objectives: Sequence[Objective],
 ) -> bool:
-    return any(
-        score.architecture_id == right.architecture_id
-        for score in build_frontier((left, right), objectives).dominated
-    )
+    return right.architecture_id in build_frontier((left, right), objectives).dominated

@@ -49,7 +49,7 @@ class SecurityGenome:
 
     @property
     def threat_model(self) -> str:
-        return self.threat_controls[0] if self.threat_controls else ""
+        return self.authentication_model
 
 
 @dataclass(frozen=True)

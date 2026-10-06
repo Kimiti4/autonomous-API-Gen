@@ -19,6 +19,10 @@ os.environ.setdefault("ADMIN_API_KEY", "test-admin-key")
 
 os.environ.setdefault("GOVERNANCE_AUDIT_SIGNING_KEY", "test-governance-audit-key")
 
+from app.storage.db import init_db
+
+init_db()
+
 import pytest_asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine

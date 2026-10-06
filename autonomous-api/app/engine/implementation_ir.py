@@ -39,7 +39,7 @@ class BackendIR:
 
     def to_dict(self) -> dict[str, Any]:
         d = self.__dict__.copy()
-        d["modules"] = [m.__dict__ for m in self.modules]
+        d["modules"] = [{**m.__dict__, "invariants": list(m.invariants)} for m in self.modules]
         d["data_flows"] = [f.__dict__ for f in self.data_flows]
         return d
 

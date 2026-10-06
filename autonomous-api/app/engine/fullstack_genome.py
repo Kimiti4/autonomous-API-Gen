@@ -1,6 +1,7 @@
-from .pareto_architecture import Objective
 """Technology-neutral full-stack genome for evolutionary software architecture."""
 from __future__ import annotations
+
+from .pareto_architecture import Objective
 from dataclasses import dataclass, field
 from typing import Mapping
 

@@ -1,69 +1,36 @@
-"""Concurrency and isolation controls for ESAP transaction execution."""
+"""Explicit transaction isolation boundary for ESAP evolution transactions.
 
+Isolation is process-local and keyed by source/candidate architecture identity.
+It is deliberately fail-closed: a live exclusive lock cannot be acquired twice.
+"""
 from __future__ import annotations
-
 from contextlib import contextmanager
-from dataclasses import dataclass
-from threading import RLock, Lock
+from threading import RLock
 from typing import Iterator
 
+class TransactionIsolationConflict(RuntimeError):
+    """Raised when another transaction owns the requested isolation key."""
 
-class TransactionIsolationError(RuntimeError):
-    """Raised when a transaction cannot acquire its required isolation lock."""
-
-
-@dataclass(frozen=True)
-class TransactionLockKey:
-    source_architecture_id: str
-    candidate_architecture_id: str
-
-    def __post_init__(self) -> None:
-        if not self.source_architecture_id:
-            raise ValueError("missing-source-architecture-id")
-        if not self.candidate_architecture_id:
-            raise ValueError("missing-candidate-architecture-id")
-
+def transaction_lock_key(source_architecture_id: str, candidate_architecture_id: str) -> str:
+    if not source_architecture_id or not candidate_architecture_id:
+        raise ValueError("transaction-isolation-requires-identities")
+    return f"{source_architecture_id}->{candidate_architecture_id}"
 
 class TransactionIsolationRegistry:
-    """Process-local, fail-closed registry for exclusive transaction scopes."""
-
     def __init__(self) -> None:
         self._guard = RLock()
-        self._locks: dict[TransactionLockKey, Lock] = {}
-
-    def _lock_for(self, key: TransactionLockKey) -> RLock:
-        with self._guard:
-            return self._locks.setdefault(key, Lock())
+        self._locks: dict[str, bool] = {}
 
     @contextmanager
-    def exclusive(self, key: TransactionLockKey) -> Iterator[None]:
-        lock = self._lock_for(key)
-        acquired = lock.acquire(blocking=False)
-        if not acquired:
-            raise TransactionIsolationError(
-                f"transaction-conflict:{key.source_architecture_id}:{key.candidate_architecture_id}"
-            )
+    def exclusive(self, key: str) -> Iterator[None]:
+        if not key:
+            raise ValueError("transaction-isolation-requires-key")
+        with self._guard:
+            if self._locks.get(key, False):
+                raise TransactionIsolationConflict("transaction-conflict:" + key)
+            self._locks[key] = True
         try:
             yield
         finally:
-            lock.release()
-
-
-_default_registry = TransactionIsolationRegistry()
-
-
-def transaction_lock_key(source_architecture_id: str, candidate_architecture_id: str) -> TransactionLockKey:
-    return TransactionLockKey(source_architecture_id, candidate_architecture_id)
-
-
-@contextmanager
-def isolated_transaction(
-    source_architecture_id: str,
-    candidate_architecture_id: str,
-    *,
-    registry: TransactionIsolationRegistry | None = None,
-) -> Iterator[None]:
-    """Acquire an exclusive transaction scope; conflict fails before mutation."""
-    key = transaction_lock_key(source_architecture_id, candidate_architecture_id)
-    with (registry or _default_registry).exclusive(key):
-        yield
+            with self._guard:
+                self._locks.pop(key, None)

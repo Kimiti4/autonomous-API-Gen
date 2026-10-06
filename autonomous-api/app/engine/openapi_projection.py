@@ -40,7 +40,7 @@ def to_openapi(ir: ApiContractIR) -> dict:
             responses = {"200": {"description": "Success"}}
         operation = {
             "operationId": op.operation_id, "responses": responses,
-            "x-authorization-policy": op.authorization_policy,
+            "x-authorization-policy": op.authorization_policy,\n            "x-request-schema": op.request_schema,\n            "x-response-schema": op.response_schema,
             "x-idempotency-required": op.idempotency_required,
             "x-paginated": op.paginated, "x-api-version": op.version,
         }

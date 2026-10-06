@@ -252,7 +252,7 @@
       "fields": {
         "members": {
           "required": false,
-          "type": "list"
+          "type": "list[CouncilMember]"
         },
         "updatedAt": {
           "required": false,
@@ -436,7 +436,7 @@
         },
         "eventType": {
           "required": true,
-          "type": "literal('isr.updated','evolution.stage_changed','fitness.evaluated','candidate.promoted','governance.decision_made','operational.feedback_received','observation.error','event.dropped','observation.heartbeat')"
+          "type": "literal('isr.updated','evolution.stage_changed','fitness.evaluated','candidate.promoted','governance.decision_made','operational.feedback_received','observation.error','event.dropped','observation.heartbeat','scope.declared','mutation.authorization','mutation.execution','mutation.verification')"
         },
         "generation": {
           "required": true,
@@ -668,7 +668,7 @@
         },
         "guards": {
           "required": false,
-          "type": "list"
+          "type": "list[TransitionRef]"
         },
         "name": {
           "required": true,
@@ -939,6 +939,74 @@
           "type": "str"
         },
         "verifiedBy": {
+          "required": true,
+          "type": "str"
+        }
+      }
+    },
+    "WorkScopeLifecycleObservation": {
+      "fields": {
+        "abortedExecutionCount": {
+          "required": true,
+          "type": "int"
+        },
+        "admittedCount": {
+          "required": true,
+          "type": "int"
+        },
+        "authorizedCount": {
+          "required": true,
+          "type": "int"
+        },
+        "blockedCount": {
+          "required": true,
+          "type": "int"
+        },
+        "executedCount": {
+          "required": true,
+          "type": "int"
+        },
+        "failedExecutionCount": {
+          "required": true,
+          "type": "int"
+        },
+        "failedVerificationCount": {
+          "required": true,
+          "type": "int"
+        },
+        "rejectedCount": {
+          "required": true,
+          "type": "int"
+        },
+        "scope": {
+          "required": true,
+          "type": "WorkScopeObservation"
+        },
+        "verifiedCount": {
+          "required": true,
+          "type": "int"
+        }
+      }
+    },
+    "WorkScopeObservation": {
+      "fields": {
+        "allowedSurfaces": {
+          "required": true,
+          "type": "list[str]"
+        },
+        "generationScope": {
+          "required": true,
+          "type": "str"
+        },
+        "preservedSurfaces": {
+          "required": true,
+          "type": "list[str]"
+        },
+        "projectIntent": {
+          "required": true,
+          "type": "str"
+        },
+        "projectKind": {
           "required": true,
           "type": "str"
         }

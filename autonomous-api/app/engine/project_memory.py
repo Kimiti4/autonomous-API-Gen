@@ -106,7 +106,7 @@ class ProjectMemory:
         }
         memory_id = _digest(payload)[:16]
         full_payload = {**payload, "memory_id": memory_id}
-        return cls(**full_payload, digest=_digest(full_payload))
+        return cls(**full_payload, digest=_digest(full_payload), schema_version="esap.project-memory.v1")
 
 
 class ProjectMemoryStore:

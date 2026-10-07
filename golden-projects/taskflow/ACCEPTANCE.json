@@ -1,0 +1,43 @@
+{
+  "project_id": "TASKFLOW-GOLDEN-001",
+  "version": "1.0.0",
+  "completion_policy": "required-scope-only",
+  "required_capabilities": [
+    "authentication",
+    "workspace-tenancy",
+    "rbac",
+    "projects",
+    "tasks",
+    "comments",
+    "activity-history",
+    "search-filter",
+    "dashboard",
+    "audit-trail",
+    "operational-observability"
+  ],
+  "quality_gates": {
+    "requirements_traceability": true,
+    "api_contract": true,
+    "security": true,
+    "unit_tests": true,
+    "integration_tests": true,
+    "contract_tests": true,
+    "e2e_tests": true,
+    "regression_tests": true,
+    "build": true,
+    "deployment_smoke_test": true,
+    "runtime_observation": true,
+    "evidence_manifest": true
+  },
+  "negative_cases": [
+    "cross_workspace_read",
+    "cross_workspace_write",
+    "unauthorized_role_mutation",
+    "foreign_project_task",
+    "foreign_workspace_assignee",
+    "duplicate_idempotent_effect",
+    "invalid_authentication",
+    "expired_or_revoked_session"
+  ],
+  "certification_rule": "No certification when a required capability is theatrical, unverified, or supported only by simulated evidence."
+}

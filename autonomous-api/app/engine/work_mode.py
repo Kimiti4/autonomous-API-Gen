@@ -1,4 +1,4 @@
-"""Governed ESAP work modes, including bounded existing-project surfaces."""
+"""Governed ESAP work modes, including bounded project surfaces."""
 
 from __future__ import annotations
 
@@ -32,10 +32,15 @@ class WorkModeContract:
     def for_mode(cls, mode: WorkMode) -> "WorkModeContract":
         if not isinstance(mode, WorkMode):
             raise ValueError("invalid-work-mode")
-        existing = {
-            WorkMode.MAINTAIN, WorkMode.IMPROVE, WorkMode.DOCUMENT, WorkMode.SEO,
-            WorkMode.TEST, WorkMode.MIGRATE, WorkMode.REFACTOR,
-            WorkMode.FRONTEND_ONLY, WorkMode.BACKEND_ONLY, WorkMode.API_CONTRACT_ONLY,
+
+        existing_only = {
+            WorkMode.MAINTAIN,
+            WorkMode.IMPROVE,
+            WorkMode.DOCUMENT,
+            WorkMode.SEO,
+            WorkMode.TEST,
+            WorkMode.MIGRATE,
+            WorkMode.REFACTOR,
         }
         surfaces = {
             WorkMode.FRONTEND_ONLY: ("frontend",),
@@ -44,8 +49,10 @@ class WorkModeContract:
         }
         return cls(
             mode=mode,
-            requires_existing_project=mode in existing,
-            allowed_surfaces=surfaces.get(mode, ("frontend", "backend", "api_contract")),
+            requires_existing_project=mode in existing_only,
+            allowed_surfaces=surfaces.get(
+                mode, ("frontend", "backend", "api_contract")
+            ),
         )
 
     def validate_project_kind(self, project_kind: str) -> None:

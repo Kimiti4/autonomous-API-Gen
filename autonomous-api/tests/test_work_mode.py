@@ -3,7 +3,7 @@ from app.engine.work_mode import WorkMode, WorkModeContract
 
 
 @pytest.mark.parametrize("mode", list(WorkMode))
-def test_all_bucket_two_work_modes_are_explicit(mode):
+def test_all_granular_work_modes_are_explicit(mode):
     contract = WorkModeContract.for_mode(mode)
     assert contract.mode is mode
 

@@ -111,3 +111,14 @@ def test_runtime_drift_blocks_when_baseline_revision_changes():
     )
     assert not admission.executable
     assert "runtime-revision-drift" in admission.reasons
+
+def test_missing_verification_evidence_blocks_maintenance():
+    admission = assess_deployed_observation(
+        observation(verification_evidence=()),
+        baseline_revision="abc123",
+        baseline_environment_fingerprint="env-1",
+        authorized_obligation_ids=("ob-1",),
+        explicit_change_authorization=True,
+    )
+    assert not admission.executable
+    assert "runtime-verification-evidence-incomplete" in admission.reasons

@@ -101,6 +101,8 @@ def assess_deployed_observation(
 ) -> DeployedMaintenanceAdmission:
     reasons: list[str] = []
 
+    if not observation.evidence_complete:
+        reasons.append("runtime-verification-evidence-incomplete")
     if not baseline_revision:
         reasons.append("missing-baseline-revision")
     if not baseline_environment_fingerprint:

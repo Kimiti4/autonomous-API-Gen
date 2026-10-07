@@ -8,7 +8,7 @@ from app.marketplace.listing import HumanMarketplaceAuthorization
 from app.marketplace.productization import prepare_certified_product, materialize_listing
 
 def pipeline():
-    c=WorkCapabilityContract.create(ProjectScope.create_new(),WorkMode.CREATE,GenerationScope.FULL_APPLICATION)
+    c=WorkCapabilityContract.create(ProjectScope.create_new(),WorkMode.GENERATE,GenerationScope.FULL_APPLICATION)
     def runner(stage, prior):
         ev=(stage.value+"-evidence",) if stage in {PipelineStage.VERIFICATION,PipelineStage.EVIDENCE,PipelineStage.CERTIFICATION} else ()
         return StageArtifact(stage,stage.value,"a"*64,evidence_ids=ev)

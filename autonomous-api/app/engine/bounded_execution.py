@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 from typing import Mapping, Sequence
@@ -32,6 +33,8 @@ class ExecutionResult:
     duration_ms: int
     stdout_digest: str
     stderr_digest: str
+    stdout_truncated: bool = False
+    stderr_truncated: bool = False
 
 
 def execute_bounded(
@@ -57,33 +60,39 @@ def execute_bounded(
         env = validate_execution_environment(
             requested_environment=spec.environment, policy=policy
         )
+        max_output_bytes = policy.max_output_bytes
     else:
         env = None if spec.environment is None else dict(spec.environment)
+        max_output_bytes = None
 
     base = Path(root).resolve()
     if not base.exists() or not base.is_dir():
         raise ValueError("execution-invalid-root")
 
     started = time.monotonic()
-    try:
-        completed = subprocess.run(
-            list(spec.command),
-            cwd=base,
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=spec.timeout_seconds,
-            check=False,
-        )
-        timed_out = False
-        exit_code = completed.returncode
-        stdout = completed.stdout
-        stderr = completed.stderr
-    except subprocess.TimeoutExpired as exc:
-        timed_out = True
-        exit_code = None
-        stdout = _decode(exc.stdout)
-        stderr = _decode(exc.stderr)
+    with tempfile.TemporaryDirectory(prefix="esap-exec-") as temp_dir:
+        stdout_path = Path(temp_dir) / "stdout"
+        stderr_path = Path(temp_dir) / "stderr"
+        try:
+            with stdout_path.open("wb") as stdout_file, stderr_path.open("wb") as stderr_file:
+                completed = subprocess.run(
+                    list(spec.command),
+                    cwd=base,
+                    env=env,
+                    stdout=stdout_file,
+                    stderr=stderr_file,
+                    timeout=spec.timeout_seconds,
+                    check=False,
+                )
+            timed_out = False
+            exit_code = completed.returncode
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            exit_code = None
+
+        stdout, stdout_truncated = _read_bounded_output(stdout_path, max_output_bytes)
+        stderr, stderr_truncated = _read_bounded_output(stderr_path, max_output_bytes)
+
     duration_ms = int((time.monotonic() - started) * 1000)
 
     return ExecutionResult(
@@ -97,15 +106,17 @@ def execute_bounded(
         duration_ms=duration_ms,
         stdout_digest=_digest(stdout),
         stderr_digest=_digest(stderr),
+        stdout_truncated=stdout_truncated,
+        stderr_truncated=stderr_truncated,
     )
 
 
-def _decode(value: object) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, bytes):
-        return value.decode("utf-8", errors="replace")
-    return str(value)
+def _read_bounded_output(path: Path, max_output_bytes: int | None) -> tuple[str, bool]:
+    raw = path.read_bytes()
+    if max_output_bytes is None or len(raw) <= max_output_bytes:
+        return raw.decode("utf-8", errors="replace"), False
+    bounded = raw[:max_output_bytes]
+    return bounded.decode("utf-8", errors="replace"), True
 
 
 def _digest(value: str) -> str:

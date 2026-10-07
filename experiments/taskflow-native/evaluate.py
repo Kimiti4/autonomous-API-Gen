@@ -43,7 +43,7 @@ def assert_technology_neutral(value, path="root"):
 def assert_multi_backend_contract() -> None:
     matrix = load("MULTI_BACKEND_TRIAL.json")
     targets = {target["id"] for target in matrix["required_targets"]}
-    assert targets == {"python-fastapi", "elixir-phoenix"}
+    assert targets == {"python-fastapi", "go-stdlib"}
     assert matrix["authority"] == "generated_isr"
     assert "other_target_source_code" in matrix["target_independence"]["forbidden_cross_target_inputs"]
     required = set(matrix["success_requires"])

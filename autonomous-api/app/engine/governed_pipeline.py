@@ -14,6 +14,7 @@ import json
 from typing import Any, Callable, Mapping
 
 from .final_closure import FinalClosureAssessment, assess_final_closure, require_final_closure
+from .generation_scope import GenerationScope
 from .work_capability import WorkCapabilityContract, validate_work_capability
 from .work_mode_scope_validation import validate_mode_surface
 
@@ -83,7 +84,18 @@ def execute_governed_pipeline(
         raise ValueError("pipeline-missing-work-id")
     contract = validate_work_capability(contract)
     validate_mode_surface(contract)
-    if not contract.allows_surface(surface):
+    surface_scope = {
+        "full_application": (GenerationScope.FULL_APPLICATION, ("frontend", "backend", "api_contract")),
+        "frontend_only": (GenerationScope.FRONTEND_ONLY, ("frontend",)),
+        "backend_only": (GenerationScope.BACKEND_ONLY, ("backend",)),
+        "api_contract_only": (GenerationScope.API_CONTRACT_ONLY, ("api_contract",)),
+    }.get(surface)
+    if surface_scope is None:
+        raise ValueError(f"pipeline-surface-not-authorized:{surface}")
+    expected_scope, component_surfaces = surface_scope
+    if contract.generation.scope is not expected_scope or not all(
+        contract.mode.allows_surface(component) for component in component_surfaces
+    ):
         raise ValueError(f"pipeline-surface-not-authorized:{surface}")
 
     stages: list[StageArtifact] = []

@@ -1,0 +1,59 @@
+name: TaskFlow Golden Certification
+
+on:
+  pull_request:
+    paths:
+      - 'golden-projects/taskflow/**'
+  push:
+    branches: [main]
+    paths:
+      - 'golden-projects/taskflow/**'
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: golden-projects/taskflow/app/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - run: python -m pytest -q
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: golden-projects/taskflow/app/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: golden-projects/taskflow/app/frontend/package.json
+      - run: npm install
+      - run: npx tsc --noEmit
+      - run: npm run build
+  composition:
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify required golden artifacts
+        run: |
+          test -f golden-projects/taskflow/ISR.md
+          test -f golden-projects/taskflow/ACCEPTANCE.json
+          test -f golden-projects/taskflow/ARCHITECTURE.md
+          test -f golden-projects/taskflow/app/docker-compose.yml
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data=json.loads(Path('golden-projects/taskflow/ACCEPTANCE.json').read_text())
+          assert data['project_id'] == 'TASKFLOW-GOLDEN-001'
+          assert data['completion_policy'] == 'required-scope-only'
+          assert len(data['required_capabilities']) >= 10
+          print('TaskFlow acceptance manifest valid')
+          PY

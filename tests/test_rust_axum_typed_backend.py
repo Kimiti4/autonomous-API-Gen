@@ -15,7 +15,7 @@ def test_rust_profile_is_independent_from_python_and_go():
     python = registry.backend("fastapi_hexagonal").build_profile("taskflow")
     go = registry.backend("go_hexagonal").build_profile("taskflow")
     assert rust.language == "rust"
-    assert rust.test_command == ["cargo", "test", "--locked"]
+    assert rust.test_command == ["cargo", "test"]
     assert rust.required_files != python.required_files
     assert rust.required_files != go.required_files
 

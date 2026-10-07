@@ -3,11 +3,32 @@ on:
   pull_request:
     paths:
       - "autonomous-api/app/engine/governed_pipeline.py"
+      - "autonomous-api/app/engine/work_capability.py"
+      - "autonomous-api/app/engine/work_mode_scope_validation.py"
+      - "autonomous-api/app/engine/artifact_changes.py"
+      - "autonomous-api/app/engine/bounded_execution.py"
+      - "autonomous-api/app/engine/verification_executor.py"
+      - "autonomous-api/app/engine/final_closure.py"
+      - "autonomous-api/app/engine/deployed_app_observation.py"
+      - "autonomous-api/app/engine/desktop_target.py"
+      - "autonomous-api/app/engine/desktop_build.py"
+      - "autonomous-api/app/engine/macos_generation.py"
       - "autonomous-api/app/engine/desktop_release.py"
       - "autonomous-api/app/marketplace/**"
       - "autonomous-api/tests/test_governed_pipeline.py"
+      - "autonomous-api/tests/test_work_capability.py"
+      - "autonomous-api/tests/test_work_mode_scope_validation.py"
+      - "autonomous-api/tests/test_artifact_changes.py"
+      - "autonomous-api/tests/test_bounded_execution.py"
+      - "autonomous-api/tests/test_verification_executor.py"
+      - "autonomous-api/tests/test_final_closure.py"
+      - "autonomous-api/tests/test_deployed_app_observation.py"
+      - "autonomous-api/tests/test_desktop_target.py"
+      - "autonomous-api/tests/test_desktop_build.py"
+      - "autonomous-api/tests/test_macos_generation.py"
       - "autonomous-api/tests/test_desktop_release.py"
-      - "autonomous-api/tests/test_marketplace_*.py"
+      - "autonomous-api/tests/test_marketplace_listing.py"
+      - "autonomous-api/tests/test_marketplace_productization.py"
       - ".github/workflows/production-hardening-integration.yml"
   workflow_dispatch:
 jobs:
@@ -26,4 +47,20 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip
       - run: pip install -r requirements.txt
-      - run: python -m pytest tests/test_governed_pipeline.py tests/test_desktop_release.py tests/test_marketplace_listing.py tests/test_marketplace_productization.py -q
+      - run: >-
+          python -m pytest
+          tests/test_governed_pipeline.py
+          tests/test_work_capability.py
+          tests/test_work_mode_scope_validation.py
+          tests/test_artifact_changes.py
+          tests/test_bounded_execution.py
+          tests/test_verification_executor.py
+          tests/test_final_closure.py
+          tests/test_deployed_app_observation.py
+          tests/test_desktop_target.py
+          tests/test_desktop_build.py
+          tests/test_macos_generation.py
+          tests/test_desktop_release.py
+          tests/test_marketplace_listing.py
+          tests/test_marketplace_productization.py
+          -q

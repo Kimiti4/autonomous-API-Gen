@@ -13,7 +13,7 @@ from app.engine.work_mode import WorkMode
 def contract():
     return WorkCapabilityContract.create(
         ProjectScope.create_new(),
-        WorkMode.CREATE,
+        WorkMode.GENERATE,
         GenerationScope.FULL_APPLICATION,
     )
 

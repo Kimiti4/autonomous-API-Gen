@@ -1,0 +1,24 @@
+name: Bucket 4.4 Focused Gate
+
+on:
+  pull_request:
+    paths:
+      - "autonomous-api/app/engine/desktop_target.py"
+      - "autonomous-api/tests/test_desktop_target.py"
+      - "docs/bucket-4-4-desktop-targets.md"
+      - ".github/workflows/bucket-4-4-focused.yml"
+  workflow_dispatch:
+
+jobs:
+  desktop-target:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: autonomous-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - run: pytest -q tests/test_desktop_target.py

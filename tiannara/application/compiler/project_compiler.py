@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from tiannara.application.compiler.build_profile import BackendBuildProfile, make_verifier
@@ -60,7 +60,7 @@ class ProjectCompilationReport:
     ok: bool
     #: Provenance from the actual intent-compilation calls. Replay records are
     #: retained for regression accounting but are never treated as live evidence.
-    model_call_records: list = None
+    model_call_records: list = field(default_factory=list)
     generation_mode: str = "unknown"
     #: Which SelectionPolicy chose the backends.
     policy_name: str | None = None

@@ -1,4 +1,4 @@
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 import jwt
 
 from .db import get_db, init_db
-from .models import AuditEvent, Comment, Membership, Project, Task, User, Workspace
+from .models import AuthSession, AuditEvent, Comment, IdempotencyRecord, Membership, Project, Task, User, Workspace
 from .security import create_token, decode_token, hash_password, verify_password
 
 app = FastAPI(title="TaskFlow", version="1.0.0", description="Golden Coherence Suite application")
@@ -58,12 +58,15 @@ def current_user(credentials: HTTPAuthorizationCredentials | None = Depends(bear
     if not credentials:
         raise HTTPException(status_code=401, detail="authentication-required")
     try:
-        user_id = decode_token(credentials.credentials)
+        user_id, jti = decode_token(credentials.credentials)
     except (jwt.InvalidTokenError, ValueError):
         raise HTTPException(status_code=401, detail="invalid-authentication")
     user = db.get(User, user_id)
+    session = db.get(AuthSession, jti)
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="inactive-user")
+    if not session or session.user_id != user.id or session.revoked:
+        raise HTTPException(status_code=401, detail="session-revoked")
     return user
 
 def membership(db: Session, workspace_id: str, user_id: str) -> Membership:
@@ -89,15 +92,29 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
     if db.scalar(select(User).where(User.email == email)):
         raise HTTPException(status_code=409, detail="email-already-registered")
     user = User(email=email, password_hash=hash_password(payload.password), name=payload.name.strip())
-    db.add(user); db.commit(); db.refresh(user)
-    return {"user_id": user.id, "token": create_token(user.id)}
+    db.add(user); db.flush()
+    token, jti = create_token(user.id)
+    db.add(AuthSession(jti=jti, user_id=user.id)); db.commit(); db.refresh(user)
+    return {"user_id": user.id, "token": token}
 
 @app.post('/auth/login')
 def login(payload: LoginIn, db: Session = Depends(get_db)):
     user = db.scalar(select(User).where(User.email == payload.email.strip().lower()))
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="invalid-credentials")
-    return {"user_id": user.id, "token": create_token(user.id), "name": user.name}
+    token, jti = create_token(user.id)
+    db.add(AuthSession(jti=jti, user_id=user.id)); db.commit()
+    return {"user_id": user.id, "token": token, "name": user.name}
+
+@app.post('/auth/logout')
+def logout(credentials: HTTPAuthorizationCredentials | None = Depends(bearer), db: Session = Depends(get_db)):
+    if not credentials: raise HTTPException(status_code=401, detail="authentication-required")
+    try: _, jti = decode_token(credentials.credentials)
+    except (jwt.InvalidTokenError, ValueError): raise HTTPException(status_code=401, detail="invalid-authentication")
+    session = db.get(AuthSession, jti)
+    if not session: raise HTTPException(status_code=401, detail="invalid-authentication")
+    session.revoked = True; db.commit()
+    return {"revoked": True}
 
 @app.get('/me')
 def me(user: User = Depends(current_user)):
@@ -131,14 +148,22 @@ def list_projects(workspace_id: str, user: User = Depends(current_user), db: Ses
     return [project_dict(x) for x in rows]
 
 @app.post('/projects/{project_id}/tasks')
-def create_task(project_id: str, payload: TaskIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def create_task(project_id: str, payload: TaskIn, idempotency_key: str | None = Header(None, alias='Idempotency-Key'), user: User = Depends(current_user), db: Session = Depends(get_db)):
     project = db.get(Project, project_id)
     if not project or project.archived: raise HTTPException(status_code=404, detail='project-not-found')
     member = membership(db, project.workspace_id, user.id); require_role(member, 'owner', 'manager', 'member')
+    if idempotency_key:
+        existing = db.scalar(select(IdempotencyRecord).where(IdempotencyRecord.actor_id == user.id, IdempotencyRecord.key == idempotency_key))
+        if existing:
+            existing_task = db.get(Task, existing.task_id)
+            if existing_task: return task_dict(existing_task)
+            db.delete(existing); db.flush()
     if payload.assignee_id and not db.scalar(select(Membership).where(Membership.workspace_id == project.workspace_id, Membership.user_id == payload.assignee_id)):
         raise HTTPException(status_code=400, detail='assignee-not-in-workspace')
     task = Task(project_id=project.id, workspace_id=project.workspace_id, assignee_id=payload.assignee_id, title=payload.title, description=payload.description, status=payload.status, priority=payload.priority, due_date=payload.due_date)
-    db.add(task); db.flush(); audit(db, project.workspace_id, user.id, 'task.created', 'task', task.id); db.commit(); db.refresh(task)
+    db.add(task); db.flush()
+    if idempotency_key: db.add(IdempotencyRecord(actor_id=user.id, key=idempotency_key, task_id=task.id))
+    audit(db, project.workspace_id, user.id, 'task.created', 'task', task.id); db.commit(); db.refresh(task)
     return task_dict(task)
 
 @app.get('/projects/{project_id}/tasks')

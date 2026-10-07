@@ -37,6 +37,22 @@ jobs:
       - run: npm install
       - run: npx tsc --noEmit
       - run: npm run build
+  deployment-smoke:
+    runs-on: ubuntu-latest
+    needs: [backend]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend image
+        run: docker build -t taskflow-backend:golden ./golden-projects/taskflow/app/backend
+      - name: Start backend
+        run: |
+          docker run -d --name taskflow-backend -p 8000:8000 -e DATABASE_URL=sqlite:///./taskflow.db taskflow-backend:golden
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8000/health && exit 0; sleep 1; done
+          docker logs taskflow-backend
+          exit 1
+      - name: Stop backend
+        if: always()
+        run: docker rm -f taskflow-backend || true
   composition:
     runs-on: ubuntu-latest
     needs: [backend, frontend]

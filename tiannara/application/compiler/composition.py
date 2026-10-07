@@ -23,6 +23,7 @@ from pathlib import Path
 
 from tiannara.application.compiler.executor import CompilationExecutor
 from tiannara.application.compiler.fastapi_hexagonal_backend import FastAPIHexagonalBackend
+from tiannara.application.compiler.go_hexagonal_backend import GoHexagonalBackend
 from tiannara.application.compiler.project_compiler import ProjectCompiler
 from tiannara.application.compiler.registry import CompilerRegistry
 from tiannara.application.compiler.selector import DEFAULT_SELECTION_POLICY, SelectionPolicy
@@ -53,10 +54,17 @@ def fastapi_declaration() -> BackendCapabilityDeclaration:
     )
 
 
+def go_declaration() -> BackendCapabilityDeclaration:
+    """Capability declaration for the hermetic Go stdlib backend."""
+    return GoHexagonalBackend().build_profile_declaration()
+
+
 def build_compiler_registry() -> CompilerRegistry:
-    """Registry with the project's standard registered backends."""
+    """Registry with the independently implemented production backends."""
     registry = CompilerRegistry()
     registry.register(FastAPIHexagonalBackend(), fastapi_declaration())
+    go_backend = GoHexagonalBackend()
+    registry.register(go_backend, go_declaration())
     return registry
 
 

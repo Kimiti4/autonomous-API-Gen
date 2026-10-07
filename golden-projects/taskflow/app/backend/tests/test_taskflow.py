@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.main import app
+from app.models import AuditEvent
 from app.db import Base, get_db
 
 engine = create_engine('sqlite:///./test_taskflow.db', connect_args={'check_same_thread': False})
@@ -45,3 +46,8 @@ def test_task_lifecycle_and_audit_effect():
     assert updated.status_code == 200 and updated.json()['status'] == 'done'
     dashboard = client.get('/dashboard/' + ws['id'], headers=auth(user['token']))
     assert dashboard.status_code == 200 and dashboard.json()['tasks'] == 1 and dashboard.json()['open_tasks'] == 0
+    db = TestingSession()
+    try:
+        assert db.query(AuditEvent).filter(AuditEvent.workspace_id == ws['id']).count() >= 3
+    finally:
+        db.close()

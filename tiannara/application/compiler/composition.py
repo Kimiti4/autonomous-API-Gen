@@ -24,6 +24,7 @@ from pathlib import Path
 from tiannara.application.compiler.executor import CompilationExecutor
 from tiannara.application.compiler.fastapi_hexagonal_backend import FastAPIHexagonalBackend
 from tiannara.application.compiler.go_hexagonal_backend import GoHexagonalBackend
+from tiannara.application.compiler.rust_axum_backend import RustAxumBackend
 from tiannara.application.compiler.project_compiler import ProjectCompiler
 from tiannara.application.compiler.registry import CompilerRegistry
 from tiannara.application.compiler.selector import DEFAULT_SELECTION_POLICY, SelectionPolicy
@@ -65,6 +66,8 @@ def build_compiler_registry() -> CompilerRegistry:
     registry.register(FastAPIHexagonalBackend(), fastapi_declaration())
     go_backend = GoHexagonalBackend()
     registry.register(go_backend, go_declaration())
+    rust_backend = RustAxumBackend()
+    registry.register(rust_backend, rust_backend.build_profile_declaration())
     return registry
 
 

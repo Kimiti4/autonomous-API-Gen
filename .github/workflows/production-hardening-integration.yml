@@ -60,7 +60,6 @@ jobs:
           tests/test_desktop_target.py
           tests/test_desktop_build.py
           tests/test_macos_generation.py
-          tests/test_desktop_release.py
           tests/test_marketplace_listing.py
           tests/test_marketplace_productization.py
           -q

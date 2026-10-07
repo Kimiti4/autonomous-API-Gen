@@ -22,6 +22,8 @@ class ExecutionEvidence:
     duration_ms: int
     stdout_digest: str
     stderr_digest: str
+    stdout_truncated: bool
+    stderr_truncated: bool
     status: str
     evidence_digest: str
 
@@ -36,6 +38,8 @@ class ExecutionEvidence:
             "timed_out": self.timed_out,
             "stdout_digest": self.stdout_digest,
             "stderr_digest": self.stderr_digest,
+            "stdout_truncated": self.stdout_truncated,
+            "stderr_truncated": self.stderr_truncated,
             "status": self.status,
         }
 
@@ -64,7 +68,7 @@ def materialize_execution_evidence(
         status = "FAIL"
 
     payload = {
-        "schema_version": "esap.execution.v1",
+        "schema_version": "esap.execution.v2",
         "execution_id": result.execution_id,
         "workspace_id": result.workspace_id,
         "command": list(result.command),
@@ -73,9 +77,15 @@ def materialize_execution_evidence(
         "timed_out": result.timed_out,
         "stdout_digest": result.stdout_digest,
         "stderr_digest": result.stderr_digest,
+        "stdout_truncated": result.stdout_truncated,
+        "stderr_truncated": result.stderr_truncated,
         "status": status,
     }
-    return ExecutionEvidence(duration_ms=result.duration_ms, **payload, evidence_digest=_digest(payload))
+    return ExecutionEvidence(
+        duration_ms=result.duration_ms,
+        **payload,
+        evidence_digest=_digest(payload),
+    )
 
 
 def _digest(payload: Mapping[str, object]) -> str:

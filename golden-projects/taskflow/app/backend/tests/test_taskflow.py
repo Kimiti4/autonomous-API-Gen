@@ -32,8 +32,32 @@ def test_tenant_and_rbac_boundaries():
     assert denied.status_code == 403
     project = client.post('/workspaces/' + ws['id'] + '/projects', json={'name': 'Website'}, headers=auth(alice['token']))
     assert project.status_code == 200
-    task = client.post('/projects/' + project.json()['id'] + '/tasks', json={'title': 'Ship homepage', 'assignee_id': bob['user_id']}, headers=auth(alice['token']))
+    project_id = project.json()['id']
+    assert client.get('/projects/' + project_id + '/tasks', headers=auth(bob['token'])).status_code == 403
+    task = client.post('/projects/' + project_id + '/tasks', json={'title': 'Ship homepage', 'assignee_id': bob['user_id']}, headers=auth(alice['token']))
     assert task.status_code == 400
+
+def test_auth_rejection_and_revocation():
+    user = register('revoked@example.com', 'Revoked')
+    assert client.get('/me', headers=auth(user['token'])).status_code == 200
+    assert client.post('/auth/logout', headers=auth(user['token'])).status_code == 200
+    assert client.get('/me', headers=auth(user['token'])).status_code == 401
+    assert client.get('/me', headers=auth('not-a-real-token')).status_code == 401
+
+def test_idempotent_task_creation():
+    user = register('idem@example.com', 'Idempotent')
+    ws = client.post('/workspaces', json={'name': 'Idempotency'}, headers=auth(user['token'])).json()
+    project = client.post('/workspaces/' + ws['id'] + '/projects', json={'name': 'Idempotent Project'}, headers=auth(user['token'])).json()
+    headers = {**auth(user['token']), 'Idempotency-Key': 'task-create-001'}
+    first = client.post('/projects/' + project['id'] + '/tasks', json={'title': 'Exactly once'}, headers=headers)
+    second = client.post('/projects/' + project['id'] + '/tasks', json={'title': 'Exactly once'}, headers=headers)
+    assert first.status_code == 200 and second.status_code == 200
+    assert first.json()['id'] == second.json()['id']
+    db = TestingSession()
+    try:
+        assert db.query(AuditEvent).filter(AuditEvent.workspace_id == ws['id'], AuditEvent.action == 'task.created').count() == 1
+    finally:
+        db.close()
 
 def test_task_lifecycle_and_audit_effect():
     user = register('carol@example.com', 'Carol')

@@ -1,6 +1,7 @@
 import pytest
 
 from app.engine.bounded_execution import ExecutionSpec, execute_bounded
+from app.engine.execution_policy import ExecutionPolicy
 
 
 def spec(command=("python", "-c", "print('ok')"), timeout=5):
@@ -14,6 +15,8 @@ def test_executes_allowed_command_and_captures_evidence(tmp_path):
     assert result.exit_code == 0
     assert not result.timed_out
     assert result.stdout.strip() == "ok"
+    assert not result.stdout_truncated
+    assert not result.stderr_truncated
     assert len(result.stdout_digest) == 64
     assert len(result.stderr_digest) == 64
 
@@ -41,3 +44,20 @@ def test_timeout_is_recorded_as_bounded_failure(tmp_path):
     )
     assert result.timed_out
     assert result.exit_code is None
+
+
+def test_policy_bounds_large_stdout_and_records_truncation(tmp_path):
+    policy = ExecutionPolicy(
+        allowed_commands=("python",),
+        max_timeout_seconds=5,
+        max_output_bytes=128,
+    )
+    result = execute_bounded(
+        spec(("python", "-c", "print('x' * 4096)")),
+        root=str(tmp_path),
+        allowed_commands=policy.allowed_commands,
+        policy=policy,
+    )
+    assert result.exit_code == 0
+    assert len(result.stdout.encode("utf-8")) <= policy.max_output_bytes
+    assert result.stdout_truncated

@@ -156,3 +156,44 @@ def _go_imports(text: str) -> list[str]:
         for m in re.finditer(r'"([^"]+)"', block.group(1)):
             paths.append(m.group(1))
     return paths
+
+
+class RustBundleVerifier:
+    """Toolchain-free structural verifier for Rust/Axum bundles."""
+
+    _FORBIDDEN = ("api", "application", "infrastructure")
+
+    def __init__(self, required_files: list[str]) -> None:
+        self._required = list(required_files)
+
+    def verify(self, root: str | Path) -> BundleVerificationReport:
+        root = Path(root)
+        missing = [f for f in self._required if not (root / f).exists()]
+        errors: list[str] = []
+        cargo = root / "Cargo.toml"
+        if not cargo.exists():
+            errors.append("Cargo.toml: missing")
+        else:
+            text = cargo.read_text(encoding="utf-8")
+            if "[package]" not in text or "name =" not in text:
+                errors.append("Cargo.toml: invalid package declaration")
+            if "axum =" not in text:
+                errors.append("Cargo.toml: axum dependency missing")
+        violations: list[str] = []
+        domain = root / "src" / "domain"
+        if domain.exists():
+            for rs in sorted(domain.rglob("*.rs")):
+                source = rs.read_text(encoding="utf-8")
+                for imp in re.findall(r"(?:use|pub\\s+use)\\s+([^;]+);", source):
+                    if any(f"crate::{seg}" in imp for seg in self._FORBIDDEN):
+                        violations.append(
+                            f"{rs}: domain imports outer layer '{imp.strip()}'"
+                        )
+        main = root / "src" / "main.rs"
+        if main.exists() and "/health" not in main.read_text(encoding="utf-8"):
+            errors.append("src/main.rs: health endpoint not declared")
+        ok = not missing and not errors and not violations
+        return BundleVerificationReport(
+            ok=ok, missing_files=missing, syntax_errors=errors,
+            dependency_violations=violations,
+        )

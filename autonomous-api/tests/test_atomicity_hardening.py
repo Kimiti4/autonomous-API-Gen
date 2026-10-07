@@ -3,7 +3,8 @@ import pytest
 from app.engine.abort_evidence import build_abort_evidence
 from app.engine.atomic_evolution_transaction import execute_evolution_transaction_atomic
 from app.engine.transaction_atomicity import TransactionDisposition
-from app.engine.transaction_evidence import TransactionEvidenceRecord\nfrom app.engine.trust_boundary import TrustContext
+from app.engine.transaction_evidence import TransactionEvidenceRecord
+from app.engine.trust_boundary import TrustContext
 
 
 def test_atomic_commit_requires_authenticated_audit(monkeypatch):
@@ -14,7 +15,10 @@ def test_atomic_commit_requires_authenticated_audit(monkeypatch):
 
     monkeypatch.setattr(module, "execute_evolution_transaction", lambda *a, **k: Result())
     with pytest.raises(RuntimeError, match="missing-audit-record"):
-        module.execute_evolution_transaction_atomic(\n            abort_context={"transaction_id":"tx-audit","source_architecture_id":"src","candidate_architecture_id":"cand"},\n            trust_context=TrustContext("esap","tx-audit","src","cand"),\n        )
+        module.execute_evolution_transaction_atomic(
+            abort_context={"transaction_id":"tx-audit","source_architecture_id":"src","candidate_architecture_id":"cand"},
+            trust_context=TrustContext("esap","tx-audit","src","cand"),
+        )
 
 
 def test_atomic_commit_rejects_tampered_audit(monkeypatch):

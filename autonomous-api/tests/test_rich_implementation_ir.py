@@ -1,4 +1,4 @@
-from .implementation_ir import (
+from app.engine.implementation_ir import (
     BackendIR, DataFlowIR, FrontendIR, ModuleIR, backend_from_api, frontend_from_api
 )
 

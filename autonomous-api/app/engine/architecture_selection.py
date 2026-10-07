@@ -49,9 +49,9 @@ def evaluate_candidate(
     return ArchitectureCandidateEvaluation(
         candidate.architecture_id,
         not findings,
+        tuple(findings),
         len(valid),
         sum(1 for m in valid if m.satisfied),
-        tuple(findings),
         evidence,
     )
 

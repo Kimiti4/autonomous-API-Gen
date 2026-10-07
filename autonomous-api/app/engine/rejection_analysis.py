@@ -86,9 +86,9 @@ def derive_counterfactual_requirements(
                     candidate.architecture_id,
                     objective.name,
                     objective.direction,
-                    float(a),
-                    float(required),
-                    float(delta),
+                    round(float(a), 9),
+                    round(float(required), 9),
+                    round(float(delta), 9),
                     tuple(sorted(set(candidate.evidence))),
                 )
             )
@@ -110,7 +110,4 @@ def _dominates(
     right: ArchitectureScore,
     objectives: Sequence[Objective],
 ) -> bool:
-    return any(
-        score.architecture_id == right.architecture_id
-        for score in build_frontier((left, right), objectives).dominated
-    )
+    return right.architecture_id in build_frontier((left, right), objectives).dominated

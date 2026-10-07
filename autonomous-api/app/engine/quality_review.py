@@ -18,7 +18,7 @@ def review_quality(profile: EngineeringQualityProfile, deliberation: Engineering
         *(t.consequence for t in deliberation.tradeoffs),
         *(c.objection + " " + c.falsification_test for c in deliberation.challenges),
     ]).lower()
-    missing = tuple(o.obligation_id for o in profile.obligations if not any(
+    missing = tuple(o.obligation_id for o in profile.obligations if o.domain not in {"delivery", "evolution"} and not any(
         token in text for token in {
             "correctness": ("correct","invariant","coherent"),
             "accessibility": ("accessib","a11y"),

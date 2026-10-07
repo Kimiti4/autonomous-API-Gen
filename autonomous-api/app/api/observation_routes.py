@@ -46,6 +46,7 @@ _store: SequenceStore | None = None
 _dispatcher: EventDispatcher | None = None
 _fitness_projector: FitnessProjector | None = None
 _isr_projector: IsrProjector | None = None
+_governance_projector = None
 
 
 def configure_observation(
@@ -54,12 +55,15 @@ def configure_observation(
     dispatcher: EventDispatcher,
     fitness_projector: FitnessProjector | None = None,
     isr_projector: IsrProjector | None = None,
+    governance_projector=None,
 ) -> None:
     global _store, _dispatcher, _fitness_projector, _isr_projector
+    global _governance_projector
     _store = store
     _dispatcher = dispatcher
     _fitness_projector = fitness_projector
     _isr_projector = isr_projector
+    _governance_projector = governance_projector
 
 
 def get_store() -> SequenceStore:
@@ -93,6 +97,17 @@ def get_isr_projector() -> IsrProjector:
             context={"operation": "observation.isr"},
         )
     return _isr_projector
+
+
+def get_governance_projector():
+    if _governance_projector is None:
+        raise ObservationDomainError(
+            "Governance projector not configured",
+            code="PLATFORM_UNAVAILABLE",
+            http_status=503,
+            context={"operation": "observation.governance"},
+        )
+    return _governance_projector
 
 
 async def _materialize_state(store: SequenceStore, stream_id: str,
@@ -208,7 +223,22 @@ async def recover_state(
         replayEvents=[e.model_dump(mode="json") for e in events],
     )
 
-@router.get("/work-scope", response_model=WorkScopeObservation)
+@router.get(
+    "/governance/candidate/{candidate_id}",
+    include_in_schema=True,
+)
+async def governance_candidate(candidate_id: str, _auth=Depends(require_auth)):
+    projector = get_governance_projector()
+    return await projector.get_candidate(candidate_id)
+
+
+@router.get("/governance/generation/{generation}", include_in_schema=True)
+async def governance_generation(generation: int, _auth=Depends(require_auth)):
+    projector = get_governance_projector()
+    return await projector.get_generation(generation)
+
+
+@router.get("/work-scope", response_model=WorkScopeObservation, include_in_schema=False)
 async def work_scope(
     projectIntent: str = Query(),
     projectKind: str = Query(),
@@ -235,7 +265,11 @@ async def work_scope(
     )
 
 
-@router.get("/work-scope/lifecycle", response_model=WorkScopeLifecycleObservation)
+@router.get(
+    "/work-scope/lifecycle",
+    response_model=WorkScopeLifecycleObservation,
+    include_in_schema=False,
+)
 async def work_scope_lifecycle(
     streamId: str = Query(),
     store: SequenceStore = Depends(get_store),

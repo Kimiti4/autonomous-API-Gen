@@ -34,7 +34,6 @@ class ExecutionEvidence:
             "policy_digest": self.policy_digest,
             "exit_code": self.exit_code,
             "timed_out": self.timed_out,
-            "duration_ms": self.duration_ms,
             "stdout_digest": self.stdout_digest,
             "stderr_digest": self.stderr_digest,
             "status": self.status,
@@ -72,12 +71,11 @@ def materialize_execution_evidence(
         "policy_digest": policy_digest,
         "exit_code": result.exit_code,
         "timed_out": result.timed_out,
-        "duration_ms": result.duration_ms,
         "stdout_digest": result.stdout_digest,
         "stderr_digest": result.stderr_digest,
         "status": status,
     }
-    return ExecutionEvidence(**payload, evidence_digest=_digest(payload))
+    return ExecutionEvidence(duration_ms=result.duration_ms, **payload, evidence_digest=_digest(payload))
 
 
 def _digest(payload: Mapping[str, object]) -> str:

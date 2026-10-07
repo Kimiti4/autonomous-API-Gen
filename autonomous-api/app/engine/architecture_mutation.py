@@ -13,6 +13,10 @@ class ArchitectureMutation:
     request: MutationRequest
     apply: Callable[[FullStackGenome], FullStackGenome]
 
+    @property
+    def domain(self) -> str:
+        return self.request.domain
+
 
 @dataclass(frozen=True)
 class MutationEvaluation:
@@ -29,7 +33,6 @@ def execute_mutation(
     contracts: tuple[InvariantContract, ...],
     observations: dict[str, object],
 ) -> MutationEvaluation:
-    validate_mutation_request(mutation.request)
     candidate = mutation.apply(genome)
     all_results = []
     for contract in contracts:
@@ -56,5 +59,4 @@ def domain_operator(
     operator: Callable[[FullStackGenome], FullStackGenome],
 ) -> ArchitectureMutation:
     request = MutationRequest(domain, paths, rationale, evidence)
-    validate_mutation_request(request)
     return ArchitectureMutation(mutation_id, request, operator)

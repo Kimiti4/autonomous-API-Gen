@@ -59,3 +59,7 @@ def execution_is_actionable(execution: WorkflowExecution) -> bool:
     return bool(execution.evidence) and (
         execution.passed or execution.failure_reason is not None
     )
+
+
+# Compatibility exports: workflow verification is part of the executable workflow surface.
+from .workflow_verification import execute_and_verify, counterexample_is_actionable

@@ -46,7 +46,7 @@ class FrontendIR:
     states: tuple[FrontendState, ...]
     interactions: tuple[FrontendInteraction, ...]
     consumed_contracts: tuple[DataContract, ...]
-    invariants: tuple[str, ...]
+    invariants: tuple[str, ...] = ()
     security_obligations: tuple[str, ...] = ()
 
 
@@ -55,7 +55,7 @@ class BackendIR:
     architecture_id: str
     boundaries: tuple[BackendBoundary, ...]
     contracts: tuple[DataContract, ...]
-    invariants: tuple[str, ...]
+    invariants: tuple[str, ...] = ()
     security_obligations: tuple[str, ...] = ()
     observability_obligations: tuple[str, ...] = ()
 

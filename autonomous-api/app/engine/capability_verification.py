@@ -33,6 +33,9 @@ _PROFILES = {
     WorkMode.MIGRATE: ("migration-safety", "data-integrity", "rollback-readiness"),
     WorkMode.REFACTOR: ("behavior-preservation", "dependency-integrity", "regression-preservation"),
     WorkMode.CROSS_STACK: ("cross-domain-contracts", "end-to-end-flow", "integration-safety"),
+    WorkMode.FRONTEND_ONLY: ("frontend-contracts", "accessibility", "navigation-preservation"),
+    WorkMode.BACKEND_ONLY: ("backend-contracts", "effect-safety", "failure-recovery"),
+    WorkMode.API_CONTRACT_ONLY: ("api-contract-integrity", "schema-compatibility", "error-contract-preservation"),
 }
 
 

@@ -34,9 +34,10 @@ def verify_cross_layer_coherence(
         findings.append(CoherenceFinding("FS-SEC-001","backend","frontend declares security boundary but backend declares none"))
 
     backend_flow_ids = {f.flow_id for f in backend.data_flows}
-    for flow in frontend.data_flows:
-        if flow.contract == api.contract_id and flow.flow_id not in backend_flow_ids:
-            findings.append(CoherenceFinding("FS-FLOW-001","system",f"frontend flow lacks backend flow identity: {flow.flow_id}"))
+    if backend.data_flows:
+        for flow in frontend.data_flows:
+            if flow.contract == api.contract_id and flow.flow_id not in backend_flow_ids:
+                findings.append(CoherenceFinding("FS-FLOW-001","system",f"frontend flow lacks backend flow identity: {flow.flow_id}"))
 
     for op in api.operations:
         if op.idempotency_required and op.method.upper() in {"POST","PUT","PATCH"}:

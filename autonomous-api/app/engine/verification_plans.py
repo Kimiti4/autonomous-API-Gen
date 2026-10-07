@@ -42,7 +42,10 @@ class VerificationReport:
 def build_verification_plan(
     spec: EngineeringMutationSpec,
     verifiers: Mapping[str, Verifier],
+    *,
+    domain: str | None = None,
 ) -> VerificationPlan:
+    gate_domain = domain or spec.mutation.request.domain
     missing = [
         p for p in spec.verification_properties
         if p not in verifiers
@@ -51,7 +54,7 @@ def build_verification_plan(
         raise ValueError("missing-verifiers:" + ",".join(missing))
     gates = tuple(
         VerificationGate(
-            f"{spec.mutation.request.domain}:{p}",
+            f"{gate_domain}:{p}",
             p,
             verifiers[p],
         )
@@ -59,7 +62,7 @@ def build_verification_plan(
     )
     return VerificationPlan(
         spec.mutation.mutation_id,
-        spec.mutation.request.domain,
+        gate_domain,
         spec.risk_class,
         gates,
     )

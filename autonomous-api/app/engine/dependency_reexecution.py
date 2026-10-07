@@ -1,7 +1,7 @@
 """Execute dependency-aware downstream re-verification after repair."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Mapping, Any, Sequence
 
 from .architecture_mutation import execute_mutation
@@ -79,6 +79,15 @@ def execute_dependent_reverification(
     current = repairs[-1].architecture
     specs_by_domain = {s.mutation.request.domain: s for s in mutation_specs}
     executions = []
+    repaired_properties = {
+        p for cx in counterexamples for p in cx.failed_properties
+    }
+    dependent_properties = tuple(
+        sorted(
+            p for p in set(evidence_by_property) - repaired_properties
+            if p in verifiers
+        )
+    )
 
     for domain in domains:
         spec = specs_by_domain.get(domain)
@@ -93,9 +102,10 @@ def execute_dependent_reverification(
         )
         current = mutation_evaluation.genome
 
-        plan = build_verification_plan(spec, verifiers)
+        restricted = replace(spec, verification_properties=dependent_properties)
+        plan = build_verification_plan(restricted, verifiers)
         evidence_by_gate = {}
-        for property_name in spec.verification_properties:
+        for property_name in dependent_properties:
             evidence = tuple(evidence_by_property.get(property_name, ()))
             if not evidence:
                 raise ValueError(

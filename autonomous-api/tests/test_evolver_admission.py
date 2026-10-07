@@ -1,5 +1,6 @@
 from app.engine.evolver_bridge import *
 from app.engine.evolver_admission import *
+from app.engine.evolution_selection import build_options
 
 def proposal():
     c=EngineeringCandidate(

@@ -2,7 +2,9 @@
 
 import pytest
 
-from app.engine.abort_evidence import build_abort_evidence\nfrom app.engine.atomic_evolution_transaction import execute_evolution_transaction_atomic\nfrom app.engine.transaction_evidence import TransactionEvidenceRecord
+from app.engine.abort_evidence import build_abort_evidence
+from app.engine.atomic_evolution_transaction import execute_evolution_transaction_atomic
+from app.engine.transaction_evidence import TransactionEvidenceRecord
 from app.engine.transaction_atomicity import TransactionDisposition
 
 

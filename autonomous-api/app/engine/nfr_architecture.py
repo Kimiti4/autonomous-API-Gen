@@ -114,6 +114,9 @@ class NFRArchitectureEngine:
         for constraint_id in sorted(self._constraints):
             constraint = self._constraints[constraint_id]
             measurement = supplied.get(constraint_id)
+            if constraint.severity == "advisory":
+                advisory.append(constraint_id)
+                continue
             if measurement is None or not measurement.current:
                 insufficient.append(constraint_id)
                 continue
@@ -127,9 +130,6 @@ class NFRArchitectureEngine:
                 satisfied.append(constraint_id)
             else:
                 violated.append(constraint_id)
-
-            if constraint.severity == "advisory":
-                advisory.append(constraint_id)
 
         mandatory_ids = {
             constraint_id

@@ -118,8 +118,10 @@ class KnowledgePersistence:
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             return [KnowledgeSerializer.fitness_record_from_dict(d) for d in data]
-        except (json.JSONDecodeError, KeyError):
-            return []
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+            raise RuntimeError(
+                "Persistent knowledge record is unreadable"
+            ) from exc
 
     def save_compatibility_records(
         self, records: list[CompatibilityRecord], filename: str = "compatibility.json"

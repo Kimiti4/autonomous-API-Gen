@@ -27,14 +27,14 @@ class TransactionEvidenceChain:
 
     def append(self, record: TransactionEvidenceRecord) -> "TransactionEvidenceChain":
         expected_parent = self.tip_digest
+        if any(existing.digest == record.digest for existing in self.records):
+            raise TransactionChainError(f"duplicate-record-digest:{record.digest}")
         if record.parent_digest != expected_parent:
             raise TransactionChainError(
                 f"parent-digest-mismatch:expected={expected_parent}:actual={record.parent_digest}"
             )
         if not record.verify_digest():
             raise TransactionChainError(f"invalid-record-digest:{record.transaction_id}")
-        if any(existing.digest == record.digest for existing in self.records):
-            raise TransactionChainError(f"duplicate-record-digest:{record.digest}")
         return TransactionEvidenceChain(records=self.records + (record,))
 
     def verify(self) -> bool:
@@ -64,4 +64,7 @@ def verify_transaction_evidence_chain(
     records: Sequence[TransactionEvidenceRecord],
 ) -> bool:
     """Verify ordering, linkage, and content-addressed integrity."""
-    return build_chain(records).verify()
+    try:
+        return build_chain(records).verify()
+    except TransactionChainError:
+        return False

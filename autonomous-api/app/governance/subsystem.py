@@ -54,11 +54,15 @@ class GovernanceSubsystem:
         reference_store,
         quorum_threshold: float = 1.0,
         recognized_certifiers: Optional[set] = None,
+        executive_voting_weight: float = 0.0,
     ) -> None:
+        if recognized_certifiers is not None and len(recognized_certifiers) == 0:
+            raise ValueError("recognized_certifiers must not be empty")
         self._events = event_store
         self._refs = reference_store
         self._quorum = quorum_threshold
         self._certifiers = recognized_certifiers or set()
+        self._executive_voting_weight = executive_voting_weight
 
     # ---- command handlers ------------------------------------------------
 
@@ -96,7 +100,12 @@ class GovernanceSubsystem:
         check_g5_decider_authorization(cmd.decidedBy, council)
         if cmd.verdict == "approve":
             check_g2_gates_satisfied(decision, state.gate_outcomes, gates)
-            check_g7_quorum_weight(cmd.decidedBy, council, self._quorum)
+            check_g7_quorum_weight(
+                cmd.decidedBy,
+                council,
+                self._quorum,
+                executive_weight=self._executive_voting_weight,
+            )
 
         event = GovernanceDecisionMade(decision=decision)
         await self._events.append(cmd.candidateId, [event])
@@ -151,9 +160,7 @@ class GovernanceSubsystem:
             revokedAt=_now_iso(),
             revokedBy=cmd.revokedBy,
         )
-        # Revocation events go to the registry stream; the aggregate finds
-        # them via load_generation / full-log scans.
-        await self._events.append("_registry", [event])
+        await self._events.append(cmd.candidateId, [event])
 
     async def update_council(self, cmd: UpdateCouncil):
         composition = CouncilComposition(
@@ -186,6 +193,9 @@ class GovernanceSubsystem:
     async def materialize_candidate(self, candidate_id: str):
         events = await self._events.load(candidate_id)
         return CandidateGovernanceState.fold(candidate_id, events)
+
+    async def audit_candidate(self, candidate_id: str):
+        return await self._events.audit(candidate_id)
 
     async def materialize_generation(self, generation: int) -> list:
         events_by_candidate = await self._events.load_generation(generation)

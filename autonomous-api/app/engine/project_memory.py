@@ -40,10 +40,11 @@ class ProjectMemory:
     supersedes: str | None = None
     parent_digest: str | None = None
     digest: str = ""
+    schema_version: str = "esap.project-memory.v1"
 
     def canonical_payload(self) -> dict:
         return {
-            "schema_version": "esap.project-memory.v1",
+            "schema_version": self.schema_version,
             "memory_id": self.memory_id,
             "project_id": self.project_id,
             "kind": self.kind,
@@ -105,7 +106,7 @@ class ProjectMemory:
             "parent_digest": parent_digest,
         }
         memory_id = _digest(payload)[:16]
-        full_payload = {**payload, "memory_id": memory_id}
+        full_payload = {**payload, "memory_id": memory_id, "evidence": evidence_tuple}
         return cls(**full_payload, digest=_digest(full_payload))
 
 
@@ -163,14 +164,19 @@ class ProjectMemoryStore:
             and (include_advisory or e.status != "advisory")
         )
 
-    def context(self, *, include_advisory: bool = False) -> dict[str, tuple[ProjectMemory, ...]]:
+    def context(self, *, include_advisory: bool = True) -> dict[str, tuple[ProjectMemory, ...]]:
         """Separate truth channels so advisory lessons cannot become project requirements."""
-        current = self.current(include_advisory=include_advisory)
+        superseded = {e.supersedes for e in self._entries if e.supersedes}
+        current = tuple(e for e in self._entries if e.memory_id not in superseded)
         return {
             "authoritative": tuple(e for e in current if e.status == "authoritative"),
             "certified": tuple(e for e in current if e.status == "certified"),
             "observed": tuple(e for e in current if e.status == "observed"),
-            "advisory": tuple(e for e in current if e.status == "advisory"),
+            "advisory": (
+                tuple(e for e in current if e.status == "advisory")
+                if include_advisory
+                else ()
+            ),
         }
 
     def find(self, memory_id: str) -> ProjectMemory | None:
@@ -234,5 +240,6 @@ class ProjectMemoryStore:
 
 def _digest(payload: Mapping) -> str:
     return hashlib.sha256(
-        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8"),
+        usedforsecurity=False,
     ).hexdigest()

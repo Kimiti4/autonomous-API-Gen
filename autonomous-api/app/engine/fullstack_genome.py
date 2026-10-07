@@ -1,5 +1,7 @@
 """Technology-neutral full-stack genome for evolutionary software architecture."""
 from __future__ import annotations
+
+from .pareto_architecture import Objective
 from dataclasses import dataclass, field
 from typing import Mapping
 
@@ -12,6 +14,10 @@ class FrontendGenome:
     accessibility_strategy: str
     resilience_strategy: str
 
+    @property
+    def framework(self) -> str:
+        return self.rendering_model
+
 
 @dataclass(frozen=True)
 class BackendGenome:
@@ -20,6 +26,10 @@ class BackendGenome:
     concurrency_model: str
     resilience_strategy: str
     contract_strategy: str
+
+    @property
+    def framework(self) -> str:
+        return self.service_model
 
 
 @dataclass(frozen=True)
@@ -37,6 +47,10 @@ class SecurityGenome:
     trust_boundaries: tuple[str, ...]
     threat_controls: tuple[str, ...]
     secret_handling: str
+
+    @property
+    def threat_model(self) -> str:
+        return self.authentication_model
 
 
 @dataclass(frozen=True)

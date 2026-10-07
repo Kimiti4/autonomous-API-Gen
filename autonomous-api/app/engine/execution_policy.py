@@ -22,8 +22,8 @@ class ExecutionPolicy:
 
 
 def validate_execution_environment(
+    requested_environment: Mapping[str, str] | None = None,
     *,
-    requested_environment: Mapping[str, str] | None,
     policy: ExecutionPolicy,
 ) -> dict[str, str] | None:
     policy.validate()

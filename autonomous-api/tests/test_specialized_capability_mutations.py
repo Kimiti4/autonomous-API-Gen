@@ -1,13 +1,13 @@
 import pytest
 from app.engine.specialized_capability_mutations import (
     architecture_mutation, documentation_mutation, migration_mutation,
-    refactor_mutation, test_mutation,
+    refactor_mutation, test_mutation as capability_test_mutation,
 )
 
 
 @pytest.mark.parametrize("factory,risk,domain", [
     (documentation_mutation, "low", "documentation"),
-    (test_mutation, "medium", "testing"),
+    (capability_test_mutation, "medium", "testing"),
     (architecture_mutation, "high", "architecture"),
     (migration_mutation, "high", "migration"),
     (refactor_mutation, "high", "refactor"),

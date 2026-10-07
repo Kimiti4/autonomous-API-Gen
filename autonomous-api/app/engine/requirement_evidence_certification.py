@@ -36,7 +36,7 @@ def certify_requirement_evidence(
     by_obligation={t.obligation_id:t for t in implementation_plan.traces}
     grouped: dict[str,list[RequirementEvidenceTrace]]={}
     unresolved=set()
-    for req in graph.requirements:
+    for req in graph.requirements.values():
         obligations=tuple(sorted(o for o,s in obligation_source.items() if s == req.requirement_id))
         if not obligations:
             unresolved.add(req.requirement_id); continue

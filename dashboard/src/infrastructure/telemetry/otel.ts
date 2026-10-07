@@ -20,14 +20,17 @@ export async function initTelemetry(opts: {
       [semantic.ATTR_SERVICE_NAME]: opts.serviceName,
     });
 
-    const provider = new webSdk.WebTracerProvider({ resource });
-    if (opts.otlpTracesEndpoint) {
-      provider.addSpanProcessor(
-        new webSdk.BatchSpanProcessor(
-          new exporterTraces.OTLPTraceExporter({ url: opts.otlpTracesEndpoint }),
-        ),
-      );
-    }
+    const spanProcessors = opts.otlpTracesEndpoint
+      ? [
+          new webSdk.BatchSpanProcessor(
+            new exporterTraces.OTLPTraceExporter({ url: opts.otlpTracesEndpoint }) as any,
+          ),
+        ]
+      : [];
+    const provider = new webSdk.WebTracerProvider({
+      resource: resource as any,
+      spanProcessors,
+    });
     provider.register();
     enabled = true;
     return true;

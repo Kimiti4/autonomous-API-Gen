@@ -13,7 +13,7 @@ from .cross_domain_evolution import (
 )
 from .evolution_population import EvolutionMember
 from .fullstack_genome import FullStackGenome
-from .materialize_coevolution import ExecutableCoEvolutionWork
+from .materialize_coevolution import ExecutableCoEvolutionWork, PlannedDomainWork
 from .specialized_mutations import EngineeringMutationSpec
 from .verification_plans import (
     VerificationReport,
@@ -72,8 +72,23 @@ def execute_materialized_coevolution(
         raise ValueError("coevolution-work-requires-domain-items")
 
     specs_by_id = {s.mutation.mutation_id: s for s in mutation_specs}
+    items: list[PlannedDomainWork] = list(work.work)
+    planned_domains = {item.domain for item in items}
+    source_spec = next(
+        (s for s in mutation_specs if s.mutation.request.domain == work.source_domain),
+        None,
+    )
+    if work.source_domain not in planned_domains and source_spec is not None:
+        items.append(
+            PlannedDomainWork(
+                work.source_domain,
+                source_spec.mutation.mutation_id,
+                source_spec.verification_properties,
+                "source-domain-coevolution",
+            )
+        )
     ordered_specs: list[EngineeringMutationSpec] = []
-    for item in work.work:
+    for item in items:
         spec = specs_by_id.get(item.mutation_id)
         if spec is None:
             raise ValueError("missing-materialized-mutation:" + item.mutation_id)
@@ -88,7 +103,7 @@ def execute_materialized_coevolution(
     reports: list[VerificationReport] = []
     combined_evidence = set(work.evidence)
 
-    for item, spec in zip(work.work, ordered_specs):
+    for item, spec in zip(items, ordered_specs):
         contracts = () if contracts_by_domain is None else contracts_by_domain.get(item.domain, ())
         mutation_evaluation = execute_mutation(
             current,
@@ -129,7 +144,7 @@ def execute_materialized_coevolution(
         if not verification_command_rules or verification_root is None or verification_workspace_id is None:
             raise ValueError("incomplete-work-verification-configuration")
         work_plan = derive_work_verification_plan(
-            (item.domain for item in work.work),
+            (item.domain for item in items),
             workspace_id=verification_workspace_id,
             command_rules=verification_command_rules,
         )

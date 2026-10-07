@@ -106,6 +106,54 @@ class WsAuthProvider(Protocol):
         ...
 
 
+class SessionAuthProvider:
+    """Signed, expiring operator session cookie provider."""
+
+    def __init__(self, *, secret: str, cookie_name: str = "esap_operator_session", ttl_seconds: int = 3600) -> None:
+        if len(secret) < 16:
+            raise ValueError("session secret must be at least 16 characters")
+        if ttl_seconds <= 0:
+            raise ValueError("session ttl must be positive")
+        self._secret = secret.encode("utf-8")
+        self.cookie_name = cookie_name
+        self.ttl_seconds = ttl_seconds
+
+    def issue(self, subject: str, *, now: int) -> tuple[str, int]:
+        import base64
+        import json
+        import time
+
+        expires_at = int(now) + self.ttl_seconds
+        payload = base64.urlsafe_b64encode(
+            json.dumps({"sub": subject, "exp": expires_at}, separators=(",", ":"), sort_keys=True).encode()
+        ).rstrip(b"=").decode()
+        signature = hmac.new(self._secret, payload.encode(), "sha256").digest()
+        encoded_signature = base64.urlsafe_b64encode(signature).rstrip(b"=").decode()
+        return f"{payload}.{encoded_signature}", expires_at
+
+    def _verify(self, value: str, *, now: int) -> Optional[AuthContext]:
+        import base64
+        import json
+
+        try:
+            encoded, supplied = value.rsplit(".", 1)
+            expected = base64.urlsafe_b64encode(hmac.new(self._secret, encoded.encode(), "sha256").digest()).rstrip(b"=").decode()
+            if not hmac.compare_digest(supplied, expected):
+                return None
+            payload = json.loads(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)))
+            if int(now) >= int(payload["exp"]):
+                return None
+            return AuthContext(subject=str(payload["sub"]), scopes=("observe", "control"))
+        except (ValueError, KeyError, TypeError, json.JSONDecodeError, UnicodeError):
+            return None
+
+    async def authenticate(self, request: Request) -> Optional[AuthContext]:
+        import time
+        value = request.cookies.get(self.cookie_name)
+        return self._verify(value, now=int(time.time())) if value else None
+
+
+
 class ApiKeyAuthProvider:
     """Constant-time API-key authentication for headers, bearer auth, or cookie."""
 

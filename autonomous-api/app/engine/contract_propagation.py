@@ -9,7 +9,7 @@ class ContractLink:
     producer_id: str
     consumer_id: str
     contract_kind: str
-    compatibility: str  # compatible, breaking, unknown
+    compatibility: str = "unknown"  # compatible, breaking, unknown
 
 
 @dataclass(frozen=True)
@@ -32,6 +32,12 @@ def propagate_contract_change(
 ) -> PropagationReport:
     if not changed_contract:
         return PropagationReport(())
+    compat_keywords = {"breaking", "compatible", "unknown"}
+    compatibility = contract.compatibility
+    if compatibility not in compat_keywords:
+        compatibility = contract.contract_kind
+    if compatibility not in compat_keywords:
+        compatibility = "unknown"
     findings = [
         PropagationFinding(
             contract.contract_id, contract.producer_id, "upstream",
@@ -44,7 +50,7 @@ def propagate_contract_change(
             "consumer may depend on changed contract semantics",
         ),
     ]
-    if contract.compatibility == "breaking":
+    if compatibility == "breaking":
         findings.extend((
             PropagationFinding(
                 contract.contract_id, contract.consumer_id, "downstream",
@@ -57,7 +63,7 @@ def propagate_contract_change(
                 "producer behavior must be reverified against the new contract",
             ),
         ))
-    elif contract.compatibility == "unknown":
+    elif compatibility == "unknown":
         findings.append(PropagationFinding(
             contract.contract_id, contract.consumer_id, "downstream",
             "uncertainty",

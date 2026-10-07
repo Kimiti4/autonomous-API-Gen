@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Request
 from sse_starlette.sse import EventSourceResponse
 import asyncio
 from datetime import datetime
@@ -6,11 +6,19 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.core.logger import logger
 from app.core.exceptions import ObservationDomainError
+from app.core import memory_clear
+from app.core.runtime_control import (
+    activate_kill_switch,
+    assert_evolution_enabled,
+    deactivate_kill_switch,
+    get_kill_switch,
+)
 from app.engine.reasoning.orchestrator import ReasoningEngine
 from app.engine.evolution import EvolutionEngine
 from app.engine.elite_evolution import EliteEvolutionEngine
 from app.engine.production_readiness import ProductionReadinessAnalyzer
 from app.api.ws import manager
+from app.middleware.security import require_auth
 from app.storage.db import SessionLocal, get_db
 from app.storage.models import EvolutionRun
 from app.schemas.evolution import EvolutionRequest, EliteEvolutionRequest, EvolutionResponse, EliteEvolutionResponse, ProductionReadinessRequest, ProductionReadinessResponse, HealthCheckResponse
@@ -22,6 +30,13 @@ reasoning_engine = ReasoningEngine()
 evolution_engine = EvolutionEngine()
 elite_engine = EliteEvolutionEngine()
 production_analyzer = ProductionReadinessAnalyzer()
+
+
+def _kill_switch_guard() -> None:
+    try:
+        assert_evolution_enabled()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 @router.get("/health", response_model=HealthCheckResponse)
 async def health_check():
@@ -68,7 +83,8 @@ async def analyze_production_readiness(request: ProductionReadinessRequest):
     return production_analyzer.analyze(request.genome.model_dump(), deployment_target=request.deployment_target)
 
 @router.post("/evolve/start", response_model=EvolutionResponse)
-async def start_evolution(request: EvolutionRequest, background_tasks: BackgroundTasks):
+async def start_evolution(request: EvolutionRequest, background_tasks: BackgroundTasks, _auth=Depends(require_auth)):
+    _kill_switch_guard()
     logger.info(f"Starting evolution: {request.generations} generations, pop size {request.population_size}, runtime={request.use_docker}, seed={request.seed}")
     evolution_engine.set_websocket_callback(manager.broadcast)
     background_tasks.add_task(evolution_engine.run_async, generations=request.generations, population_size=request.population_size, use_docker=request.use_docker, seed=request.seed)
@@ -93,12 +109,14 @@ async def get_evolution_run(run_id: str, db: Session = Depends(get_db)):
         logger.error(f"Error fetching run {run_id}", exc_info=True); raise ObservationDomainError("Failed to fetch evolution run", context={"operation": "evolve.run", "parameters": {"runId": run_id}})
 
 @router.post("/evolve/sync")
-async def run_evolution_sync(generations: int = 5, population_size: int = 8):
+async def run_evolution_sync(generations: int = 5, population_size: int = 8, _auth=Depends(require_auth)):
+    _kill_switch_guard()
     logger.info("Running synchronous evolution in worker thread")
     return await asyncio.to_thread(evolution_engine.run_synchronous, generations=generations, population_size=population_size, use_docker=False)
 
 @router.post("/evolve/elite/start", response_model=EliteEvolutionResponse)
-async def start_elite_evolution(request: EliteEvolutionRequest, background_tasks: BackgroundTasks):
+async def start_elite_evolution(request: EliteEvolutionRequest, background_tasks: BackgroundTasks, _auth=Depends(require_auth)):
+    _kill_switch_guard()
     logger.info(f"Starting elite evolution: {request.generations} generations, runtime={request.use_docker}, seed={request.seed}")
     elite_engine.set_websocket_callback(manager.broadcast)
     background_tasks.add_task(elite_engine.run_elite_evolution, generations=request.generations, population_size=request.population_size, use_multi_population=request.use_multi_population, enable_adaptive_mutation=request.enable_adaptive_mutation, use_docker=request.use_docker, seed=request.seed)
@@ -108,5 +126,61 @@ async def start_elite_evolution(request: EliteEvolutionRequest, background_tasks
 async def get_elite_insights(): return elite_engine.get_memory_insights()
 
 @router.post("/evolve/elite/clear-memory")
-async def clear_elite_memory():
-    elite_engine.clear_memory(); return {"message": "Memory cleared successfully"}
+async def clear_elite_memory_endpoint(request: Request, _auth=Depends(require_auth)):
+    body = await request.json()
+    return memory_clear.clear_elite_memory(
+        memory=elite_engine.memory,
+        adaptive_mutator=elite_engine.adaptive_mutator,
+        actor=str(_auth.subject),
+        confirmation=body.get("confirmation"),
+        operation_id=body.get("operation_id"),
+    )
+
+@router.get("/evolve/elite/clear-memory/audit")
+async def clear_elite_memory_audit(_auth=Depends(require_auth)):
+    from app.core.config import get_settings
+    audit = memory_clear.MemoryClearAuditStore(get_settings().GOVERNANCE_AUDIT_SIGNING_KEY)
+    records = audit.verify()
+    return {
+        "verified": True,
+        "records": [
+            {
+                "eventType": record.event_type,
+                "sequence": record.sequence,
+                "payload": record.payload,
+            }
+            for record in records
+        ],
+    }
+
+@router.get(
+    "/evolution/kill-switch",
+    include_in_schema=False,
+    dependencies=[Depends(require_auth)],
+)
+async def evolution_kill_switch_status():
+    return get_kill_switch().__dict__
+
+@router.post(
+    "/evolution/kill-switch/activate",
+    include_in_schema=False,
+    dependencies=[Depends(require_auth)],
+)
+async def evolution_kill_switch_activate(request: Request):
+    body = await request.json()
+    return activate_kill_switch(
+        reason=str(body.get("reason", "")),
+        actor=str(body.get("actor", "admin")),
+    ).__dict__
+
+@router.post(
+    "/evolution/kill-switch/deactivate",
+    include_in_schema=False,
+    dependencies=[Depends(require_auth)],
+)
+async def evolution_kill_switch_deactivate(request: Request):
+    body = await request.json()
+    return deactivate_kill_switch(
+        reason=str(body.get("reason", "")),
+        actor=str(body.get("actor", "admin")),
+    ).__dict__

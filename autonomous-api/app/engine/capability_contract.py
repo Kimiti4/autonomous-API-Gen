@@ -135,3 +135,8 @@ def verified_feature(genome: Genome, name: str) -> bool:
         if result.name == name:
             return result.requested and result.implemented
     return False
+
+
+
+# Backward-compatible governed capability validation used by the transaction layer.
+from app.engine.work_capability import WorkCapabilityContract, validate_work_capability  # noqa: E402,F401

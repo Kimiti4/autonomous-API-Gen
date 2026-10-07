@@ -65,6 +65,10 @@ def build_frontier(
     for score in scores:
         if not score.evidence:
             raise ValueError("pareto-score-requires-evidence")
+        for objective in objectives:
+            objective.validate()
+            if score.values.get(objective.name) is None:
+                raise ValueError("missing-objective-value")
 
     dominated_ids = {
         right.architecture_id

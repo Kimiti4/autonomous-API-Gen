@@ -11,6 +11,30 @@ from app.engine.pareto_architecture import ArchitectureScore, Objective
 from app.engine.verification_plans import GateResult, VerificationReport
 from app.engine.specialized_mutations import backend_mutation
 
+import tempfile
+from pathlib import Path
+
+from app.engine.transaction_verification import TransactionVerificationConfig
+from app.engine.execution_policy import ExecutionPolicy
+from app.engine.verification_acceptance import VerificationAcceptancePolicy
+from app.engine.verification_executor import VerificationKind, VerificationSpec
+
+
+def verification_config():
+    return TransactionVerificationConfig(
+        specs=(VerificationSpec("build", "successor", VerificationKind.BUILD, ("python", "-c", "print('verified')"), 2),),
+        policies={"BUILD": ExecutionPolicy(("python",), max_timeout_seconds=5)},
+        acceptance=VerificationAcceptancePolicy(required_kinds=("BUILD",)),
+        expected_artifacts={},
+    )
+
+
+def verification_root():
+    root = Path(tempfile.gettempdir()) / "esap-transaction-verification"
+    root.mkdir(parents=True, exist_ok=True)
+    return str(root)
+
+
 
 def genome():
     return FullStackGenome(
@@ -56,6 +80,7 @@ def transaction(event_id, successor_id, parent_digest=None):
         },{},
         event_id=event_id,successor_architecture_id=successor_id,
         generation=1,parent_evidence_digest=parent_digest,
+        verification_config=verification_config(), verification_root=verification_root(),
     )
 
 

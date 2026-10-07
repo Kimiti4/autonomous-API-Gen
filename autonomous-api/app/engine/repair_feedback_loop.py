@@ -42,12 +42,12 @@ def run_counterexample_repair_feedback(initial: CoEvolutionResult, repair_round:
             return RepairFeedbackResult("closed", tuple(rounds), current, ())
         if not counterexamples:
             return RepairFeedbackResult("blocked", tuple(rounds), current, ("verification-failed-without-counterexample",))
+        if iteration == max_rounds:
+            return RepairFeedbackResult("bounded-exhausted", tuple(rounds), current, ("maximum-repair-rounds-reached",))
         signature = tuple(sorted((cx.domain, cx.mutation_id, cx.failed_properties) for cx in counterexamples))
         if signature in seen:
             return RepairFeedbackResult("blocked", tuple(rounds), current, ("repeated-counterexample-signature",))
         seen.add(signature)
-        if iteration == max_rounds:
-            return RepairFeedbackResult("bounded-exhausted", tuple(rounds), current, ("maximum-repair-rounds-reached",))
         next_result = repair_round(current, counterexamples, iteration)
         if not isinstance(next_result, CoEvolutionResult):
             raise ValueError("repair-feedback-operator-must-return-coevolution-result")

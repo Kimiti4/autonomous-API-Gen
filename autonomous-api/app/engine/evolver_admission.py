@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.engine.evolver_bridge import EvolverProposal, proposal_ready_for_evolver
+from app.engine.evolution_selection import CandidateAssessment, assess_candidate
 
 
 @dataclass(frozen=True)
@@ -69,3 +70,7 @@ def admission_to_evolution_context(
         "expected_properties": admission.metadata["expected_properties"],
         "evidence_count": admission.metadata["evidence_count"],
     }
+
+
+# Compatibility export: the assessment function remains part of the governed
+# admission surface while its canonical implementation lives in evolution_selection.

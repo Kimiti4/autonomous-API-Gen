@@ -21,10 +21,7 @@ def execute_capability_repair(
     verifiers: Mapping[str, Any],
     evidence_by_property: Mapping[str, tuple[str, ...]],
 ) -> EngineRepairResult:
-    _, route = (
-        route_capability_failures(mode, request.failures),
-        None,
-    )
+    route = route_capability_failures(mode, request.failures)
     # Require the selected repair candidate to target the same capability route.
     candidate = request.candidate
     if candidate is None:

@@ -41,6 +41,8 @@ def to_openapi(ir: ApiContractIR) -> dict:
         operation = {
             "operationId": op.operation_id, "responses": responses,
             "x-authorization-policy": op.authorization_policy,
+            "x-request-schema": op.request_schema,
+            "x-response-schema": op.response_schema,
             "x-idempotency-required": op.idempotency_required,
             "x-paginated": op.paginated, "x-api-version": op.version,
         }
@@ -49,6 +51,8 @@ def to_openapi(ir: ApiContractIR) -> dict:
         if op.response_schema:
             success = operation["responses"].setdefault("200", {"description": "Success"})
             success["content"] = {"application/json": {"schema": _schema_ref(op.response_schema)}}
+        for status, body in operation["responses"].items():
+            operation[status] = body
         item[method] = operation
     doc = {
         "openapi": "3.1.0",

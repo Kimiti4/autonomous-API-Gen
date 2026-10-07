@@ -15,6 +15,7 @@ from .fullstack_genome import FullStackGenome
 from .transaction_evidence import TransactionEvidenceRecord, materialize_transaction_evidence
 from .rejection_analysis import RejectionRecord, record_rejection, derive_counterfactual_requirements
 from .transaction_verification import CandidateVerification, TransactionVerificationConfig, execute_transaction_verification
+from .verification_acceptance import VerificationDisposition
 from .repair_reexecution import reexecute_repaired_candidate
 
 @dataclass(frozen=True)
@@ -83,9 +84,9 @@ def execute_evolution_transaction(
     # E2E certification is an admission prerequisite. A transaction may
     # produce evidence for investigation, but it cannot be admitted when the
     # required verification gate is absent, failed, or evidence-free.
-    if verification.disposition != "PASSED":
+    if verification.disposition.disposition != VerificationDisposition.PASS:
         raise ValueError("transaction-e2e-verification-failed")
-    if not getattr(verification, "evidence_ids", ()):
+    if not verification.evidence_digests:
         raise ValueError("transaction-e2e-verification-missing-evidence")
 
     admission = None

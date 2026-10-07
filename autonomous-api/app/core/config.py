@@ -65,6 +65,8 @@ class Settings(BaseSettings):
                 raise ValueError("SECRET_KEY must be explicitly configured in production")
             if not self.CORS_ORIGINS:
                 raise ValueError("CORS_ORIGINS must be configured in production")
+            if not self.GOVERNANCE_AUDIT_SIGNING_KEY:
+                raise ValueError("GOVERNANCE_AUDIT_SIGNING_KEY is required in production")
         return self
 
     model_config = SettingsConfigDict(

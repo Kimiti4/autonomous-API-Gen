@@ -155,7 +155,9 @@ jobs:
       - name: Build Docker image
         run: docker build -t evolution-engine:${{ github.sha }} .
       - name: Smoke test Docker image
-        run: docker run --rm evolution-engine:${{ github.sha }} python -c "from app.main import app; print('Docker build OK')"
+        env:
+          GOVERNANCE_AUDIT_SIGNING_KEY: ci-ephemeral-governance-audit-key
+        run: docker run --rm -e GOVERNANCE_AUDIT_SIGNING_KEY="$GOVERNANCE_AUDIT_SIGNING_KEY" evolution-engine:${{ github.sha }} python -c "from app.main import app; print('Docker build OK')"
 
   capability-runtime:
     name: circuit-breaker runtime certification

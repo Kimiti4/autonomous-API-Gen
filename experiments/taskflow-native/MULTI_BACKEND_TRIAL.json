@@ -11,9 +11,9 @@
       "status": "baseline-target"
     },
     {
-      "id": "elixir-phoenix",
-      "language": "elixir",
-      "framework": "phoenix",
+      "id": "go-stdlib",
+      "language": "go",
+      "framework": "net/http",
       "status": "cross-language-target"
     }
   ],

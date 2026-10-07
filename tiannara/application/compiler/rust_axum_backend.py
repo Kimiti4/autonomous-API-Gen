@@ -36,8 +36,8 @@ class RustAxumBackend:
             language="rust",
             required_files=("Cargo.toml", "src/main.rs", "src/domain/models.rs", "Dockerfile"),
             verifier_kind="rust",
-            build_command=["cargo", "build", "--locked"],
-            test_command=["cargo", "test", "--locked"],
+            build_command=["cargo", "build"],
+            test_command=["cargo", "test"],
             runtime_image="rust:1.78-slim",
             requires_build_phase=True,
         )
@@ -136,8 +136,8 @@ fn generated_health_contract_is_present() {
         return """FROM rust:1.78-slim AS build
 WORKDIR /app
 COPY . .
-RUN cargo test --locked
-RUN cargo build --release --locked
+RUN cargo test
+RUN cargo build --release
 FROM debian:bookworm-slim
 COPY --from=build /app/target/release/* /usr/local/bin/app
 EXPOSE 8000

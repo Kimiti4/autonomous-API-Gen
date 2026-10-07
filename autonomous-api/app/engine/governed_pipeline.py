@@ -101,7 +101,7 @@ def execute_governed_pipeline(
     stages: list[StageArtifact] = []
     previous: StageArtifact | None = None
 
-    for stage in (
+    ordered_stages = (
         PipelineStage.REQUEST,
         PipelineStage.ISR,
         PipelineStage.SCOPE,
@@ -111,9 +111,10 @@ def execute_governed_pipeline(
         PipelineStage.VERIFICATION,
         PipelineStage.EVIDENCE,
         PipelineStage.CERTIFICATION,
-    ):
-        if previous is not None and stage.value == PipelineStage.SCOPE.value:
-            _require_stage(previous, PipelineStage.REQUEST)
+    )
+    for index, stage in enumerate(ordered_stages):
+        if index:
+            _require_stage(previous, ordered_stages[index - 1])
         artifact = stage_runner(stage, tuple(stages))
         if artifact.stage is not stage:
             raise ValueError(f"pipeline-stage-mismatch:{stage.value}")

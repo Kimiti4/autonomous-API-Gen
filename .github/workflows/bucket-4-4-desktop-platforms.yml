@@ -1,0 +1,30 @@
+name: Bucket 4.4 Desktop Platforms
+
+on:
+  pull_request:
+    paths:
+      - "autonomous-api/app/engine/desktop_target.py"
+      - "autonomous-api/app/engine/desktop_build.py"
+      - "autonomous-api/tests/test_desktop_target.py"
+      - "autonomous-api/tests/test_desktop_build.py"
+      - ".github/workflows/bucket-4-4-desktop-platforms.yml"
+  workflow_dispatch:
+
+jobs:
+  contract-tests:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.11", "3.13"]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: autonomous-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install --upgrade pip
+      - run: pip install -r requirements.txt
+      - run: python -m pytest tests/test_desktop_target.py tests/test_desktop_build.py -q

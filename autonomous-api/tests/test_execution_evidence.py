@@ -25,6 +25,8 @@ def test_execution_evidence_is_content_addressed(tmp_path):
     evidence = materialize_execution_evidence(result, p)
     assert evidence.status == "PASS"
     assert evidence.exit_code == 0
+    assert not evidence.stdout_truncated
+    assert not evidence.stderr_truncated
     assert evidence.verify_digest()
     assert len(evidence.evidence_digest) == 64
 
@@ -55,3 +57,17 @@ def test_timeout_is_not_reported_as_failure_pass(tmp_path):
     assert evidence.status == "TIMEOUT"
     assert evidence.timed_out
     assert evidence.verify_digest()
+
+
+def test_truncation_is_part_of_evidence_digest(tmp_path):
+    p = policy()
+    result = execute_bounded(
+        ExecutionSpec("exec-4", "ws-1", ("python", "-c", "print('x' * 4096)"), 2),
+        root=str(tmp_path),
+        allowed_commands=p.allowed_commands,
+        policy=p,
+    )
+    evidence = materialize_execution_evidence(result, p)
+    assert evidence.stdout_truncated
+    assert evidence.verify_digest()
+    assert evidence.canonical_payload()["stdout_truncated"] is True

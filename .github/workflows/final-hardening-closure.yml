@@ -1,0 +1,30 @@
+name: Final Hardening and Closure Gate
+on:
+  pull_request:
+    paths:
+      - "autonomous-api/app/engine/bounded_execution.py"
+      - "autonomous-api/app/engine/execution_evidence.py"
+      - "autonomous-api/app/engine/final_closure.py"
+      - "autonomous-api/tests/test_bounded_execution.py"
+      - "autonomous-api/tests/test_execution_evidence.py"
+      - "autonomous-api/tests/test_final_closure.py"
+      - ".github/workflows/final-hardening-closure.yml"
+      - "docs/final-product-closure.md"
+  workflow_dispatch:
+jobs:
+  closure:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.13"]
+    defaults:
+      run:
+        working-directory: autonomous-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install --upgrade pip
+      - run: pip install -r requirements.txt
+      - run: python -m pytest tests/test_bounded_execution.py tests/test_execution_evidence.py tests/test_final_closure.py -q

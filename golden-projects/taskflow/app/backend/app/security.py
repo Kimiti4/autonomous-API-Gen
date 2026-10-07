@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import os
 import secrets
+from uuid import uuid4
 from datetime import datetime, timedelta, timezone
 import jwt
 
@@ -22,13 +23,15 @@ def verify_password(password: str, encoded: str) -> bool:
     except (ValueError, TypeError):
         return False
 
-def create_token(user_id: str) -> str:
+def create_token(user_id: str) -> tuple[str, str]:
+    jti = str(uuid4())
     exp = datetime.now(timezone.utc) + timedelta(minutes=JWT_MINUTES)
-    return jwt.encode({"sub": user_id, "exp": exp}, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    return jwt.encode({"sub": user_id, "jti": jti, "exp": exp}, JWT_SECRET, algorithm=JWT_ALGORITHM), jti
 
-def decode_token(token: str) -> str:
+def decode_token(token: str) -> tuple[str, str]:
     payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
     user_id = payload.get("sub")
-    if not user_id:
-        raise ValueError("invalid-subject")
-    return str(user_id)
+    jti = payload.get("jti")
+    if not user_id or not jti:
+        raise ValueError("invalid-token-claims")
+    return str(user_id), str(jti)

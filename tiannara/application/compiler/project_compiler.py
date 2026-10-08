@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from tiannara.application.compiler.build_profile import BackendBuildProfile, make_verifier
+from tiannara.application.compiler.documentation import validate_generated_documentation
 from tiannara.application.compiler.derivation import (
     derive_compilation_requirements,
 )
@@ -138,7 +139,9 @@ class ProjectCompiler:
                     verification_reason=reason,
                 )
             )
-            if report is not None and not report.ok:
+            if report is None:
+                verification_blocked = True
+            elif not report.ok:
                 verification_blocked = True
         ok = execution.ok and not verification_blocked
         # 7. Report

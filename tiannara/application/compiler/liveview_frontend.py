@@ -23,7 +23,7 @@ class LiveViewFrontend:
     def build_profile(self,system_name):
         return BackendBuildProfile(language="elixir",required_files=("mix.exs","lib/app_web/live/page_live.ex"),verifier_kind="phoenix_liveview",build_command=["mix","compile"],test_command=["mix","test"],runtime_image="elixir:1.18",requires_build_phase=True)
     def build_profile_declaration(self):
-        return BackendCapabilityDeclaration(backend_id=self.backend_id,artifact_kinds=[ArtifactKind.FRONTEND_APP],capabilities=list(self._manifest().capabilities),quality_profile=0.80,metadata={"language":"elixir","framework":"phoenix_live_view","runtime_model":"server_reactive"})
+        return BackendCapabilityDeclaration(backend_id=self.backend_id,artifact_kinds=[ArtifactKind.FRONTEND_APPLICATION],capabilities=list(self._manifest().capabilities),quality_profile=0.80,metadata={"language":"elixir","framework":"phoenix_live_view","runtime_model":"server_reactive"})
     def _model(self,isr):
         model=isr.system_model()
         if model is None: raise ValueError("LiveViewFrontend requires a typed SystemModel ISR payload")

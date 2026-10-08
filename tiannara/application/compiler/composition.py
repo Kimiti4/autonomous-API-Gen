@@ -34,6 +34,7 @@ from tiannara.application.compiler.react_frontend import ReactFrontend
 from tiannara.application.compiler.express_backend import ExpressBackend
 from tiannara.application.compiler.laravel_backend import LaravelBackend
 from tiannara.application.compiler.vue_frontend import VueFrontend
+from tiannara.application.compiler.angular_frontend import AngularFrontend
 from tiannara.application.compiler.rails_backend import RailsBackend
 from tiannara.application.compiler.project_compiler import ProjectCompiler
 from tiannara.application.compiler.registry import CompilerRegistry
@@ -96,6 +97,8 @@ def build_compiler_registry() -> CompilerRegistry:
     registry.register(laravel_backend, laravel_backend.build_profile_declaration())
     vue_frontend = VueFrontend()
     registry.register(vue_frontend, vue_frontend.build_profile_declaration())
+    angular_frontend = AngularFrontend()
+    registry.register(angular_frontend, angular_frontend.build_profile_declaration())
     rails_backend = RailsBackend()
     registry.register(rails_backend, rails_backend.build_profile_declaration())
     return registry

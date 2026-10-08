@@ -39,6 +39,7 @@ from tiannara.application.compiler.next_frontend import NextFrontend
 from tiannara.application.compiler.nuxt_frontend import NuxtFrontend
 from tiannara.application.compiler.svelte_frontend import SvelteFrontend
 from tiannara.application.compiler.liveview_frontend import LiveViewFrontend
+from tiannara.application.compiler.hologram_frontend import HologramFrontend
 from tiannara.application.compiler.rails_backend import RailsBackend
 from tiannara.application.compiler.project_compiler import ProjectCompiler
 from tiannara.application.compiler.registry import CompilerRegistry
@@ -111,6 +112,8 @@ def build_compiler_registry() -> CompilerRegistry:
     registry.register(svelte_frontend, svelte_frontend.build_profile_declaration())
     liveview_frontend = LiveViewFrontend()
     registry.register(liveview_frontend, liveview_frontend.build_profile_declaration())
+    hologram_frontend = HologramFrontend()
+    registry.register(hologram_frontend, hologram_frontend.build_profile_declaration())
     rails_backend = RailsBackend()
     registry.register(rails_backend, rails_backend.build_profile_declaration())
     return registry

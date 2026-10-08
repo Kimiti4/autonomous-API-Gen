@@ -30,6 +30,7 @@ from tiannara.application.compiler.spring_boot_backend import SpringBootBackend
 from tiannara.application.compiler.aspnet_core_backend import AspNetCoreBackend
 from tiannara.application.compiler.phoenix_backend import PhoenixBackend
 from tiannara.application.compiler.ktor_backend import KtorBackend
+from tiannara.application.compiler.react_frontend import ReactFrontend
 from tiannara.application.compiler.project_compiler import ProjectCompiler
 from tiannara.application.compiler.registry import CompilerRegistry
 from tiannara.application.compiler.selector import DEFAULT_SELECTION_POLICY, SelectionPolicy
@@ -83,6 +84,8 @@ def build_compiler_registry() -> CompilerRegistry:
     registry.register(phoenix_backend, phoenix_backend.build_profile_declaration())
     ktor_backend = KtorBackend()
     registry.register(ktor_backend, ktor_backend.build_profile_declaration())
+    react_frontend = ReactFrontend()
+    registry.register(react_frontend, react_frontend.build_profile_declaration())
     return registry
 
 

@@ -159,7 +159,7 @@ def test_compile_intent_raises_on_legacy_non_typed_isr():
         compiler.compile_intent("anything", {})
 
 
-def test_unsupported_backend_result_skips_verification_but_still_succeeds():
+def test_unknown_backend_result_blocks_certification():
     class _OpaqueBackend:
         def generate(self, system_model):
             return object()  # not a CompilationResult
@@ -179,9 +179,6 @@ def test_unsupported_backend_result_skips_verification_but_still_succeeds():
         ),
     )
     compiler = ProjectCompiler(_StubIntentCompiler(_clean_model()), reg)
-    report = compiler.compile_intent("x", {})
-    assert report.ok is True
-    outcome = report.outcomes[0]
-    assert outcome.status == "success"
-    assert outcome.verification_report is None
-    assert "CompilationResult" in outcome.verification_reason
+    with pytest.raises(ProjectCompilationError) as exc:
+        compiler.compile_intent("x", {})
+    assert "UNKNOWN" in str(exc.value)

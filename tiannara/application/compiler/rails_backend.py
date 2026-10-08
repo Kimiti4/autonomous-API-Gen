@@ -28,7 +28,7 @@ class RailsBackend:
     def build_profile_declaration(self):
         return BackendCapabilityDeclaration(backend_id=self.backend_id,artifact_kinds=[ArtifactKind.BACKEND_SERVICE],
           capabilities=list(self._manifest().capabilities),quality_profile=0.80,
-          metadata={"language":"ruby","framework":"rails","style":"convention-oriented"})
+          metadata={"language":"ruby","framework":"rails","style":"convention-over-configuration"})
     def _model(self,isr):
         model=isr.system_model()
         if model is None: raise ValueError("RailsBackend requires a typed SystemModel ISR payload")

@@ -175,7 +175,7 @@ class ProjectCompiler:
         if not isinstance(result, CompilationResult):
             return (
                 None,
-                "backend result is not a CompilationResult; no verification shape",
+                "UNKNOWN: backend result is not a CompilationResult; certification blocked",
             )
         slug = result.system_name
         # Read the verification contract from the backend (Phase 19), not from
@@ -192,6 +192,16 @@ class ProjectCompiler:
                 required_files=(f"{slug}/main.py",),
                 verifier_kind="python",
             )
+        readme = result.files.get("README.md", "")
+        doc = validate_generated_documentation(
+            readme=readme,
+            system_name=result.system_name,
+            required_capabilities=[str(c.value) for c in result.capability_manifest.capabilities],
+            selected_backend=outcome.planned.backend_id,
+            generated_paths=result.file_paths(),
+        )
+        if not doc.passed:
+            return None, "documentation certification failed: " + "; ".join(doc.blockers)
         verifier = make_verifier(
             profile.language,
             package=slug,

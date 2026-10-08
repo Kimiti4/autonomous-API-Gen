@@ -109,3 +109,26 @@ ESAP reaches frontend-only and full-stack generation experiments.
 The objective is not to maximize the number of language emitters. It is to measure
 whether one semantic compiler preserves the same obligations across different
 implementation ecosystems.
+
+
+## Additional ecosystem targets
+
+### Node.js + Express
+
+Express is a high-value complementary Node.js target alongside NestJS. NestJS
+tests structured framework conventions; Express tests a deliberately lighter,
+middleware-oriented compilation model.
+
+### PHP + Laravel
+
+Laravel is a high-value web/e-commerce target and tests a PHP runtime plus a
+framework with a substantially different project and dependency model.
+
+### Ruby + Rails
+
+Rails is a useful rapid-product-development target and a strong test of whether
+the semantic compiler can lower the same ISR into a convention-heavy ecosystem.
+
+These are scheduled after the current core cross-language set rather than being
+added merely to increase the backend count. Each must satisfy the same typed
+backend, build, runtime, provenance, and semantic certification gates.

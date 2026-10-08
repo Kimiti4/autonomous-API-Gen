@@ -57,7 +57,7 @@ class LaravelBackend:
     def _models(self,model):
         lines=["<?php","namespace App\\Models;",""]
         for dm in model.data_models:
-            lines.append(f"class {pascal_case(dm.name)} extends \Illuminate\Database\Eloquent\Model {{")
+            lines.append(f"class {pascal_case(dm.name)} extends \\Illuminate\\Database\\Eloquent\\Model {{")
             lines.append("    protected $guarded = [];")
             lines.append("}")
             lines.append("")

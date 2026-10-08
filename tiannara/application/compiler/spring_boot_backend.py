@@ -33,11 +33,11 @@ class SpringBootBackend:
     def build_profile(self, system_name: str) -> BackendBuildProfile:
         return BackendBuildProfile(
             language="java",
-            required_files=("pom.xml", "src/main/java/com/generated/Application.java",
+            required_files=("pom.xml", "pom.xml", "src/main/java/com/generated/Application.java",
                             "src/main/java/com/generated/HealthController.java"),
             verifier_kind="spring_boot",
-            build_command=["./mvnw", "test"],
-            test_command=["./mvnw", "test"],
+            build_command=["mvn", "test"],
+            test_command=["mvn", "test"],
             runtime_image="eclipse-temurin:21-jre",
             requires_build_phase=True,
         )
@@ -68,6 +68,7 @@ class SpringBootBackend:
             "src/main/java/com/generated/HealthController.java": self._health(),
             "src/main/java/com/generated/domain/Models.java": self._models(model),
             "src/test/java/com/generated/ApplicationTest.java": self._test(),
+            "mvnw": self._mvnw(),
             "Dockerfile": self._dockerfile(),
             "README.md": f"# {model.system_name}\n\nGenerated from the technology-neutral ISR.\n",
         }, capability_manifest=self._manifest())
@@ -118,6 +119,9 @@ import org.springframework.web.bind.annotation.RestController;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 class ApplicationTest { @Test void generatedContractExists(){ assertTrue(true); } }'''
+
+    def _mvnw(self):
+        return "#!/bin/sh\nexec mvn \"$@\"\n"
 
     def _dockerfile(self):
         return '''FROM eclipse-temurin:21-jdk AS build

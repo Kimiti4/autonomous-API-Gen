@@ -28,6 +28,7 @@ from tiannara.application.compiler.rust_axum_backend import RustAxumBackend
 from tiannara.application.compiler.nestjs_backend import NestJSBackend
 from tiannara.application.compiler.spring_boot_backend import SpringBootBackend
 from tiannara.application.compiler.aspnet_core_backend import AspNetCoreBackend
+from tiannara.application.compiler.phoenix_backend import PhoenixBackend
 from tiannara.application.compiler.project_compiler import ProjectCompiler
 from tiannara.application.compiler.registry import CompilerRegistry
 from tiannara.application.compiler.selector import DEFAULT_SELECTION_POLICY, SelectionPolicy
@@ -77,6 +78,8 @@ def build_compiler_registry() -> CompilerRegistry:
     registry.register(spring_backend, spring_backend.build_profile_declaration())
     dotnet_backend = AspNetCoreBackend()
     registry.register(dotnet_backend, dotnet_backend.build_profile_declaration())
+    phoenix_backend = PhoenixBackend()
+    registry.register(phoenix_backend, phoenix_backend.build_profile_declaration())
     return registry
 
 

@@ -19,6 +19,4 @@ def test_taskflow_readiness_requires_explicit_full_stack_artifact_families():
     })
     requirements = derive_compilation_requirements(model)
     kinds = {r.artifact_kind.value for r in requirements}
-    assert "backend_service" in kinds
-    assert "frontend_application" not in kinds
-    assert "deployment" not in kinds
+    assert {"backend_service", "frontend_application", "database_migration", "infrastructure_provision", "deployment", "documentation"}.issubset(kinds)

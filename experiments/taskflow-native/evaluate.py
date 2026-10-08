@@ -75,10 +75,8 @@ def main() -> int:
 
     generated_isr = Path(sys.argv[1]) if len(sys.argv) > 1 else None
     if generated_isr is None:
-        print(
-            "CONTRACT_ONLY: provider execution has not supplied a generated ISR."
-        )
-        return 0
+        print("BLOCKED: provider execution has not supplied a generated ISR; blind-generation certification cannot PASS.")
+        return 2
 
     payload = json.loads(generated_isr.read_text(encoding="utf-8"))
     assert_technology_neutral(payload, str(generated_isr))

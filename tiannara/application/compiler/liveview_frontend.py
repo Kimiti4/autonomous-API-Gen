@@ -38,7 +38,7 @@ class LiveViewFrontend:
           "lib/esap_app_web.ex":'defmodule EsapAppWeb do\n  def live_view, do: quote do: use Phoenix.LiveView\nend\n',
           "lib/esap_app_web/live/page_live.ex":f'defmodule EsapAppWeb.PageLive do\n  use Phoenix.LiveView\n  def mount(_params, _session, socket), do: {{:ok, assign(socket, :title, "{model.system_name}")}}\n  def render(assigns), do: ~H"""<main><h1>{{@title}}</h1><p>Generated application</p></main>"""\nend\n',
           "test/page_live_test.exs":'defmodule EsapAppWeb.PageLiveTest do\n  use ExUnit.Case\n  test "generated LiveView module exists", do: assert Code.ensure_loaded?(EsapAppWeb.PageLive)\nend\n',
-          "README.md":f"# {model.system_name}\n\nGenerated from the technology-neutral ISR.\n'
+          "README.md":f"# {model.system_name}\n\nGenerated from the technology-neutral ISR.\n"
         },capability_manifest=self._manifest())
     def _manifest(self):
         return CapabilityManifest(backend_id=self.backend_id,capabilities=[BundleCapability.BUILD,BundleCapability.LINT,BundleCapability.STATIC_ANALYSIS,BundleCapability.TEST,BundleCapability.SECURITY_SCAN,BundleCapability.DOCUMENTATION,BundleCapability.RELEASE],metadata={"language":"elixir","framework":"phoenix_live_view","runtime_model":"server_reactive"})

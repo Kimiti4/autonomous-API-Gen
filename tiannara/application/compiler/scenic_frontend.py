@@ -23,7 +23,7 @@ class ScenicFrontend:
     def build_profile(self,system_name):
         return BackendBuildProfile(language="elixir",required_files=("mix.exs","lib/esap_app/scene.ex"),verifier_kind="scenic",build_command=["mix","compile"],test_command=["mix","test"],runtime_image="elixir:1.18",requires_build_phase=True)
     def build_profile_declaration(self):
-        return BackendCapabilityDeclaration(backend_id=self.backend_id,artifact_kinds=[ArtifactKind.FRONTEND_APP],capabilities=list(self._manifest().capabilities),quality_profile=0.80,metadata={"language":"elixir","framework":"scenic","runtime_model":"native_gui"})
+        return BackendCapabilityDeclaration(backend_id=self.backend_id,artifact_kinds=[ArtifactKind.FRONTEND_APPLICATION],capabilities=list(self._manifest().capabilities),quality_profile=0.80,metadata={"language":"elixir","framework":"scenic","runtime_model":"native_gui"})
     def _model(self,isr):
         model=isr.system_model()
         if model is None: raise ValueError("ScenicFrontend requires a typed SystemModel ISR payload")

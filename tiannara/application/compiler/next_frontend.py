@@ -20,7 +20,7 @@ class NextFrontend:
         return BackendBuildProfile(language="typescript",required_files=("package.json","tsconfig.json","app/page.tsx"),
           verifier_kind="next",build_command=["npm","run","build"],test_command=["npm","test","--","--runInBand"],runtime_image="node:22-alpine",requires_build_phase=True)
     def build_profile_declaration(self):
-        return BackendCapabilityDeclaration(backend_id=self.backend_id,artifact_kinds=[ArtifactKind.FRONTEND_APP],capabilities=list(self._manifest().capabilities),quality_profile=0.80,metadata={"language":"typescript","framework":"next"})
+        return BackendCapabilityDeclaration(backend_id=self.backend_id,artifact_kinds=[ArtifactKind.FRONTEND_APPLICATION],capabilities=list(self._manifest().capabilities),quality_profile=0.80,metadata={"language":"typescript","framework":"next"})
     def _model(self,isr):
         model=isr.system_model()
         if model is None: raise ValueError("NextFrontend requires a typed SystemModel ISR payload")

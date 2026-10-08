@@ -36,7 +36,7 @@ class HologramFrontend:
           "mix.exs":'defmodule EsapApp.MixProject do\n  use Mix.Project\n  def project, do: [app: :esap_app, version: "0.1.0", elixir: "~> 1.18"]\n  def application, do: [extra_applications: [:logger]]\nend\n',
           "lib/esap_app/page.ex":f'defmodule EsapApp.Page do\n  # Hologram target: client/server Elixir boundary.\n  def title, do: "{model.system_name}"\nend\n',
           "test/page_test.exs":'defmodule EsapApp.PageTest do\n  use ExUnit.Case\n  test "page title is deterministic", do: assert EsapApp.Page.title() != ""\nend\n',
-          "README.md":f"# {model.system_name}\n\nGenerated from the technology-neutral ISR.\n'
+          "README.md":f"# {model.system_name}\n\nGenerated from the technology-neutral ISR.\n"
         },capability_manifest=self._manifest())
     def _manifest(self):
         return CapabilityManifest(backend_id=self.backend_id,capabilities=[BundleCapability.BUILD,BundleCapability.LINT,BundleCapability.STATIC_ANALYSIS,BundleCapability.TEST,BundleCapability.SECURITY_SCAN,BundleCapability.DOCUMENTATION,BundleCapability.RELEASE],metadata={"language":"elixir","framework":"hologram","runtime_model":"server_client_elixir"})

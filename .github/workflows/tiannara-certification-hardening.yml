@@ -1,0 +1,51 @@
+name: Tiannara Certification Hardening
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "tiannara/application/certification/**"
+      - "tiannara/application/hardening/**"
+      - "tiannara/application/compiler/**"
+      - "tiannara/application/pipeline/**"
+      - "tests/test_hardening_certification.py"
+      - "tests/test_production_readiness_hardening.py"
+      - "tests/**/test_*certif*"
+      - ".github/workflows/tiannara-certification-hardening.yml"
+
+jobs:
+  certification-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pytest
+      - name: Run hardening certification tests
+        run: |
+          pytest -q \
+            tests/test_hardening_certification.py \
+            tests/test_production_readiness_hardening.py
+      - name: Verify hardening contract has no bypass semantics
+        run: |
+          python - <<'PY'
+          from tiannara.application.hardening.fullstack_gates import (
+              FULLSTACK_HARDENING_GATES, GateResult, GateStatus, certify_hardening
+          )
+          assert len(FULLSTACK_HARDENING_GATES) == 12
+          assert not certify_hardening([])
+          assert not certify_hardening([
+              GateResult(g.gate_id, GateStatus.PASS)
+              for g in FULLSTACK_HARDENING_GATES[:-1]
+          ])
+          assert certify_hardening([
+              GateResult(g.gate_id, GateStatus.PASS)
+              for g in FULLSTACK_HARDENING_GATES
+          ])
+          print("Hardening boundary: UNKNOWN/absent blocks; complete PASS certifies.")
+          PY

@@ -26,6 +26,7 @@ from tiannara.application.compiler.fastapi_hexagonal_backend import FastAPIHexag
 from tiannara.application.compiler.go_hexagonal_backend import GoHexagonalBackend
 from tiannara.application.compiler.rust_axum_backend import RustAxumBackend
 from tiannara.application.compiler.nestjs_backend import NestJSBackend
+from tiannara.application.compiler.spring_boot_backend import SpringBootBackend
 from tiannara.application.compiler.project_compiler import ProjectCompiler
 from tiannara.application.compiler.registry import CompilerRegistry
 from tiannara.application.compiler.selector import DEFAULT_SELECTION_POLICY, SelectionPolicy
@@ -71,6 +72,8 @@ def build_compiler_registry() -> CompilerRegistry:
     registry.register(rust_backend, rust_backend.build_profile_declaration())
     nest_backend = NestJSBackend()
     registry.register(nest_backend, nest_backend.build_profile_declaration())
+    spring_backend = SpringBootBackend()
+    registry.register(spring_backend, spring_backend.build_profile_declaration())
     return registry
 
 

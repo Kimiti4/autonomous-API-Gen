@@ -29,6 +29,9 @@ def derive_compilation_requirements(
 ) -> list[CompilationRequirement]:
     requirements: list[CompilationRequirement] = []
     requirements.extend(_backend_service_requirements(system_model))
+    # Full-stack certification is fail-closed: frontend, database, deployment,
+    # and documentation requirements must be derived explicitly before a
+    # generated application can claim full-stack completeness.
     # Future rules (each lands with its backend family):
     #   _frontend_requirements(system_model)
     #   _database_requirements(system_model)

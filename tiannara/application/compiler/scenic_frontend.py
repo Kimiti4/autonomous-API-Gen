@@ -36,7 +36,7 @@ class ScenicFrontend:
           "mix.exs":'defmodule EsapApp.MixProject do\n  use Mix.Project\n  def project, do: [app: :esap_app, version: "0.1.0", elixir: "~> 1.18"]\n  def application, do: [extra_applications: [:logger]]\nend\n',
           "lib/esap_app/scene.ex":f'defmodule EsapApp.Scene do\n  # Scenic target: native graphical UI boundary.\n  def title, do: "{model.system_name}"\nend\n',
           "test/scene_test.exs":'defmodule EsapApp.SceneTest do\n  use ExUnit.Case\n  test "scene title is deterministic", do: assert EsapApp.Scene.title() != ""\nend\n',
-          "README.md":f"# {model.system_name}\n\nGenerated from the technology-neutral ISR.\n'
+          "README.md":f"# {model.system_name}\n\nGenerated from the technology-neutral ISR.\n"
         },capability_manifest=self._manifest())
     def _manifest(self):
         return CapabilityManifest(backend_id=self.backend_id,capabilities=[BundleCapability.BUILD,BundleCapability.LINT,BundleCapability.STATIC_ANALYSIS,BundleCapability.TEST,BundleCapability.SECURITY_SCAN,BundleCapability.DOCUMENTATION,BundleCapability.RELEASE],metadata={"language":"elixir","framework":"scenic","runtime_model":"native_gui"})

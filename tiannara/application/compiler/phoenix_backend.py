@@ -70,13 +70,14 @@ class PhoenixBackend:
         },capability_manifest=self._manifest())
 
     def _mix(self,slug):
-        return f'''defmodule {pascal_case(slug)}.MixProject do
+        module = pascal_case(slug)
+        return """defmodule %s.MixProject do
   use Mix.Project
-  def project, do: [app: :{slug}, version: "0.1.0", elixir: "~> 1.18"]
+  def project, do: [app: :%s, version: "0.1.0", elixir: "~> 1.18"]
   def application, do: [extra_applications: [:logger]]
   defp deps, do: [{:phoenix, "~> 1.7"}, {:plug, "~> 1.16"}]
 end
-'''
+""" % (module, slug)
 
     def _web(self):
         return '''defmodule GeneratedWeb do

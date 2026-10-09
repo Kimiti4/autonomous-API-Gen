@@ -313,27 +313,59 @@ def check_pins_and_oracle_held_out(trial1: Path, trial2: Path) -> dict:
 
 
 def check_forbidden_inputs_absent(repo_root: Path, trial_dirs: list[Path]) -> dict:
+    """Check forbidden paths against each trial's *generation workspace* manifest.
+
+    The repository checkout is allowed to contain golden/oracle material for
+    the independent evaluator. Looking for forbidden paths at repo_root would
+    conflate evaluator visibility with generator visibility and can produce a
+    false PASS when the workspace was never inspected. This check therefore
+    fails closed when isolation evidence is missing.
+    """
+    del repo_root  # The checkout root is intentionally not the isolation boundary.
     reasons: list[str] = []
     checked = False
+    blocked: list[str] = []
     for trial_dir in trial_dirs:
         contract = _load_json(trial_dir / "TRIAL_CONTRACT.json")
         if contract is None:
+            blocked.append(f"{trial_dir.name}: TRIAL_CONTRACT.json missing")
+            continue
+        isolation = _load_json(_evidence_dir(trial_dir) / "isolation.json")
+        workspace = (isolation or {}).get("workspace") or {}
+        files = workspace.get("files")
+        if not isinstance(files, dict):
+            blocked.append(
+                f"{trial_dir.name}: isolation workspace file manifest missing"
+            )
             continue
         checked = True
+        normalized_files = [str(name).replace("\\\\", "/").lstrip("./") for name in files]
         for entry in contract.get("forbidden", []):
-            if (repo_root / entry).exists():
+            forbidden = str(entry).replace("\\\\", "/").lstrip("./")
+            if not forbidden:
+                blocked.append(f"{trial_dir.name}: empty forbidden path in contract")
+                continue
+            prefix = forbidden.rstrip("/")
+            matches = [
+                name for name in normalized_files
+                if name == prefix or name.startswith(prefix + "/")
+            ]
+            if matches:
                 reasons.append(
-                    f"{trial_dir.name}: forbidden input present in workspace: {entry}"
+                    f"{trial_dir.name}: forbidden input present in generation "
+                    f"workspace: {entry} (matched {matches[0]})"
                 )
     if reasons:
         return _check("forbidden-inputs-absent", "FAIL", reasons)
-    if not checked:
+    if blocked or not checked:
         return _check(
             "forbidden-inputs-absent",
             "BLOCKED",
-            ["no trial contract could be inspected"],
+            blocked or ["no trial workspace manifest could be inspected"],
         )
-    return _check("forbidden-inputs-absent", "PASS", [])
+    return _check("forbidden-inputs-absent", "PASS", [
+        "all contract-forbidden paths absent from both generation workspace manifests"
+    ])
 
 
 def evaluate_gate(trial1: Path, trial2: Path, repo_root: Path) -> tuple[str, list[dict]]:

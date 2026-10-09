@@ -335,14 +335,50 @@ def test_gate_fails_on_missing_http_execution_evidence(tmp_path):
     assert by_id["trial-execution"]["status"] == "FAIL"
 
 
-def test_gate_fails_when_forbidden_input_present(tmp_path):
-    trial1, trial2, repo_root = _pair(tmp_path)
-    forbidden = repo_root / "golden-projects" / "taskflow" / "app"
-    forbidden.mkdir(parents=True)
+def test_gate_fails_when_forbidden_input_is_in_workspace_manifest(tmp_path):
+    trial1, trial2, repo_root = _pair(
+        tmp_path,
+        manifest_files={"golden-projects/taskflow/app/main.py": "aa"},
+    )
     verdict, checks = gate.evaluate_gate(trial1, trial2, repo_root)
     by_id = {check["id"]: check for check in checks}
     assert verdict == "FAIL"
     assert by_id["forbidden-inputs-absent"]["status"] == "FAIL"
+
+
+def test_gate_passes_when_forbidden_path_exists_only_in_checkout(tmp_path):
+    trial1, trial2, repo_root = _pair(tmp_path)
+    forbidden = repo_root / "golden-projects" / "taskflow" / "app"
+    forbidden.mkdir(parents=True)
+    (forbidden / "main.py").write_text("oracle", encoding="utf-8")
+    verdict, checks = gate.evaluate_gate(trial1, trial2, repo_root)
+    by_id = {check["id"]: check for check in checks}
+    assert verdict == "PASS"
+    assert by_id["forbidden-inputs-absent"]["status"] == "PASS"
+
+
+def test_gate_normalizes_windows_forbidden_manifest_paths(tmp_path):
+    trial1, trial2, repo_root = _pair(
+        tmp_path,
+        manifest_files={r"golden-projects\\taskflow\\app\\main.py": "aa"},
+    )
+    verdict, checks = gate.evaluate_gate(trial1, trial2, repo_root)
+    by_id = {check["id"]: check for check in checks}
+    assert verdict == "FAIL"
+    assert by_id["forbidden-inputs-absent"]["status"] == "FAIL"
+
+
+def test_gate_blocks_when_workspace_manifest_is_missing(tmp_path):
+    trial1, trial2, repo_root = _pair(tmp_path)
+    _write(
+        trial2 / "out" / "evidence" / "isolation.json",
+        {"violations": [], "denied_count": 0, "spawn": {"exit_code": 0},
+         "workspace": {}},
+    )
+    verdict, checks = gate.evaluate_gate(trial1, trial2, repo_root)
+    by_id = {check["id"]: check for check in checks}
+    assert verdict == "BLOCKED"
+    assert by_id["forbidden-inputs-absent"]["status"] == "BLOCKED"
 
 
 # -- main() exit codes ---------------------------------------------------------

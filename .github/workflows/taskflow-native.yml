@@ -3,14 +3,14 @@ name: TaskFlow Native Trial
 on:
   workflow_dispatch:
   push:
-    branches: [main, bucket-4-1-complete-existing-codebase-capability]
+    branches: [main, bucket-4-1-complete-existing-codebase-capability, hardening/taskflow-generalization-integrity-gate]
     paths:
       - 'experiments/taskflow-native/**'
       - 'tiannara/**'
       - 'golden-projects/taskflow/ACCEPTANCE.json'
       - '.github/workflows/taskflow-native.yml'
   pull_request:
-    branches: [main]
+    branches: [main, bucket-4-1-complete-existing-codebase-capability]
     paths:
       - 'experiments/taskflow-native/**'
       - 'tiannara/**'
@@ -44,6 +44,9 @@ jobs:
       - name: Evaluate trial evidence (release gate)
         if: always()
         run: python experiments/taskflow-native/evaluate.py
+      - name: Evaluate generalization and blind-input integrity
+        if: always()
+        run: python experiments/taskflow-native/check_generalization_integrity.py
       - name: Archive trial evidence
         if: always()
         uses: actions/upload-artifact@v7

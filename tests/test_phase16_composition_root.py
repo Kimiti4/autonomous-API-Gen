@@ -103,7 +103,10 @@ def test_real_intent_compiler_replays_and_produces_verified_bundle(tmp_path):
     assert report.ok is True
     assert report.plan_id
     assert report.isr_hash
-    assert len(report.outcomes) == 1
+    # v2 derivation: services derive one requirement per family (no data
+    # models in this extraction -> no database requirement) -> five bundles.
+    assert len(report.outcomes) == 5
+    assert report.outcomes[0].planned.backend_id == "fastapi_hexagonal"
 
     outcome = report.outcomes[0]
     assert outcome.status == "success"

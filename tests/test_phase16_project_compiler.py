@@ -4,7 +4,6 @@ import hashlib
 
 import pytest
 
-from tiannara.application.compiler.fastapi_hexagonal_backend import FastAPIHexagonalBackend
 from tiannara.application.compiler.project_compiler import (
     ProjectCompilationError,
     ProjectCompilationReport,
@@ -73,18 +72,11 @@ class _StubIntentCompiler:
 
 
 def _registry_with_fastapi() -> CompilerRegistry:
-    reg = CompilerRegistry()
-    reg.register(
-        FastAPIHexagonalBackend(),
-        BackendCapabilityDeclaration(
-            backend_id="fastapi_hexagonal",
-            artifact_kinds=[ArtifactKind.BACKEND_SERVICE],
-            capabilities=list(BundleCapability),
-            quality_profile=0.8,
-            metadata={"language": "python", "framework": "fastapi"},
-        ),
-    )
-    return reg
+    # v2: a service-bearing ISR derives one requirement per family, so the
+    # registry must cover every family kind selection can ask for.
+    from tiannara.application.compiler.composition import build_compiler_registry
+
+    return build_compiler_registry()
 
 
 def test_compile_intent_produces_verified_report():
@@ -92,12 +84,14 @@ def test_compile_intent_produces_verified_report():
     report = compiler.compile_intent("Build an order management service", {})
     assert isinstance(report, ProjectCompilationReport)
     assert report.ok is True
-    assert len(report.outcomes) == 1
-    outcome = report.outcomes[0]
-    assert outcome.status == "success"
-    assert outcome.verification_reason == ""
-    assert outcome.verification_report is not None
-    assert outcome.verification_report.ok is True
+    # services + data models -> all six family requirements.
+    assert len(report.outcomes) == 6
+    assert report.outcomes[0].planned.backend_id == "fastapi_hexagonal"
+    for outcome in report.outcomes:
+        assert outcome.status == "success"
+        assert outcome.verification_reason == ""
+        assert outcome.verification_report is not None
+        assert outcome.verification_report.ok is True
     assert report.plan_id
     assert report.isr_hash
 
@@ -130,12 +124,8 @@ def test_compile_intent_raises_when_backend_execution_fails():
         _FailingBackend(),
         BackendCapabilityDeclaration(
             backend_id="broken",
-            artifact_kinds=[ArtifactKind.BACKEND_SERVICE],
-            capabilities=[
-                BundleCapability.TEST,
-                BundleCapability.HEALTH_CHECK,
-                BundleCapability.CONTAINERIZE,
-            ],
+            artifact_kinds=list(ArtifactKind),
+            capabilities=list(BundleCapability),
             quality_profile=0.9,
         ),
     )
@@ -159,7 +149,7 @@ def test_compile_intent_raises_on_legacy_non_typed_isr():
         compiler.compile_intent("anything", {})
 
 
-def test_unsupported_backend_result_skips_verification_but_still_succeeds():
+def test_unsupported_backend_result_blocks_certification():
     class _OpaqueBackend:
         def generate(self, system_model):
             return object()  # not a CompilationResult
@@ -169,19 +159,14 @@ def test_unsupported_backend_result_skips_verification_but_still_succeeds():
         _OpaqueBackend(),
         BackendCapabilityDeclaration(
             backend_id="opaque",
-            artifact_kinds=[ArtifactKind.BACKEND_SERVICE],
-            capabilities=[
-                BundleCapability.TEST,
-                BundleCapability.HEALTH_CHECK,
-                BundleCapability.CONTAINERIZE,
-            ],
+            artifact_kinds=list(ArtifactKind),
+            capabilities=list(BundleCapability),
             quality_profile=0.9,
         ),
     )
     compiler = ProjectCompiler(_StubIntentCompiler(_clean_model()), reg)
-    report = compiler.compile_intent("x", {})
-    assert report.ok is True
-    outcome = report.outcomes[0]
-    assert outcome.status == "success"
-    assert outcome.verification_report is None
-    assert "CompilationResult" in outcome.verification_reason
+    # Fail-closed: a successful execution without the verification shape has
+    # an absent stage, and an absent stage blocks -- never a silent pass.
+    with pytest.raises(ProjectCompilationError) as exc:
+        compiler.compile_intent("x", {})
+    assert "verification absent" in str(exc.value)

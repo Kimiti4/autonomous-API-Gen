@@ -4,12 +4,14 @@ Three guarantees exercised here, against the *real* typed IntentCompiler replaye
 from a seeded transcript (same hermetic pattern as Phase 16):
 
   1. ``plan_compilation_across_backends`` yields one plan entry per matching
-     backend (FastAPI + Go) for the same requirement.
+     backend (FastAPI + Go) for the backend-service requirement, while the
+     remaining v2 family requirements each pick their single family backend.
   2. The DEFAULT planner ``plan_compilation`` is byte-for-byte unchanged: it
-     still picks the single best backend (FastAPI, quality 0.85 > Go 0.80).
+     still picks the single best backend per requirement (FastAPI, quality
+     0.85 > Go 0.80).
   3. ``compile_intent(..., plan_all=True)`` with a both-backends registry
-     produces two independently-verified outcomes from the same ISR, while
-     ``plan_all=False`` still yields one.
+     produces independently-verified outcomes from the same ISR (six with Go
+     added), while ``plan_all=False`` still never multiplies a requirement.
 """
 from __future__ import annotations
 
@@ -36,6 +38,7 @@ from tiannara.application.intent.prompts import (
 )
 from tiannara.application.intent.schemas import ElicitationOutput, ExtractionOutput
 from tiannara.domain.models.backend_declaration import (
+    ArtifactKind,
     BackendCapabilityDeclaration,
     CompilationRequirement,
 )
@@ -95,7 +98,7 @@ def _seed_transcript(tmp_path: Path) -> Path:
 
 
 def _both_registry():
-    reg = build_compiler_registry()  # FastAPI only (default)
+    reg = build_compiler_registry()  # all six standard families (default)
     go = GoHexagonalBackend()
     reg.register(go, go.build_profile_declaration())
     return reg
@@ -108,7 +111,8 @@ def _service_requirement() -> CompilationRequirement:
         services=[ServiceSpec(id="svc-1", name="order", domain_id="general")],
     )
     reqs = derive_compilation_requirements(sm)
-    assert len(reqs) == 1
+    assert len(reqs) == 5
+    assert reqs[0].artifact_kind is ArtifactKind.BACKEND_SERVICE
     return reqs[0]
 
 
@@ -141,9 +145,17 @@ def test_compile_intent_plan_all_compiles_same_isr_to_both_backends(tmp_path):
     report = compiler.compile_intent(STATEMENT, {})
 
     assert report.ok is True
-    assert len(report.outcomes) == 2
+    # backend_service x2 (FastAPI + Go) + the four single-family requirements.
+    assert len(report.outcomes) == 6
     by_id = {o.planned.backend_id: o for o in report.outcomes}
-    assert set(by_id) == {"fastapi_hexagonal", "go_hexagonal"}
+    assert set(by_id) == {
+        "fastapi_hexagonal",
+        "go_hexagonal",
+        "static_spa_frontend",
+        "container_stack",
+        "rolling_deploy",
+        "traceability_docs",
+    }
     for outcome in report.outcomes:
         assert outcome.status == "success"
         assert outcome.verification_report is not None
@@ -171,6 +183,16 @@ def test_compile_intent_default_plan_is_single_backend(tmp_path):
     )
     report = compiler.compile_intent(STATEMENT, {})
     assert report.ok is True
-    assert len(report.outcomes) == 1
+    # Single-best: one backend per requirement, never multiples a requirement
+    # (Go -- the second backend-service candidate -- is never selected).
+    assert len(report.outcomes) == 5
+    by_id = {o.planned.backend_id for o in report.outcomes}
+    assert by_id == {
+        "fastapi_hexagonal",
+        "static_spa_frontend",
+        "container_stack",
+        "rolling_deploy",
+        "traceability_docs",
+    }
     assert report.outcomes[0].planned.backend_id == "fastapi_hexagonal"
     assert isinstance(compiler, ProjectCompiler)

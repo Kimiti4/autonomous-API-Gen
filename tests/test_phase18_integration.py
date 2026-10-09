@@ -9,7 +9,8 @@ fabrication.
 
 This exercises the full Phase 18 pipeline:
     Compile (P16 real) -> Materialize (P17, InMemorySourceControl) ->
-    Static verify (BundleVerifier) -> Runtime verify (LocalExecutionEnvironment)
+    Static verify (BundleVerifier) -> Runtime verify
+    (BuildProfileExecutionEnvironment, each bundle's own profile)
     -> bounded repair loop -> FitnessVector.
 Nothing is stubbed except the LLM replay fixture.
 """
@@ -19,7 +20,10 @@ from pathlib import Path
 
 import pytest
 
-from tiannara.application.compiler.composition import build_project_compiler
+from tiannara.application.compiler.composition import (
+    build_compiler_registry,
+    build_project_compiler,
+)
 from tiannara.application.compiler.verification import (
     BundleVerificationReport,
     BundleVerifier,
@@ -50,8 +54,8 @@ from tiannara.domain.models.model_call import (
     hash_payload,
 )
 from tiannara.infrastructure.llm.transcript import ModelCallTranscript
-from tiannara.infrastructure.sandbox.local_environment import (
-    LocalExecutionEnvironment,
+from tiannara.infrastructure.sandbox.profile_environment import (
+    BuildProfileExecutionEnvironment,
 )
 from tiannara.infrastructure.source_control.in_memory import (
     InMemorySourceControlBackend,
@@ -147,7 +151,9 @@ def test_factory_end_to_end_with_real_compiler_and_materializer(tmp_path):
     factory = SoftwareFactory(
         project_compiler=compiler,
         materializer=materializer,
-        execution_environment=LocalExecutionEnvironment(),
+        execution_environment=BuildProfileExecutionEnvironment(
+            build_compiler_registry()
+        ),
         repair_provider=RematerializationRepairProvider(),
         verifier_factory=_default_verifier_factory,
         max_repair_attempts=2,
@@ -159,12 +165,19 @@ def test_factory_end_to_end_with_real_compiler_and_materializer(tmp_path):
     # -- orchestration verdict ------------------------------------------------
     assert report.ok is True
     assert report.isr_hash and report.plan_id and report.policy_name
-    assert len(report.verification_outcomes) == 1
+    # v2 derivation: services derive five family requirements for this
+    # extraction (no data models -> no database bundle).
+    assert len(report.verification_outcomes) == 5
+    for outcome in report.verification_outcomes:
+        assert outcome.repair_attempts == 0
+        assert outcome.repaired is False
+        assert outcome.static_report is not None
+        assert outcome.static_report.ok is True
+        assert outcome.test_result is not None
+        assert outcome.test_result.evaluated is True
+        assert outcome.test_result.passed is True
     outcome = report.verification_outcomes[0]
-    assert outcome.repair_attempts == 0
-    assert outcome.repaired is False
-    assert outcome.static_report is not None
-    assert outcome.static_report.ok is True
+    assert outcome.bundle_backend_id == "fastapi_hexagonal"
 
     # -- real materialization artifacts ---------------------------------------
     materialization = report.materialization
@@ -203,12 +216,19 @@ def test_factory_repair_loop_restores_missing_file(tmp_path):
 
     def verifier_factory(result):
         inner = _default_verifier_factory(result)
-        return _SabotagingVerifier(inner, rel="Dockerfile")
+        # Multi-backend fleets share one bundle root: sabotage the root
+        # Dockerfile on the FastAPI bundle (its source artifact) only, so the
+        # rematerialization repair has a real missing file to restore.
+        if getattr(result, "backend_id", None) == "fastapi_hexagonal":
+            return _SabotagingVerifier(inner, rel="Dockerfile")
+        return inner
 
     factory = SoftwareFactory(
         project_compiler=compiler,
         materializer=materializer,
-        execution_environment=LocalExecutionEnvironment(),
+        execution_environment=BuildProfileExecutionEnvironment(
+            build_compiler_registry()
+        ),
         repair_provider=RematerializationRepairProvider(),
         verifier_factory=verifier_factory,
         max_repair_attempts=2,
@@ -219,6 +239,7 @@ def test_factory_repair_loop_restores_missing_file(tmp_path):
 
     assert report.ok is True
     outcome = report.verification_outcomes[0]
+    assert outcome.bundle_backend_id == "fastapi_hexagonal"
     assert outcome.repaired is True
     assert outcome.repair_attempts == 1
     assert outcome.ok is True
@@ -232,12 +253,16 @@ def test_factory_deny_without_repair_on_missing_file(tmp_path):
 
     def verifier_factory(result):
         inner = _default_verifier_factory(result)
-        return _SabotagingVerifier(inner, rel="Dockerfile")
+        if getattr(result, "backend_id", None) == "fastapi_hexagonal":
+            return _SabotagingVerifier(inner, rel="Dockerfile")
+        return inner
 
     factory = SoftwareFactory(
         project_compiler=compiler,
         materializer=materializer,
-        execution_environment=LocalExecutionEnvironment(),
+        execution_environment=BuildProfileExecutionEnvironment(
+            build_compiler_registry()
+        ),
         repair_provider=NullRepairProvider(),
         verifier_factory=verifier_factory,
         max_repair_attempts=2,
@@ -257,9 +282,18 @@ def test_factory_deny_without_repair_on_missing_file(tmp_path):
 def test_cli_factory_subcommand_end_to_end(tmp_path, monkeypatch):
     """The ``tiannara factory`` CLI subcommand runs the real compiler loop."""
     # Force the hermetic path: no git on PATH -> in-memory-free materialize.
+    # Every other tool discovery (python/node for the profile environment)
+    # must keep working, so only the git lookup is masked.
     import shutil as _shutil
 
-    monkeypatch.setattr(_shutil, "which", lambda _name, *_a, **_k: None)
+    real_which = _shutil.which
+
+    def _which(name, *args, **kwargs):
+        if name == "git":
+            return None
+        return real_which(name, *args, **kwargs)
+
+    monkeypatch.setattr(_shutil, "which", _which)
 
     from tiannara.interfaces.cli.main import main
 

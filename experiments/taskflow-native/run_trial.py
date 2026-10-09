@@ -4,10 +4,15 @@ Executes the first genuine blind-generation trial end to end, using only the
 permitted inputs pinned by ``TRIAL_CONTRACT.json``:
 
   1. verify the contract's SHA-256 pins over PROBLEM.md / ACCEPTANCE.json;
-  2. seed the hermetic recorded transcript at runtime (never committed);
-  3. compile the problem statement once for graph evidence (ISR hash);
-  4. run the SoftwareFactory: compile -> derive -> select -> generate ->
-     static + runtime verification -> bounded repair (<= contract limit);
+  2. build a dedicated generation workspace (``out/genws``) containing only
+     a copy of the pipeline source (``tiannara/``) and the pinned statement
+     -- no version-control metadata, no golden project, no oracle;
+  3. run the generation phase (interpret -> compile -> SoftwareFactory with
+     static + runtime verification and bounded repair) inside an isolated
+     child process whose audit-hook boundary denies every file or network
+     access outside allowlisted roots and records each denial;
+  4. fail the trial if the boundary recorded any denial or the workspace
+     contains forbidden content;
   5. hash the materialized tree into a manifest;
   6. start the generated service for real and execute the acceptance flow
      over HTTP (stdlib), plus the generated frontend smoke;
@@ -21,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -37,154 +43,16 @@ TRIAL_DIR = Path(__file__).resolve().parent
 REPO_ROOT = TRIAL_DIR.parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
+if str(TRIAL_DIR) not in sys.path:
+    sys.path.insert(0, str(TRIAL_DIR))
 
-EVIDENCE_SCHEMA = "taskflow.trial.evidence.v1"
+import generationlib  # noqa: E402
 
-ELICITATION = {
-    "inferred_capabilities": [
-        "Daily task organization",
-        "Named list curation",
-    ],
-    "assumptions": [
-        {
-            "statement": "One person or a small team shares a single installation",
-            "rationale": "scope stated in the problem description",
-        }
-    ],
-    "clarifications": [],
-}
-
-EXTRACTION = {
-    "nodes": [
-        {
-            "ref": "req-task-management",
-            "kind": "functional",
-            "statement": "Create and manage tasks with a title, optional notes, "
-            "a moving status, a priority, and an optional due date",
-            "priority": "must",
-            "acceptance_criteria": [
-                "AC-01",
-                "AC-02",
-                "AC-03",
-                "AC-04",
-                "AC-05",
-                "AC-09",
-                "AC-10",
-            ],
-            "rationale": "the core tracked unit of work",
-        },
-        {
-            "ref": "req-list-organization",
-            "kind": "functional",
-            "statement": "Organize tasks into named lists and keep each task's "
-            "list membership visible when the task is fetched",
-            "priority": "must",
-            "acceptance_criteria": ["AC-08"],
-            "rationale": "grouping related work",
-        },
-        {
-            "ref": "req-secure-access",
-            "kind": "functional",
-            "statement": "Require a shared access key for task operations and "
-            "answer liveness checks openly",
-            "priority": "must",
-            "acceptance_criteria": ["AC-06", "AC-07"],
-            "rationale": "shared-secret protection for a single installation",
-        },
-        {
-            "ref": "req-structured-records",
-            "kind": "data",
-            "statement": "Tasks and lists are structured records with stable "
-            "identifiers and consistent fields",
-            "priority": "must",
-            "acceptance_criteria": [],
-            "rationale": "a stable record shape",
-        },
-    ],
-    "edges": [
-        {
-            "source_ref": "req-list-organization",
-            "target_ref": "req-task-management",
-            "kind": "depends_on",
-            "rationale": "lists contain tasks",
-        },
-        {
-            "source_ref": "req-secure-access",
-            "target_ref": "req-task-management",
-            "kind": "constrains",
-            "rationale": "guard task operations",
-        },
-    ],
-    "data_models": [
-        {
-            "ref": "req-task-management",
-            "name": "task",
-            "fields": [
-                {
-                    "name": "title",
-                    "type": "text",
-                    "required": True,
-                    "enumeration_values": [],
-                    "description": "short task title",
-                },
-                {
-                    "name": "notes",
-                    "type": "text",
-                    "required": False,
-                    "enumeration_values": [],
-                    "description": "free-form notes",
-                },
-                {
-                    "name": "status",
-                    "type": "enumeration",
-                    "required": True,
-                    "enumeration_values": ["open", "in_progress", "done"],
-                    "description": "lifecycle status",
-                },
-                {
-                    "name": "priority",
-                    "type": "enumeration",
-                    "required": True,
-                    "enumeration_values": ["low", "medium", "high"],
-                    "description": "importance of the task",
-                },
-                {
-                    "name": "due_date",
-                    "type": "timestamp",
-                    "required": False,
-                    "enumeration_values": [],
-                    "description": "optional due date",
-                },
-                {
-                    "name": "list_id",
-                    "type": "reference",
-                    "required": False,
-                    "enumeration_values": [],
-                    "description": "task list this task belongs to",
-                },
-            ],
-            "invariants": ["status is one of open, in_progress, done"],
-            "owning_service_ref": "req-task-management",
-            "requirement_refs": ["req-task-management", "req-list-organization"],
-        },
-        {
-            "ref": "req-list-organization",
-            "name": "task_list",
-            "fields": [
-                {
-                    "name": "name",
-                    "type": "text",
-                    "required": True,
-                    "enumeration_values": [],
-                    "description": "name of the list",
-                }
-            ],
-            "invariants": ["every list has a name"],
-            "owning_service_ref": "req-list-organization",
-            "requirement_refs": ["req-list-organization"],
-        },
-    ],
-}
+EVIDENCE_SCHEMA = generationlib.EVIDENCE_SCHEMA
+INTERPRETER_MODEL_ID = generationlib.INTERPRETER_MODEL_ID
+_interpreter_config = generationlib._interpreter_config
+_interpreter_provider = generationlib._interpreter_provider
+compile_for_graph_evidence = generationlib.compile_for_graph_evidence
 
 
 def sha256_file(path: Path) -> str:
@@ -233,180 +101,124 @@ def environment_blockers() -> list[str]:
     return blockers
 
 
-def _record(request, payload: dict):
-    from tiannara.domain.models.model_call import (
-        ModelCallRecord,
-        compute_call_signature,
-        hash_payload,
+WORKSPACE_IGNORE_PATTERNS = ("__pycache__", "*.pyc", "*.pyo", ".pytest_cache")
+
+
+def build_workspace(out_dir: Path, statement_bytes: bytes) -> Path:
+    workspace = out_dir / "genws"
+    if workspace.exists():
+        shutil.rmtree(workspace, ignore_errors=True)
+    workspace.mkdir(parents=True)
+    shutil.copytree(
+        REPO_ROOT / "tiannara",
+        workspace / "tiannara",
+        ignore=shutil.ignore_patterns(*WORKSPACE_IGNORE_PATTERNS),
     )
+    (workspace / "PROBLEM.md").write_bytes(statement_bytes)
+    return workspace
 
-    return ModelCallRecord(
-        signature_hash=compute_call_signature(request),
-        model_id=request.model_id,
-        task=request.task,
-        output_schema_id=request.output_schema_id,
-        output_payload=payload,
-        response_hash=hash_payload(payload),
-        decoding=request.decoding,
+
+def workspace_violations(workspace: Path) -> list[str]:
+    problems = []
+    for path in workspace.rglob("*"):
+        rel = path.relative_to(workspace).as_posix()
+        parts = rel.lower().split("/")
+        if ".git" in parts:
+            problems.append(f"version control metadata present: {rel}")
+        if "golden-projects" in parts:
+            problems.append(f"golden project content present: {rel}")
+        if parts[-1] == "acceptance.json" or parts[-1].startswith("oracle"):
+            problems.append(f"oracle or acceptance content present: {rel}")
+    return problems
+
+
+def workspace_manifest(workspace: Path) -> dict:
+    files: dict[str, str] = {}
+    for path in sorted(workspace.rglob("*")):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(workspace).as_posix()
+        if "__pycache__" in rel.split("/") or path.suffix in (".pyc", ".pyo"):
+            continue
+        files[rel] = sha256_file(path)
+    return {"root": workspace.name, "file_count": len(files), "files": files}
+
+
+def isolated_child_env(workspace: Path) -> dict[str, str]:
+    keep = (
+        "PATH",
+        "PATHEXT",
+        "SYSTEMROOT",
+        "WINDIR",
+        "COMSPEC",
+        "TEMP",
+        "TMP",
+        "USERPROFILE",
+        "USERNAME",
+        "HOMEDRIVE",
+        "HOMEPATH",
+        "APPDATA",
+        "LOCALAPPDATA",
+        "HOME",
+        "LANG",
+        "LC_ALL",
+        "LD_LIBRARY_PATH",
     )
+    env = {key: os.environ[key] for key in keep if key in os.environ}
+    env["PYTHONPATH"] = str(workspace)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    return env
 
 
-def seed_transcript(statement: str, transcript_path: Path) -> Path:
-    from tiannara.application.intent import (
-        IntentCompilerConfig,
-        build_elicitation_request,
-        build_extraction_request,
-        normalize,
-    )
-    from tiannara.application.intent.schemas import ElicitationOutput
-    from tiannara.infrastructure.llm.transcript import ModelCallTranscript
-
-    config = IntentCompilerConfig()
-    normalized = normalize(statement)
-    elicitation = ElicitationOutput(**ELICITATION)
-    transcript = ModelCallTranscript(transcript_path)
-    transcript.append(
-        _record(build_elicitation_request(normalized, config), ELICITATION)
-    )
-    transcript.append(
-        _record(
-            build_extraction_request(normalized, elicitation, config),
-            EXTRACTION,
-        )
-    )
-    return transcript_path
-
-
-def compile_for_graph_evidence(statement: str, transcript_path: Path) -> dict:
-    from tiannara.application.intent import derive_system_id
-    from tiannara.application.intent.compiler import IntentCompiler
-    from tiannara.infrastructure.llm.recorded_provider import RecordedModelProvider
-    from tiannara.infrastructure.llm.transcript import ModelCallTranscript
-
-    provider = RecordedModelProvider(ModelCallTranscript(transcript_path))
-    result = IntentCompiler(provider).compile_full(
-        statement, derive_system_id(statement)
-    )
-    model = result.isr.system_model if hasattr(result.isr, "system_model") else None
-    return {
-        "evidence_schema": EVIDENCE_SCHEMA,
-        "isr_hash": result.isr.content_hash(),
-        "system_name": getattr(result.isr, "system_name", "")
-        or getattr(model, "system_name", ""),
-        "graph_hash": result.requirement_graph.content_hash(),
-        "repair_iterations": result.repair_iterations,
-        "model_calls": len(result.call_records),
-    }
-
-
-def default_verifier_factory(compilation_result):
-    from tiannara.application.compiler.verification import BundleVerifier
-
-    package = getattr(compilation_result, "system_name", "bundle")
-    required = sorted(getattr(compilation_result, "files", {}).keys())
-    return BundleVerifier(package=package, required_files=required)
-
-
-def summarize_report(report) -> dict:
-    bundles = []
-    for outcome in getattr(report, "verification_outcomes", ()) or ():
-        test_result = getattr(outcome, "test_result", None)
-        test = None
-        if test_result is not None:
-            test = {
-                "evaluated": bool(getattr(test_result, "evaluated", True)),
-                "passed": bool(getattr(test_result, "passed", False)),
-                "exit_code": int(getattr(test_result, "exit_code", -1)),
-                "duration_seconds": float(
-                    getattr(test_result, "duration_seconds", 0.0) or 0.0
-                ),
-                "logs_path": getattr(test_result, "logs_path", None),
-            }
-        bundles.append(
-            {
-                "backend_id": getattr(outcome, "bundle_backend_id", ""),
-                "static_ok": bool(getattr(outcome, "static_ok", False)),
-                "ok": bool(getattr(outcome, "ok", False)),
-                "repair_attempts": int(getattr(outcome, "repair_attempts", 0)),
-                "test": test,
-            }
-        )
-    return {
-        "evidence_schema": EVIDENCE_SCHEMA,
-        "ok": bool(getattr(report, "ok", False)),
-        "isr_hash": getattr(report, "isr_hash", ""),
-        "statement_hash": getattr(report, "statement_hash", ""),
-        "plan_id": getattr(report, "plan_id", ""),
-        "bundles": bundles,
-        "repair_attempts_total": sum(b["repair_attempts"] for b in bundles),
-    }
-
-
-def run_factory(
-    statement: str,
-    transcript_path: Path,
-    repo_root: Path,
+def run_isolated_generation(
+    trial_dir: Path,
+    out_dir: Path,
+    workspace: Path,
     evidence_dir: Path,
+    repo_root: Path,
+    statement_path: Path,
     max_repair_attempts: int,
-) -> tuple[dict, object]:
-    from tiannara.application.compiler.composition import (
-        build_compiler_registry,
-        build_project_compiler,
+    phase: str = "generate",
+    probe_path: Path | None = None,
+) -> subprocess.CompletedProcess:
+    command = [
+        sys.executable,
+        "-u",
+        str(TRIAL_DIR / "isolated_generation.py"),
+        "--phase",
+        phase,
+        "--workspace",
+        str(workspace),
+        "--out-root",
+        str(out_dir),
+        "--evidence-dir",
+        str(evidence_dir),
+        "--repo-root",
+        str(repo_root),
+        "--statement",
+        str(statement_path),
+        "--max-repair",
+        str(max_repair_attempts),
+    ]
+    if probe_path is not None:
+        command.extend(["--probe-path", str(probe_path)])
+    return subprocess.run(
+        command,
+        cwd=str(workspace),
+        env=isolated_child_env(workspace),
+        capture_output=True,
+        text=True,
+        timeout=1800,
     )
-    from tiannara.application.factory import (
-        RematerializationRepairProvider,
-        SoftwareFactory,
-        SoftwareFactoryError,
-    )
-    from tiannara.application.factory.evidence_sink import make_factory_evidence_sink
-    from tiannara.application.materializer.materializer import RepositoryMaterializer
-    from tiannara.infrastructure.ledger.jsonl_evidence_ledger import JsonlEvidenceLedger
-    from tiannara.infrastructure.llm.recorded_provider import RecordedModelProvider
-    from tiannara.infrastructure.llm.transcript import ModelCallTranscript
-    from tiannara.infrastructure.sandbox.profile_environment import (
-        BuildProfileExecutionEnvironment,
-    )
-    from tiannara.infrastructure.source_control.local_git import LocalGitBackend
 
-    registry = build_compiler_registry()
-    provider = RecordedModelProvider(ModelCallTranscript(transcript_path))
-    compiler = build_project_compiler(provider=provider, registry=registry)
-    sc_backend = LocalGitBackend() if shutil.which("git") else None
-    materializer = RepositoryMaterializer(sc_backend)
-    ledger = JsonlEvidenceLedger(str(evidence_dir / "factory-ledger.jsonl"))
-    factory = SoftwareFactory(
-        project_compiler=compiler,
-        materializer=materializer,
-        execution_environment=BuildProfileExecutionEnvironment(registry),
-        repair_provider=RematerializationRepairProvider(),
-        verifier_factory=default_verifier_factory,
-        max_repair_attempts=max_repair_attempts,
-        evidence_sink=make_factory_evidence_sink(ledger),
-        require_static=True,
-        require_runtime=True,
-    )
+
+def _load_json_safe(path: Path) -> dict | None:
+    if not path.is_file():
+        return None
     try:
-        report = factory.run(statement, out_root=str(repo_root), force=True)
-    except SoftwareFactoryError as exc:
-        failed_report = getattr(exc, "report", None)
-        if failed_report is None:
-            return (
-                {
-                    "evidence_schema": EVIDENCE_SCHEMA,
-                    "ok": False,
-                    "isr_hash": "",
-                    "statement_hash": "",
-                    "plan_id": "",
-                    "bundles": [],
-                    "repair_attempts_total": 0,
-                    "error": repr(exc),
-                },
-                None,
-            )
-        summary = summarize_report(failed_report)
-        summary["error"] = repr(exc)
-        return summary, failed_report
-    return summarize_report(report), report
+        return json.loads(path.read_text(encoding="utf-8"))
+    except ValueError:
+        return None
 
 
 def write_manifest(repo_root: Path) -> dict:
@@ -617,14 +429,16 @@ def _bundle_slug(system_name: str) -> str:
     return slugify(system_name) if system_name else ""
 
 
-def run_node_smoke(repo_root: Path, slug: str, base: str, api_key: str) -> dict:
+def _run_node_smoke(
+    repo_root: Path,
+    slug: str,
+    base: str,
+    api_key: str,
+    resource: str,
+    payload: dict,
+    changes: dict,
+) -> dict:
     smoke_path = repo_root / slug / "frontend" / "smoke.mjs"
-    payload = {
-        "title": "Smoke task",
-        "status": "open",
-        "priority": "medium",
-        "notes": "from smoke",
-    }
     command = [
         "node",
         str(smoke_path),
@@ -633,11 +447,11 @@ def run_node_smoke(repo_root: Path, slug: str, base: str, api_key: str) -> dict:
         "--key",
         api_key,
         "--resource",
-        "tasks",
+        resource,
         "--payload",
         json.dumps(payload),
         "--changes",
-        json.dumps({"status": "done"}),
+        json.dumps(changes),
     ]
     proc = subprocess.run(
         command,
@@ -672,15 +486,72 @@ def run_node_smoke(repo_root: Path, slug: str, base: str, api_key: str) -> dict:
     }
 
 
+def run_node_smoke(repo_root: Path, slug: str, base: str, api_key: str) -> dict:
+    payload = {
+        "title": "Smoke task",
+        "status": "open",
+        "priority": "medium",
+        "notes": "from smoke",
+    }
+    return _run_node_smoke(
+        repo_root,
+        slug,
+        base,
+        api_key,
+        "tasks",
+        payload,
+        {"status": "done"},
+    )
+
+
 def _pick_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
         probe.bind(("127.0.0.1", 0))
         return int(probe.getsockname()[1])
 
 
-def run_e2e(repo_root: Path, slug: str, evidence_dir: Path) -> dict:
+def load_trial_hooks(trial_dir: Path) -> dict:
+    """Resolve the acceptance-flow and frontend-smoke hooks for a trial.
+
+    A trial directory may ship a ``trial_hooks.py`` exporting
+    ``run_acceptance_flow(base, api_key)`` and
+    ``run_node_smoke(repo_root, slug, base, api_key)``; when it does not,
+    the built-in TaskFlow hooks are used. This lets a second blind trial
+    reuse the identical runner, isolation boundary, and evidence contract
+    while exercising its own held-out acceptance flow.
+    """
+    hooks_path = trial_dir / "trial_hooks.py"
+    if not hooks_path.is_file():
+        return {
+            "run_acceptance_flow": run_acceptance_flow,
+            "run_node_smoke": run_node_smoke,
+        }
+    module_name = (
+        "_trial_hooks_"
+        + hashlib.sha256(str(hooks_path).encode("utf-8")).hexdigest()[:12]
+    )
+    spec = importlib.util.spec_from_file_location(module_name, hooks_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    flow = getattr(module, "run_acceptance_flow", None)
+    smoke = getattr(module, "run_node_smoke", None)
+    if not callable(flow) or not callable(smoke):
+        raise ValueError(
+            f"{hooks_path} must export callable run_acceptance_flow "
+            "and run_node_smoke"
+        )
+    return {"run_acceptance_flow": flow, "run_node_smoke": smoke}
+
+
+def run_e2e(
+    repo_root: Path,
+    slug: str,
+    evidence_dir: Path,
+    hooks: dict | None = None,
+) -> dict:
     import secrets
 
+    hooks = hooks or load_trial_hooks(TRIAL_DIR)
     api_key = secrets.token_hex(16)
     port = _pick_port()
     base = f"http://127.0.0.1:{port}"
@@ -717,8 +588,8 @@ def run_e2e(repo_root: Path, slug: str, evidence_dir: Path) -> dict:
                     "node_smoke": {"exit": None, "ok": False, "output_tail": ""},
                     "error": "service did not become healthy",
                 }
-            acs = run_acceptance_flow(base, api_key)
-            smoke = run_node_smoke(repo_root, slug, base, api_key)
+            acs = hooks["run_acceptance_flow"](base, api_key)
+            smoke = hooks["run_node_smoke"](repo_root, slug, base, api_key)
             return {
                 "evidence_schema": EVIDENCE_SCHEMA,
                 "reachable": True,
@@ -746,6 +617,7 @@ def write_json(path: Path, payload: dict) -> None:
 
 
 def run_trial(trial_dir: Path, keep: bool = False) -> int:
+    trial_dir = Path(trial_dir).resolve()
     contract_path = trial_dir / "TRIAL_CONTRACT.json"
     if not contract_path.is_file():
         print("BLOCKED: TRIAL_CONTRACT.json missing")
@@ -796,29 +668,118 @@ def run_trial(trial_dir: Path, keep: bool = False) -> int:
         },
     )
 
-    statement = problem_text
-    transcript_path = out_dir / "transcript.jsonl"
     out_dir.mkdir(parents=True, exist_ok=True)
-    seed_transcript(statement, transcript_path)
+    for stale in (
+        "isr_graph.json",
+        "interpretation.json",
+        "factory_summary.json",
+        "isolation_child.json",
+        "isolation-denied.jsonl",
+        "errors.json",
+    ):
+        (evidence_dir / stale).unlink(missing_ok=True)
 
     try:
-        graph_evidence = compile_for_graph_evidence(statement, transcript_path)
-    except Exception as exc:
+        workspace = build_workspace(
+            out_dir, (trial_dir / "PROBLEM.md").read_bytes()
+        )
+    except OSError as exc:
         write_json(
             evidence_dir / "errors.json",
-            {"stage": "graph_compile", "error": repr(exc)},
+            {"stage": "workspace", "error": repr(exc)},
         )
-        print(f"FAILED: graph compile raised {exc!r}")
+        print(f"FAILED: workspace preparation raised {exc!r}")
         return 1
-    write_json(evidence_dir / "isr_graph.json", graph_evidence)
 
-    factory_summary, _report = run_factory(
-        statement,
-        transcript_path,
-        repo_root,
-        evidence_dir,
-        int(contract.get("max_repair_attempts", 3)),
+    violations = workspace_violations(workspace)
+    proc = None
+    spawn_error = None
+    if not violations:
+        try:
+            proc = run_isolated_generation(
+                trial_dir=trial_dir,
+                out_dir=out_dir,
+                workspace=workspace,
+                evidence_dir=evidence_dir,
+                repo_root=repo_root,
+                statement_path=workspace / "PROBLEM.md",
+                max_repair_attempts=int(contract.get("max_repair_attempts", 3)),
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            spawn_error = repr(exc)
+    child_record = _load_json_safe(evidence_dir / "isolation_child.json")
+    if proc is not None:
+        spawn_info = {
+            "exit_code": proc.returncode,
+            "cwd": str(workspace),
+            "stdout_tail": (proc.stdout or "")[-4000:],
+            "stderr_tail": (proc.stderr or "")[-4000:],
+        }
+    elif violations:
+        spawn_info = {"skipped": "workspace violations"}
+    else:
+        spawn_info = {"error": spawn_error or "spawn failed without detail"}
+    write_json(
+        evidence_dir / "isolation.json",
+        {
+            "evidence_schema": EVIDENCE_SCHEMA,
+            "workspace": workspace_manifest(workspace),
+            "violations": violations,
+            "denied_count": (
+                child_record.get("denied_count") if child_record else None
+            ),
+            "denied": (child_record or {}).get("denied", []),
+            "child": child_record,
+            "spawn": spawn_info,
+        },
     )
+    isolation_ok = bool(
+        not violations
+        and child_record is not None
+        and child_record.get("denied_count") == 0
+        and proc is not None
+        and proc.returncode in (0, 1)
+    )
+    if not isolation_ok:
+        if not (evidence_dir / "errors.json").is_file():
+            write_json(
+                evidence_dir / "errors.json",
+                {
+                    "stage": "isolation",
+                    "violations": violations,
+                    "denied_count": (
+                        child_record.get("denied_count") if child_record else None
+                    ),
+                    "spawn": spawn_info,
+                },
+            )
+        print("FAILED: generation boundary check failed")
+        return 1
+
+    graph_evidence = _load_json_safe(evidence_dir / "isr_graph.json")
+    if graph_evidence is None:
+        if not (evidence_dir / "errors.json").is_file():
+            write_json(
+                evidence_dir / "errors.json",
+                {"stage": "graph_compile", "spawn": spawn_info},
+            )
+        print("FAILED: graph compile produced no evidence")
+        return 1
+
+    factory_summary = _load_json_safe(evidence_dir / "factory_summary.json")
+    if factory_summary is None:
+        write_json(
+            evidence_dir / "e2e_results.json",
+            {
+                "evidence_schema": EVIDENCE_SCHEMA,
+                "reachable": False,
+                "acs": {},
+                "node_smoke": {"exit": None, "ok": False, "output_tail": ""},
+                "error": "factory stage did not complete",
+            },
+        )
+        print("FAILED: factory stage produced no evidence")
+        return 1
     if graph_evidence["isr_hash"] and factory_summary.get("isr_hash"):
         factory_summary["isr_hash_matches_graph"] = (
             graph_evidence["isr_hash"] == factory_summary["isr_hash"]
@@ -845,7 +806,9 @@ def run_trial(trial_dir: Path, keep: bool = False) -> int:
 
     slug = _bundle_slug(graph_evidence.get("system_name", ""))
     if factory_summary["ok"] and slug:
-        e2e = run_e2e(repo_root, slug, evidence_dir)
+        e2e = run_e2e(
+            repo_root, slug, evidence_dir, hooks=load_trial_hooks(trial_dir)
+        )
     else:
         e2e = {
             "evidence_schema": EVIDENCE_SCHEMA,

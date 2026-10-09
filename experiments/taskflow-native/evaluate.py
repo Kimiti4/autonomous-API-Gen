@@ -31,8 +31,12 @@ TRIAL_DIR = Path(__file__).resolve().parent
 REPO_ROOT = TRIAL_DIR.parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
+if str(TRIAL_DIR) not in sys.path:
+    sys.path.insert(0, str(TRIAL_DIR))
 
 EVIDENCE_SCHEMA = "taskflow.trial.evidence.v1"
+
+import generationlib  # noqa: E402
 
 REQUIRED_ARTIFACT_SUFFIXES = (
     "/main.py",
@@ -161,10 +165,97 @@ def evaluate(trial_dir: Path) -> tuple[int, list[dict]]:
 
     run_meta = load_evidence("run_meta.json")
     isr_graph = load_evidence("isr_graph.json")
+    interpretation = load_evidence("interpretation.json")
     factory_summary = load_evidence("factory_summary.json")
     e2e_results = load_evidence("e2e_results.json")
     manifest = load_evidence("manifest.json")
+    isolation = load_evidence("isolation.json")
     run_results = load_evidence("run_results.json")
+
+    if interpretation is not None and problem_path.is_file():
+        statement_hash = None
+        try:
+            from tiannara.application.intent import normalize
+
+            statement_hash = normalize(
+                problem_path.read_text(encoding="utf-8")
+            ).source_statement_hash
+        except Exception:
+            statement_hash = None
+        interpretation_problems = []
+        if interpretation.get("provider_model") != generationlib.INTERPRETER_MODEL_ID:
+            interpretation_problems.append(
+                f"provider_model {interpretation.get('provider_model')!r}"
+            )
+        if (
+            statement_hash is None
+            or interpretation.get("statement_hash") != statement_hash
+        ):
+            interpretation_problems.append("statement_hash mismatch")
+        calls = interpretation.get("calls", [])
+        if not calls:
+            interpretation_problems.append("no recorded model calls")
+        check(
+            "interpretation-derivation",
+            not interpretation_problems,
+            "; ".join(interpretation_problems),
+        )
+
+    if isolation is not None:
+        workspace = isolation.get("workspace", {}) or {}
+        files = workspace.get("files", {}) or {}
+        child = isolation.get("child", {}) or {}
+        spawn = isolation.get("spawn", {}) or {}
+        isolation_problems = []
+        if isolation.get("violations"):
+            isolation_problems.append(
+                f"violations: {isolation.get('violations')[:3]}"
+            )
+        if isolation.get("denied_count") != 0:
+            isolation_problems.append(
+                f"denied_count: {isolation.get('denied_count')!r}"
+            )
+        if not isinstance(child, dict) or child.get("phase") != "generate":
+            isolation_problems.append("child record missing or wrong phase")
+        if spawn.get("exit_code") not in (0, 1):
+            isolation_problems.append(
+                f"spawn exit: {spawn.get('exit_code')!r}"
+            )
+        for required in ("PROBLEM.md", "tiannara/application/intent/__init__.py"):
+            if required not in files:
+                isolation_problems.append(f"workspace missing {required}")
+        for rel in files:
+            parts = rel.lower().split("/")
+            if (
+                ".git" in parts
+                or "golden-projects" in parts
+                or parts[-1] == "acceptance.json"
+                or parts[-1].startswith("oracle")
+            ):
+                isolation_problems.append(f"forbidden workspace entry: {rel}")
+        check(
+            "isolation-boundary",
+            not isolation_problems,
+            "; ".join(isolation_problems),
+        )
+
+        disk_problems = []
+        genws = out_dir / "genws"
+        for rel, recorded in files.items():
+            path = genws / rel
+            if not path.is_file():
+                disk_problems.append(f"{rel}: missing on disk")
+                continue
+            if sha256_file(path) != recorded:
+                disk_problems.append(f"{rel}: hash mismatch")
+        problem_pin = files.get("PROBLEM.md")
+        if problem_pin != contract["inputs"]["problem"]["sha256"]:
+            disk_problems.append("workspace PROBLEM.md does not match contract pin")
+        check(
+            "isolation-workspace-hashes",
+            not disk_problems and bool(files),
+            "; ".join(disk_problems[:5]),
+        )
 
     if run_meta is not None:
         hash_mismatches = [

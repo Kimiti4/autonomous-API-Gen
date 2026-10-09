@@ -10,7 +10,7 @@ the heavyweight pipeline (the CI workflow runs ``run_trial.py`` for real):
     evidence set, FAILED on tampered/simulated/unevaluated evidence,
     BLOCKED when the trial never produced an output directory;
   * ``run_trial`` preconditions (missing contract, pin mismatch, token hit)
-    and the seed-transcript -> ISR -> six-family derivation mapping;
+    and the interpreter -> ISR -> six-family derivation mapping;
   * the BuildProfileExecutionEnvironment fail-closed honesty contract.
 """
 from __future__ import annotations
@@ -93,6 +93,8 @@ def _structural_files() -> dict[str, str]:
 
 def _write_full_pass_evidence(trial: Path) -> dict:
     """Fabricate a complete, self-consistent evidence set (synthetic fixture)."""
+    from tiannara.application.intent import normalize
+
     contract = _contract()
     evidence_dir = trial / "out" / "evidence"
     repo = trial / "out" / "repo"
@@ -180,6 +182,51 @@ def _write_full_pass_evidence(trial: Path) -> dict:
         {"root": "repo", "file_count": len(manifest_files), "files": manifest_files},
     )
     write("run_results.json", {"completed": True, "system_name": "svc"})
+
+    genws = trial / "out" / "genws"
+    (genws / "tiannara" / "application" / "intent").mkdir(parents=True)
+    shutil.copy(trial / "PROBLEM.md", genws / "PROBLEM.md")
+    intent_init = genws / "tiannara" / "application" / "intent" / "__init__.py"
+    intent_init.write_text("", encoding="utf-8")
+    write(
+        "interpretation.json",
+        {
+            "provider_model": run_trial.INTERPRETER_MODEL_ID,
+            "statement_hash": normalize(
+                (trial / "PROBLEM.md").read_text(encoding="utf-8")
+            ).source_statement_hash,
+            "repair_iterations": 0,
+            "calls": [
+                {
+                    "task": "intent.elicitation",
+                    "model_id": run_trial.INTERPRETER_MODEL_ID,
+                    "output_schema_id": "intent.elicitation.output.v1",
+                    "signature_hash": "s" * 64,
+                    "prompt_hash": "p" * 64,
+                    "response_hash": "r" * 64,
+                    "output": {"nodes": []},
+                }
+            ],
+        },
+    )
+    write(
+        "isolation.json",
+        {
+            "workspace": {
+                "root": "genws",
+                "file_count": 2,
+                "files": {
+                    "PROBLEM.md": _sha256(genws / "PROBLEM.md"),
+                    "tiannara/application/intent/__init__.py": _sha256(intent_init),
+                },
+            },
+            "violations": [],
+            "denied_count": 0,
+            "denied": [],
+            "child": {"phase": "generate", "exit_code": 0, "denied_count": 0},
+            "spawn": {"exit_code": 0},
+        },
+    )
     return {"evidence_dir": evidence_dir, "repo": repo, "ac_ids": ac_ids}
 
 
@@ -262,7 +309,12 @@ def test_problem_statement_is_technology_free():
 
 
 def test_trial_scripts_never_reference_forbidden_inputs():
-    for script in ("run_trial.py", "evaluate.py"):
+    for script in (
+        "run_trial.py",
+        "evaluate.py",
+        "generationlib.py",
+        "isolated_generation.py",
+    ):
         source = (TRIAL_DIR / script).read_text(encoding="utf-8")
         assert "ARCHITECTURE" not in source
         assert "taskflow/app" not in source
@@ -302,26 +354,23 @@ def test_bundle_slug_maps_isr_name_to_package_name():
     assert run_trial._bundle_slug("") == ""
 
 
-# -- seed -> ISR -> six families ---------------------------------------------
+# -- interpreter -> ISR -> six families ----------------------------------------
 
 
-def _compiled_isr_model(tmp_path: Path):
+def _compiled_isr_model():
     statement = PROBLEM_PATH.read_text(encoding="utf-8")
-    transcript = run_trial.seed_transcript(statement, tmp_path / "transcript.jsonl")
 
     from tiannara.application.intent import derive_system_id
     from tiannara.application.intent.compiler import IntentCompiler
-    from tiannara.infrastructure.llm.recorded_provider import RecordedModelProvider
-    from tiannara.infrastructure.llm.transcript import ModelCallTranscript
 
-    provider = RecordedModelProvider(ModelCallTranscript(transcript))
-    return IntentCompiler(provider).compile_full(
+    provider = run_trial._interpreter_provider()
+    return IntentCompiler(provider, config=run_trial._interpreter_config()).compile_full(
         statement, derive_system_id(statement)
     )
 
 
-def test_seed_transcript_maps_to_isr_models(tmp_path):
-    result = _compiled_isr_model(tmp_path)
+def test_interpretation_maps_to_isr_models():
+    result = _compiled_isr_model()
     model = result.isr.system_model()
     assert model is not None
 
@@ -334,23 +383,23 @@ def test_seed_transcript_maps_to_isr_models(tmp_path):
     assert len(model.services) >= 3
     assert model.capabilities
 
-    seed_path = tmp_path / "transcript.jsonl"
-    records = [
-        json.loads(line)
-        for line in seed_path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
+    assert result.repair_iterations == 0
+    assert [record.model_id for record in result.call_records] == [
+        run_trial.INTERPRETER_MODEL_ID,
+        run_trial.INTERPRETER_MODEL_ID,
     ]
-    assert len(records) == 2
+    for node in result.requirement_graph.nodes:
+        assert node.acceptance_criteria == []
 
 
-def test_seed_drives_all_six_required_families(tmp_path):
+def test_interpretation_drives_all_six_required_families():
     from tiannara.application.compiler.composition import build_compiler_registry
     from tiannara.application.compiler.derivation import (
         derive_compilation_requirements,
     )
     from tiannara.application.compiler.selector import plan_compilation
 
-    model = _compiled_isr_model(tmp_path).isr.system_model()
+    model = _compiled_isr_model().isr.system_model()
     requirements = derive_compilation_requirements(model)
     assert len(requirements) == 6
 
@@ -422,6 +471,33 @@ def test_evaluator_fails_missing_evidence_file(tmp_path):
     assert verdict == 1
     failed = {c["name"] for c in checks if not c["ok"]}
     assert "evidence:factory_summary.json" in failed
+
+
+def test_evaluator_fails_on_generation_boundary_denial(tmp_path):
+    trial = _make_trial(tmp_path)
+    fixture = _write_full_pass_evidence(trial)
+
+    def deny(payload):
+        payload["denied_count"] = 1
+        payload["denied"] = [
+            {"event": "open", "path": "c:/x/golden.json", "attempted": "open"}
+        ]
+
+    _edit_evidence(fixture["evidence_dir"], "isolation.json", deny)
+    verdict, checks = evaluate_mod.evaluate(trial)
+    assert verdict == 1
+    failed = {c["name"] for c in checks if not c["ok"]}
+    assert "isolation-boundary" in failed
+
+
+def test_evaluator_fails_on_missing_isolation_evidence(tmp_path):
+    trial = _make_trial(tmp_path)
+    fixture = _write_full_pass_evidence(trial)
+    (fixture["evidence_dir"] / "isolation.json").unlink()
+    verdict, checks = evaluate_mod.evaluate(trial)
+    assert verdict == 1
+    failed = {c["name"] for c in checks if not c["ok"]}
+    assert "evidence:isolation.json" in failed
 
 
 def test_evaluator_fails_isr_hash_mismatch_between_graph_and_factory(tmp_path):

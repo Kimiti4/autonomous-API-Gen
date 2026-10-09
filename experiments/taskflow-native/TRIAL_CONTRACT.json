@@ -1,0 +1,33 @@
+{
+  "schema_id": "tiannara.trial.contract",
+  "version": "1.0.0",
+  "task_id": "TASKFLOW-ESAP-NATIVE-001",
+  "mode": "blind-generation",
+  "inputs": {
+    "problem": {
+      "path": "PROBLEM.md",
+      "sha256": "a9fdc5d842645814e308c176cbb80996fa296dd74676c4095fc912a2f56b7f66"
+    },
+    "acceptance": {
+      "path": "../../golden-projects/taskflow/ACCEPTANCE.json",
+      "sha256": "16bcf18a03d81a5437886539fe5273da5df258be6e7dcd9ff7d583dcdec328a7"
+    }
+  },
+  "forbidden": [
+    "golden-projects/taskflow/app/",
+    "golden-projects/taskflow/ARCHITECTURE.md"
+  ],
+  "output_dir": "out",
+  "evidence_dir": "out/evidence",
+  "evidence_schema": "taskflow.trial.evidence.v1",
+  "max_repair_attempts": 3,
+  "required_backends": [
+    "fastapi_hexagonal",
+    "static_spa_frontend",
+    "sql_migrations",
+    "container_stack",
+    "rolling_deploy",
+    "traceability_docs"
+  ],
+  "exit_codes": {"PASS": 0, "FAILED": 1, "BLOCKED": 2}
+}

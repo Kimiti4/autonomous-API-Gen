@@ -1,0 +1,60 @@
+{
+  "schema_id": "taskflow.acceptance.v1",
+  "system": "TaskFlow",
+  "resource": "task",
+  "secondary_resource": "task_list",
+  "statuses": ["open", "in_progress", "done"],
+  "priorities": ["low", "medium", "high"],
+  "acceptance_criteria": [
+    {
+      "id": "AC-01",
+      "statement": "A task with title, notes, priority, due date, and status open can be created with POST /tasks and answers 201 with its identifier and echoed fields",
+      "evidence_key": "AC-01"
+    },
+    {
+      "id": "AC-02",
+      "statement": "GET /tasks answers 200 and includes every created task",
+      "evidence_key": "AC-02"
+    },
+    {
+      "id": "AC-03",
+      "statement": "GET /tasks/{task_id} answers 200 with the exact stored task",
+      "evidence_key": "AC-03"
+    },
+    {
+      "id": "AC-04",
+      "statement": "PUT /tasks/{task_id} marks a task done and later reopens it, changing only the status",
+      "evidence_key": "AC-04"
+    },
+    {
+      "id": "AC-05",
+      "statement": "DELETE /tasks/{task_id} answers 204 and a later fetch of the same task answers 404",
+      "evidence_key": "AC-05"
+    },
+    {
+      "id": "AC-06",
+      "statement": "With an access key configured, a request without the key answers 401",
+      "evidence_key": "AC-06"
+    },
+    {
+      "id": "AC-07",
+      "statement": "GET /health answers 200 with status ok",
+      "evidence_key": "AC-07"
+    },
+    {
+      "id": "AC-08",
+      "statement": "A task placed in a named task list shows that list when fetched, and the list is present in GET /task_lists",
+      "evidence_key": "AC-08"
+    },
+    {
+      "id": "AC-09",
+      "statement": "Priority and due date set at creation are still present after every status update",
+      "evidence_key": "AC-09"
+    },
+    {
+      "id": "AC-10",
+      "statement": "A task created without notes or due date answers 201 and stores no due date",
+      "evidence_key": "AC-10"
+    }
+  ]
+}

@@ -341,7 +341,7 @@ def check_forbidden_inputs_absent(repo_root: Path, trial_dirs: list[Path]) -> di
         checked = True
         normalized_files = [str(name).replace("\\", "/").lstrip("./") for name in files]
         for entry in contract.get("forbidden", []):
-            forbidden = str(entry).replace("\\\\", "/").lstrip("./")
+            forbidden = str(entry).replace("\\", "/").lstrip("./")
             if not forbidden:
                 blocked.append(f"{trial_dir.name}: empty forbidden path in contract")
                 continue

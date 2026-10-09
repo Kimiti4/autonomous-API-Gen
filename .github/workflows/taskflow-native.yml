@@ -1,0 +1,56 @@
+name: TaskFlow Native Trial
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, bucket-4-1-complete-existing-codebase-capability]
+    paths:
+      - 'experiments/taskflow-native/**'
+      - 'tiannara/**'
+      - 'golden-projects/taskflow/ACCEPTANCE.json'
+      - '.github/workflows/taskflow-native.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'experiments/taskflow-native/**'
+      - 'tiannara/**'
+      - 'golden-projects/taskflow/ACCEPTANCE.json'
+      - '.github/workflows/taskflow-native.yml'
+
+concurrency:
+  group: taskflow-native-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  trial:
+    name: TASKFLOW-ESAP-NATIVE-001 blind-generation trial
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install trial dependencies
+        run: python -m pip install -q fastapi "uvicorn[standard]" pytest httpx
+      - name: Run blind-generation trial
+        run: python experiments/taskflow-native/run_trial.py
+      - name: Evaluate trial evidence (release gate)
+        if: always()
+        run: python experiments/taskflow-native/evaluate.py
+      - name: Archive trial evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: taskflow-native-evidence-${{ github.sha }}
+          path: |
+            experiments/taskflow-native/out/evidence/
+            experiments/taskflow-native/out/repo/verification-*.log
+          retention-days: 90
+          if-no-files-found: warn

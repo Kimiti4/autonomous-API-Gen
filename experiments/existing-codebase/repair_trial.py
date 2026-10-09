@@ -62,7 +62,7 @@ def require_once(text: str, old: str, new: str, label: str) -> str:
 
 def repair_labels(source: str) -> tuple[str, int]:
     pattern = re.compile(
-        r"<label>([^<]+)</label>(\\s*)(<input\\b[^>]*\\bname=\"([^\"]+)\"[^>]*>)"
+        r"<label>([^<]+)</label>(\s*)(<input\b[^>]*\bname=\"([^\"]+)\"[^>]*>)"
     )
     names = {"name", "email", "location", "password", "confirmPassword"}
     seen: set[str] = set()
@@ -74,7 +74,7 @@ def repair_labels(source: str) -> tuple[str, int]:
         seen.add(field_name)
         field_id = "register-" + ("confirm-password" if field_name == "confirmPassword" else field_name)
         label = f'<label htmlFor="{field_id}">{label}</label>'
-        input_tag = re.sub(r"\\s+id=\"[^\"]*\"", "", input_tag)
+        input_tag = re.sub(r"\s+id=\"[^\"]*\"", "", input_tag)
         input_tag = input_tag.replace("<input", f'<input id="{field_id}"', 1)
         return label + whitespace + input_tag
 
@@ -159,7 +159,7 @@ def generate(workspace: Path, patch_path: Path) -> dict:
         "verification_required": ["static rescan", "npm run lint", "npm run build", "Playwright E2E"],
     }
     (patch_path.parent / "repair-trial-report.json").write_text(
-        json.dumps(report, indent=2, sort_keys=True) + "\\n", encoding="utf-8"
+        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     return report
 

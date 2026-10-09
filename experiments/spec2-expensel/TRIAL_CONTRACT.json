@@ -1,0 +1,33 @@
+{
+  "schema_id": "tiannara.trial.contract",
+  "version": "1.0.0",
+  "task_id": "ESAP-SECOND-SPEC-001",
+  "mode": "blind-generation",
+  "inputs": {
+    "problem": {
+      "path": "PROBLEM.md",
+      "sha256": "1a6edbf0d8b154e8c8ced4a29e4b53a7c1c0eeaf9a5eec96e14bf26d5ae75b5c"
+    },
+    "acceptance": {
+      "path": "ACCEPTANCE.json",
+      "sha256": "df811497bc0ccfb64f33160000452d8ea44571e63e6d13d9e4ad9251feec49c0"
+    }
+  },
+  "forbidden": [
+    "golden-projects/taskflow/app/",
+    "golden-projects/taskflow/ARCHITECTURE.md"
+  ],
+  "output_dir": "out",
+  "evidence_dir": "out/evidence",
+  "evidence_schema": "taskflow.trial.evidence.v1",
+  "max_repair_attempts": 3,
+  "required_backends": [
+    "fastapi_hexagonal",
+    "static_spa_frontend",
+    "sql_migrations",
+    "container_stack",
+    "rolling_deploy",
+    "traceability_docs"
+  ],
+  "exit_codes": {"PASS": 0, "FAILED": 1, "BLOCKED": 2}
+}

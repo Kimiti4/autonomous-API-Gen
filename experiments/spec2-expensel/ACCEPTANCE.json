@@ -1,0 +1,60 @@
+{
+  "schema_id": "expenseledger.acceptance.v1",
+  "system": "ExpenseLedger",
+  "resource": "claim",
+  "secondary_resource": "claim_vendor",
+  "statuses": ["draft", "submitted", "approved", "rejected"],
+  "categories": ["meals", "travel", "lodging", "supplies"],
+  "acceptance_criteria": [
+    {
+      "id": "AC-01",
+      "statement": "A claim with title, notes, amount, category meals, status draft, and an expense date can be created with POST /claims and answers 201 with its identifier and echoed fields",
+      "evidence_key": "AC-01"
+    },
+    {
+      "id": "AC-02",
+      "statement": "GET /claims answers 200 and includes every created claim",
+      "evidence_key": "AC-02"
+    },
+    {
+      "id": "AC-03",
+      "statement": "GET /claims/{claim_id} answers 200 with the exact stored claim",
+      "evidence_key": "AC-03"
+    },
+    {
+      "id": "AC-04",
+      "statement": "PUT /claims/{claim_id} approves a claim and later rejects it, changing only the status",
+      "evidence_key": "AC-04"
+    },
+    {
+      "id": "AC-05",
+      "statement": "DELETE /claims/{claim_id} answers 204 and a later fetch of the same claim answers 404",
+      "evidence_key": "AC-05"
+    },
+    {
+      "id": "AC-06",
+      "statement": "With an access key configured, a request without the key answers 401",
+      "evidence_key": "AC-06"
+    },
+    {
+      "id": "AC-07",
+      "statement": "GET /health answers 200 with status ok",
+      "evidence_key": "AC-07"
+    },
+    {
+      "id": "AC-08",
+      "statement": "A claim placed in a named vendor shows that vendor when fetched, and the vendor is present in GET /claim_vendors",
+      "evidence_key": "AC-08"
+    },
+    {
+      "id": "AC-09",
+      "statement": "Amount and expense date set at creation are still present after every status update",
+      "evidence_key": "AC-09"
+    },
+    {
+      "id": "AC-10",
+      "statement": "A claim created without notes or expense date answers 201 and stores no expense date",
+      "evidence_key": "AC-10"
+    }
+  ]
+}

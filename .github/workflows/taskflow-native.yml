@@ -3,14 +3,14 @@ name: TaskFlow Native Trial
 on:
   workflow_dispatch:
   push:
-    branches: [main, bucket-4-1-complete-existing-codebase-capability]
+    branches: [main, bucket-4-1-complete-existing-codebase-capability, hardening/taskflow-generalization-integrity-gate]
     paths:
       - 'experiments/taskflow-native/**'
       - 'tiannara/**'
       - 'golden-projects/taskflow/ACCEPTANCE.json'
       - '.github/workflows/taskflow-native.yml'
   pull_request:
-    branches: [main]
+    branches: [main, bucket-4-1-complete-existing-codebase-capability]
     paths:
       - 'experiments/taskflow-native/**'
       - 'tiannara/**'

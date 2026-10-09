@@ -55,7 +55,7 @@ jobs:
       - name: Test evidence scanner rules
         env:
           PYTHONPATH: autonomous-api
-        run: python -m pytest autonomous-api/tests/test_repository_code_scan.py -q
+        run: python -m pytest experiments/existing-codebase/test_scan_rules.py -q
 
       - name: Scan baseline and candidate without executing target source
         env:

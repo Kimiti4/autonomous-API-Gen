@@ -360,7 +360,7 @@ def test_gate_passes_when_forbidden_path_exists_only_in_checkout(tmp_path):
 def test_gate_normalizes_windows_forbidden_manifest_paths(tmp_path):
     trial1, trial2, repo_root = _pair(
         tmp_path,
-        manifest_files={r"golden-projects\\taskflow\\app\\main.py": "aa"},
+        manifest_files={r"golden-projects\taskflow\app\main.py": "aa"},
     )
     verdict, checks = gate.evaluate_gate(trial1, trial2, repo_root)
     by_id = {check["id"]: check for check in checks}

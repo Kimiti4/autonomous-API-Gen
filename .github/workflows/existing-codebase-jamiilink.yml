@@ -1,0 +1,109 @@
+name: Existing-codebase benchmark — JamiiLink
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - bucket-4-1-jamiilink-existing-codebase-benchmark
+    paths:
+      - "autonomous-api/app/engine/repository_code_scan.py"
+      - "autonomous-api/tests/test_repository_code_scan.py"
+      - "experiments/existing-codebase/**"
+      - ".github/workflows/existing-codebase-jamiilink.yml"
+  pull_request:
+    paths:
+      - "autonomous-api/app/engine/repository_code_scan.py"
+      - "autonomous-api/tests/test_repository_code_scan.py"
+      - "experiments/existing-codebase/**"
+      - ".github/workflows/existing-codebase-jamiilink.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  scan-and-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout ESAP
+        uses: actions/checkout@v4
+
+      - name: Checkout JamiiLink baseline (read-only benchmark)
+        uses: actions/checkout@v4
+        with:
+          repository: Kimiti4/iyf-s10-week-12-Kimiti4
+          ref: 550fe9d17a39495101a0dd371fe3367aab344708
+          path: fixtures/jamiilink-baseline
+          persist-credentials: false
+
+      - name: Checkout JamiiLink repaired candidate (read-only benchmark)
+        uses: actions/checkout@v4
+        with:
+          repository: Kimiti4/iyf-s10-week-12-Kimiti4
+          ref: e2f30012b6f7941057c55d09d322e51022a9ba9e
+          path: fixtures/jamiilink-candidate
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test runner
+        run: python -m pip install --disable-pip-version-check pytest
+
+      - name: Test evidence scanner rules
+        env:
+          PYTHONPATH: autonomous-api
+        run: python -m pytest autonomous-api/tests/test_repository_code_scan.py -q
+
+      - name: Scan baseline and candidate without executing target source
+        env:
+          PYTHONPATH: autonomous-api
+        run: |
+          python experiments/existing-codebase/jamiilink_benchmark.py \
+            --baseline fixtures/jamiilink-baseline \
+            --candidate fixtures/jamiilink-candidate \
+            --report artifacts/jamiilink-existing-codebase-report.json
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: fixtures/jamiilink-candidate/iyf-s10-week-09-Kimiti4/package-lock.json
+
+      - name: Install candidate frontend dependencies
+        working-directory: fixtures/jamiilink-candidate/iyf-s10-week-09-Kimiti4
+        run: npm ci
+
+      - name: Run candidate lint
+        working-directory: fixtures/jamiilink-candidate/iyf-s10-week-09-Kimiti4
+        run: npm run lint
+
+      - name: Build candidate frontend
+        working-directory: fixtures/jamiilink-candidate/iyf-s10-week-09-Kimiti4
+        env:
+          VITE_API_URL: /api
+        run: npm run build
+
+      - name: Install Chromium for E2E
+        working-directory: fixtures/jamiilink-candidate/iyf-s10-week-09-Kimiti4
+        run: npx playwright install --with-deps chromium
+
+      - name: Run candidate end-to-end regression suite
+        working-directory: fixtures/jamiilink-candidate/iyf-s10-week-09-Kimiti4
+        env:
+          VITE_API_URL: /api
+        run: npx playwright test e2e/ --reporter=dot
+
+      - name: Archive machine-readable scan evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jamiilink-existing-codebase-evidence
+          path: |
+            artifacts/jamiilink-existing-codebase-report.json
+            fixtures/jamiilink-candidate/iyf-s10-week-09-Kimiti4/playwright-report/
+          if-no-files-found: warn
+          retention-days: 30

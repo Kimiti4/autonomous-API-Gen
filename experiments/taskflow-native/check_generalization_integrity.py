@@ -339,7 +339,7 @@ def check_forbidden_inputs_absent(repo_root: Path, trial_dirs: list[Path]) -> di
             )
             continue
         checked = True
-        normalized_files = [str(name).replace("\\\\", "/").lstrip("./") for name in files]
+        normalized_files = [str(name).replace("\\", "/").lstrip("./") for name in files]
         for entry in contract.get("forbidden", []):
             forbidden = str(entry).replace("\\\\", "/").lstrip("./")
             if not forbidden:

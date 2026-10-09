@@ -39,6 +39,21 @@ REPAIRED_RULES = {
     },
 }
 
+MINIMAL_REPAIR_GUIDANCE = {
+    "unassociated-jsx-label": {
+        "change": "Add a stable unique id to the input and a matching htmlFor to its label.",
+        "verification": "Use Playwright getByLabel and run the accessibility suite.",
+    },
+    "conditional-e2e-interaction": {
+        "change": "Make required form filling and submission unconditional; let missing controls fail the test.",
+        "verification": "Run the registration journey and assert the registration request was sent.",
+    },
+    "permissive-registration-outcome": {
+        "change": "Assert navigation to /login and validate the captured registration payload; do not accept /register.",
+        "verification": "Assert the URL and payload fields after submission in the registration E2E journey.",
+    },
+}
+
 
 def tracked_source_files(root: Path) -> list[tuple[str, str]]:
     result = subprocess.run(
@@ -127,6 +142,22 @@ def main() -> int:
                 "observed_rules": sorted(observed),
             })
 
+    baseline_rules = {
+        finding["rule"]
+        for finding in baseline["findings"]
+        if finding["path"] in EXPECTED_BASELINE_RULES
+    }
+    repair_proposals = [
+        {
+            "rule": rule,
+            "minimal_change": MINIMAL_REPAIR_GUIDANCE[rule]["change"],
+            "verification": MINIMAL_REPAIR_GUIDANCE[rule]["verification"],
+            "patch_applied": False,
+            "human_review_required": True,
+        }
+        for rule in sorted(baseline_rules)
+        if rule in MINIMAL_REPAIR_GUIDANCE
+    ]
     report = {
         "schema": "esap.existing-codebase-benchmark.v1",
         "scope": {
@@ -140,6 +171,7 @@ def main() -> int:
         "benchmark": "jamiilink-registration-label-and-e2e-integrity",
         "baseline": baseline,
         "candidate": candidate,
+        "repair_proposals": repair_proposals,
         "checks": checks,
         "verdict": "PASS" if checks and all(c["status"] == "PASS" for c in checks) else "FAIL",
     }

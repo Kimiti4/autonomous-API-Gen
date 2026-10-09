@@ -119,6 +119,84 @@ def prevalidate(graph: RequirementGraph) -> list[str]:
     return issues
 
 
+#: The abstract field vocabulary data seeds must name (mirrors
+#: ``AbstractFieldType`` without importing it into the prompt-facing layer).
+_ABSTRACT_FIELD_TYPES = frozenset(
+    {
+        "identifier",
+        "text",
+        "integer",
+        "decimal",
+        "boolean",
+        "timestamp",
+        "enumeration",
+        "reference",
+        "binary",
+        "document",
+    }
+)
+
+
+def prevalidate_data_seeds(
+    extraction: ExtractionOutput, node_refs: set[str]
+) -> list[str]:
+    """Structural issues in the extraction's data-model seeds (repairable).
+
+    Catches duplicate entities/fields, non-abstract field types, enumerations
+    without values, and dangling service/requirement references before
+    synthesis ever sees them -- so the bounded repair loop can fix them.
+    """
+    issues: list[str] = []
+    seen_refs: set[str] = set()
+    seen_names: set[str] = set()
+    for seed in extraction.data_models:
+        if seed.ref in seen_refs:
+            issues.append(f"data model duplicate ref: {seed.ref}")
+        seen_refs.add(seed.ref)
+        if seed.ref not in node_refs:
+            issues.append(
+                f"data model ref '{seed.ref}' does not match any requirement "
+                "node (data models must stay traceable to the graph)"
+            )
+        key = seed.name.strip().lower()
+        if key in seen_names:
+            issues.append(f"data model duplicate name: {seed.name}")
+        seen_names.add(key)
+        seen_fields: set[str] = set()
+        for field in seed.fields:
+            fname = field.name.strip().lower()
+            if fname in seen_fields:
+                issues.append(
+                    f"data model '{seed.ref}' duplicate field: {field.name}"
+                )
+            seen_fields.add(fname)
+            if field.type not in _ABSTRACT_FIELD_TYPES:
+                issues.append(
+                    f"data model '{seed.ref}' field '{field.name}' has "
+                    f"non-abstract type '{field.type}'"
+                )
+            if field.type == "enumeration" and not field.enumeration_values:
+                issues.append(
+                    f"data model '{seed.ref}' enumeration field "
+                    f"'{field.name}' requires enumeration_values"
+                )
+        if (
+            seed.owning_service_ref is not None
+            and seed.owning_service_ref not in node_refs
+        ):
+            issues.append(
+                f"data model '{seed.ref}' owning_service_ref "
+                f"'{seed.owning_service_ref}' is not a requirement node"
+            )
+        for req_ref in seed.requirement_refs:
+            if req_ref not in node_refs:
+                issues.append(
+                    f"data model '{seed.ref}' requirement_refs entry "
+                    f"'{req_ref}' is not a requirement node"
+                )
+    return issues
+
+
 def attempt_graph(
     extraction: ExtractionOutput,
     assumptions: list[AssumptionSeed],
@@ -132,4 +210,8 @@ def attempt_graph(
         )
     except (RequirementGraphValidationError, ValueError) as exc:
         return None, [str(exc)]
-    return graph, prevalidate(graph)
+    issues = prevalidate(graph)
+    issues.extend(
+        prevalidate_data_seeds(extraction, {node.id for node in graph.nodes})
+    )
+    return graph, issues

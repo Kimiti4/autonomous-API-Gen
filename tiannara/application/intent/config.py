@@ -23,5 +23,8 @@ INTENT_EXTRACTION_TASK = "intent.extraction"
 INTENT_REPAIR_TASK = "intent.repair"
 
 INTENT_ELICITATION_SCHEMA = "intent.elicitation.v1"
-INTENT_EXTRACTION_SCHEMA = "intent.extraction.v1"
-INTENT_REPAIR_SCHEMA = "intent.repair.v1"
+#: v2: extraction gained the optional ``data_models`` seed section (entity
+#: designs linked into the requirement graph) -- a schema evolution, so the
+#: recorded-fixture key changes with it.
+INTENT_EXTRACTION_SCHEMA = "intent.extraction.v2"
+INTENT_REPAIR_SCHEMA = "intent.repair.v2"

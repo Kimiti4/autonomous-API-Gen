@@ -45,7 +45,13 @@ class StratifiedCalibrationHarness:
         evidence, bundle = result.evidence, result.bundle
 
         if bundle is not None and self.environment is not None:
-            evidence.test_run = await self.environment.run_verification(bundle)
+            run = await self.environment.run_verification(bundle)
+            # An unevaluated run (no test command configured) means the runtime
+            # stage did not happen: record NO test run so the exit gate reports
+            # NOT_EVALUATED instead of trusting a fabricated pass or failing a
+            # stage that was never authorized to run.
+            if getattr(run, "evaluated", True):
+                evidence.test_run = run
 
         await self.orchestrator.process(bundle=bundle, evidence=evidence, auth=auth)
 

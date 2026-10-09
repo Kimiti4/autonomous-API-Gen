@@ -21,7 +21,16 @@ class LocalExecutionEnvironment:
 
     async def run_verification(self, bundle: SystemDeploymentBundle) -> TestRunResult:
         if self._test_command is None:
-            return TestRunResult(passed=True, exit_code=0, total_tests=1, failed_tests=0)
+            # Fail-closed: no test command means the runtime stage did not run.
+            # Returning a fabricated success here would silently certify
+            # unverified bundles; report an honest, non-passing result instead.
+            return TestRunResult(
+                passed=False,
+                exit_code=-1,
+                total_tests=0,
+                failed_tests=0,
+                evaluated=False,
+            )
         import time
         start = time.time()
         if self._build_command:

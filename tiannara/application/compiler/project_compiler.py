@@ -5,10 +5,11 @@ selection/execution seams into a single ``compile_intent`` entry point. Returns
 a full-provenance report; raises ``ProjectCompilationError`` when execution or
 verification fails.
 
-Verification is best-effort and shape-driven: a backend output exposing the
+Verification is shape-driven and fail-closed: a backend output exposing the
 CompilationResult shape (system_name + files) is materialized and run through
-BundleVerifier; outputs that don't are marked absent (``verification_report=None``
-with a reason) — never a silent pass.
+BundleVerifier; a successful output that doesn't expose that shape has no
+verification stage, and an absent stage BLOCKS certification
+(``ProjectCompilationError`` with the recorded reason) -- never a silent pass.
 """
 
 from __future__ import annotations
@@ -107,22 +108,26 @@ class ProjectCompiler:
             ) from exc
         # 5. Execute (collect-all; never raises)
         execution = self._executor.execute(plan, model)
-        # 6. Verification
+        # 6. Verification (fail-closed: an absent verification stage on a
+        # successful execution blocks certification -- it is never a pass)
         outcomes: list[ProjectOutcome] = []
         verification_blocked = False
+        absent: list[ProjectOutcome] = []
         for outcome in execution.outcomes:
             report, reason = self._verify(outcome)
-            outcomes.append(
-                ProjectOutcome(
-                    planned=outcome.planned,
-                    status=outcome.status,
-                    result=outcome.result,
-                    error=outcome.error,
-                    verification_report=report,
-                    verification_reason=reason,
-                )
+            project_outcome = ProjectOutcome(
+                planned=outcome.planned,
+                status=outcome.status,
+                result=outcome.result,
+                error=outcome.error,
+                verification_report=report,
+                verification_reason=reason,
             )
-            if report is not None and not report.ok:
+            outcomes.append(project_outcome)
+            if outcome.status == "success" and report is None:
+                verification_blocked = True
+                absent.append(project_outcome)
+            elif report is not None and not report.ok:
                 verification_blocked = True
         ok = execution.ok and not verification_blocked
         # 7. Report
@@ -132,6 +137,11 @@ class ProjectCompiler:
                 raise ProjectCompilationError(
                     f"compilation failed for {len(failed)} backend(s); "
                     f"first error: {failed[0].error}"
+                )
+            if absent:
+                raise ProjectCompilationError(
+                    f"verification absent for {len(absent)} backend(s); "
+                    f"first reason: {absent[0].verification_reason}"
                 )
             raise ProjectCompilationError(
                 "one or more backends failed verification"

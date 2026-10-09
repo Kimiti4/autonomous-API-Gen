@@ -416,6 +416,12 @@ class TestRunResult(BaseModel):
     failed_tests: int = 0
     duration_seconds: float = 0.0
     logs_path: str | None = None
+    #: False when the runtime stage never actually ran (no test command
+    #: configured, toolchain absent). Fail-closed consumers must treat
+    #: ``evaluated=False`` as NOT PASSING regardless of ``passed``; it exists so
+    #: an unrun stage is *reported honestly* instead of being fabricated as a
+    #: vacuous success.
+    evaluated: bool = True
     # R2.7: normalized per-test outcomes emitted by the backend adapter.
     # Defaults to () so every existing aggregate-only consumer (R2.3-R2.6) is
     # undisturbed; the regression gate uses these when present and otherwise

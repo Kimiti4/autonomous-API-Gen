@@ -5,7 +5,10 @@ import logging
 import shutil
 
 from tiannara.application.harness.manifest import StratifiedManifest
-from tiannara.application.compiler.composition import build_project_compiler
+from tiannara.application.compiler.composition import (
+    build_compiler_registry,
+    build_project_compiler,
+)
 from tiannara.application.compiler.project_compiler import ProjectCompilationError
 from tiannara.application.compiler.verification import BundleVerifier
 from tiannara.application.factory import (
@@ -17,7 +20,9 @@ from tiannara.application.factory.evidence_sink import make_factory_evidence_sin
 from tiannara.application.materializer.materializer import RepositoryMaterializer
 from tiannara.bootstrap import build_harness
 from tiannara.infrastructure.ledger.jsonl_evidence_ledger import JsonlEvidenceLedger
-from tiannara.infrastructure.sandbox.local_environment import LocalExecutionEnvironment
+from tiannara.infrastructure.sandbox.profile_environment import (
+    BuildProfileExecutionEnvironment,
+)
 from tiannara.infrastructure.source_control.local_git import LocalGitBackend
 
 
@@ -164,7 +169,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if report.ok else 1
 
     if args.command == "factory":
-        compiler = build_project_compiler(args.provider, transcript_path=args.transcript)
+        registry = build_compiler_registry()
+        compiler = build_project_compiler(
+            args.provider, transcript_path=args.transcript, registry=registry
+        )
         sc_backend = LocalGitBackend() if shutil.which("git") else None
         if sc_backend is None:
             print("note: git not found on PATH; materializing artifact tree without VCS")
@@ -175,7 +183,7 @@ def main(argv: list[str] | None = None) -> int:
         factory = SoftwareFactory(
             project_compiler=compiler,
             materializer=materializer,
-            execution_environment=LocalExecutionEnvironment(),
+            execution_environment=BuildProfileExecutionEnvironment(registry),
             repair_provider=RematerializationRepairProvider(),
             verifier_factory=_default_verifier_factory,
             max_repair_attempts=args.max_repair_attempts,

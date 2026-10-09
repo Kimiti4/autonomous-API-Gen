@@ -21,7 +21,9 @@ from tiannara.application.compiler.build_profile import (
     BackendBuildProfile,
     make_verifier,
 )
-from tiannara.application.compiler.composition import build_compiler_registry
+from tiannara.application.compiler.composition import fastapi_declaration
+from tiannara.application.compiler.fastapi_hexagonal_backend import FastAPIHexagonalBackend
+from tiannara.application.compiler.registry import CompilerRegistry
 from tiannara.application.compiler.derivation import derive_compilation_requirements
 from tiannara.application.compiler.naming import slugify
 from tiannara.application.compiler.selector import (
@@ -50,10 +52,18 @@ GATE_SEMANTICS = (
 
 
 def build_calibration_registry():
-    """Registry containing every backend the harness should certify."""
-    reg = build_compiler_registry()  # FastAPI (default production)
+    """Registry containing every backend the harness should certify.
+
+    Built explicitly (fastapi + go) rather than delegating to
+    ``build_compiler_registry()``: the default production registry also
+    carries the five derivation-family backends (frontend/database/infra/
+    deployment/docs), which this certification matrix deliberately excludes
+    so its outcome set stays the historical fastapi/go calibration.
+    """
     from tiannara.application.compiler.go_hexagonal_backend import GoHexagonalBackend
 
+    reg = CompilerRegistry()
+    reg.register(FastAPIHexagonalBackend(), fastapi_declaration())
     go = GoHexagonalBackend()
     reg.register(go, go.build_profile_declaration())
     return reg

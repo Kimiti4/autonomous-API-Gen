@@ -48,7 +48,15 @@ class _FailedRun:
 
 
 class SoftwareFactory:
-    """Orchestrates build -> verify -> repair -> re-verify -> fitness."""
+    """Orchestrates build -> verify -> repair -> re-verify -> fitness.
+
+    Verification is fail-closed by default: a stage that did not run (no
+    verifier configured, no execution environment, no test command, an
+    unevaluated run) is NOT a pass. The ``require_static`` / ``require_runtime``
+    constructor flags are explicit authorization seams for callers that
+    deliberately omit a stage (e.g. static-only experiments); they may only
+    excuse an *absent* stage, never a stage that ran and failed.
+    """
 
     def __init__(
         self,
@@ -60,6 +68,8 @@ class SoftwareFactory:
         result_resolver=None,
         max_repair_attempts: int = 2,
         evidence_sink: Optional[callable] = None,
+        require_static: bool = True,
+        require_runtime: bool = True,
     ) -> None:
         self._project_compiler = project_compiler
         self._materializer = materializer
@@ -69,6 +79,8 @@ class SoftwareFactory:
         self._result_resolver = result_resolver
         self._max_repair_attempts = max_repair_attempts
         self._evidence_sink = evidence_sink
+        self._require_static = require_static
+        self._require_runtime = require_runtime
 
     def run(
         self,
@@ -127,16 +139,34 @@ class SoftwareFactory:
     def _resolve_result(self, bundle, compilation_report):
         if self._result_resolver is not None:
             return self._result_resolver(bundle, compilation_report)
-        results = [
-            getattr(o, "result", None)
-            for o in getattr(compilation_report, "outcomes", ()) or ()
-        ]
-        results = [r for r in results if r is not None]
-        bundle_id = getattr(bundle, "project_id", None) or getattr(bundle, "backend_name", None)
-        for result in results:
-            if getattr(result, "system_name", None) == bundle_id:
+        outcomes = list(getattr(compilation_report, "outcomes", ()) or ())
+        results = []
+        for outcome in outcomes:
+            result = getattr(outcome, "result", None)
+            if result is None:
+                continue
+            planned = getattr(outcome, "planned", None)
+            backend_id = getattr(planned, "backend_id", None)
+            results.append((result, backend_id))
+        # Multi-backend fleets namespace every bundle under the same
+        # project_id, so system_name alone is ambiguous: match the bundle's
+        # backend first, then fall back to the legacy single-backend match.
+        bundle_backend = getattr(bundle, "backend_name", None)
+        bundle_project = getattr(bundle, "project_id", None)
+        if bundle_backend is not None:
+            for result, backend_id in results:
+                if (
+                    backend_id == bundle_backend
+                    and getattr(result, "system_name", None) == bundle_project
+                ):
+                    return result
+            for result, backend_id in results:
+                if backend_id == bundle_backend:
+                    return result
+        for result, _backend_id in results:
+            if getattr(result, "system_name", None) == bundle_project:
                 return result
-        return results[0] if results else None
+        return results[0][0] if results else None
 
     def _verify_and_repair(self, bundle, compilation_result) -> VerificationOutcome:
         bundle_path = str(getattr(bundle, "path", ""))
@@ -182,9 +212,7 @@ class SoftwareFactory:
         )
         return VerificationOutcome(
             bundle_backend_id=backend_id or "",
-            static_ok=bool(getattr(static_report, "ok", True))
-            if static_report is not None
-            else True,
+            static_ok=self._static_stage_ok(static_report),
             static_report=static_report,
             test_result=test_result,
             repair_attempts=repair_attempts,
@@ -194,11 +222,8 @@ class SoftwareFactory:
 
     def _verify_once(self, bundle, bundle_path, verifier):
         static_report = verifier.verify(bundle_path) if verifier is not None else None
-        static_ok = (
-            bool(getattr(static_report, "ok", True)) if static_report is not None else True
-        )
         test_result = None
-        if static_ok and self._execution_environment is not None:
+        if self._static_stage_ok(static_report) and self._execution_environment is not None:
             try:
                 coro = self._execution_environment.run_verification(bundle)
                 if asyncio.iscoroutine(coro):
@@ -209,20 +234,24 @@ class SoftwareFactory:
                 test_result = _FailedRun(repr(exc))
         return static_report, test_result
 
-    @staticmethod
-    def _all_ok(static_report, test_result) -> bool:
-        static_ok = (
-            bool(getattr(static_report, "ok", True)) if static_report is not None else True
-        )
-        test_ok = (
-            bool(getattr(test_result, "passed", True))
-            if test_result is not None
-            else True
-        )
-        return static_ok and test_ok
+    def _static_stage_ok(self, static_report) -> bool:
+        if static_report is None:
+            return not self._require_static
+        return bool(getattr(static_report, "ok", False))
 
-    @staticmethod
-    def _classify(static_report, test_result) -> str:
+    def _runtime_stage_ok(self, test_result) -> bool:
+        if test_result is None:
+            return not self._require_runtime
+        if not getattr(test_result, "evaluated", True):
+            return not self._require_runtime
+        return bool(getattr(test_result, "passed", False))
+
+    def _all_ok(self, static_report, test_result) -> bool:
+        return self._static_stage_ok(static_report) and self._runtime_stage_ok(
+            test_result
+        )
+
+    def _classify(self, static_report, test_result) -> str:
         if static_report is not None and not getattr(static_report, "ok", True):
             if getattr(static_report, "missing_files", None):
                 return "static:missing_files"
@@ -231,6 +260,12 @@ class SoftwareFactory:
             if getattr(static_report, "dependency_violations", None):
                 return "static:dependency_violations"
             return "static:unknown"
+        if static_report is None and self._require_static:
+            return "static:absent"
+        if test_result is not None and not getattr(test_result, "evaluated", True):
+            return "runtime:not_evaluated"
         if test_result is not None and not getattr(test_result, "passed", True):
             return "runtime:test_failures"
+        if test_result is None and self._require_runtime:
+            return "runtime:absent"
         return "unknown"

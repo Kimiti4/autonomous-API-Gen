@@ -54,9 +54,42 @@ def fastapi_declaration() -> BackendCapabilityDeclaration:
 
 
 def build_compiler_registry() -> CompilerRegistry:
-    """Registry with the project's standard registered backends."""
+    """Registry with the project's standard registered backends.
+
+    Registers the FastAPI service backend together with the five
+    derivation-driven family backends (frontend, database, infrastructure,
+    deployment, documentation). Derivation is registry-blind: every family
+    requirement the ISR produces must have a selectable backend here or
+    compilation fails with ``BackendSelectionError``. The Go backend stays
+    out of the default registry (calibration-only; see
+    ``build_calibration_registry``).
+    """
+    from tiannara.application.compiler.container_stack_backend import (
+        ContainerStackBackend,
+    )
+    from tiannara.application.compiler.rolling_deploy_backend import (
+        RollingDeployBackend,
+    )
+    from tiannara.application.compiler.sql_migrations_backend import (
+        SqlMigrationsBackend,
+    )
+    from tiannara.application.compiler.static_spa_frontend_backend import (
+        StaticSpaFrontendBackend,
+    )
+    from tiannara.application.compiler.traceability_docs_backend import (
+        TraceabilityDocsBackend,
+    )
+
     registry = CompilerRegistry()
     registry.register(FastAPIHexagonalBackend(), fastapi_declaration())
+    for backend in (
+        StaticSpaFrontendBackend(),
+        SqlMigrationsBackend(),
+        ContainerStackBackend(),
+        RollingDeployBackend(),
+        TraceabilityDocsBackend(),
+    ):
+        registry.register(backend, backend.declaration())
     return registry
 
 

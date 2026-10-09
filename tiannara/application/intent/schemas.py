@@ -48,9 +48,43 @@ class EdgeSeed(BaseModel):
     rationale: str = ""
 
 
+class FieldSeed(BaseModel):
+    """Technology-neutral field design for a persisted entity.
+
+    ``type`` must name a value of the abstract field vocabulary
+    (``AbstractFieldType``: identifier, text, integer, decimal, boolean,
+    timestamp, enumeration, reference, binary, document) -- never a concrete
+    database or language type.
+    """
+
+    name: str = Field(min_length=1)
+    type: str = "text"
+    required: bool = True
+    enumeration_values: list[str] = Field(default_factory=list)
+    description: str = ""
+
+
+class DataSeed(BaseModel):
+    """A data entity designed during extraction, linked back to requirements.
+
+    ``ref`` joins the requirement graph's identifier space (typically a
+    ``data``-kind node) so data models remain traceable end to end.
+    ``owning_service_ref`` optionally names the functional node whose derived
+    service owns the entity.
+    """
+
+    ref: str = Field(min_length=1)
+    name: str = Field(min_length=1, pattern=r"^[A-Za-z][A-Za-z0-9_ -]*$")
+    fields: list[FieldSeed] = Field(default_factory=list)
+    invariants: list[str] = Field(default_factory=list)
+    owning_service_ref: str | None = None
+    requirement_refs: list[str] = Field(default_factory=list)
+
+
 class ExtractionOutput(BaseModel):
     nodes: list[NodeSeed] = Field(default_factory=list)
     edges: list[EdgeSeed] = Field(default_factory=list)
+    data_models: list[DataSeed] = Field(default_factory=list)
 
 
 class RepairOutput(ExtractionOutput):

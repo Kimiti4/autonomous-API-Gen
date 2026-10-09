@@ -3,8 +3,8 @@
 Stage flow:
   1. normalize (deterministic)
   2. elicit   (LLM) -> capabilities, explicit assumptions
-  3. extract  (LLM) -> candidate requirement graph
-  4. pre-validate (deterministic) -> issues
+  3. extract  (LLM) -> candidate requirement graph + data entity seeds
+  4. pre-validate (deterministic) -> issues (graph structure + data seeds)
   5. repair loop (bounded, LLM) -> corrected graph
   6. synthesize (deterministic) -> SystemModel, wrapped via from_system_model
 
@@ -104,7 +104,12 @@ class IntentCompiler:
             raise RepairBudgetExceeded(issues, iterations)
 
         # 6. Synthesis + boundary enforcement
-        model = synthesize_system_model(graph, elicitation_output, normalized)
+        model = synthesize_system_model(
+            graph,
+            elicitation_output,
+            normalized,
+            data_seeds=extraction.data_models,
+        )
         isr = IntermediateSoftwareRepresentation.from_system_model(
             system_id,
             model,

@@ -158,6 +158,13 @@ def main() -> int:
         for rule in sorted(baseline_rules)
         if rule in MINIMAL_REPAIR_GUIDANCE
     ]
+    proposal_rules = {proposal["rule"] for proposal in repair_proposals}
+    checks.append({
+        "id": "minimal-repair-proposals",
+        "status": "PASS" if set(MINIMAL_REPAIR_GUIDANCE).issubset(proposal_rules) else "FAIL",
+        "observed_rules": sorted(proposal_rules),
+    })
+
     report = {
         "schema": "esap.existing-codebase-benchmark.v1",
         "scope": {

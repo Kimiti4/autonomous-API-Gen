@@ -43,7 +43,7 @@ def main() -> int:
         for f in scan.findings if f.rule in EXPECTED_RULES
     ]
     present = {finding["rule"] for finding in findings}
-    missing = sorted(EXPECTED_RULES - present)
+    remaining = sorted(EXPECTED_RULES & present)
     checks = [
         {"id": f"generated-trial-clears:{rule}", "status": "PASS" if rule not in present else "FAIL"}
         for rule in sorted(EXPECTED_RULES)
@@ -61,7 +61,7 @@ def main() -> int:
         "patch_bytes": args.patch.stat().st_size,
         "target_findings_remaining": findings,
         "checks": checks,
-        "verdict": "PASS" if not missing else "FAIL",
+        "verdict": "PASS" if not remaining else "FAIL",
     }
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")

@@ -34,6 +34,7 @@ from tiannara.domain.models.backend_declaration import (
     BackendCapabilityDeclaration,
 )
 from tiannara.domain.models.capability_manifest import BundleCapability
+from tiannara.infrastructure.llm.interpreting_provider import InterpretingModelProvider
 from tiannara.infrastructure.llm.recorded_provider import RecordedModelProvider
 from tiannara.infrastructure.llm.transcript import ModelCallTranscript
 
@@ -116,7 +117,9 @@ def build_project_compiler(
     Parameters
     ----------
     provider_mode:
-        ``"recorded"`` (hermetic, default) or ``"live"`` (gated off here).
+        ``"recorded"`` (hermetic, default), ``"interpreted"`` (internal
+        deterministic interpretation of the raw statement -- no fixtures),
+        or ``"live"`` (gated off here).
     transcript_path:
         Required for ``recorded`` mode when ``provider`` is not supplied
         directly. Points at a committed JSONL transcript.
@@ -147,6 +150,8 @@ def build_project_compiler(
         intent_provider = RecordedModelProvider(
             ModelCallTranscript(Path(transcript_path))
         )
+    elif provider_mode == "interpreted":
+        intent_provider = InterpretingModelProvider()
     elif provider_mode == "live":
         raise CompositionError(
             "live LLM providers are not configured in this environment; "

@@ -73,6 +73,8 @@ def repair_labels(source: str) -> tuple[str, int]:
             raise ValueError(f"unexpected or duplicate registration field: {field_name}")
         seen.add(field_name)
         field_id = "register-" + ("confirm-password" if field_name == "confirmPassword" else field_name)
+        if field_name == "confirmPassword":
+            label = "Confirm Password 🔒"
         label = f'<label htmlFor="{field_id}">{label}</label>'
         input_tag = re.sub(r"\s+id=\"[^\"]*\"", "", input_tag)
         input_tag = input_tag.replace("<input", f'<input id="{field_id}"', 1)

@@ -44,6 +44,9 @@ jobs:
       - name: Evaluate trial evidence (release gate)
         if: always()
         run: python experiments/taskflow-native/evaluate.py
+      - name: Evaluate generalization and blind-input integrity
+        if: always()
+        run: python experiments/taskflow-native/check_generalization_integrity.py
       - name: Archive trial evidence
         if: always()
         uses: actions/upload-artifact@v7

@@ -133,9 +133,9 @@ def analyze_acceptance(
                 status=status,
                 source=source,
                 detail=(
-                    "A callable compiler handler is registered, but capability evidence is not yet verified."
-                    if status == "supported"
-                    else "No provider-free compiler handler is registered."
+                    "No provider-free compiler handler is registered."
+                    if status == "unsupported"
+                    else "A callable compiler handler is registered, but capability evidence is not yet verified."
                 ),
             )
         )

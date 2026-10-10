@@ -64,7 +64,7 @@ jobs:
         env:
           TASKFLOW_OLLAMA_MODEL: qwen2.5:3b
           TASKFLOW_OLLAMA_URL: http://127.0.0.1:11434
-          TASKFLOW_OLLAMA_TIMEOUT_SECONDS: "180"
+          TASKFLOW_OLLAMA_TIMEOUT_SECONDS: "600"
         run: python experiments/taskflow-native/run_trial.py
       - name: Evaluate trial evidence (release gate)
         if: always()

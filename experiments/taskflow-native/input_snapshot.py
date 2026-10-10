@@ -163,10 +163,9 @@ def verify_snapshot(trial_dir: Path, evidence_dir: Path) -> dict[str, Any]:
         issues.append("contract_snapshot_integrity")
     try:
         contract_rel = manifest.get("contract_path", CONTRACT_NAME)
-        source_contract, normalized_contract = _safe_relative_file(root, contract_rel)
+        source_contract, _ = _safe_relative_file(root, contract_rel)
     except (SnapshotError, OSError):
         source_contract = None
-        normalized_contract = None
         issues.append("source_contract_changed")
     if source_contract is not None and sha256_file(source_contract) != manifest["contract_sha256"]:
         issues.append("source_contract_changed")

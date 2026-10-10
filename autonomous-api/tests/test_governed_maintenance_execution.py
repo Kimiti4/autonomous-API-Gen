@@ -100,7 +100,7 @@ def test_rejects_report_with_missing_verification_evidence():
         selected_candidate_id="repair-candidate-1",
         patch_digest="sha256:patch-123",
         verification=({"passed": True},),
-        regressions=(),
+        regressions=({"detected": False, "evidence_ref": "regression:run-17"},),
         measurements=(),
         residuals=(),
         deployment_ready=False,
@@ -143,4 +143,53 @@ def test_rejects_report_for_stale_source_revision():
         record_verified_maintenance(
             observation, admission, obligation_id="ob-17",
             authorization_ref="approval:ticket-17", repair_report=stale,
+        )
+
+
+
+def test_rejects_missing_regression_evidence():
+    observation, admission, report = setup_case()
+    missing = build_repair_report(
+        report_id="repair-no-regression-evidence",
+        target="staging-1",
+        source_revision="rev-a",
+        finding_ids=("finding-1",),
+        root_causes=(),
+        candidates_considered=(),
+        selected_candidate_id="repair-candidate-1",
+        patch_digest="sha256:patch-123",
+        verification=({"passed": True, "evidence_refs": ("ci:run-17",)},),
+        regressions=(),
+        measurements=(),
+        residuals=(),
+        deployment_ready=False,
+    )
+    with pytest.raises(ValueError, match="repair-report-regression-evidence-missing"):
+        record_verified_maintenance(
+            observation, admission, obligation_id="ob-17",
+            authorization_ref="approval:ticket-17", repair_report=missing,
+        )
+
+
+def test_rejects_detected_regression_even_when_verification_passed():
+    observation, admission, report = setup_case()
+    regressed = build_repair_report(
+        report_id="repair-regressed",
+        target="staging-1",
+        source_revision="rev-a",
+        finding_ids=("finding-1",),
+        root_causes=(),
+        candidates_considered=(),
+        selected_candidate_id="repair-candidate-1",
+        patch_digest="sha256:patch-123",
+        verification=({"passed": True, "evidence_refs": ("ci:run-17",)},),
+        regressions=({"detected": True, "evidence_ref": "regression:failed"},),
+        measurements=(),
+        residuals=(),
+        deployment_ready=False,
+    )
+    with pytest.raises(ValueError, match="repair-report-regression-detected"):
+        record_verified_maintenance(
+            observation, admission, obligation_id="ob-17",
+            authorization_ref="approval:ticket-17", repair_report=regressed,
         )

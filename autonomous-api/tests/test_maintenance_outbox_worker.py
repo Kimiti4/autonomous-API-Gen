@@ -32,16 +32,24 @@ def worker_env(**overrides):
 
 
 def test_worker_delivers_only_one_bounded_batch():
-    fake = FakeOutbox("/unused")
+    created = []
+
+    def outbox_factory(path):
+        fake = FakeOutbox(path)
+        created.append(fake)
+        return fake
+
     result = run_once(
         worker_env(
             MAINTENANCE_OUTBOX_BATCH_LIMIT="7",
             MAINTENANCE_OUTBOX_HTTP_TIMEOUT_SECONDS="3.5",
         ),
-        outbox_factory=lambda path: fake,
+        outbox_factory=outbox_factory,
     )
 
     assert result[0]["status"] == "delivered"
+    assert len(created) == 1
+    fake = created[0]
     assert fake.database_path == "/persistent/maintenance-outbox.sqlite3"
     assert fake.kwargs == {
         "base_url": "https://observatory.example",

@@ -102,3 +102,24 @@ def test_delivery_rejects_success_without_observatory_acknowledgement():
             record, event, base_url="https://observatory.example", token="test-token",
             opener=lambda *_args, **_kwargs: FakeResponse(payload={"status": "accepted"}),
         )
+
+
+
+def test_delivery_rejects_event_linked_to_different_record():
+    record, event = maintenance_case()
+    mismatched = replace(event, obligation_id="ob-other")
+    with pytest.raises(ValueError, match="maintenance-event-record-linkage-mismatch"):
+        deliver_maintenance_event(
+            record, mismatched, base_url="https://observatory.example",
+            token="test-token", opener=lambda *_args, **_kwargs: pytest.fail("must not send"),
+        )
+
+
+def test_delivery_rejects_tampered_event_digest():
+    record, event = maintenance_case()
+    tampered = replace(event, digest="0" * 64)
+    with pytest.raises(ValueError, match="maintenance-event-digest-mismatch"):
+        deliver_maintenance_event(
+            record, tampered, base_url="https://observatory.example",
+            token="test-token", opener=lambda *_args, **_kwargs: pytest.fail("must not send"),
+        )

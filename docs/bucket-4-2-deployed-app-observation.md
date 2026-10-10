@@ -139,10 +139,11 @@ a dashboard or health endpoint without returning the stored evidence payload. Fa
 records intentionally retain only the exception class, not raw transport error text,
 to avoid persisting URLs or other sensitive details.
 
-The outbox is a library component and is not yet wired to a deployed scheduler or
-dashboard endpoint. It does not prove that the live Observatory honors the
-`Idempotency-Key`; delivery can be retried after an ambiguous network outcome, so the
-receiver must implement and verify deduplication for true end-to-end exactly-once
+The outbox remains a library component for delivery execution; a separate authenticated,
+read-only dashboard endpoint exposes only bounded status metadata. It is not yet wired
+to an automatically running scheduler. It does not prove that the live Observatory
+honors the `Idempotency-Key`; delivery can be retried after an ambiguous network outcome,
+so the receiver must implement and verify deduplication for true end-to-end exactly-once
 effects. No live endpoint was contacted by offline tests, and no production writes or
 deployments are performed.
 

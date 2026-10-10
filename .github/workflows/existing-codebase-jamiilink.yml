@@ -78,6 +78,7 @@ jobs:
           python experiments/existing-codebase/verify_repair_trial.py \
             --workspace fixtures/jamiilink-repair-trial \
             --patch artifacts/jamiilink-repair-trial.patch \
+            --repair-report artifacts/repair-trial-report.json \
             --report artifacts/jamiilink-repair-verification.json
 
       - name: Scan baseline and candidate without executing target source

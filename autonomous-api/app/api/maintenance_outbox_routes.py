@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 import sqlite3
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -20,7 +21,7 @@ async def require_dashboard_auth(request: Request):
     try:
         auth = get_auth()
         context = await auth.authenticate(request)
-    except Exception:
+    except UnauthenticatedError:
         context = None
     if context is None:
         context = await authenticate_operator_session(request)
@@ -50,6 +51,15 @@ async def maintenance_outbox_status(
                 "status": "unavailable",
                 "code": "MAINTENANCE_OUTBOX_NOT_CONFIGURED",
                 "message": "Maintenance outbox storage is not configured.",
+            },
+        )
+    if not Path(database_path).expanduser().is_file():
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unavailable",
+                "code": "MAINTENANCE_OUTBOX_NOT_INITIALIZED",
+                "message": "Maintenance outbox storage has not been initialized by its worker.",
             },
         )
     try:

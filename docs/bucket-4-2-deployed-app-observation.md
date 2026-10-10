@@ -117,3 +117,31 @@ idempotency can safely deduplicate retries. Acknowledgements must be JSON object
 the expected accepted status and a non-empty event ID; malformed JSON shapes fail
 closed. This remains transport-contract testing, not proof of live Observatory support
 for the idempotency header.
+
+
+## Durable Observatory delivery outbox
+
+`governed_maintenance_outbox.py` adds an explicit SQLite-backed outbox for the
+verified maintenance record/event pair. Call `MaintenanceOutbox.enqueue(record, event)`
+before attempting network delivery; enqueue is durable and idempotent for the same
+event digest and rejects a digest collision with different serialized evidence.
+The database uses WAL mode, full synchronous writes, a busy timeout, and short
+transactions. Choose a persistent local volume for the database path; an ephemeral
+container filesystem is not durable across container replacement.
+
+`deliver_pending(base_url=..., token=...)` claims due events using an expiring lease,
+delivers with the authenticated Observatory bridge, and persists acknowledgement or
+failure state. Transient failures are retried with bounded exponential backoff. After
+the configured attempt limit, an event enters `dead_letter` and remains available for
+operator review; `retry_dead_letter(event_digest)` is an explicit recovery action.
+The `get(event_digest)` and `summary()` methods expose delivery metadata/counts for
+a dashboard or health endpoint without returning the stored evidence payload. Failure
+records intentionally retain only the exception class, not raw transport error text,
+to avoid persisting URLs or other sensitive details.
+
+The outbox is a library component and is not yet wired to a deployed scheduler or
+dashboard endpoint. It does not prove that the live Observatory honors the
+`Idempotency-Key`; delivery can be retried after an ambiguous network outcome, so the
+receiver must implement and verify deduplication for true end-to-end exactly-once
+effects. No live endpoint was contacted by offline tests, and no production writes or
+deployments are performed.

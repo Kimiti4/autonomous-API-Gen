@@ -8,6 +8,7 @@ mutations.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from contextlib import closing
 import json
 import sqlite3
 from pathlib import Path
@@ -39,7 +40,8 @@ class SQLiteObservatoryOutbox:
     """
 
     def __init__(self, database_path: str | Path) -> None:
-        self.database_path = str(database_path)
+        raw_path = str(database_path)
+        self.database_path = raw_path if raw_path == ":memory:" else str(Path(raw_path).expanduser())
         if not self.database_path.strip():
             raise ValueError("outbox-database-path-required")
         if self.database_path != ":memory:":
@@ -54,7 +56,7 @@ class SQLiteObservatoryOutbox:
         return connection
 
     def _initialize(self) -> None:
-        with self._connect() as connection:
+        with closing(self._connect()) as connection, connection:
             connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS observatory_outbox (

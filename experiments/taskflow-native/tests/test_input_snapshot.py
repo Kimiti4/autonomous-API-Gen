@@ -66,6 +66,19 @@ class InputSnapshotTests(unittest.TestCase):
             with self.assertRaises(SnapshotError):
                 capture_snapshot(root, root / "out" / "evidence")
 
+    def test_manifest_snapshot_path_traversal_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.make_trial(root)
+            evidence = root / "out" / "evidence"
+            capture_snapshot(root, evidence)
+            manifest_path = evidence / "snapshot.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["inputs"][0]["snapshot_path"] = "../TRIAL_CONTRACT.json"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(SnapshotError):
+                verify_snapshot(root, evidence)
+
     def test_forbidden_input_cannot_be_declared(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -12,6 +12,8 @@ from typing import Any, Callable
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
+from .governed_maintenance_execution import record_verified_maintenance
+
 
 class ObservatoryDeliveryError(RuntimeError):
     """Raised when the Observatory does not confirm event ingestion."""
@@ -135,3 +137,38 @@ def deliver_maintenance_event(
     if acknowledgement.get("status") != "accepted" or not isinstance(event_id, str) or not event_id.strip():
         raise ObservatoryDeliveryError("observatory-acknowledgement-invalid")
     return event_id
+
+
+
+def record_and_deliver_verified_maintenance(
+    observation: Any,
+    admission: Any,
+    *,
+    obligation_id: str,
+    authorization_ref: str,
+    repair_report: Any,
+    base_url: str,
+    token: str,
+    production_write_requested: bool = False,
+    opener: Callable[..., Any] = urlopen,
+    timeout: float = 5.0,
+) -> tuple[Any, Any, str]:
+    """Validate, construct, and deliver a maintenance event as one caller flow.
+
+    The remote acknowledgement is returned only after Observatory accepts the
+    event. This function does not persist a local outbox; callers must retain
+    evidence and handle delivery failures without treating them as successful.
+    """
+    record, event = record_verified_maintenance(
+        observation,
+        admission,
+        obligation_id=obligation_id,
+        authorization_ref=authorization_ref,
+        repair_report=repair_report,
+        production_write_requested=production_write_requested,
+    )
+    event_id = deliver_maintenance_event(
+        record, event, base_url=base_url, token=token,
+        opener=opener, timeout=timeout,
+    )
+    return record, event, event_id

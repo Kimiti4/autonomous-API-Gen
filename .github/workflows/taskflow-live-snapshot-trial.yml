@@ -1,0 +1,68 @@
+name: TaskFlow Live Snapshot Trial
+
+on:
+  workflow_dispatch:
+    inputs:
+      timeout_seconds:
+        description: "Per-provider-call timeout (1-180 seconds)"
+        required: true
+        default: "90"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  live-taskflow-trial:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install repository dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+      - name: Capture canonical immutable inputs
+        run: |
+          python experiments/taskflow-native/input_snapshot.py \
+            --trial-dir "$GITHUB_WORKSPACE" \
+            --contract-name experiments/taskflow-native/TRIAL_CONTRACT.json \
+            --evidence-dir experiments/taskflow-native/out/evidence
+      - name: Verify immutable inputs
+        run: |
+          python experiments/taskflow-native/input_snapshot.py \
+            --trial-dir "$GITHUB_WORKSPACE" \
+            --evidence-dir experiments/taskflow-native/out/evidence \
+            --verify
+      - name: Run bounded live-only generation attempt
+        id: trial
+        continue-on-error: true
+        env:
+          TIANNARA_LLM_BASE_URL: ${{ secrets.TIANNARA_LLM_BASE_URL }}
+          TIANNARA_LLM_MODEL: ${{ secrets.TIANNARA_LLM_MODEL }}
+          TIANNARA_LLM_API_KEY: ${{ secrets.TIANNARA_LLM_API_KEY }}
+        run: |
+          python experiments/taskflow-native/run_snapshot_trial.py \
+            --evidence-dir experiments/taskflow-native/out/evidence \
+            --timeout-seconds "${{ inputs.timeout_seconds }}"
+      - name: Publish trial evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: taskflow-live-snapshot-trial
+          path: experiments/taskflow-native/out/evidence/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Summarize verdict
+        if: always()
+        run: |
+          if [ -f experiments/taskflow-native/out/evidence/live-attempt.json ]; then
+            cat experiments/taskflow-native/out/evidence/live-attempt.json >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No live-attempt.json was produced; inspect preceding step logs." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "A green workflow is not a certification. Only verdict PASS with every required gate verified may qualify for certification." >> "$GITHUB_STEP_SUMMARY"

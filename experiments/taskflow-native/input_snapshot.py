@@ -231,17 +231,30 @@ def verify_snapshot(trial_dir: Path, evidence_dir: Path) -> dict[str, Any]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--trial-dir", default=None)
-    parser.add_argument("--evidence-dir", default="out/evidence")
+    parser.add_argument(
+        "--trial-dir",
+        default=None,
+        help="root against which contract generator_inputs are resolved",
+    )
+    parser.add_argument(
+        "--contract-name",
+        default="experiments/taskflow-native/TRIAL_CONTRACT.json",
+        help="contract path relative to --trial-dir",
+    )
+    parser.add_argument(
+        "--evidence-dir",
+        default="experiments/taskflow-native/out/evidence",
+        help="evidence path relative to --trial-dir",
+    )
     parser.add_argument("--verify", action="store_true")
     args = parser.parse_args(argv)
-    trial_dir = Path(args.trial_dir).resolve() if args.trial_dir else Path(__file__).resolve().parent
+    trial_dir = Path(args.trial_dir).resolve() if args.trial_dir else Path(__file__).resolve().parents[2]
     evidence_dir = (trial_dir / args.evidence_dir).resolve()
     try:
         result = (
             verify_snapshot(trial_dir, evidence_dir)
             if args.verify
-            else capture_snapshot(trial_dir, evidence_dir)
+            else capture_snapshot(trial_dir, evidence_dir, contract_name=args.contract_name)
         )
     except SnapshotError as exc:
         print(f"snapshot: FAIL ({type(exc).__name__})")

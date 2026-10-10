@@ -136,7 +136,14 @@ def run(evidence_dir: Path, timeout_seconds: int) -> int:
         "contract.snapshot.json",
         "inputs/experiments/taskflow-native/PROBLEM.md",
         "inputs/golden-projects/taskflow/ACCEPTANCE.json",
+        analysis_path.name,
     ]
+    report["provider_free_analysis"] = {
+        "path": analysis_path.name,
+        "contract_sha256": analysis["contract_sha256"],
+        "requirement_count": len(analysis["requirements"]),
+        "certified": False,
+    }
     report["snapshot_input_sha256"] = {
         name: __import__("hashlib").sha256(path.read_bytes()).hexdigest()
         for name, path in inputs.items()

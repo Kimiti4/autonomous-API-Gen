@@ -139,9 +139,35 @@ a dashboard or health endpoint without returning the stored evidence payload. Fa
 records intentionally retain only the exception class, not raw transport error text,
 to avoid persisting URLs or other sensitive details.
 
-The outbox is a library component and is not yet wired to a deployed scheduler or
-dashboard endpoint. It does not prove that the live Observatory honors the
-`Idempotency-Key`; delivery can be retried after an ambiguous network outcome, so the
-receiver must implement and verify deduplication for true end-to-end exactly-once
+The outbox remains a library component for delivery execution; a separate authenticated,
+read-only dashboard endpoint exposes only bounded status metadata. It is not yet wired
+to an automatically running scheduler. It does not prove that the live Observatory
+honors the `Idempotency-Key`; delivery can be retried after an ambiguous network outcome,
+so the receiver must implement and verify deduplication for true end-to-end exactly-once
 effects. No live endpoint was contacted by offline tests, and no production writes or
 deployments are performed.
+
+
+## Dashboard visibility for maintenance delivery
+
+The authenticated read-only endpoint `GET /api/v1/observation/maintenance-outbox`
+returns aggregate queue counts and a bounded list of recent delivery metadata. It
+does not return the persisted evidence payload, authorization material, or tokens.
+The dashboard's `Governed maintenance delivery` panel reads this endpoint through
+the existing same-origin `/observation/` reverse proxy and shows pending, delivering,
+delivered, and dead-letter counts plus the recent event digest, attempt count, safe
+failure class, and acknowledgement ID.
+
+Configure `MAINTENANCE_OUTBOX_DB_PATH` to a path on persistent storage to enable
+the endpoint. If the setting is empty or the store cannot be read, the API returns
+an explicit 503 and the dashboard renders an unavailable state; it does not substitute
+zero counts or claim the queue is empty. The endpoint accepts the existing platform
+API-key auth provider or the signed operator session cookie used by the dashboard.
+It is read-only: retries and dead-letter requeue remain controlled operations outside
+this dashboard panel.
+
+This is implementation and CI evidence only. The outbox scheduler is not automatically
+started by this status endpoint; an operator-controlled worker still needs to call
+`deliver_pending()`. Live endpoint credentials, deployed storage durability, receiver
+idempotency, and production dashboard behavior remain unverified until configured and
+tested in the target environment.

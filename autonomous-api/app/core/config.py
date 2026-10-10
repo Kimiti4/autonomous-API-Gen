@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
 
     DATABASE_URL: str = "sqlite:///./evolution.db"
+    MAINTENANCE_OUTBOX_DB_PATH: str = ""
 
     OLLAMA_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "llama3.2"

@@ -2,6 +2,7 @@ import { useProjection } from '@/presentation/hooks/useProjection';
 import { FacetsPanel } from '@/presentation/components/FacetsPanel';
 import { EvolutionOverview } from '@/presentation/components/EvolutionOverview';
 import { Header } from '@/presentation/components/Layout';
+import { MaintenanceOutboxPanel } from '@/presentation/components/MaintenanceOutboxPanel';
 
 export function DashboardPage(): JSX.Element {
   const { state } = useProjection();
@@ -11,6 +12,7 @@ export function DashboardPage(): JSX.Element {
       <div className="space-y-6 p-6">
         <FacetsPanel state={state} />
         <EvolutionOverview state={state} />
+        <MaintenanceOutboxPanel />
       </div>
     </>
   );

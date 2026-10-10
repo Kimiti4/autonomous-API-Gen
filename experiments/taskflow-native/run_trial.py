@@ -40,153 +40,6 @@ if str(REPO_ROOT) not in sys.path:
 
 EVIDENCE_SCHEMA = "taskflow.trial.evidence.v1"
 
-ELICITATION = {
-    "inferred_capabilities": [
-        "Daily task organization",
-        "Named list curation",
-    ],
-    "assumptions": [
-        {
-            "statement": "One person or a small team shares a single installation",
-            "rationale": "scope stated in the problem description",
-        }
-    ],
-    "clarifications": [],
-}
-
-EXTRACTION = {
-    "nodes": [
-        {
-            "ref": "req-task-management",
-            "kind": "functional",
-            "statement": "Create and manage tasks with a title, optional notes, "
-            "a moving status, a priority, and an optional due date",
-            "priority": "must",
-            "acceptance_criteria": [
-                "AC-01",
-                "AC-02",
-                "AC-03",
-                "AC-04",
-                "AC-05",
-                "AC-09",
-                "AC-10",
-            ],
-            "rationale": "the core tracked unit of work",
-        },
-        {
-            "ref": "req-list-organization",
-            "kind": "functional",
-            "statement": "Organize tasks into named lists and keep each task's "
-            "list membership visible when the task is fetched",
-            "priority": "must",
-            "acceptance_criteria": ["AC-08"],
-            "rationale": "grouping related work",
-        },
-        {
-            "ref": "req-secure-access",
-            "kind": "functional",
-            "statement": "Require a shared access key for task operations and "
-            "answer liveness checks openly",
-            "priority": "must",
-            "acceptance_criteria": ["AC-06", "AC-07"],
-            "rationale": "shared-secret protection for a single installation",
-        },
-        {
-            "ref": "req-structured-records",
-            "kind": "data",
-            "statement": "Tasks and lists are structured records with stable "
-            "identifiers and consistent fields",
-            "priority": "must",
-            "acceptance_criteria": [],
-            "rationale": "a stable record shape",
-        },
-    ],
-    "edges": [
-        {
-            "source_ref": "req-list-organization",
-            "target_ref": "req-task-management",
-            "kind": "depends_on",
-            "rationale": "lists contain tasks",
-        },
-        {
-            "source_ref": "req-secure-access",
-            "target_ref": "req-task-management",
-            "kind": "constrains",
-            "rationale": "guard task operations",
-        },
-    ],
-    "data_models": [
-        {
-            "ref": "req-task-management",
-            "name": "task",
-            "fields": [
-                {
-                    "name": "title",
-                    "type": "text",
-                    "required": True,
-                    "enumeration_values": [],
-                    "description": "short task title",
-                },
-                {
-                    "name": "notes",
-                    "type": "text",
-                    "required": False,
-                    "enumeration_values": [],
-                    "description": "free-form notes",
-                },
-                {
-                    "name": "status",
-                    "type": "enumeration",
-                    "required": True,
-                    "enumeration_values": ["open", "in_progress", "done"],
-                    "description": "lifecycle status",
-                },
-                {
-                    "name": "priority",
-                    "type": "enumeration",
-                    "required": True,
-                    "enumeration_values": ["low", "medium", "high"],
-                    "description": "importance of the task",
-                },
-                {
-                    "name": "due_date",
-                    "type": "timestamp",
-                    "required": False,
-                    "enumeration_values": [],
-                    "description": "optional due date",
-                },
-                {
-                    "name": "list_id",
-                    "type": "reference",
-                    "required": False,
-                    "enumeration_values": [],
-                    "description": "task list this task belongs to",
-                },
-            ],
-            "invariants": ["status is one of open, in_progress, done"],
-            "owning_service_ref": "req-task-management",
-            "requirement_refs": ["req-task-management", "req-list-organization"],
-        },
-        {
-            "ref": "req-list-organization",
-            "name": "task_list",
-            "fields": [
-                {
-                    "name": "name",
-                    "type": "text",
-                    "required": True,
-                    "enumeration_values": [],
-                    "description": "name of the list",
-                }
-            ],
-            "invariants": ["every list has a name"],
-            "owning_service_ref": "req-list-organization",
-            "requirement_refs": ["req-list-organization"],
-        },
-    ],
-}
-
-
 def sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -233,46 +86,33 @@ def environment_blockers() -> list[str]:
     return blockers
 
 
-def _record(request, payload: dict):
-    from tiannara.domain.models.model_call import (
-        ModelCallRecord,
-        compute_call_signature,
-        hash_payload,
-    )
+def intent_config():
+    from tiannara.application.intent.config import IntentCompilerConfig
 
-    return ModelCallRecord(
-        signature_hash=compute_call_signature(request),
-        model_id=request.model_id,
-        task=request.task,
-        output_schema_id=request.output_schema_id,
-        output_payload=payload,
-        response_hash=hash_payload(payload),
-        decoding=request.decoding,
-    )
+    model = os.environ.get("TASKFLOW_OLLAMA_MODEL", "qwen2.5:3b").strip()
+    if not model:
+        raise ValueError("taskflow-model-name-required")
+    return IntentCompilerConfig(model_id=f"ollama:{model}")
 
 
 def seed_transcript(statement: str, transcript_path: Path) -> Path:
-    from tiannara.application.intent import (
-        IntentCompilerConfig,
-        build_elicitation_request,
-        build_extraction_request,
-        normalize,
-    )
-    from tiannara.application.intent.schemas import ElicitationOutput
+    """Run live structured elicitation/extraction and record provenance for replay."""
+    from tiannara.application.intent import derive_system_id
+    from tiannara.application.intent.compiler import IntentCompiler
+    from tiannara.infrastructure.llm.ollama_provider import OllamaModelProvider
+    from tiannara.infrastructure.llm.recording_provider import RecordingModelProvider
     from tiannara.infrastructure.llm.transcript import ModelCallTranscript
 
-    config = IntentCompilerConfig()
-    normalized = normalize(statement)
-    elicitation = ElicitationOutput(**ELICITATION)
+    model = os.environ.get("TASKFLOW_OLLAMA_MODEL", "qwen2.5:3b").strip()
+    base_url = os.environ.get("TASKFLOW_OLLAMA_URL", "http://127.0.0.1:11434")
+    timeout = float(os.environ.get("TASKFLOW_OLLAMA_TIMEOUT_SECONDS", "180"))
     transcript = ModelCallTranscript(transcript_path)
-    transcript.append(
-        _record(build_elicitation_request(normalized, config), ELICITATION)
+    live_provider = OllamaModelProvider(
+        base_url=base_url, model=model, timeout_seconds=timeout
     )
-    transcript.append(
-        _record(
-            build_extraction_request(normalized, elicitation, config),
-            EXTRACTION,
-        )
+    recording_provider = RecordingModelProvider(live_provider, transcript)
+    IntentCompiler(recording_provider, config=intent_config()).compile_full(
+        statement, derive_system_id(statement)
     )
     return transcript_path
 
@@ -284,7 +124,7 @@ def compile_for_graph_evidence(statement: str, transcript_path: Path) -> dict:
     from tiannara.infrastructure.llm.transcript import ModelCallTranscript
 
     provider = RecordedModelProvider(ModelCallTranscript(transcript_path))
-    result = IntentCompiler(provider).compile_full(
+    result = IntentCompiler(provider, config=intent_config()).compile_full(
         statement, derive_system_id(statement)
     )
     model = result.isr.system_model if hasattr(result.isr, "system_model") else None
@@ -370,7 +210,9 @@ def run_factory(
 
     registry = build_compiler_registry()
     provider = RecordedModelProvider(ModelCallTranscript(transcript_path))
-    compiler = build_project_compiler(provider=provider, registry=registry)
+    compiler = build_project_compiler(
+        provider=provider, registry=registry, config=intent_config()
+    )
     sc_backend = LocalGitBackend() if shutil.which("git") else None
     materializer = RepositoryMaterializer(sc_backend)
     ledger = JsonlEvidenceLedger(str(evidence_dir / "factory-ledger.jsonl"))
@@ -799,17 +641,16 @@ def run_trial(trial_dir: Path, keep: bool = False) -> int:
     statement = problem_text
     transcript_path = out_dir / "transcript.jsonl"
     out_dir.mkdir(parents=True, exist_ok=True)
-    seed_transcript(statement, transcript_path)
-
     try:
+        seed_transcript(statement, transcript_path)
         graph_evidence = compile_for_graph_evidence(statement, transcript_path)
     except Exception as exc:
         write_json(
             evidence_dir / "errors.json",
             {"stage": "graph_compile", "error": repr(exc)},
         )
-        print(f"FAILED: graph compile raised {exc!r}")
-        return 1
+        print(f"BLOCKED: live intent compilation failed ({type(exc).__name__})")
+        return 2
     write_json(evidence_dir / "isr_graph.json", graph_evidence)
 
     factory_summary, _report = run_factory(

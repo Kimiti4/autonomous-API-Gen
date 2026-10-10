@@ -85,7 +85,6 @@ def run(evidence_dir: Path, timeout_seconds: int) -> int:
     from tiannara.application.compiler.selector import plan_compilation
     from tiannara.application.intent.compiler import IntentCompiler
     from tiannara.application.intent.config import IntentCompilerConfig
-    from tiannara.domain.models.backend_declaration import BackendSelectionError
     from tiannara.infrastructure.llm.openai_compatible_provider import OpenAICompatibleProvider
 
     problem = inputs[problem_key].read_text(encoding="utf-8")

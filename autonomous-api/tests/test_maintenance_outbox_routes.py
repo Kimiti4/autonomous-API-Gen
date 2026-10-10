@@ -43,6 +43,7 @@ async def test_status_returns_only_summary_and_delivery_metadata(monkeypatch):
         routes, "get_settings",
         lambda: SimpleNamespace(MAINTENANCE_OUTBOX_DB_PATH="/persistent/outbox.sqlite3"),
     )
+    monkeypatch.setattr(routes.Path, "is_file", lambda self: True)
     monkeypatch.setattr(routes, "_outbox_for_path", lambda path: FakeOutbox())
     result = await routes.maintenance_outbox_status(limit=5, _auth=object())
     assert result["status"] == "available"

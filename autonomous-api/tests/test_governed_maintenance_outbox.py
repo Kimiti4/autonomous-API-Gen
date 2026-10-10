@@ -1,4 +1,5 @@
 import json
+import sqlite3
 
 import pytest
 
@@ -180,3 +181,69 @@ def test_invalid_delivery_configuration_does_not_consume_attempts(tmp_path):
     item = outbox.get(event.digest)
     assert item["status"] == "pending"
     assert item["attempts"] == 0
+
+
+
+def test_expired_delivery_lease_is_recovered_after_reopen(tmp_path):
+    path = tmp_path / "maintenance-outbox.sqlite3"
+    now = [1000.0]
+    record, event = maintenance_case()
+    first_process = MaintenanceOutbox(
+        path,
+        lease_seconds=3,
+        base_backoff_seconds=2,
+        clock=lambda: now[0],
+    )
+    first_process.enqueue(record, event)
+
+    # Simulate a worker process stopping after claiming an event but before
+    # persisting a delivery result. The lease must make it recoverable.
+    claimed = first_process._claim(limit=1)
+    assert len(claimed) == 1
+    assert first_process.get(event.digest)["status"] == "delivering"
+    assert first_process.get(event.digest)["attempts"] == 1
+
+    now[0] += 4
+    restarted_process = MaintenanceOutbox(
+        path,
+        lease_seconds=3,
+        base_backoff_seconds=2,
+        clock=lambda: now[0],
+    )
+    result = restarted_process.deliver_pending(
+        base_url="https://observatory.example",
+        token="test-token",
+        opener=lambda *_args, **_kwargs: FakeResponse(),
+    )
+
+    assert result[0]["status"] == "delivered"
+    assert result[0]["attempts"] == 2
+    persisted = restarted_process.get(event.digest)
+    assert persisted["status"] == "delivered"
+    assert persisted["observatory_event_id"] == "evt-outbox-1"
+    assert restarted_process.summary() == {
+        "pending": 0, "delivering": 0, "delivered": 1, "dead_letter": 0
+    }
+
+
+def test_outbox_sqlite_database_survives_reopen_with_pending_item(tmp_path):
+    path = tmp_path / "maintenance-outbox.sqlite3"
+    record, event = maintenance_case()
+    first_process = MaintenanceOutbox(path)
+    first_process.enqueue(record, event)
+    first_process_path = first_process.database_path
+
+    # Close the only open connections by leaving the API and reopen the same
+    # file, as a replacement process/container would do with a mounted volume.
+    with sqlite3.connect(first_process_path) as connection:
+        assert connection.execute(
+            "SELECT status, attempts FROM maintenance_outbox WHERE event_digest = ?",
+            (event.digest,),
+        ).fetchone() == ("pending", 0)
+
+    restarted_process = MaintenanceOutbox(path)
+    persisted = restarted_process.get(event.digest)
+    assert persisted["status"] == "pending"
+    assert persisted["attempts"] == 0
+    assert restarted_process.enqueue(record, event) == event.digest
+    assert restarted_process.summary()["pending"] == 1

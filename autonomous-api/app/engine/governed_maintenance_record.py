@@ -27,19 +27,22 @@ def validate_maintenance_record(
     """Fail closed unless the proposed action is traceable to admitted authority."""
     if not admission.executable:
         raise ValueError("maintenance-admission-not-executable")
-    if not record.observation_digest:
+    if not record.observation_digest or not record.observation_digest.strip():
         raise ValueError("missing-observation-digest")
     if record.observation_digest != admission.observation_digest:
         raise ValueError("observation-digest-mismatch")
-    if not record.obligation_id:
+    if not record.obligation_id or not record.obligation_id.strip():
         raise ValueError("missing-obligation-id")
     if record.obligation_id not in admission.authorized_obligation_ids:
         raise ValueError("obligation-not-authorized")
-    if not record.patch_digest:
+    if not record.patch_digest or not record.patch_digest.strip():
         raise ValueError("missing-patch-digest")
-    if not record.verification_evidence or any(not item.strip() for item in record.verification_evidence):
+    if (
+        not record.verification_evidence
+        or any(not isinstance(item, str) or not item.strip() for item in record.verification_evidence)
+    ):
         raise ValueError("missing-verification-evidence")
-    if not record.authorization_ref.strip():
+    if not record.authorization_ref or not record.authorization_ref.strip():
         raise ValueError("missing-authorization-reference")
     if record.production_write_requested and not admission.production_write_authorized:
         raise ValueError("production-write-not-authorized")

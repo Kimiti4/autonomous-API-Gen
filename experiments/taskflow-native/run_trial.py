@@ -105,7 +105,7 @@ def seed_transcript(statement: str, transcript_path: Path) -> Path:
 
     model = os.environ.get("TASKFLOW_OLLAMA_MODEL", "qwen2.5:3b").strip()
     base_url = os.environ.get("TASKFLOW_OLLAMA_URL", "http://127.0.0.1:11434")
-    timeout = float(os.environ.get("TASKFLOW_OLLAMA_TIMEOUT_SECONDS", "180"))
+    timeout = float(os.environ.get("TASKFLOW_OLLAMA_TIMEOUT_SECONDS", "600"))
     transcript = ModelCallTranscript(transcript_path)
     live_provider = OllamaModelProvider(
         base_url=base_url, model=model, timeout_seconds=timeout

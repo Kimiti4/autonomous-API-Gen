@@ -2,15 +2,16 @@
 
 This module does not generate application code or infer missing intent. It converts
 a structured acceptance contract into a traceable work ledger. Capability items remain
-unsupported until a real compiler handler is explicitly registered.
+unsupported until a callable compiler handler is explicitly registered.
 Only the Python standard library is required; this module performs no network calls.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 import hashlib
 import json
-from typing import Any, Iterable, Mapping
+from typing import Any, Mapping
 
 
 VALID_STATUSES = {"supported", "unsupported", "ambiguous", "unknown"}
@@ -63,15 +64,15 @@ def _stable_id(kind: str, name: str) -> str:
 def analyze_acceptance(
     acceptance: Mapping[str, Any],
     *,
-    supported_capabilities: Iterable[str] = (),
+    capability_handlers: Mapping[str, Callable[..., Any]] | None = None,
     source: str = "golden-projects/taskflow/ACCEPTANCE.json",
 ) -> Analysis:
     """Analyze structured acceptance data without models, plugins, or network access.
 
-    supported_capabilities must come from the actual compiler/backend registry,
-    never from a caller's unsupported assertion that a feature exists. The default
-    is intentionally empty so unimplemented capabilities cannot be labelled supported.
-    Quality gates start UNKNOWN because this function does not execute them.
+    A capability is marked supported only when a callable compiler handler is
+    explicitly registered for that capability. Registration is not certification:
+    the generated result still requires independent verification. Quality gates and
+    negative cases start UNKNOWN because this function does not execute them.
     """
     if not isinstance(acceptance, Mapping):
         raise TypeError("Acceptance contract must be a JSON object")
@@ -103,17 +104,27 @@ def analyze_acceptance(
     if len(set(negative_cases)) != len(negative_cases):
         raise ValueError("negative_cases contains duplicates")
 
-    supported = frozenset(supported_capabilities)
-    unknown_supported = supported.difference(capabilities)
-    if unknown_supported:
+    handlers = capability_handlers or {}
+    if not isinstance(handlers, Mapping):
+        raise TypeError("capability_handlers must be a mapping")
+    unknown_handlers = set(handlers).difference(capabilities)
+    if unknown_handlers:
         raise ValueError(
             "Capability registry contains names absent from the contract: "
-            + ", ".join(sorted(unknown_supported))
+            + ", ".join(sorted(unknown_handlers))
+        )
+    invalid_handlers = [
+        name for name, handler in handlers.items() if not callable(handler)
+    ]
+    if invalid_handlers:
+        raise TypeError(
+            "Capability registry entries must be callable: "
+            + ", ".join(sorted(invalid_handlers))
         )
 
     requirements: list[Requirement] = []
     for name in capabilities:
-        status = "supported" if name in supported else "unsupported"
+        status = "supported" if name in handlers else "unsupported"
         requirements.append(
             Requirement(
                 requirement_id=_stable_id("capability", name),
@@ -122,9 +133,9 @@ def analyze_acceptance(
                 status=status,
                 source=source,
                 detail=(
-                    "A registered compiler handler declares this capability."
+                    "A callable compiler handler is registered; output still requires verification."
                     if status == "supported"
-                    else "No verified provider-free compiler handler is registered."
+                    else "No provider-free compiler handler is registered."
                 ),
             )
         )

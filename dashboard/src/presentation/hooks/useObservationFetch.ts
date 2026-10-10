@@ -23,8 +23,8 @@ export function useObservationFetch<T>(
       if (!res.ok) {
         let detail = `${res.status}`;
         try {
-          const body = (await res.json()) as { error?: { message?: string } };
-          detail = body.error?.message ?? detail;
+          const body = (await res.json()) as { message?: string; detail?: string; error?: { message?: string } };
+          detail = body.error?.message ?? body.message ?? body.detail ?? detail;
         } catch {
           // non-JSON error body
         }

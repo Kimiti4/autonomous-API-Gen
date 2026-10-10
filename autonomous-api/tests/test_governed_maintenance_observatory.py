@@ -1,0 +1,103 @@
+import json
+
+import pytest
+
+from app.engine.governed_maintenance_observatory import (
+    ObservatoryDeliveryError,
+    deliver_maintenance_event,
+)
+from test_governed_maintenance_execution import setup_case, record_verified_maintenance
+
+
+class FakeResponse:
+    def __init__(self, status=200, payload=None):
+        self.status = status
+        self.payload = payload if payload is not None else {
+            "status": "accepted", "event_id": "evt-evidence-abc123"
+        }
+        self.closed = False
+
+    def read(self):
+        return json.dumps(self.payload).encode("utf-8")
+
+    def close(self):
+        self.closed = True
+
+
+def maintenance_case():
+    observation, admission, report = setup_case()
+    return record_verified_maintenance(
+        observation,
+        admission,
+        obligation_id="ob-17",
+        authorization_ref="approval:ticket-17",
+        repair_report=report,
+    )
+
+
+def test_delivers_verified_event_to_observatory_and_checks_acknowledgement():
+    record, event = maintenance_case()
+    seen = {}
+
+    def opener(request, *, timeout):
+        seen["request"] = request
+        seen["timeout"] = timeout
+        return FakeResponse()
+
+    event_id = deliver_maintenance_event(
+        record, event, base_url="https://observatory.example/", token="test-token",
+        opener=opener,
+    )
+    request = seen["request"]
+    body = json.loads(request.data.decode("utf-8"))
+    assert event_id == "evt-evidence-abc123"
+    assert request.full_url == "https://observatory.example/observatory/events"
+    assert request.get_method() == "POST"
+    assert request.get_header("X-observatory-token") == "test-token"
+    assert request.get_header("X-actor-role") == "system"
+    assert body["type"] == "governed_maintenance_recorded"
+    assert body["payload"]["maintenance_event_digest"] == event.digest
+    assert body["payload"]["authorization_ref"] == record.authorization_ref
+    assert event.digest in body["evidence_refs"]
+    assert seen["timeout"] == 5.0
+
+
+@pytest.mark.parametrize(
+    ("base_url", "token", "message"),
+    [
+        ("", "test-token", "observatory-base-url-required"),
+        ("https://observatory.example", "", "observatory-token-required"),
+    ],
+)
+def test_delivery_requires_explicit_endpoint_and_token(base_url, token, message):
+    record, event = maintenance_case()
+    with pytest.raises(ValueError, match=message):
+        deliver_maintenance_event(record, event, base_url=base_url, token=token)
+
+
+def test_delivery_rejects_non_verified_event():
+    record, event = maintenance_case()
+    event.status = "pending"
+    with pytest.raises(ValueError, match="maintenance-event-not-verified"):
+        deliver_maintenance_event(
+            record, event, base_url="https://observatory.example",
+            token="test-token", opener=lambda *_args, **_kwargs: pytest.fail("must not send"),
+        )
+
+
+def test_delivery_rejects_non_successful_http_response():
+    record, event = maintenance_case()
+    with pytest.raises(ObservatoryDeliveryError, match="observatory-event-ingestion-rejected"):
+        deliver_maintenance_event(
+            record, event, base_url="https://observatory.example", token="test-token",
+            opener=lambda *_args, **_kwargs: FakeResponse(status=403),
+        )
+
+
+def test_delivery_rejects_success_without_observatory_acknowledgement():
+    record, event = maintenance_case()
+    with pytest.raises(ObservatoryDeliveryError, match="observatory-acknowledgement-invalid"):
+        deliver_maintenance_event(
+            record, event, base_url="https://observatory.example", token="test-token",
+            opener=lambda *_args, **_kwargs: FakeResponse(payload={"status": "accepted"}),
+        )

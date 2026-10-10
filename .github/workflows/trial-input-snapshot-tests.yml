@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - "experiments/taskflow-native/input_snapshot.py"
+      - "experiments/taskflow-native/snapshot_consumer.py"
+      - "experiments/taskflow-native/tests/test_snapshot_consumer.py"
       - "experiments/taskflow-native/tests/test_input_snapshot.py"
       - ".github/workflows/trial-input-snapshot-tests.yml"
       - "experiments/taskflow-native/TRIAL_CONTRACT.json"
@@ -13,6 +15,7 @@ on:
   push:
     branches:
       - "hardening/immutable-trial-input-snapshots"
+      - "hardening/taskflow-snapshot-consumer"
     paths:
       - "experiments/taskflow-native/input_snapshot.py"
       - "experiments/taskflow-native/tests/test_input_snapshot.py"
@@ -32,7 +35,7 @@ jobs:
       - name: Install test dependency
         run: python -m pip install --disable-pip-version-check pytest
       - name: Run snapshot unit tests
-        run: python -m pytest -q experiments/taskflow-native/tests/test_input_snapshot.py
+        run: python -m pytest -q experiments/taskflow-native/tests
       - name: Capture canonical TaskFlow input snapshot
         run: python experiments/taskflow-native/input_snapshot.py
       - name: Verify canonical TaskFlow input snapshot

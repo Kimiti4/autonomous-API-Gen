@@ -165,8 +165,49 @@ API-key auth provider or the signed operator session cookie used by the dashboar
 It is read-only: retries and dead-letter requeue remain controlled operations outside
 this dashboard panel.
 
-This is implementation and CI evidence only. The outbox scheduler is not automatically
-started by this status endpoint; an operator-controlled worker still needs to call
-`deliver_pending()`. Live endpoint credentials, deployed storage durability, receiver
-idempotency, and production dashboard behavior remain unverified until configured and
-tested in the target environment.
+This is implementation and CI evidence only. The worker is not automatically
+started by the API process or status endpoint. Live endpoint credentials, deployed
+storage durability, receiver idempotency, and production dashboard behavior remain
+unverified until configured and tested in the target environment.
+
+
+## Controlled one-shot delivery worker
+
+`app.engine.maintenance_outbox_worker` is an explicit one-shot entry point. It
+processes at most one bounded batch and exits; it does not run a background daemon,
+start automatically with FastAPI, create repair obligations, mutate application
+repositories, or deploy applications. An external scheduler or operator may invoke it
+at a deliberate cadence, after the target environment and its storage have been
+configured.
+
+Run from the `autonomous-api` directory:
+
+```sh
+python -m app.engine.maintenance_outbox_worker
+```
+
+Required environment variables:
+
+- `MAINTENANCE_OUTBOX_DB_PATH`: SQLite path on a persistent mounted volume.
+- `OBSERVATORY_BASE_URL`: Observatory base URL; HTTPS is required except for loopback development.
+- `OBSERVATORY_API_TOKEN`: secret token supplied by the deployment's secret manager.
+
+Optional bounded settings:
+
+- `MAINTENANCE_OUTBOX_BATCH_LIMIT`: integer from 1 to 100; defaults to 20.
+- `MAINTENANCE_OUTBOX_HTTP_TIMEOUT_SECONDS`: finite positive timeout in seconds; defaults to 5.
+
+The worker reports event digests, delivery status, attempts, and safe failure classes,
+but never logs the token, stored evidence payload, raw exception text, or full HTTP
+response. Exit code 0 means the batch completed without a reported delivery failure
+(including an empty batch); exit code 1 means at least one claimed event failed or was
+dead-lettered; exit code 2 means configuration or worker startup failed. Schedule
+cadence and alerting are intentionally owned by the deployment operator. Avoid
+immediate restart loops: outbox retry timestamps govern delivery eligibility, and
+scheduler cadence should respect that backoff.
+
+Offline tests use a fake transport and do not verify live Observatory idempotency.
+A timeout after receiver acceptance can still result in a retry, so exactly-once
+effects require receiver-side deduplication by the event digest/idempotency key. Do
+not enable production scheduling until persistent-volume behavior, credentials,
+receiver deduplication, and monitoring are verified in the target environment.

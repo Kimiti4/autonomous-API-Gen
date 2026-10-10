@@ -59,7 +59,7 @@ class ProviderFreeRequirementAnalysisTests(unittest.TestCase):
             item for item in result["requirements"]
             if item["kind"] == "capability" and item["name"] == name
         )
-        self.assertEqual(item["status"], "supported")
+        self.assertEqual(item["status"], "unknown")
         self.assertFalse(result["certified"])
 
     def test_duplicate_capabilities_fail_closed(self) -> None:

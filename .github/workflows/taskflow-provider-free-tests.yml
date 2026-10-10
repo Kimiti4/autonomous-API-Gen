@@ -1,0 +1,36 @@
+name: TaskFlow Provider-Free Checks
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/taskflow-provider-free-tests.yml"
+      - "experiments/taskflow-native/provider_free/**"
+      - "experiments/taskflow-native/tests/test_provider_free_requirements.py"
+      - "golden-projects/taskflow/ACCEPTANCE.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  provider-free:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run offline provider-free acceptance analysis tests
+        run: |
+          python -m unittest discover \
+            -s experiments/taskflow-native/tests \
+            -p 'test_provider_free_requirements.py' \
+            -v
+      - name: Verify CLI produces deterministic, non-certifying analysis
+        run: |
+          mkdir -p /tmp/esap-provider-free
+          python -m provider_free.cli \
+            --acceptance golden-projects/taskflow/ACCEPTANCE.json \
+            --output /tmp/esap-provider-free/analysis.json
+        working-directory: experiments/taskflow-native

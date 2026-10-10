@@ -15,7 +15,7 @@ on:
       timeout_seconds:
         description: "Per-provider-call timeout (1-180 seconds)"
         required: true
-        default: "90"
+        default: "180"
         type: string
 
 permissions:
@@ -55,9 +55,9 @@ jobs:
               sleep 2
             done
             curl -fsS http://127.0.0.1:11434/api/tags >/dev/null
-            docker exec tiannara-ollama ollama pull qwen2.5:3b
+            docker exec tiannara-ollama ollama pull qwen2.5:1.5b
             echo "TIANNARA_LLM_BASE_URL=http://127.0.0.1:11434/v1" >> "$GITHUB_ENV"
-            echo "TIANNARA_LLM_MODEL=qwen2.5:3b" >> "$GITHUB_ENV"
+            echo "TIANNARA_LLM_MODEL=qwen2.5:1.5b" >> "$GITHUB_ENV"
           fi
       - name: Capture canonical immutable inputs
         run: |
@@ -80,7 +80,7 @@ jobs:
           # Values set by the fallback provider step are already present in GITHUB_ENV.
           python experiments/taskflow-native/run_snapshot_trial.py \
             --evidence-dir experiments/taskflow-native/out/evidence \
-            --timeout-seconds "${{ inputs.timeout_seconds || '90' }}"
+            --timeout-seconds "${{ inputs.timeout_seconds || '180' }}"
       - name: Publish trial evidence
         if: always()
         uses: actions/upload-artifact@v4

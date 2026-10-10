@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Prove that ESAP can go beyond static defect detection and emit a minimal patch in a disposable copy of a pinned existing codebase, then verify the patch before any external mutation is considered.
+Prove that ESAP can emit a minimal patch in a disposable copy of a pinned existing codebase, then verify the patch before any external mutation is considered.
 
 ## Inputs and isolation
 
@@ -18,7 +18,11 @@ Prove that ESAP can go beyond static defect detection and emit a minimal patch i
 2. Make required Playwright field filling and submission unconditional, fill confirmation password, and assert the expected login route.
 3. Capture and assert the registration request payload rather than accepting `/register` as success.
 
-The generator is deliberately fail-closed: it requires exact baseline anchors and aborts if any expected anchor is missing or duplicated. The generated workspace is rescanned before lint/build/E2E are allowed to proceed.
+The generator is deliberately fail-closed: it requires exact baseline anchors and aborts if any expected anchor is missing or duplicated. The generated workspace is rescanned before lint/build/E2E are allowed to proceed. The verifier also checks the generation report's safety claims, the exact target set, source hashes, patch paths, and repaired semantics; a clean heuristic scan alone is not sufficient.
+
+## Current CI evidence
+
+The workflow runs scanner unit tests, baseline-vs-candidate scan, patch generation and verification, frontend lint/build, and the **targeted registration Playwright journey**. The targeted journey is intentional: an earlier full-suite attempt had unrelated existing journey failures, so those should be triaged separately rather than allowed to obscure this narrow repair test. This is not a claim that the full JamiiLink E2E suite passes on the generated trial.
 
 ## What this does and does not prove
 
@@ -26,9 +30,11 @@ This is a **deterministic, rule-guided repair trial**, not evidence of open-ende
 
 Release evidence must include:
 - patch-generation report and diff;
-- a clean targeted rescan;
+- a clean targeted rescan and provenance/hash checks;
 - lint and production build;
-- the full Playwright E2E suite on the generated trial workspace;
+- targeted Playwright journey;
 - retained artifacts with pinned source revisions.
+
+A later milestone should run and triage the full Playwright suite against the repaired trial, then add additional defect classes and a second unrelated repository before generalizing claims.
 
 Any write to the real JamiiLink repository remains out of scope and requires separate explicit human approval and review of the exact diff.

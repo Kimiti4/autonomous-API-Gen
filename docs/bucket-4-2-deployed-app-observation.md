@@ -115,8 +115,7 @@ in URLs. The timeout must be a finite positive number. Requests carry a determin
 `Idempotency-Key` derived from the verified event digest so a receiver that supports
 idempotency can safely deduplicate retries. Acknowledgements must be JSON objects with
 the expected accepted status and a non-empty event ID; malformed JSON shapes fail
-closed. This remains transport-contract testing, not proof of live Observatory support
-for the idempotency header.
+closed. Receiver-side idempotency support is implemented in the Observatory API; live deployment behavior remains unverified until exercised in the target environment.
 
 
 ## Durable Observatory delivery outbox
@@ -212,3 +211,23 @@ A timeout after receiver acceptance can still result in a retry, so exactly-once
 effects require receiver-side deduplication by the event digest/idempotency key. Do
 not enable production scheduling until persistent-volume behavior, credentials,
 receiver deduplication, and monitoring are verified in the target environment.
+
+
+## Observatory receiver idempotency
+
+The single-event endpoint accepts an optional `Idempotency-Key` header. Keys are
+stored durably in the Observatory SQLite database in the same transaction as event
+insertion. A retry with the same key and equivalent request returns the original
+event ID and does not publish a second stream event. Reusing a key with a different
+request returns HTTP 409; blank or overlong keys return HTTP 400. Requests without
+the header retain the prior ingestion behavior. Request identity is hashed from the
+normalized input, with an omitted timestamp excluded so the receiver-assigned
+timestamp does not make a retry look like a new request.
+
+Automated API tests cover successful replay, changed-payload key reuse, and invalid
+keys. CI evidence does not prove a live deployment is using the updated schema/code,
+that the database volume survives replacement, or that a real network timeout/retry
+works end to end. Verify those conditions in the target environment before enabling
+scheduled delivery. This is at-least-once transport with receiver deduplication, not
+a claim of mathematically guaranteed exactly-once effects across arbitrary external
+side effects.

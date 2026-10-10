@@ -5,19 +5,18 @@ All decisions come from the gateway.
 """
 from __future__ import annotations
 
-from typing import Optional
-
 import csv
 import io
+from hashlib import sha256
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import Response, StreamingResponse
 
 from ..config import get_settings
 from ..domain import (Actor, BatchEventInput, BatchIngestionResponse,
-                      CommandRequest, EventInput, event_from_input)
-from ..gateway import ObservatoryGateway
+                      CommandRequest, EventInput, canonical_json, event_from_input)
+from ..gateway import IdempotencyConflict, ObservatoryGateway
 from .deps import get_actor, get_gateway, require_operator, require_writer
 
 router = APIRouter(prefix="/observatory", tags=["observatory"])
@@ -280,11 +279,25 @@ async def ingest_event(
     gateway: ObservatoryGateway = Depends(get_gateway),
     actor: Actor = Depends(get_actor),
     _writer: Actor = Depends(require_writer),
+    idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key"),
 ):
-    event = event_from_input(event_input)
-    event_id = await gateway.observe(event)
+    if idempotency_key is None:
+        event_id = await gateway.observe(event_from_input(event_input))
+        return {"status": "accepted", "event_id": event_id,
+                "actor_id": actor.id}
+    if not idempotency_key.strip() or len(idempotency_key) > 200:
+        raise HTTPException(status_code=400, detail="invalid idempotency key")
+    request_data = event_input.model_dump(mode="json", exclude_none=True)
+    request_hash = sha256(canonical_json(request_data).encode("utf-8")).hexdigest()
+    try:
+        event_id, replayed = await gateway.observe_idempotent(
+            event_from_input(event_input), idempotency_key, request_hash)
+    except IdempotencyConflict as exc:
+        raise HTTPException(
+            status_code=409, detail="idempotency key reused with different request"
+        ) from exc
     return {"status": "accepted", "event_id": event_id,
-            "actor_id": actor.id}
+            "actor_id": actor.id, "idempotent_replay": replayed}
 
 
 @router.post("/events/batch", response_model=BatchIngestionResponse)

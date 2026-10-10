@@ -8,7 +8,6 @@ from app.engine.deployed_app_observation import (
     assess_deployed_observation,
 )
 from app.engine.governed_maintenance_execution import record_verified_maintenance
-from app.engine.governed_maintenance_observatory import ObservatoryDeliveryError
 from app.engine.governed_maintenance_outbox import MaintenanceOutbox, MaintenanceOutboxError
 from app.engine.repair_report import build_repair_report
 

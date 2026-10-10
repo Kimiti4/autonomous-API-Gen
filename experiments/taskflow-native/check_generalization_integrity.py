@@ -41,11 +41,12 @@ def check_runner_ast(path: Path) -> tuple[bool, list[str]]:
         reasons.append("runner embeds a task-specific EXTRACTION/requirement graph")
 
     source = path.read_text(encoding="utf-8")
-    if "seed_transcript(statement" in source and "RecordedModelProvider" in source:
+    if "OllamaModelProvider" not in source or "RecordingModelProvider" not in source:
         reasons.append(
-            "trial compiles a seeded recorded transcript; this is fixture-driven, "
-            "not independent natural-language interpretation evidence"
+            "runner does not use a live structured provider and record its actual output"
         )
+    if "_record(build_elicitation_request" in source or "_record(build_extraction_request" in source:
+        reasons.append("runner still seeds task-specific elicitation/extraction answers")
     return not reasons, reasons
 
 
@@ -76,15 +77,33 @@ def main() -> int:
         has_second_spec = False
         reasons.append(f"contract could not be inspected: {exc}")
 
+    second_run_path = TRIAL_DIR / "out" / "evidence" / "generalization_runs.json"
+    second_run_ok = False
+    second_run_detail = []
+    if not has_second_spec:
+        second_run_detail.append(
+            "contract does not define a second distinct specification for a generalization trial"
+        )
+    else:
+        try:
+            run_evidence = json.loads(second_run_path.read_text(encoding="utf-8"))
+            second_run_ok = any(
+                item.get("spec_path") in distinct_specs and item.get("completed") is True
+                for item in run_evidence.get("runs", [])
+            )
+        except (OSError, ValueError):
+            second_run_ok = False
+        if not second_run_ok:
+            second_run_detail.append(
+                "no successful second-spec generation and verification evidence exists"
+            )
     checks.append({
         "id": "distinct-specification",
-        "status": "PASS" if has_second_spec else "BLOCKED",
-        "detail": [] if has_second_spec else [
-            "contract does not define a second distinct specification for a generalization trial"
-        ],
+        "status": "PASS" if has_second_spec and second_run_ok else "BLOCKED",
+        "detail": second_run_detail,
     })
-    if not has_second_spec:
-        reasons.append("no second distinct specification is configured")
+    if not has_second_spec or not second_run_ok:
+        reasons.extend(second_run_detail)
 
     forbidden = contract.get("forbidden", [])
     present_forbidden = []

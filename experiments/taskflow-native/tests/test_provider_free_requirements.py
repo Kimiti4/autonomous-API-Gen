@@ -47,13 +47,13 @@ class ProviderFreeRequirementAnalysisTests(unittest.TestCase):
     def test_registered_capability_must_exist_in_contract(self) -> None:
         with self.assertRaisesRegex(ValueError, "absent from the contract"):
             analyze_acceptance(
-                self.acceptance, supported_capabilities={"imaginary-capability"}
+                self.acceptance, capability_handlers={"imaginary-capability": lambda: None}
             )
 
     def test_only_explicitly_registered_capabilities_are_supported(self) -> None:
         name = self.acceptance["required_capabilities"][0]
         result = analyze_acceptance(
-            self.acceptance, supported_capabilities={name}
+            self.acceptance, capability_handlers={name: lambda: None}
         ).as_dict()
         item = next(
             item for item in result["requirements"]

@@ -67,3 +67,52 @@ async def test_status_does_not_create_uninitialized_storage_on_read(monkeypatch)
     assert isinstance(response, JSONResponse)
     assert response.status_code == 503
     assert b"MAINTENANCE_OUTBOX_NOT_INITIALIZED" in response.body
+
+
+@pytest.mark.asyncio
+async def test_dashboard_auth_accepts_platform_api_key_provider(monkeypatch):
+    context = object()
+
+    class FakeAuth:
+        async def authenticate(self, request):
+            return context
+
+    monkeypatch.setattr(routes, "get_auth", lambda: FakeAuth())
+    monkeypatch.setattr(
+        routes, "authenticate_operator_session",
+        lambda request: pytest.fail("session fallback is not needed"),
+    )
+    assert await routes.require_dashboard_auth(object()) is context
+
+
+@pytest.mark.asyncio
+async def test_dashboard_auth_falls_back_to_signed_operator_session(monkeypatch):
+    context = object()
+
+    class FakeAuth:
+        async def authenticate(self, request):
+            return None
+
+    async def session_auth(request):
+        return context
+
+    monkeypatch.setattr(routes, "get_auth", lambda: FakeAuth())
+    monkeypatch.setattr(routes, "authenticate_operator_session", session_auth)
+    assert await routes.require_dashboard_auth(object()) is context
+
+
+@pytest.mark.asyncio
+async def test_dashboard_auth_rejects_anonymous_requests(monkeypatch):
+    from app.core.exceptions import UnauthenticatedError
+
+    class FakeAuth:
+        async def authenticate(self, request):
+            return None
+
+    async def session_auth(request):
+        return None
+
+    monkeypatch.setattr(routes, "get_auth", lambda: FakeAuth())
+    monkeypatch.setattr(routes, "authenticate_operator_session", session_auth)
+    with pytest.raises(UnauthenticatedError):
+        await routes.require_dashboard_auth(object())

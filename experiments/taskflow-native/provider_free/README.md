@@ -22,9 +22,9 @@ When running in a snapshot-based trial, pass the snapshotted ACCEPTANCE.json pat
 
 - Each requirement receives a stable identifier and a reference to its source.
 - The canonical contract digest is computed from deterministic JSON serialization.
-- Required capabilities are UNSUPPORTED unless a callable provider-free compiler handler is registered in the analysis API.
+- Required capabilities are UNSUPPORTED when no provider-free compiler handler is registered, and UNKNOWN when a handler exists but its capability evidence has not been verified.
 - Required quality gates and negative cases are UNKNOWN until executed and supported by evidence.
 - The report always states `certified: false`: requirement analysis is not code generation, testing, or certification.
-- A handler registration means only that a handler exists; it does not prove that the resulting capability works.
+- A handler registration means only that a handler exists; it does not prove that the resulting capability works. This analysis primitive never marks a capability SUPPORTED by registration alone.
 
 This slice intentionally does not generate TaskFlow yet. The next implementation step is to connect real, capability-declared compiler handlers and emit artifact-level traceability, followed by independent build/API/UI/runtime/security/persistence tests.

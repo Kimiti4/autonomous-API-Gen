@@ -7,6 +7,7 @@ and stream fan-out.
 from __future__ import annotations
 
 import json
+from hashlib import sha256
 from typing import Any, Callable
 from urllib.error import URLError
 from urllib.request import Request, urlopen
@@ -43,6 +44,27 @@ def deliver_maintenance_event(
         raise ValueError("maintenance-event-digest-invalid")
     if getattr(event, "repair_report_digest", None) is None:
         raise ValueError("maintenance-event-report-digest-missing")
+    if (
+        getattr(event, "observation_digest", None) != record.observation_digest
+        or getattr(event, "obligation_id", None) != record.obligation_id
+        or getattr(event, "patch_digest", None) != record.patch_digest
+        or tuple(getattr(event, "evidence", ())) != tuple(record.verification_evidence)
+    ):
+        raise ValueError("maintenance-event-record-linkage-mismatch")
+    digest_payload = {
+        "event_type": event.event_type,
+        "status": event.status,
+        "observation_digest": event.observation_digest,
+        "obligation_id": event.obligation_id,
+        "patch_digest": event.patch_digest,
+        "repair_report_digest": event.repair_report_digest,
+        "evidence": list(event.evidence),
+    }
+    expected_digest = sha256(
+        json.dumps(digest_payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    if event.digest != expected_digest:
+        raise ValueError("maintenance-event-digest-mismatch")
 
     payload = {
         "event_type": "governed_maintenance_recorded",

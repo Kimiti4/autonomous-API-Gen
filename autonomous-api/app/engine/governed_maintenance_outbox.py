@@ -94,7 +94,7 @@ class SQLiteObservatoryOutbox:
     def enqueue(self, event_id: str, payload: dict[str, Any]) -> bool:
         """Persist an event; return True if new, False if identical duplicate."""
         canonical = self._canonical_payload(event_id, payload)
-        with self._connect() as connection:
+        with closing(self._connect()) as connection, connection:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
                 "SELECT payload_json FROM observatory_outbox WHERE event_id = ?",
@@ -114,7 +114,7 @@ class SQLiteObservatoryOutbox:
     def pending(self, limit: int = 100) -> tuple[OutboxItem, ...]:
         if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1:
             raise ValueError("outbox-limit-must-be-positive-integer")
-        with self._connect() as connection:
+        with closing(self._connect()) as connection, connection:
             rows = connection.execute(
                 "SELECT event_id, payload_json, attempts, last_error "
                 "FROM observatory_outbox WHERE status = 'pending' "
@@ -144,7 +144,7 @@ class SQLiteObservatoryOutbox:
         delivered = 0
         failed = 0
         for item in items:
-            with self._connect() as connection:
+            with closing(self._connect()) as connection, connection:
                 connection.execute(
                     "UPDATE observatory_outbox SET attempts = attempts + 1, "
                     "updated_at = CURRENT_TIMESTAMP WHERE event_id = ? "
@@ -156,7 +156,7 @@ class SQLiteObservatoryOutbox:
                 if not isinstance(remote_id, str) or not remote_id.strip():
                     raise ValueError("outbox-delivery-acknowledgement-invalid")
             except Exception as exc:
-                with self._connect() as connection:
+                with closing(self._connect()) as connection, connection:
                     connection.execute(
                         "UPDATE observatory_outbox SET last_error = ?, "
                         "updated_at = CURRENT_TIMESTAMP WHERE event_id = ? "
@@ -165,7 +165,7 @@ class SQLiteObservatoryOutbox:
                     )
                 failed += 1
                 continue
-            with self._connect() as connection:
+            with closing(self._connect()) as connection, connection:
                 connection.execute(
                     "UPDATE observatory_outbox SET status = 'delivered', "
                     "remote_event_id = ?, last_error = NULL, "
@@ -174,7 +174,7 @@ class SQLiteObservatoryOutbox:
                     (remote_id.strip(), item.event_id),
                 )
             delivered += 1
-        with self._connect() as connection:
+        with closing(self._connect()) as connection, connection:
             remaining = connection.execute(
                 "SELECT COUNT(*) FROM observatory_outbox WHERE status = 'pending'"
             ).fetchone()[0]
@@ -183,7 +183,7 @@ class SQLiteObservatoryOutbox:
         )
 
     def get_status(self, event_id: str) -> dict[str, Any] | None:
-        with self._connect() as connection:
+        with closing(self._connect()) as connection, connection:
             row = connection.execute(
                 "SELECT event_id, status, attempts, remote_event_id, last_error "
                 "FROM observatory_outbox WHERE event_id = ?",

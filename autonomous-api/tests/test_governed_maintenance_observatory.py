@@ -3,11 +3,17 @@ from dataclasses import replace
 
 import pytest
 
+from app.engine.deployed_app_observation import (
+    ObservationStatus,
+    RuntimeObservation,
+    assess_deployed_observation,
+)
+from app.engine.governed_maintenance_execution import record_verified_maintenance
 from app.engine.governed_maintenance_observatory import (
     ObservatoryDeliveryError,
     deliver_maintenance_event,
 )
-from test_governed_maintenance_execution import setup_case, record_verified_maintenance
+from app.engine.repair_report import build_repair_report
 
 
 class FakeResponse:
@@ -26,13 +32,39 @@ class FakeResponse:
 
 
 def maintenance_case():
-    observation, admission, report = setup_case()
-    return record_verified_maintenance(
+    observation = RuntimeObservation(
+        deployment_id="staging-1",
+        observed_revision="rev-a",
+        environment_fingerprint="env-a",
+        status=ObservationStatus.HEALTHY,
+        health_evidence=("health:pass",),
+        verification_evidence=("smoke:pass",),
+    )
+    admission = assess_deployed_observation(
         observation,
-        admission,
-        obligation_id="ob-17",
-        authorization_ref="approval:ticket-17",
-        repair_report=report,
+        baseline_revision="rev-a",
+        baseline_environment_fingerprint="env-a",
+        authorized_obligation_ids=("ob-17",),
+        explicit_change_authorization=True,
+    )
+    report = build_repair_report(
+        report_id="repair-17",
+        target="staging-1",
+        source_revision="rev-a",
+        finding_ids=("finding-1",),
+        root_causes=(),
+        candidates_considered=(),
+        selected_candidate_id="repair-candidate-1",
+        patch_digest="sha256:patch-123",
+        verification=({"passed": True, "evidence_refs": ("ci:run-17", "regression:run-17")},),
+        regressions=({"detected": False, "evidence_ref": "regression:run-17"},),
+        measurements=(),
+        residuals=(),
+        deployment_ready=False,
+    )
+    return record_verified_maintenance(
+        observation, admission, obligation_id="ob-17",
+        authorization_ref="approval:ticket-17", repair_report=report,
     )
 
 
@@ -78,10 +110,10 @@ def test_delivery_requires_explicit_endpoint_and_token(base_url, token, message)
 
 def test_delivery_rejects_non_verified_event():
     record, event = maintenance_case()
-    event = replace(event, status="pending")
+    pending = replace(event, status="pending")
     with pytest.raises(ValueError, match="maintenance-event-not-verified"):
         deliver_maintenance_event(
-            record, event, base_url="https://observatory.example",
+            record, pending, base_url="https://observatory.example",
             token="test-token", opener=lambda *_args, **_kwargs: pytest.fail("must not send"),
         )
 
@@ -102,7 +134,6 @@ def test_delivery_rejects_success_without_observatory_acknowledgement():
             record, event, base_url="https://observatory.example", token="test-token",
             opener=lambda *_args, **_kwargs: FakeResponse(payload={"status": "accepted"}),
         )
-
 
 
 def test_delivery_rejects_event_linked_to_different_record():

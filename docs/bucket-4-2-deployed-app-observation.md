@@ -85,3 +85,22 @@ unless the admission independently carries production authorization.
 The maintenance hand-off also requires explicit regression evidence with a boolean
 outcome and non-empty evidence references; absent, malformed, or detected regressions
 block record creation.
+
+
+## Observatory delivery bridge
+
+`governed_maintenance_observatory.py` provides an explicit, authenticated HTTP
+delivery path to the existing `POST /observatory/events` ingestion endpoint. The
+bridge validates that the event's observation, obligation, patch, evidence, and
+canonical digest still match the maintenance record before sending. It requires an
+explicit Observatory base URL and token, uses a bounded request timeout, and accepts
+delivery only when Observatory returns an `accepted` response with an event ID.
+The combined orchestration helper returns the record, event, and Observatory event ID
+only after that acknowledgement.
+
+Configure the caller with the deployed Observatory URL and its API token through the
+runtime's secret/configuration mechanism; do not hardcode either value. The bridge
+does not start deployments or grant production-write authority. Delivery currently has
+no durable local outbox: callers must retain the generated evidence and surface a
+delivery failure for controlled retry. The focused tests use a fake HTTP transport and
+do not claim that a live Observatory deployment was contacted.

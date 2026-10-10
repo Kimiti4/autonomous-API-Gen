@@ -4,6 +4,15 @@ This is an in-process integration test, not evidence of live deployment behavior
 """
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+# The test suite runs with autonomous-api as its working directory, while the
+# Observatory package lives at the repository root.
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
+
 from fastapi.testclient import TestClient
 
 from app.engine.governed_maintenance_outbox import MaintenanceOutbox

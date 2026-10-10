@@ -14,6 +14,7 @@ from pathlib import Path
 import sqlite3
 import time
 from typing import Any, Callable
+from urllib.parse import urlsplit
 
 from .governed_maintenance_execution import GovernedMaintenanceEvent
 from .governed_maintenance_observatory import deliver_maintenance_event
@@ -223,6 +224,26 @@ class MaintenanceOutbox:
         """Deliver due items and persist each success/failure before returning."""
         if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
             raise ValueError("outbox-limit-invalid")
+        if not isinstance(base_url, str) or not base_url.strip():
+            raise ValueError("observatory-base-url-required")
+        if not isinstance(token, str) or not token.strip():
+            raise ValueError("observatory-token-required")
+        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError("invalid-observatory-timeout")
+        parsed_url = urlsplit(base_url.strip())
+        local_http_hosts = {"localhost", "127.0.0.1", "::1"}
+        if (
+            not parsed_url.hostname
+            or parsed_url.username is not None
+            or parsed_url.password is not None
+            or parsed_url.query
+            or parsed_url.fragment
+            or not (
+                parsed_url.scheme == "https"
+                or (parsed_url.scheme == "http" and parsed_url.hostname.lower() in local_http_hosts)
+            )
+        ):
+            raise ValueError("observatory-base-url-invalid")
         claimed = self._claim(limit=limit)
         results: list[dict[str, Any]] = []
         for row in claimed:

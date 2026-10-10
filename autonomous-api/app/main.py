@@ -7,6 +7,7 @@ from app.api.ws import router as ws_router
 from app.api.observation_routes import router as observation_router
 from app.api.operator_auth import router as operator_auth_router, evolution_control_router
 from app.api.governance_routes import router as governance_router
+from app.api.maintenance_outbox_routes import router as maintenance_outbox_router
 from app.core.config import get_settings
 from app.core.logger import logger
 from app.governance.runtime import configure_governance
@@ -153,6 +154,7 @@ app.include_router(observation_router, prefix="/api/v1")
 app.include_router(observation_router, include_in_schema=False)
 app.include_router(operator_auth_router)
 app.include_router(governance_router, prefix="/api/v1")
+app.include_router(maintenance_outbox_router, prefix="/api/v1/observation")
 app.include_router(governance_router, include_in_schema=False)
 setup_metrics(app)
 

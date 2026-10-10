@@ -1,9 +1,10 @@
 """Deterministic, provider-free analysis of structured ESAP acceptance contracts.
 
 This module does not generate application code or infer missing intent. It converts
-a structured acceptance contract into a traceable work ledger. Capability items remain
-unsupported until a callable compiler handler is explicitly registered.
-Only the Python standard library is required; this module performs no network calls.
+a structured acceptance contract into a traceable work ledger. Capabilities without
+a registered callable handler are unsupported; a registered handler remains unknown
+until its output and evidence are independently verified. Only the Python standard
+library is required; this module performs no network calls.
 """
 from __future__ import annotations
 
@@ -69,10 +70,10 @@ def analyze_acceptance(
 ) -> Analysis:
     """Analyze structured acceptance data without models, plugins, or network access.
 
-    A capability is marked supported only when a callable compiler handler is
-    explicitly registered for that capability. Registration is not certification:
-    the generated result still requires independent verification. Quality gates and
-    negative cases start UNKNOWN because this function does not execute them.
+    A capability is UNKNOWN when a callable compiler handler is registered and
+    UNSUPPORTED when none is registered. Registration alone never establishes
+    support or certification. Quality gates and negative cases start UNKNOWN
+    because this function does not execute them.
     """
     if not isinstance(acceptance, Mapping):
         raise TypeError("Acceptance contract must be a JSON object")

@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from input_snapshot import SnapshotError, capture_snapshot, verify_snapshot
+from input_snapshot import SnapshotError, capture_snapshot, verify_snapshot  # noqa: E402
 
 
 class InputSnapshotTests(unittest.TestCase):

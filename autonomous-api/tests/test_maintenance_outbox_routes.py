@@ -50,3 +50,20 @@ async def test_status_returns_only_summary_and_delivery_metadata(monkeypatch):
     assert result["summary"]["dead_letter"] == 1
     assert result["items"] == [item]
     assert "payload" not in result
+
+
+@pytest.mark.asyncio
+async def test_status_does_not_create_uninitialized_storage_on_read(monkeypatch):
+    monkeypatch.setattr(
+        routes, "get_settings",
+        lambda: SimpleNamespace(MAINTENANCE_OUTBOX_DB_PATH="/persistent/not-created.sqlite3"),
+    )
+    monkeypatch.setattr(routes.Path, "is_file", lambda self: False)
+    monkeypatch.setattr(
+        routes, "_outbox_for_path",
+        lambda path: pytest.fail("GET must not initialize or create the outbox"),
+    )
+    response = await routes.maintenance_outbox_status(limit=20, _auth=object())
+    assert isinstance(response, JSONResponse)
+    assert response.status_code == 503
+    assert b"MAINTENANCE_OUTBOX_NOT_INITIALIZED" in response.body

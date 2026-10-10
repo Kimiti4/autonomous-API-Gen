@@ -104,3 +104,22 @@ does not start deployments or grant production-write authority. Delivery current
 no durable local outbox: callers must retain the generated evidence and surface a
 delivery failure for controlled retry. The focused tests use a fake HTTP transport and
 do not claim that a live Observatory deployment was contacted.
+
+
+## Durable Observatory delivery outbox
+
+`governed_maintenance_outbox.py` adds a SQLite-backed outbox for callers that need
+to retain evidence events across network failures or process restarts. The caller
+persists the exact event payload and stable event ID before attempting delivery.
+Failed attempts remain pending with an attempt count and last error; a later retry
+receives the same payload and ID. Reusing an event ID with different content is
+rejected. Successful acknowledgements record the remote event ID and mark the item
+delivered.
+
+Delivery is at-least-once, not exactly-once. The Observatory ingestion endpoint must
+deduplicate on the stable event ID to prevent duplicate event creation when the
+remote side accepts a request but the client loses the acknowledgement. Use a
+persistent writable database path and protect the database as operational evidence.
+The outbox module is a durable primitive; the caller must enqueue the fully validated
+event before invoking delivery. This addition does not claim live Observatory
+integration or authorize production writes.

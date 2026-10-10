@@ -299,6 +299,23 @@ class MaintenanceOutbox:
             ).fetchone()
         return dict(row) if row is not None else None
 
+    def list_recent(self, *, limit: int = 20) -> list[dict[str, Any]]:
+        """Return bounded delivery metadata, never the stored evidence payload."""
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 100:
+            raise ValueError("outbox-list-limit-invalid")
+        with closing(self._connect()) as connection:
+            rows = connection.execute(
+                """
+                SELECT event_digest, status, attempts, next_attempt_at, lease_until,
+                       observatory_event_id, last_error, created_at, updated_at
+                  FROM maintenance_outbox
+                 ORDER BY updated_at DESC, event_digest
+                 LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     def summary(self) -> dict[str, int]:
         """Return aggregate delivery counts suitable for a dashboard/health surface."""
         with closing(self._connect()) as connection:

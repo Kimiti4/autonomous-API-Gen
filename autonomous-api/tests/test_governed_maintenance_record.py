@@ -30,9 +30,9 @@ def admitted(**overrides):
     return observation, assess_deployed_observation(observation, **values)
 
 
-def record(observation_digest, **overrides):
+def record(digest, **overrides):
     values = dict(
-        observation_digest=observation_digest,
+        observation_digest=digest,
         obligation_id="ob-17",
         patch_digest="sha256:patch-123",
         verification_evidence=("unit:pass", "regression:pass"),

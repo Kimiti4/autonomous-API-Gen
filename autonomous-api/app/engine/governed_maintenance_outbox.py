@@ -16,10 +16,7 @@ import time
 from typing import Any, Callable
 
 from .governed_maintenance_execution import GovernedMaintenanceEvent
-from .governed_maintenance_observatory import (
-    ObservatoryDeliveryError,
-    deliver_maintenance_event,
-)
+from .governed_maintenance_observatory import deliver_maintenance_event
 from .governed_maintenance_record import GovernedMaintenanceRecord
 
 

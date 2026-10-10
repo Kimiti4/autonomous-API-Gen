@@ -42,7 +42,7 @@ describe('MaintenanceOutboxPanel', () => {
     expect(screen.getByText('Recently updated events')).toBeInTheDocument();
     expect(screen.getByText((_, element) => element?.tagName === 'P' && Boolean(element.textContent?.includes('delivery-failed:TimeoutError')))).toBeInTheDocument();
     expect(screen.getByText('3')).toBeInTheDocument();
-    expect(screen.getByText('dead letter')).toBeInTheDocument();
+    expect(screen.getAllByText('dead letter').length).toBeGreaterThanOrEqual(2);
   });
 
   it('does not invent counts when the status endpoint is unavailable', () => {

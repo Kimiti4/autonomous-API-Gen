@@ -71,6 +71,19 @@ class SnapshotConsumerTests(unittest.TestCase):
             with self.assertRaises(SnapshotConsumptionError):
                 load_snapshot_inputs(evidence)
 
+    def test_manifest_rejects_unsafe_logical_input_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.make_trial(root)
+            evidence = root / "out" / "evidence"
+            capture_snapshot(root, evidence)
+            manifest_path = evidence / "snapshot.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["inputs"][0]["path"] = "../PROBLEM.md"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(SnapshotConsumptionError):
+                load_snapshot_inputs(evidence)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -56,10 +56,23 @@ def record_verified_maintenance(
         raise ValueError("repair-report-verification-missing")
     if any(not isinstance(item, dict) or item.get("passed") is not True for item in repair_report.verification):
         raise ValueError("repair-report-verification-failed")
-    if any(not isinstance(item, dict) for item in repair_report.regressions):
+    if not repair_report.regressions:
+        raise ValueError("repair-report-regression-evidence-missing")
+    if any(
+        not isinstance(item, dict) or not isinstance(item.get("detected"), bool)
+        for item in repair_report.regressions
+    ):
         raise ValueError("repair-report-regression-evidence-malformed")
-    if any(item.get("detected") is True for item in repair_report.regressions):
+    if any(item["detected"] for item in repair_report.regressions):
         raise ValueError("repair-report-regression-detected")
+    for item in repair_report.regressions:
+        refs = item.get("evidence_refs", item.get("evidence_ref", item.get("evidence")))
+        if isinstance(refs, str):
+            refs = (refs,)
+        if not isinstance(refs, (tuple, list)) or not refs or any(
+            not isinstance(ref, str) or not ref.strip() for ref in refs
+        ):
+            raise ValueError("repair-report-regression-evidence-reference-missing")
     if repair_report.residuals:
         raise ValueError("repair-report-has-residuals")
 

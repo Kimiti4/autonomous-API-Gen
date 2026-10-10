@@ -4,7 +4,11 @@ on:
   pull_request:
     paths:
       - ".github/workflows/taskflow-live-snapshot-trial.yml"
-      - "experiments/taskflow-native/**"
+      - "experiments/taskflow-native/input_snapshot.py"
+      - "experiments/taskflow-native/snapshot_consumer.py"
+      - "experiments/taskflow-native/run_snapshot_trial.py"
+      - "experiments/taskflow-native/TRIAL_CONTRACT.json"
+      - "experiments/taskflow-native/PROBLEM.md"
       - "golden-projects/taskflow/ACCEPTANCE.json"
       - "tiannara/infrastructure/llm/openai_compatible_provider.py"
       - "tiannara/application/intent/**"

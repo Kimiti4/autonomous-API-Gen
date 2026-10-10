@@ -23,6 +23,7 @@ TRIAL_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(TRIAL_DIR))
 
 from snapshot_consumer import SnapshotConsumptionError, load_snapshot_inputs  # noqa: E402
+from provider_free.requirements import analyze_acceptance  # noqa: E402
 
 
 def _write_json(path: Path, payload: Any) -> None:
@@ -63,6 +64,24 @@ def run(evidence_dir: Path, timeout_seconds: int) -> int:
         _write_json(report_path, _base_record("FAIL", "snapshot_missing_canonical_input", started))
         return 1
 
+    # Always run the deterministic, provider-free intake against the immutable
+    # snapshot first. This ledger is evidence of analysis only, never generation
+    # or certification, and it must not replace the optional live path.
+    try:
+        acceptance = json.loads(inputs[acceptance_key].read_text(encoding="utf-8"))
+        analysis = analyze_acceptance(
+            acceptance,
+            source=f"snapshot:inputs/{acceptance_key}",
+        ).as_dict()
+        analysis_path = evidence_dir / "provider-free-analysis.json"
+        _write_json(analysis_path, analysis)
+    except (OSError, ValueError, TypeError) as exc:
+        _write_json(
+            report_path,
+            _base_record("FAIL", f"provider_free_snapshot_analysis_failed:{type(exc).__name__}", started),
+        )
+        return 1
+
     base_url = os.environ.get("TIANNARA_LLM_BASE_URL", "").strip()
     model_id = os.environ.get("TIANNARA_LLM_MODEL", "").strip()
     if not base_url or not model_id:
@@ -76,6 +95,17 @@ def run(evidence_dir: Path, timeout_seconds: int) -> int:
             name: __import__("hashlib").sha256(path.read_bytes()).hexdigest()
             for name, path in inputs.items()
         }
+        report["provider_free_analysis"] = {
+            "path": analysis_path.name,
+            "contract_sha256": analysis["contract_sha256"],
+            "requirement_count": len(analysis["requirements"]),
+            "certified": False,
+        }
+        report["next_blocker"] = (
+            "provider-free analysis is connected to snapshot intake, but no deterministic "
+            "TaskFlow ISR builder or capability-complete execution path is registered"
+        )
+        report["evidence"].append(analysis_path.name)
         _write_json(report_path, report)
         return 2
 
@@ -106,7 +136,14 @@ def run(evidence_dir: Path, timeout_seconds: int) -> int:
         "contract.snapshot.json",
         "inputs/experiments/taskflow-native/PROBLEM.md",
         "inputs/golden-projects/taskflow/ACCEPTANCE.json",
+        analysis_path.name,
     ]
+    report["provider_free_analysis"] = {
+        "path": analysis_path.name,
+        "contract_sha256": analysis["contract_sha256"],
+        "requirement_count": len(analysis["requirements"]),
+        "certified": False,
+    }
     report["snapshot_input_sha256"] = {
         name: __import__("hashlib").sha256(path.read_bytes()).hexdigest()
         for name, path in inputs.items()

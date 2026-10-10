@@ -1,0 +1,90 @@
+name: Maintenance Outbox Container Replacement
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "autonomous-api/Dockerfile"
+      - "autonomous-api/app/engine/governed_maintenance_outbox.py"
+      - "autonomous-api/docker-compose.yml"
+      - ".github/workflows/maintenance-outbox-container-replacement.yml"
+  push:
+    branches: [main]
+    paths:
+      - "autonomous-api/Dockerfile"
+      - "autonomous-api/app/engine/governed_maintenance_outbox.py"
+      - "autonomous-api/docker-compose.yml"
+      - ".github/workflows/maintenance-outbox-container-replacement.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mounted-database-survives-container-replacement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the actual autonomous-api image
+        run: docker build -t esap-maintenance-outbox-volume-test -f autonomous-api/Dockerfile autonomous-api
+      - name: Verify a pending outbox row survives replacement using the same host directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          image=esap-maintenance-outbox-volume-test
+          host_data="$RUNNER_TEMP/maintenance-outbox-host-data"
+          mkdir -p "$host_data"
+          app_uid="$(docker run --rm --entrypoint python "$image" -c 'import os; print(os.getuid())')"
+          sudo chown "$app_uid" "$host_data"
+
+          # Start a real container with the host bind mount. Seed a row using
+          # the application's actual MaintenanceOutbox schema, then stop/remove
+          # this container to model replacement while preserving host_data.
+          docker run -d --name maintenance-outbox-before \
+            --volume "$host_data:/app/data" \
+            --entrypoint python "$image" -c 'import time; time.sleep(3600)'
+
+          docker exec -i maintenance-outbox-before python - <<'PY'
+          import os
+          import sqlite3
+          import time
+          from app.engine.governed_maintenance_outbox import MaintenanceOutbox
+
+          path = os.environ.get("MAINTENANCE_OUTBOX_DB_PATH", "/app/data/maintenance-outbox.sqlite3")
+          # The image path is configured by Compose; set the same value explicitly
+          # for this standalone container replacement test.
+          path = "/app/data/maintenance-outbox.sqlite3"
+          MaintenanceOutbox(path)
+          now = time.time()
+          digest = "a" * 64
+          with sqlite3.connect(path) as db:
+              db.execute(
+                  """INSERT INTO maintenance_outbox
+                     (event_digest, payload_json, status, attempts, next_attempt_at,
+                      created_at, updated_at)
+                     VALUES (?, ?, 'pending', 0, ?, ?, ?)""",
+                  (digest, '{"test":"container-replacement"}', now, now, now),
+              )
+          print(f"seeded pending outbox row digest={digest}")
+          PY
+
+          docker rm -f maintenance-outbox-before
+
+          # A new container, same image and same preserved host directory.
+          docker run --rm -i --volume "$host_data:/app/data" \
+            --entrypoint python "$image" - <<'PY'
+          from app.engine.governed_maintenance_outbox import MaintenanceOutbox
+
+          path = "/app/data/maintenance-outbox.sqlite3"
+          outbox = MaintenanceOutbox(path)
+          digest = "a" * 64
+          item = outbox.get(digest)
+          assert item is not None, "pending row disappeared after container replacement"
+          assert item["status"] == "pending", item
+          assert item["attempts"] == 0, item
+          assert outbox.summary()["pending"] == 1, outbox.summary()
+          print(f"PASS: row survived container replacement digest={digest} status={item['status']}")
+          PY
+
+          test -f "$host_data/maintenance-outbox.sqlite3"

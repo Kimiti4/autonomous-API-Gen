@@ -42,16 +42,20 @@ jobs:
         run: |
           if [ -n "$TIANNARA_LLM_BASE_URL" ] && [ -n "$TIANNARA_LLM_MODEL" ]; then
             echo "Using explicitly configured live provider."
+            echo "TIANNARA_LLM_BASE_URL=$TIANNARA_LLM_BASE_URL" >> "$GITHUB_ENV"
+            echo "TIANNARA_LLM_MODEL=$TIANNARA_LLM_MODEL" >> "$GITHUB_ENV"
+            if [ -n "$TIANNARA_LLM_API_KEY" ]; then
+              echo "TIANNARA_LLM_API_KEY=$TIANNARA_LLM_API_KEY" >> "$GITHUB_ENV"
+            fi
           else
             echo "No provider secrets configured; starting a bounded local Ollama model for this trial."
-            curl -fsSL https://ollama.com/install.sh | sh
-            (ollama serve > /tmp/tiannara-ollama.log 2>&1 &)
+            docker run -d --name tiannara-ollama -p 11434:11434 ollama/ollama:latest
             for i in $(seq 1 60); do
               if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then break; fi
               sleep 2
             done
             curl -fsS http://127.0.0.1:11434/api/tags >/dev/null
-            ollama pull qwen2.5:3b
+            docker exec tiannara-ollama ollama pull qwen2.5:3b
             echo "TIANNARA_LLM_BASE_URL=http://127.0.0.1:11434/v1" >> "$GITHUB_ENV"
             echo "TIANNARA_LLM_MODEL=qwen2.5:3b" >> "$GITHUB_ENV"
           fi
@@ -71,9 +75,6 @@ jobs:
         id: trial
         continue-on-error: true
         env:
-          TIANNARA_LLM_BASE_URL: ${{ secrets.TIANNARA_LLM_BASE_URL }}
-          TIANNARA_LLM_MODEL: ${{ secrets.TIANNARA_LLM_MODEL }}
-          TIANNARA_LLM_API_KEY: ${{ secrets.TIANNARA_LLM_API_KEY }}
           PYTHONPATH: ${{ github.workspace }}
         run: |
           # Values set by the fallback provider step are already present in GITHUB_ENV.

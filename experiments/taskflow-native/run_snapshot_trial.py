@@ -101,6 +101,12 @@ def run(evidence_dir: Path, timeout_seconds: int) -> int:
     )
     report = _base_record("FAIL", "attempt_started", started)
     report["snapshot_contract_sha256"] = snapshot["contract_sha256"]
+    report["evidence"] = [
+        "snapshot.json",
+        "contract.snapshot.json",
+        "inputs/experiments/taskflow-native/PROBLEM.md",
+        "inputs/golden-projects/taskflow/ACCEPTANCE.json",
+    ]
     report["snapshot_input_sha256"] = {
         name: __import__("hashlib").sha256(path.read_bytes()).hexdigest()
         for name, path in inputs.items()
@@ -157,6 +163,9 @@ def run(evidence_dir: Path, timeout_seconds: int) -> int:
         return 2
     except Exception as exc:
         report["verdict"] = "FAIL"
+        report["failure_stage"] = "intent_compilation_or_provider"
+        report["provider_call_attempted"] = True
+        report["model_call_count"] = 0
         report["reason"] = f"live_attempt_failed:{type(exc).__name__}"
         report["diagnostic"] = str(exc)[:1000]
         report["finished_at"] = datetime.now(timezone.utc).isoformat()

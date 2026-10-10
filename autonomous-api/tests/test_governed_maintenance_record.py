@@ -88,3 +88,34 @@ def test_record_cannot_bypass_failed_admission():
     observation, admission = admitted(explicit_change_authorization=False)
     with pytest.raises(ValueError, match="maintenance-admission-not-executable"):
         validate_maintenance_record(record(observation.digest), admission)
+
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "reason"),
+    [
+        ("observation_digest", "   ", "missing-observation-digest"),
+        ("obligation_id", "   ", "missing-obligation-id"),
+        ("patch_digest", "   ", "missing-patch-digest"),
+        ("authorization_ref", "   ", "missing-authorization-reference"),
+    ],
+)
+def test_record_rejects_whitespace_only_required_fields(field, value, reason):
+    observation, admission = admitted()
+    candidate = record(observation.digest, **{field: value})
+    with pytest.raises(ValueError, match=reason):
+        validate_maintenance_record(candidate, admission)
+
+
+def test_record_rejects_blank_verification_evidence_item():
+    observation, admission = admitted()
+    candidate = record(observation.digest, verification_evidence=("unit:pass", "  "))
+    with pytest.raises(ValueError, match="missing-verification-evidence"):
+        validate_maintenance_record(candidate, admission)
+
+
+def test_record_rejects_non_string_verification_evidence_item():
+    observation, admission = admitted()
+    candidate = record(observation.digest, verification_evidence=("unit:pass", None))
+    with pytest.raises(ValueError, match="missing-verification-evidence"):
+        validate_maintenance_record(candidate, admission)

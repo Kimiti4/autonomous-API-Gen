@@ -53,14 +53,15 @@ class MaintenanceOutbox:
                 raise ValueError(f"outbox-{name}-invalid")
         if max_backoff_seconds < base_backoff_seconds:
             raise ValueError("outbox-backoff-range-invalid")
-        self.database_path = str(database_path)
+        if str(database_path).strip() == ":memory:":
+            raise ValueError("outbox-database-must-be-durable")
+        self.database_path = str(Path(database_path).expanduser())
         self.max_attempts = max_attempts
         self.base_backoff_seconds = float(base_backoff_seconds)
         self.max_backoff_seconds = float(max_backoff_seconds)
         self.lease_seconds = float(lease_seconds)
         self.clock = clock
-        if self.database_path != ":memory:":
-            Path(self.database_path).expanduser().resolve().parent.mkdir(parents=True, exist_ok=True)
+        Path(self.database_path).resolve().parent.mkdir(parents=True, exist_ok=True)
         self._initialize()
 
     def _connect(self) -> sqlite3.Connection:

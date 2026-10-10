@@ -154,7 +154,7 @@ app.include_router(observation_router, prefix="/api/v1")
 app.include_router(observation_router, include_in_schema=False)
 app.include_router(operator_auth_router)
 app.include_router(governance_router, prefix="/api/v1")
-app.include_router(maintenance_outbox_router, prefix="/api/v1/observation")
+app.include_router(maintenance_outbox_router, prefix="/api/v1/observation", include_in_schema=False)
 app.include_router(governance_router, include_in_schema=False)
 setup_metrics(app)
 

@@ -587,6 +587,50 @@ def write_json(path: Path, payload: dict) -> None:
     )
 
 
+def classify_failure(exc: BaseException) -> dict:
+    """Return safe diagnostic metadata without logging exception messages or payloads."""
+    chain = []
+    seen = set()
+    current: BaseException | None = exc
+    failure_class = "unexpected"
+    http_status = None
+    errno_value = None
+
+    while current is not None and id(current) not in seen and len(chain) < 8:
+        seen.add(id(current))
+        name = type(current).__name__
+        chain.append(name)
+
+        if isinstance(current, (TimeoutError, socket.timeout)):
+            failure_class = "timeout"
+        elif isinstance(current, urllib.error.HTTPError):
+            failure_class = "http_error"
+            http_status = int(current.code)
+        elif isinstance(current, urllib.error.URLError):
+            reason = current.reason
+            if isinstance(reason, (TimeoutError, socket.timeout)):
+                failure_class = "timeout"
+            elif isinstance(reason, OSError):
+                failure_class = "transport_error"
+                errno_value = getattr(reason, "errno", None)
+            else:
+                failure_class = "url_error"
+        elif isinstance(current, OSError):
+            failure_class = "transport_error"
+            errno_value = getattr(current, "errno", None)
+        elif name in {"ValidationError", "JSONDecodeError"}:
+            failure_class = "structured_response_invalid"
+
+        current = current.__cause__ or current.__context__
+
+    return {
+        "failure_class": failure_class,
+        "exception_chain": chain,
+        "http_status": http_status,
+        "errno": errno_value,
+    }
+
+
 def run_trial(trial_dir: Path, keep: bool = False) -> int:
     contract_path = trial_dir / "TRIAL_CONTRACT.json"
     if not contract_path.is_file():
@@ -645,11 +689,22 @@ def run_trial(trial_dir: Path, keep: bool = False) -> int:
         seed_transcript(statement, transcript_path)
         graph_evidence = compile_for_graph_evidence(statement, transcript_path)
     except Exception as exc:
+        # Record only exception classes and safe transport metadata. Exception
+        # messages can contain endpoint details or provider payload fragments.
+        diagnostic = classify_failure(exc)
         write_json(
             evidence_dir / "errors.json",
-            {"stage": "graph_compile", "error": repr(exc)},
+            {
+                "evidence_schema": EVIDENCE_SCHEMA,
+                "stage": "graph_compile",
+                **diagnostic,
+            },
         )
-        print(f"BLOCKED: live intent compilation failed ({type(exc).__name__})")
+        print(
+            "BLOCKED: live intent compilation failed "
+            f"(class={diagnostic['failure_class']}, "
+            f"chain={'->'.join(diagnostic['exception_chain'])})"
+        )
         return 2
     write_json(evidence_dir / "isr_graph.json", graph_evidence)
 

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import subprocess
 import sys
+import tempfile
 import unittest
 
 TRIAL_DIR = Path(__file__).resolve().parents[1]
@@ -76,6 +78,31 @@ class ProviderFreeRequirementAnalysisTests(unittest.TestCase):
             [item["requirement_id"] for item in first["requirements"]],
             [item["requirement_id"] for item in second["requirements"]],
         )
+
+    def test_cli_runs_offline_and_emits_non_certifying_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = Path(temp_dir) / "evidence" / "analysis.json"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "provider_free.cli",
+                    "--acceptance",
+                    str(ACCEPTANCE_PATH),
+                    "--output",
+                    str(output),
+                ],
+                cwd=TRIAL_DIR,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            report = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(report["network_calls"], 0)
+            self.assertFalse(report["provider_required"])
+            self.assertFalse(report["certified"])
 
 
 if __name__ == "__main__":

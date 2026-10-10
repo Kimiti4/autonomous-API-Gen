@@ -169,3 +169,14 @@ def test_outbox_rejects_invalid_configuration(tmp_path):
         MaintenanceOutbox(tmp_path / "outbox.sqlite3", max_attempts=0)
     with pytest.raises(ValueError, match="outbox-lease-invalid"):
         MaintenanceOutbox(tmp_path / "outbox.sqlite3", lease_seconds=float("nan"))
+
+
+def test_invalid_delivery_configuration_does_not_consume_attempts(tmp_path):
+    record, event = maintenance_case()
+    outbox = MaintenanceOutbox(tmp_path / "outbox.sqlite3")
+    outbox.enqueue(record, event)
+    with pytest.raises(ValueError, match="observatory-base-url-invalid"):
+        outbox.deliver_pending(base_url="http://observatory.example", token="test-token")
+    item = outbox.get(event.digest)
+    assert item["status"] == "pending"
+    assert item["attempts"] == 0

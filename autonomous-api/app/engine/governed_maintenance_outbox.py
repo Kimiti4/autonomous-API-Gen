@@ -6,6 +6,7 @@ review. It never performs repository writes or deployment actions.
 """
 from __future__ import annotations
 
+from contextlib import closing
 from dataclasses import asdict
 import json
 import math
@@ -66,11 +67,12 @@ class MaintenanceOutbox:
         connection = sqlite3.connect(self.database_path, timeout=5.0, isolation_level=None)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA busy_timeout = 5000")
+        connection.execute("PRAGMA synchronous = FULL")
         connection.execute("PRAGMA foreign_keys = ON")
         return connection
 
     def _initialize(self) -> None:
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             connection.execute("PRAGMA journal_mode = WAL")
             connection.execute("PRAGMA synchronous = FULL")
             connection.execute(
@@ -121,7 +123,7 @@ class MaintenanceOutbox:
         """Persist the record/event pair before attempting delivery; idempotent by digest."""
         digest, payload_json = self._serialize(record, event)
         now = self.clock()
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             connection.execute("BEGIN IMMEDIATE")
             existing = connection.execute(
                 "SELECT payload_json FROM maintenance_outbox WHERE event_digest = ?", (digest,)
@@ -146,7 +148,7 @@ class MaintenanceOutbox:
     def _claim(self, *, limit: int) -> list[sqlite3.Row]:
         now = self.clock()
         claimed: list[sqlite3.Row] = []
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             connection.execute("BEGIN IMMEDIATE")
             connection.execute(
                 """
@@ -191,7 +193,7 @@ class MaintenanceOutbox:
         status = "dead_letter" if dead_letter else "pending"
         # Avoid storing exception text: transport errors can contain URLs or other sensitive details.
         safe_error = "delivery-failed:" + type(error).__name__
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             connection.execute("BEGIN IMMEDIATE")
             connection.execute(
                 """
@@ -244,7 +246,7 @@ class MaintenanceOutbox:
                 results.append(self._mark_failure(digest, attempts, exc))
                 continue
             now = self.clock()
-            with self._connect() as connection:
+            with closing(self._connect()) as connection:
                 connection.execute("BEGIN IMMEDIATE")
                 connection.execute(
                     """
@@ -267,7 +269,7 @@ class MaintenanceOutbox:
 
     def get(self, event_digest: str) -> dict[str, Any] | None:
         """Return delivery metadata without exposing the stored evidence payload."""
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             row = connection.execute(
                 """
                 SELECT event_digest, status, attempts, next_attempt_at, lease_until,
@@ -280,7 +282,7 @@ class MaintenanceOutbox:
 
     def summary(self) -> dict[str, int]:
         """Return aggregate delivery counts suitable for a dashboard/health surface."""
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             rows = connection.execute(
                 "SELECT status, COUNT(*) AS count FROM maintenance_outbox GROUP BY status"
             ).fetchall()
@@ -291,7 +293,7 @@ class MaintenanceOutbox:
     def retry_dead_letter(self, event_digest: str) -> bool:
         """Explicitly requeue one dead-letter event for operator-controlled recovery."""
         now = self.clock()
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             connection.execute("BEGIN IMMEDIATE")
             result = connection.execute(
                 """

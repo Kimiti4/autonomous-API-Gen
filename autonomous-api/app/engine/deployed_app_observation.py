@@ -6,6 +6,7 @@ requirements automatically and never authorize repository or production writes.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from enum import Enum
 from hashlib import blake2b
@@ -50,16 +51,23 @@ class RuntimeObservation:
 
     @property
     def digest(self) -> str:
-        canonical = "|".join((
-            self.deployment_id,
-            self.observed_revision,
-            self.environment_fingerprint,
-            self.status.value,
-            *self.health_evidence,
-            *self.verification_evidence,
-            *self.observed_capabilities,
-        ))
-        return blake2b(canonical.encode(), digest_size=32).hexdigest()
+        # Structured canonical encoding avoids delimiter ambiguity when evidence
+        # strings themselves contain "|" or other separator characters.
+        canonical = json.dumps(
+            {
+                "deployment_id": self.deployment_id,
+                "observed_revision": self.observed_revision,
+                "environment_fingerprint": self.environment_fingerprint,
+                "status": self.status.value,
+                "health_evidence": list(self.health_evidence),
+                "verification_evidence": list(self.verification_evidence),
+                "observed_capabilities": list(self.observed_capabilities),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
+        return blake2b(canonical.encode("utf-8"), digest_size=32).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -103,6 +111,8 @@ def assess_deployed_observation(
 
     if not observation.evidence_complete:
         reasons.append("runtime-verification-evidence-incomplete")
+    if observation.status is not ObservationStatus.HEALTHY:
+        reasons.append(f"runtime-status-not-healthy:{observation.status.value}")
     if not baseline_revision:
         reasons.append("missing-baseline-revision")
     if not baseline_environment_fingerprint:
@@ -123,6 +133,8 @@ def assess_deployed_observation(
 
     if production_write_authorized and not deployment_access:
         reasons.append("production-write-requires-deployment-access")
+    if production_write_authorized and not explicit_change_authorization:
+        reasons.append("production-write-requires-explicit-authorization")
 
     blocking = tuple(r for r in reasons if not r.startswith("advisory-drift:"))
     executable = not blocking and bool(authorized_obligation_ids)
@@ -136,7 +148,7 @@ def assess_deployed_observation(
         executable=executable,
         reasons=tuple(sorted(set(reasons))),
         authorized_obligation_ids=tuple(sorted(set(authorized_obligation_ids))),
-        production_write_authorized=production_write_authorized,
+        production_write_authorized=production_write_authorized and explicit_change_authorization and deployment_access,
     )
 
 

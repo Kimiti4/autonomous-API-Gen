@@ -6,6 +6,9 @@ on:
       - ".github/workflows/taskflow-provider-free-tests.yml"
       - "experiments/taskflow-native/provider_free/**"
       - "experiments/taskflow-native/tests/test_provider_free_requirements.py"
+      - "experiments/taskflow-native/input_snapshot.py"
+      - "experiments/taskflow-native/TRIAL_CONTRACT.json"
+      - "experiments/taskflow-native/PROBLEM.md"
       - "golden-projects/taskflow/ACCEPTANCE.json"
   workflow_dispatch:
 
@@ -21,16 +24,32 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Capture canonical TaskFlow inputs into an immutable snapshot
+        run: |
+          python experiments/taskflow-native/input_snapshot.py \
+            --trial-dir "$GITHUB_WORKSPACE" \
+            --evidence-dir experiments/taskflow-native/out/provider-free-evidence
+      - name: Verify snapshot integrity before analysis
+        run: |
+          python experiments/taskflow-native/input_snapshot.py \
+            --trial-dir "$GITHUB_WORKSPACE" \
+            --evidence-dir experiments/taskflow-native/out/provider-free-evidence \
+            --verify
       - name: Run offline provider-free acceptance analysis tests
         run: |
           python -m unittest discover \
             -s experiments/taskflow-native/tests \
             -p 'test_provider_free_requirements.py' \
             -v
-      - name: Verify CLI produces deterministic, non-certifying analysis
+      - name: Analyze only the snapshotted acceptance contract
         run: |
-          mkdir -p /tmp/esap-provider-free
           python -m provider_free.cli \
-            --acceptance ../../golden-projects/taskflow/ACCEPTANCE.json \
-            --output /tmp/esap-provider-free/analysis.json
+            --acceptance out/provider-free-evidence/inputs/golden-projects/taskflow/ACCEPTANCE.json \
+            --output out/provider-free-evidence/provider-free-analysis.json
         working-directory: experiments/taskflow-native
+      - name: Verify snapshot integrity remains intact after analysis
+        run: |
+          python experiments/taskflow-native/input_snapshot.py \
+            --trial-dir "$GITHUB_WORKSPACE" \
+            --evidence-dir experiments/taskflow-native/out/provider-free-evidence \
+            --verify

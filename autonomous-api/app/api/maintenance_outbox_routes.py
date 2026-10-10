@@ -4,13 +4,29 @@ from __future__ import annotations
 from functools import lru_cache
 import sqlite3
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.core.config import get_settings
-from app.middleware.security import require_auth
+from app.core.exceptions import UnauthenticatedError
+from app.middleware.security import get_auth
+from app.api.operator_auth import authenticate_operator_session
 
 router = APIRouter(prefix="/maintenance-outbox", tags=["maintenance-observability"])
+
+
+async def require_dashboard_auth(request: Request):
+    """Accept the same-origin operator session or the platform API-key provider."""
+    try:
+        auth = get_auth()
+        context = await auth.authenticate(request)
+    except Exception:
+        context = None
+    if context is None:
+        context = await authenticate_operator_session(request)
+    if context is None:
+        raise UnauthenticatedError("Authentication required")
+    return context
 
 
 @lru_cache(maxsize=1)
@@ -23,7 +39,7 @@ def _outbox_for_path(database_path: str):
 @router.get("")
 async def maintenance_outbox_status(
     limit: int = Query(default=20, ge=1, le=100),
-    _auth=Depends(require_auth),
+    _auth=Depends(require_dashboard_auth),
 ):
     """Expose queue counts and bounded metadata; never expose evidence payloads or tokens."""
     database_path = get_settings().MAINTENANCE_OUTBOX_DB_PATH.strip()

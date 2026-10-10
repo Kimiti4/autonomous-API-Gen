@@ -40,7 +40,7 @@ describe('MaintenanceOutboxPanel', () => {
     render(<MaintenanceOutboxPanel />);
     expect(screen.getByText('Governed maintenance delivery')).toBeInTheDocument();
     expect(screen.getByText('Recently updated events')).toBeInTheDocument();
-    expect(screen.getByText('delivery-failed:TimeoutError')).toBeInTheDocument();
+    expect(screen.getByText((_, element) => element?.tagName === 'P' && Boolean(element.textContent?.includes('delivery-failed:TimeoutError')))).toBeInTheDocument();
     expect(screen.getByText('3')).toBeInTheDocument();
     expect(screen.getByText('dead letter')).toBeInTheDocument();
   });

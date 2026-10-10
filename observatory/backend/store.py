@@ -12,10 +12,15 @@ import threading
 from datetime import datetime, timezone
 from typing import Any, List, NamedTuple, Optional, Union
 
-from .domain import Event, EventCategory, event_hash
+from .domain import Event, EventCategory, event_hash, utc_now
 
 
 class StoreIntegrityError(Exception):
+    pass
+
+
+class IdempotencyConflict(Exception):
+    """An idempotency key was reused for a different request."""
     pass
 
 
@@ -70,6 +75,15 @@ class SqliteEventStore:
             self._conn.execute(
                 "CREATE INDEX IF NOT EXISTS events_timestamp_idx "
                 "ON events (timestamp)")
+            self._conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS idempotency_records (
+                    idempotency_key TEXT PRIMARY KEY,
+                    request_hash TEXT NOT NULL,
+                    event_id TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+                """)
             self._conn.commit()
 
     def append(self, event: Event) -> bool:
@@ -156,6 +170,62 @@ class SqliteEventStore:
                 inserted=inserted, duplicates=duplicates,
                 accepted_event_ids=accepted_event_ids,
                 inserted_events=inserted_events)
+
+    def append_idempotent(
+        self, event: Event, idempotency_key: str, request_hash: str
+    ) -> tuple[str, bool, bool]:
+        """Atomically append an event and bind an idempotency key to its request.
+
+        Returns (event_id, replayed, inserted). Matching retries return the
+        original event ID without republishing. Reusing a key for another
+        request or binding it to conflicting event content is rejected.
+        """
+        if not idempotency_key or len(idempotency_key) > 200:
+            raise ValueError("invalid idempotency key")
+        if len(request_hash) != 64:
+            raise ValueError("invalid idempotency request hash")
+        computed_hash = event_hash(event)
+        dump = event.model_dump(mode="json")
+        with self._lock, self._conn:
+            prior = self._conn.execute(
+                "SELECT request_hash, event_id FROM idempotency_records "
+                "WHERE idempotency_key = ?", (idempotency_key,)
+            ).fetchone()
+            if prior is not None:
+                if prior["request_hash"] != request_hash:
+                    raise IdempotencyConflict(
+                        "idempotency key reused with different request")
+                return prior["event_id"], True, False
+
+            existing = self._conn.execute(
+                "SELECT event_hash FROM events WHERE id = ?", (event.id,)
+            ).fetchone()
+            inserted = existing is None
+            if existing is not None and existing["event_hash"] != computed_hash:
+                raise StoreIntegrityError(
+                    f"event id {event.id} already exists with a different hash")
+            if inserted:
+                self._conn.execute(
+                    """INSERT INTO events (id, event_hash, timestamp, source,
+                        category, type, subject_id, correlation_id, causation_id,
+                        payload, epistemic_status, authorization, evidence_refs,
+                        provenance, severity)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (event.id, computed_hash, event.timestamp.isoformat(),
+                     dump["source"], dump["category"], dump["type"],
+                     dump["subject_id"], dump["correlation_id"],
+                     dump["causation_id"],
+                     json.dumps(dump["payload"], sort_keys=True, default=str),
+                     dump["epistemic_status"], dump["authorization"],
+                     json.dumps(dump["evidence_refs"], sort_keys=True, default=str),
+                     json.dumps(dump["provenance"], sort_keys=True, default=str),
+                     dump["severity"]))
+            self._conn.execute(
+                "INSERT INTO idempotency_records "
+                "(idempotency_key, request_hash, event_id, created_at) "
+                "VALUES (?, ?, ?, ?)",
+                (idempotency_key, request_hash, event.id, utc_now().isoformat()))
+            return event.id, False, inserted
 
     def get_event(self, event_id: str) -> Optional[Event]:
         with self._lock:

@@ -4,8 +4,6 @@ This is an in-process integration test, not evidence of live deployment behavior
 """
 from __future__ import annotations
 
-import os
-
 from fastapi.testclient import TestClient
 
 from app.engine.governed_maintenance_outbox import MaintenanceOutbox

@@ -5,8 +5,10 @@ on:
     paths:
       - "autonomous-api/app/engine/deployed_app_observation.py"
       - "autonomous-api/app/engine/governed_maintenance_record.py"
+      - "autonomous-api/app/engine/governed_maintenance_execution.py"
       - "autonomous-api/tests/test_deployed_app_observation.py"
       - "autonomous-api/tests/test_governed_maintenance_record.py"
+      - "autonomous-api/tests/test_governed_maintenance_execution.py"
       - "docs/bucket-4-2-deployed-app-observation.md"
       - ".github/workflows/bucket-4-2-focused.yml"
   push:
@@ -41,4 +43,4 @@ jobs:
           pip install -e .
           pip install pytest
       - name: Run Bucket 4.2 focused tests
-        run: pytest tests/test_deployed_app_observation.py tests/test_governed_maintenance_record.py -q
+        run: pytest tests/test_deployed_app_observation.py tests/test_governed_maintenance_record.py tests/test_governed_maintenance_execution.py -q

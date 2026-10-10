@@ -69,3 +69,15 @@ The maintenance evidence validator rejects whitespace-only observation, obligati
 patch, and authorization identifiers. Verification evidence entries must be non-empty
 strings; malformed entries fail closed rather than raising an incidental attribute
 error. Focused regression tests cover these invalid inputs.
+
+
+## Verified repair hand-off
+
+The governed maintenance adapter accepts only a repair report whose digest is valid,
+whose source revision matches the runtime observation, whose verification gates all
+pass with explicit evidence references, and whose residual list is empty. It binds
+the resulting maintenance record to the admitted observation, authorized obligation,
+patch digest, and authorization reference, then creates a digest-linked lifecycle
+event for Observatory consumption. This adapter records evidence only; it does not
+execute repository mutations or deploy. Production-write requests remain blocked
+unless the admission independently carries production authorization.

@@ -50,7 +50,7 @@ class ProviderFreeRequirementAnalysisTests(unittest.TestCase):
                 self.acceptance, capability_handlers={"imaginary-capability": lambda: None}
             )
 
-    def test_only_explicitly_registered_capabilities_are_supported(self) -> None:
+    def test_registered_capability_remains_unknown_until_evidence_is_verified(self) -> None:
         name = self.acceptance["required_capabilities"][0]
         result = analyze_acceptance(
             self.acceptance, capability_handlers={name: lambda: None}

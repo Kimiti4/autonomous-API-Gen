@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - bucket-4-1-jamiilink-existing-codebase-benchmark
+      - bucket-4-1-jamiilink-controlled-repair-trial
     paths:
       - "autonomous-api/app/engine/repository_code_scan.py"
       - "autonomous-api/tests/test_repository_code_scan.py"
@@ -57,6 +58,29 @@ jobs:
           PYTHONPATH: autonomous-api
         run: python -m pytest experiments/existing-codebase/test_scan_rules.py -q
 
+      - name: Create disposable workspace from pinned baseline
+        run: |
+          mkdir -p fixtures/jamiilink-repair-trial
+          cp -a fixtures/jamiilink-baseline/iyf-s10-week-09-Kimiti4 fixtures/jamiilink-repair-trial/
+
+      - name: Generate minimal patch in disposable workspace
+        env:
+          PYTHONPATH: autonomous-api
+        run: |
+          python experiments/existing-codebase/repair_trial.py \
+            --workspace fixtures/jamiilink-repair-trial \
+            --patch-out artifacts/jamiilink-repair-trial.patch
+
+      - name: Verify generated patch and rescan repaired target files
+        env:
+          PYTHONPATH: autonomous-api
+        run: |
+          python experiments/existing-codebase/verify_repair_trial.py \
+            --workspace fixtures/jamiilink-repair-trial \
+            --patch artifacts/jamiilink-repair-trial.patch \
+            --repair-report artifacts/repair-trial-report.json \
+            --report artifacts/jamiilink-repair-verification.json
+
       - name: Scan baseline and candidate without executing target source
         env:
           PYTHONPATH: autonomous-api
@@ -71,31 +95,31 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: fixtures/jamiilink-candidate/iyf-s10-week-09-Kimiti4/package-lock.json
+          cache-dependency-path: fixtures/jamiilink-repair-trial/iyf-s10-week-09-Kimiti4/package-lock.json
 
-      - name: Install candidate frontend dependencies
-        working-directory: fixtures/jamiilink-candidate/iyf-s10-week-09-Kimiti4
+      - name: Install generated-trial frontend dependencies
+        working-directory: fixtures/jamiilink-repair-trial/iyf-s10-week-09-Kimiti4
         run: npm ci
 
-      - name: Run candidate lint
-        working-directory: fixtures/jamiilink-candidate/iyf-s10-week-09-Kimiti4
+      - name: Run generated-trial lint
+        working-directory: fixtures/jamiilink-repair-trial/iyf-s10-week-09-Kimiti4
         run: npm run lint
 
-      - name: Build candidate frontend
-        working-directory: fixtures/jamiilink-candidate/iyf-s10-week-09-Kimiti4
+      - name: Build generated-trial frontend
+        working-directory: fixtures/jamiilink-repair-trial/iyf-s10-week-09-Kimiti4
         env:
           VITE_API_URL: /api
         run: npm run build
 
       - name: Install Chromium for E2E
-        working-directory: fixtures/jamiilink-candidate/iyf-s10-week-09-Kimiti4
+        working-directory: fixtures/jamiilink-repair-trial/iyf-s10-week-09-Kimiti4
         run: npx playwright install --with-deps chromium
 
-      - name: Run candidate end-to-end regression suite
-        working-directory: fixtures/jamiilink-candidate/iyf-s10-week-09-Kimiti4
+      - name: Run generated-trial registration journey
+        working-directory: fixtures/jamiilink-repair-trial/iyf-s10-week-09-Kimiti4
         env:
           VITE_API_URL: /api
-        run: npx playwright test e2e/ --reporter=dot
+        run: npx playwright test e2e/journeys/jn-01.register-feed-discover-profile-alerts.spec.js --reporter=dot
 
       - name: Archive machine-readable scan evidence
         if: always()
@@ -104,6 +128,9 @@ jobs:
           name: jamiilink-existing-codebase-evidence
           path: |
             artifacts/jamiilink-existing-codebase-report.json
-            fixtures/jamiilink-candidate/iyf-s10-week-09-Kimiti4/playwright-report/
+            artifacts/jamiilink-repair-trial.patch
+            artifacts/repair-trial-report.json
+            artifacts/jamiilink-repair-verification.json
+            fixtures/jamiilink-repair-trial/iyf-s10-week-09-Kimiti4/playwright-report/
           if-no-files-found: warn
           retention-days: 30

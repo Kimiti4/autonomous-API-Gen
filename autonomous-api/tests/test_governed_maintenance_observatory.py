@@ -17,12 +17,15 @@ from app.engine.governed_maintenance_observatory import (
 from app.engine.repair_report import build_repair_report
 
 
+DEFAULT_ACK = object()
+
+
 class FakeResponse:
-    def __init__(self, status=200, payload=None):
+    def __init__(self, status=200, payload=DEFAULT_ACK):
         self.status = status
-        self.payload = payload if payload is not None else {
+        self.payload = {
             "status": "accepted", "event_id": "evt-evidence-abc123"
-        }
+        } if payload is DEFAULT_ACK else payload
         self.closed = False
 
     def read(self):

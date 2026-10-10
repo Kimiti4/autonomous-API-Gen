@@ -5,7 +5,7 @@ on:
     paths:
       - ".github/workflows/taskflow-provider-free-tests.yml"
       - "experiments/taskflow-native/provider_free/**"
-      - "experiments/taskflow-native/tests/test_provider_free_requirements.py"
+      - "experiments/taskflow-native/tests/test_provider_free_*.py"
       - "experiments/taskflow-native/input_snapshot.py"
       - "experiments/taskflow-native/TRIAL_CONTRACT.json"
       - "experiments/taskflow-native/PROBLEM.md"
@@ -39,7 +39,7 @@ jobs:
         run: |
           python -m unittest discover \
             -s experiments/taskflow-native/tests \
-            -p 'test_provider_free_requirements.py' \
+            -p 'test_provider_free_*.py' \
             -v
       - name: Analyze only the snapshotted acceptance contract
         run: |

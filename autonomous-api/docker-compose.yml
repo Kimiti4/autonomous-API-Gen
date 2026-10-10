@@ -8,6 +8,7 @@ services:
       - "8000:8000"
     environment:
       - DATABASE_URL=sqlite:///./data/evolution.db
+      - MAINTENANCE_OUTBOX_DB_PATH=/app/data/maintenance-outbox.sqlite3
       - OLLAMA_URL=http://ollama:11434
       - LOG_LEVEL=INFO
       - CORS_ORIGINS=["http://localhost:3000"]

@@ -61,3 +61,11 @@ required verification/deployment-readiness evidence exists. Additional
 observations remain advisory unless separately authorized.
 
 Production deployment remains a human-authorized action.
+
+
+## Maintenance-record input hardening
+
+The maintenance evidence validator rejects whitespace-only observation, obligation,
+patch, and authorization identifiers. Verification evidence entries must be non-empty
+strings; malformed entries fail closed rather than raising an incidental attribute
+error. Focused regression tests cover these invalid inputs.

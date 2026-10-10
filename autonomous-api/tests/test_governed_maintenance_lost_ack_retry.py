@@ -12,6 +12,21 @@ from observatory.backend.main import create_app
 from test_governed_maintenance_outbox import maintenance_case
 
 
+class UrlResponseAdapter:
+    """Expose the small urllib response interface expected by the bridge."""
+
+    def __init__(self, response):
+        self.status = response.status_code
+        self._content = response.content
+        self._response = response
+
+    def read(self):
+        return self._content
+
+    def close(self):
+        self._response.close()
+
+
 def test_lost_ack_retry_is_deduplicated_by_observatory(tmp_path, monkeypatch):
     monkeypatch.setenv("OBSERVATORY_DB_PATH", str(tmp_path / "observatory.sqlite3"))
     monkeypatch.setenv("OBSERVATORY_API_TOKEN", "integration-test-token")
@@ -41,8 +56,9 @@ def test_lost_ack_retry_is_deduplicated_by_observatory(tmp_path, monkeypatch):
             if attempts[0] == 1:
                 # Receiver committed the event, but the caller never received
                 # its acknowledgement: the ambiguous network-outcome case.
+                response.close()
                 raise TimeoutError("simulated acknowledgement loss")
-            return response
+            return UrlResponseAdapter(response)
 
         first = outbox.deliver_pending(
             base_url="http://localhost",

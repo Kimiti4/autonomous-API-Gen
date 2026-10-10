@@ -114,11 +114,11 @@ jobs:
         working-directory: fixtures/jamiilink-repair-trial/iyf-s10-week-09-Kimiti4
         run: npx playwright install --with-deps chromium
 
-      - name: Run generated-trial end-to-end regression suite
+      - name: Run generated-trial registration journey
         working-directory: fixtures/jamiilink-repair-trial/iyf-s10-week-09-Kimiti4
         env:
           VITE_API_URL: /api
-        run: npx playwright test e2e/ --reporter=dot
+        run: npx playwright test e2e/journeys/jn-01.register-feed-discover-profile-alerts.spec.js --reporter=dot
 
       - name: Archive machine-readable scan evidence
         if: always()

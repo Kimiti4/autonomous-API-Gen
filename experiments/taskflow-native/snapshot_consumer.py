@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -55,7 +56,7 @@ def load_snapshot_inputs(evidence_dir: Path) -> dict[str, Any]:
     if not isinstance(manifest, dict) or manifest.get("schema") != "tiannara.trial-input-snapshot.v1":
         raise SnapshotConsumptionError("unsupported snapshot manifest schema")
     contract_hash = manifest.get("contract_sha256")
-    if not isinstance(contract_hash, str) or len(contract_hash) != 64:
+    if not isinstance(contract_hash, str) or re.fullmatch(r"[0-9a-f]{64}", contract_hash) is None:
         raise SnapshotConsumptionError("invalid contract hash in manifest")
     contract_path = _child(evidence, manifest.get("contract_snapshot_path", ""))
     if _sha256(contract_path) != contract_hash:
@@ -82,9 +83,12 @@ def load_snapshot_inputs(evidence_dir: Path) -> dict[str, Any]:
             raise SnapshotConsumptionError("invalid input entry")
         rel = entry.get("path")
         digest = entry.get("sha256")
-        if not isinstance(rel, str) or not isinstance(digest, str) or len(digest) != 64:
+        if not isinstance(rel, str) or not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
             raise SnapshotConsumptionError("invalid input path or hash")
-        normalized = Path(rel).as_posix()
+        logical_path = Path(rel)
+        if logical_path.is_absolute() or any(part in {"", ".", ".."} for part in logical_path.parts):
+            raise SnapshotConsumptionError("unsafe logical input path in snapshot manifest")
+        normalized = logical_path.as_posix()
         if normalized in inputs:
             raise SnapshotConsumptionError("duplicate snapshot input")
         if any(normalized == item or normalized.startswith(item + "/") for item in forbidden_paths):
@@ -93,9 +97,14 @@ def load_snapshot_inputs(evidence_dir: Path) -> dict[str, Any]:
         if _sha256(snapshot_path) != digest:
             raise SnapshotConsumptionError(f"snapshot input hash mismatch: {normalized}")
         inputs[normalized] = snapshot_path
-    normalized_declared = {
-        Path(item).as_posix() for item in declared if isinstance(item, str)
-    }
+    normalized_declared = set()
+    for item in declared:
+        if not isinstance(item, str) or not item.strip():
+            raise SnapshotConsumptionError("invalid logical input path in contract")
+        logical_path = Path(item)
+        if logical_path.is_absolute() or any(part in {"", ".", ".."} for part in logical_path.parts):
+            raise SnapshotConsumptionError("unsafe logical input path in contract")
+        normalized_declared.add(logical_path.as_posix())
     if len(normalized_declared) != len(declared) or normalized_declared != set(inputs):
         raise SnapshotConsumptionError("manifest inputs do not exactly match contract")
     return {

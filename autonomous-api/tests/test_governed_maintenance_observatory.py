@@ -93,6 +93,7 @@ def test_delivers_verified_event_to_observatory_and_checks_acknowledgement():
     assert request.full_url == "https://observatory.example/observatory/events"
     assert request.get_method() == "POST"
     assert request.get_header("X-observatory-token") == "test-token"
+    assert request.get_header("Idempotency-key") == f"maintenance-{event.digest}"
     assert request.get_header("X-actor-role") == "system"
     assert body["type"] == "governed_maintenance_recorded"
     assert body["payload"]["maintenance_event_digest"] == event.digest
@@ -175,3 +176,52 @@ def test_combined_flow_returns_only_after_observatory_acknowledges():
     assert record.observation_digest == observation.digest
     assert event.repair_report_digest == report.digest
     assert event_id == "evt-evidence-abc123"
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "http://observatory.example",
+        "file:///tmp/observatory",
+        "https://user:password@observatory.example",
+        "https://observatory.example/path?token=leak",
+        "https://observatory.example/path#fragment",
+    ],
+)
+def test_delivery_rejects_insecure_or_ambiguous_endpoint(base_url):
+    record, event = maintenance_case()
+    with pytest.raises(ValueError, match="observatory-base-url-invalid"):
+        deliver_maintenance_event(
+            record, event, base_url=base_url, token="test-token",
+            opener=lambda *_args, **_kwargs: pytest.fail("must not send"),
+        )
+
+
+def test_delivery_allows_loopback_http_for_local_development():
+    record, event = maintenance_case()
+    result = deliver_maintenance_event(
+        record, event, base_url="http://localhost:8000",
+        token="test-token", opener=lambda *_args, **_kwargs: FakeResponse(),
+    )
+    assert result == "evt-evidence-abc123"
+
+
+@pytest.mark.parametrize("timeout", [0, -1, float("nan"), float("inf"), True, "5"])
+def test_delivery_rejects_invalid_timeout(timeout):
+    record, event = maintenance_case()
+    with pytest.raises(ValueError, match="invalid-observatory-timeout"):
+        deliver_maintenance_event(
+            record, event, base_url="https://observatory.example",
+            token="test-token", timeout=timeout,
+            opener=lambda *_args, **_kwargs: pytest.fail("must not send"),
+        )
+
+
+@pytest.mark.parametrize("payload", [[], "accepted", None, 42])
+def test_delivery_rejects_non_object_acknowledgement(payload):
+    record, event = maintenance_case()
+    with pytest.raises(ObservatoryDeliveryError, match="observatory-acknowledgement-invalid"):
+        deliver_maintenance_event(
+            record, event, base_url="https://observatory.example",
+            token="test-token", opener=lambda *_args, **_kwargs: FakeResponse(payload=payload),
+        )

@@ -31,6 +31,6 @@ jobs:
         run: |
           mkdir -p /tmp/esap-provider-free
           python -m provider_free.cli \
-            --acceptance golden-projects/taskflow/ACCEPTANCE.json \
+            --acceptance ../../golden-projects/taskflow/ACCEPTANCE.json \
             --output /tmp/esap-provider-free/analysis.json
         working-directory: experiments/taskflow-native

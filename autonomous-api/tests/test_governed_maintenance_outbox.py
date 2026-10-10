@@ -163,6 +163,8 @@ def test_digest_collision_does_not_overwrite_existing_evidence(tmp_path):
 
 
 def test_outbox_rejects_invalid_configuration(tmp_path):
+    with pytest.raises(ValueError, match="outbox-database-must-be-durable"):
+        MaintenanceOutbox(":memory:")
     with pytest.raises(ValueError, match="outbox-max-attempts-invalid"):
         MaintenanceOutbox(tmp_path / "outbox.sqlite3", max_attempts=0)
     with pytest.raises(ValueError, match="outbox-lease-invalid"):

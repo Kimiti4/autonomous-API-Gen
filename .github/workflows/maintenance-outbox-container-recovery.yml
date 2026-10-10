@@ -1,0 +1,30 @@
+name: Maintenance Outbox Container Recovery
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/verify_outbox_container_replacement.sh"
+      - ".github/workflows/maintenance-outbox-container-recovery.yml"
+      - "autonomous-api/docker-compose.yml"
+      - "autonomous-api/app/engine/governed_maintenance_outbox.py"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/verify_outbox_container_replacement.sh"
+      - ".github/workflows/maintenance-outbox-container-recovery.yml"
+      - "autonomous-api/docker-compose.yml"
+      - "autonomous-api/app/engine/governed_maintenance_outbox.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  container-replacement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify SQLite survives container replacement with preserved host mount
+        run: bash scripts/verify_outbox_container_replacement.sh

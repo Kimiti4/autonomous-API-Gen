@@ -130,6 +130,18 @@ def capture_snapshot(
         raise
 
 
+def _safe_child(root: Path, raw_path: str) -> Path:
+    if not isinstance(raw_path, str) or not raw_path.strip():
+        raise SnapshotError("manifest path must be a non-empty string")
+    rel = Path(raw_path)
+    if rel.is_absolute() or any(part in {"", ".", ".."} for part in rel.parts):
+        raise SnapshotError("unsafe path in snapshot manifest")
+    candidate = (root / rel).resolve(strict=False)
+    if not _inside(root.resolve(), candidate):
+        raise SnapshotError("snapshot manifest path escapes its root")
+    return candidate
+
+
 def verify_snapshot(trial_dir: Path, evidence_dir: Path) -> dict[str, Any]:
     root = trial_dir.resolve(strict=True)
     evidence = evidence_dir.resolve(strict=True)
@@ -139,32 +151,81 @@ def verify_snapshot(trial_dir: Path, evidence_dir: Path) -> dict[str, Any]:
         manifest = json.loads((evidence / "snapshot.json").read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         raise SnapshotError("snapshot manifest is missing or invalid") from exc
-    if manifest.get("schema") != SCHEMA:
+    if not isinstance(manifest, dict) or manifest.get("schema") != SCHEMA:
         raise SnapshotError("unsupported snapshot schema")
+    entries = manifest.get("inputs")
+    if not isinstance(entries, list) or not isinstance(manifest.get("contract_sha256"), str):
+        raise SnapshotError("snapshot manifest has invalid structure")
 
     issues = []
-    contract_snapshot = evidence / manifest.get("contract_snapshot_path", "")
-    if not contract_snapshot.is_file() or sha256_file(contract_snapshot) != manifest.get("contract_sha256"):
+    contract_copy = _safe_child(evidence, manifest.get("contract_snapshot_path", ""))
+    if not contract_copy.is_file() or sha256_file(contract_copy) != manifest["contract_sha256"]:
         issues.append("contract_snapshot_integrity")
-    source_contract = root / manifest.get("contract_path", CONTRACT_NAME)
-    if not source_contract.is_file() or sha256_file(source_contract) != manifest.get("contract_sha256"):
+    try:
+        contract_rel = manifest.get("contract_path", CONTRACT_NAME)
+        source_contract, normalized_contract = _safe_relative_file(root, contract_rel)
+    except (SnapshotError, OSError):
+        source_contract = None
+        normalized_contract = None
+        issues.append("source_contract_changed")
+    if source_contract is not None and sha256_file(source_contract) != manifest["contract_sha256"]:
         issues.append("source_contract_changed")
 
-    for item in manifest.get("inputs", []):
+    try:
+        snap_contract = json.loads(contract_copy.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        snap_contract = None
+    if not isinstance(snap_contract, dict):
+        issues.append("contract_snapshot_invalid")
+        declared = []
+        forbidden = []
+    else:
+        declared = snap_contract.get("generator_inputs")
+        forbidden = snap_contract.get("forbidden_inputs", [])
+        if not isinstance(declared, list) or not declared or not isinstance(forbidden, list):
+            issues.append("contract_snapshot_declarations_invalid")
+            declared, forbidden = [], []
+
+    seen = set()
+    recorded = set()
+    forbidden_norm = {
+        Path(item).as_posix().rstrip("/") for item in forbidden if isinstance(item, str)
+    }
+    for item in entries:
+        if not isinstance(item, dict):
+            raise SnapshotError("snapshot input entry has invalid structure")
         rel = item.get("path", "")
-        snapshot_path = evidence / item.get("snapshot_path", "")
-        if not snapshot_path.is_file() or sha256_file(snapshot_path) != item.get("sha256"):
-            issues.append(f"snapshot_input_integrity:{rel}")
-        source = root / rel
-        if not source.is_file() or sha256_file(source) != item.get("sha256"):
-            issues.append(f"source_input_changed:{rel}")
+        digest = item.get("sha256")
+        if not isinstance(digest, str) or len(digest) != 64:
+            raise SnapshotError("snapshot input entry has invalid hash")
+        source, normalized = _safe_relative_file(root, rel)
+        if normalized in seen:
+            raise SnapshotError("duplicate path in snapshot manifest")
+        seen.add(normalized)
+        recorded.add(normalized)
+        if any(normalized == item or normalized.startswith(item + "/") for item in forbidden_norm):
+            issues.append(f"forbidden_input_recorded:{normalized}")
+        snapshot_path = _safe_child(evidence, item.get("snapshot_path", ""))
+        if not _inside(evidence.resolve(), snapshot_path.resolve(strict=False)):
+            raise SnapshotError("snapshot input escapes evidence directory")
+        if not snapshot_path.is_file() or sha256_file(snapshot_path) != digest:
+            issues.append(f"snapshot_input_integrity:{normalized}")
+        if sha256_file(source) != digest:
+            issues.append(f"source_input_changed:{normalized}")
+
+    normalized_declared = set()
+    for raw in declared:
+        _, rel = _safe_relative_file(root, raw)
+        normalized_declared.add(rel)
+    if normalized_declared != recorded:
+        issues.append("manifest_inputs_do_not_match_contract")
 
     return {
         "schema": SCHEMA,
         "verdict": "PASS" if not issues else "FAIL",
-        "issues": issues,
+        "issues": sorted(set(issues)),
         "contract_sha256": manifest.get("contract_sha256"),
-        "input_count": len(manifest.get("inputs", [])),
+        "input_count": len(entries),
     }
 
 

@@ -81,3 +81,7 @@ patch digest, and authorization reference, then creates a digest-linked lifecycl
 event for Observatory consumption. This adapter records evidence only; it does not
 execute repository mutations or deploy. Production-write requests remain blocked
 unless the admission independently carries production authorization.
+
+The maintenance hand-off also requires explicit regression evidence with a boolean
+outcome and non-empty evidence references; absent, malformed, or detected regressions
+block record creation.

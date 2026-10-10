@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 
 import pytest
 
@@ -77,7 +78,7 @@ def test_delivery_requires_explicit_endpoint_and_token(base_url, token, message)
 
 def test_delivery_rejects_non_verified_event():
     record, event = maintenance_case()
-    event.status = "pending"
+    event = replace(event, status="pending")
     with pytest.raises(ValueError, match="maintenance-event-not-verified"):
         deliver_maintenance_event(
             record, event, base_url="https://observatory.example",

@@ -13,6 +13,12 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
+# The shared fixture module is in this test directory; pytest does not always
+# put the directory itself on sys.path when invoked from the project root.
+TESTS_DIRECTORY = Path(__file__).resolve().parent
+if str(TESTS_DIRECTORY) not in sys.path:
+    sys.path.insert(0, str(TESTS_DIRECTORY))
+
 from fastapi.testclient import TestClient
 
 from app.engine.governed_maintenance_outbox import MaintenanceOutbox

@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import sys
 import unittest
 
-from experiments.taskflow_native.provider_free.requirements import analyze_acceptance
+TRIAL_DIR = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(TRIAL_DIR))
+
+from provider_free.requirements import analyze_acceptance  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parents[3]

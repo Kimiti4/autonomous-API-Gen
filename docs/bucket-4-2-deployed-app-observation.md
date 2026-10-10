@@ -104,3 +104,16 @@ does not start deployments or grant production-write authority. Delivery current
 no durable local outbox: callers must retain the generated evidence and surface a
 delivery failure for controlled retry. The focused tests use a fake HTTP transport and
 do not claim that a live Observatory deployment was contacted.
+
+
+### Observatory transport hardening
+
+The delivery bridge requires HTTPS for non-loopback endpoints; plain HTTP is accepted
+only for `localhost`, `127.0.0.1`, or `::1` development targets. Endpoint URLs containing
+credentials, query parameters, or fragments are rejected so secrets are not embedded
+in URLs. The timeout must be a finite positive number. Requests carry a deterministic
+`Idempotency-Key` derived from the verified event digest so a receiver that supports
+idempotency can safely deduplicate retries. Acknowledgements must be JSON objects with
+the expected accepted status and a non-empty event ID; malformed JSON shapes fail
+closed. This remains transport-contract testing, not proof of live Observatory support
+for the idempotency header.

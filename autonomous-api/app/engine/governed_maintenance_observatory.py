@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import json
 from hashlib import sha256
+import math
 from typing import Any, Callable
 from urllib.error import URLError
+from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 from .governed_maintenance_execution import record_verified_maintenance
@@ -38,8 +40,22 @@ def deliver_maintenance_event(
         raise ValueError("observatory-base-url-required")
     if not isinstance(token, str) or not token.strip():
         raise ValueError("observatory-token-required")
-    if timeout <= 0:
+    if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("invalid-observatory-timeout")
+    parsed_url = urlsplit(base_url.strip())
+    local_http_hosts = {"localhost", "127.0.0.1", "::1"}
+    if (
+        not parsed_url.hostname
+        or parsed_url.username is not None
+        or parsed_url.password is not None
+        or parsed_url.query
+        or parsed_url.fragment
+        or not (
+            parsed_url.scheme == "https"
+            or (parsed_url.scheme == "http" and parsed_url.hostname.lower() in local_http_hosts)
+        )
+    ):
+        raise ValueError("observatory-base-url-invalid")
     if getattr(event, "status", None) != "verified":
         raise ValueError("maintenance-event-not-verified")
     if not getattr(event, "digest", None) or len(event.digest) != 64:
@@ -109,6 +125,7 @@ def deliver_maintenance_event(
             "Content-Type": "application/json",
             "Accept": "application/json",
             "X-Observatory-Token": token,
+            "Idempotency-Key": "maintenance-" + event.digest,
             "X-Actor-Id": "esap-maintenance-bridge",
             "X-Actor-Role": "system",
             "X-Actor-Clearance": "system",
@@ -133,6 +150,8 @@ def deliver_maintenance_event(
         acknowledgement = json.loads(raw.decode("utf-8"))
     except (AttributeError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ObservatoryDeliveryError("observatory-acknowledgement-invalid") from exc
+    if not isinstance(acknowledgement, dict):
+        raise ObservatoryDeliveryError("observatory-acknowledgement-invalid")
     event_id = acknowledgement.get("event_id")
     if acknowledgement.get("status") != "accepted" or not isinstance(event_id, str) or not event_id.strip():
         raise ObservatoryDeliveryError("observatory-acknowledgement-invalid")

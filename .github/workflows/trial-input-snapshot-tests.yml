@@ -1,0 +1,30 @@
+name: Trial Input Snapshot Tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "experiments/taskflow-native/input_snapshot.py"
+      - "experiments/taskflow-native/tests/test_input_snapshot.py"
+      - ".github/workflows/trial-input-snapshot-tests.yml"
+  push:
+    branches:
+      - "hardening/immutable-trial-input-snapshots"
+    paths:
+      - "experiments/taskflow-native/input_snapshot.py"
+      - "experiments/taskflow-native/tests/test_input_snapshot.py"
+      - ".github/workflows/trial-input-snapshot-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot-unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run snapshot unit tests
+        run: python -m pytest -q experiments/taskflow-native/tests/test_input_snapshot.py

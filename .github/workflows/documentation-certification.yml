@@ -1,0 +1,23 @@
+name: Documentation Certification
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "tiannara/application/compiler/documentation.py"
+      - "tests/certification/test_documentation_validation.py"
+      - "tiannara/application/compiler/**"
+
+jobs:
+  documentation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pytest
+      - run: pytest -q tests/certification/test_documentation_validation.py

@@ -1,0 +1,42 @@
+{
+  "trial_id": "TASKFLOW-ESAP-NATIVE-001",
+  "reference_project": "TASKFLOW-GOLDEN-001",
+  "mode": "blind-generation",
+  "generator_inputs": [
+    "experiments/taskflow-native/PROBLEM.md",
+    "golden-projects/taskflow/ACCEPTANCE.json"
+  ],
+  "forbidden_inputs": [
+    "golden-projects/taskflow/app",
+    "golden-projects/taskflow/ARCHITECTURE.md"
+  ],
+  "authority_order": [
+    "problem",
+    "acceptance",
+    "ISR",
+    "architecture",
+    "implementation",
+    "verification",
+    "runtime_evidence"
+  ],
+  "success_requires": [
+    "generated_isr",
+    "technology_neutral_isr",
+    "architecture_derivation",
+    "implementation",
+    "automated_verification",
+    "runtime_verification",
+    "evidence_manifest",
+    "capability_traceability",
+    "bounded_repair_history",
+    "scope_completion_without_unrequested_features"
+  ],
+  "failure_conditions": [
+    "reference_implementation_used_as_generation_input",
+    "implementation_changes_upstream_authority",
+    "simulated_evidence_presented_as_runtime_evidence",
+    "unverified_capability_claimed_as_certified",
+    "unbounded_feature_growth",
+    "missing_capability_traceability"
+  ]
+}

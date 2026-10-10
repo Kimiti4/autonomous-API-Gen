@@ -15,10 +15,11 @@ from __future__ import annotations
 
 import hashlib
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from tiannara.application.compiler.build_profile import BackendBuildProfile, make_verifier
+from tiannara.application.compiler.documentation import validate_generated_documentation
 from tiannara.application.compiler.derivation import (
     derive_compilation_requirements,
 )
@@ -58,8 +59,11 @@ class ProjectCompilationReport:
     plan_id: str
     outcomes: list[ProjectOutcome]
     ok: bool
-    #: Which SelectionPolicy chose the backends. Optional so legacy
-    #: constructors keep working; populated from plan.policy_name.
+    #: Provenance from the actual intent-compilation calls. Replay records are
+    #: retained for regression accounting but are never treated as live evidence.
+    model_call_records: list = field(default_factory=list)
+    generation_mode: str = "unknown"
+    #: Which SelectionPolicy chose the backends.
     policy_name: str | None = None
 
 
@@ -82,8 +86,21 @@ class ProjectCompiler:
         self._plan_all = plan_all
 
     def compile_intent(self, statement: str, hints: dict) -> ProjectCompilationReport:
-        # 1. Front-end -> ISR envelope
-        isr = self._intent_compiler.compile(statement, hints)
+        # 1. Front-end -> ISR envelope. Use compile_full so model-call
+        # provenance is retained for the evidence boundary.
+        system_id = hints.get("system_id") or derive_system_id(statement)
+        compilation = self._intent_compiler.compile_full(statement, system_id)
+        isr = compilation.isr
+        model_call_records = list(compilation.call_records)
+        statuses = {getattr(record, "status", None) for record in model_call_records}
+        if not model_call_records:
+            generation_mode = "no_model_calls"
+        elif any(str(status).lower().endswith("replayed") for status in statuses):
+            generation_mode = "replay"
+        elif all(str(status).lower().endswith("live") for status in statuses):
+            generation_mode = "live"
+        else:
+            generation_mode = "mixed_or_failed"
         # 2. Typed payload
         model = isr.system_model()
         if model is None:
@@ -122,7 +139,9 @@ class ProjectCompiler:
                     verification_reason=reason,
                 )
             )
-            if report is not None and not report.ok:
+            if report is None:
+                verification_blocked = True
+            elif not report.ok:
                 verification_blocked = True
         ok = execution.ok and not verification_blocked
         # 7. Report
@@ -145,6 +164,8 @@ class ProjectCompiler:
             policy_name=plan.policy_name,
             outcomes=outcomes,
             ok=ok,
+            model_call_records=model_call_records,
+            generation_mode=generation_mode,
         )
 
     def _verify(self, outcome: Any) -> tuple[BundleVerificationReport | None, str]:
@@ -154,7 +175,7 @@ class ProjectCompiler:
         if not isinstance(result, CompilationResult):
             return (
                 None,
-                "backend result is not a CompilationResult; no verification shape",
+                "UNKNOWN: backend result is not a CompilationResult; certification blocked",
             )
         slug = result.system_name
         # Read the verification contract from the backend (Phase 19), not from
@@ -171,6 +192,16 @@ class ProjectCompiler:
                 required_files=(f"{slug}/main.py",),
                 verifier_kind="python",
             )
+        readme = result.files.get("README.md", "")
+        doc = validate_generated_documentation(
+            readme=readme,
+            system_name=result.system_name,
+            required_capabilities=[str(c.value) for c in result.capability_manifest.capabilities],
+            selected_backend=outcome.planned.backend_id,
+            generated_paths=result.file_paths(),
+        )
+        if not doc.passed:
+            return None, "documentation certification failed: " + "; ".join(doc.blockers)
         verifier = make_verifier(
             profile.language,
             package=slug,

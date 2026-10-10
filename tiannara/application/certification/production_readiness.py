@@ -5,6 +5,8 @@ from enum import Enum
 from typing import Mapping
 from tiannara.application.evolution.ledger import EvolutionEvent, EvolutionLedger, EventType
 from tiannara.domain.services.canonical import canonical_hash
+from tiannara.application.hardening.fullstack_gates import GateResult
+from tiannara.application.certification.hardening_certification import certify_generated_application
 
 class DimensionVerdict(str, Enum):
     CERTIFIED = "CERTIFIED"
@@ -53,6 +55,41 @@ class ProductionReadinessGate:
         from tests.test_r29_10_9_campaign_readiness import CampaignReadinessHarness
         h = CampaignReadinessHarness()
         return h.recipe_isr_hash()
+
+    def evaluate_generated_application(
+        self,
+        evidence: Mapping[str, CertificationEvidence],
+        *,
+        compilation_ok: bool,
+        hardening_results: tuple[GateResult, ...] | list[GateResult],
+    ) -> ProductionReadinessResult:
+        """Evaluate production readiness with the full-stack hardening boundary.
+
+        The existing dimension conjunction remains necessary. The generated
+        application is additionally blocked unless every required hardening
+        gate has real PASS evidence.
+        """
+        readiness = self.evaluate(evidence)
+        hardening = certify_generated_application(
+            compilation_ok=compilation_ok,
+            gate_results=hardening_results,
+        )
+        if hardening.certified:
+            return readiness
+
+        blockers = list(readiness.blocking_dimensions)
+        blockers.append(
+            BlockingDimension(
+                "fullstack-hardening",
+                ";".join(hardening.blockers) or "NOT_CERTIFIED",
+            )
+        )
+        return ProductionReadinessResult(
+            ProductionReadinessVerdict.NOT_PRODUCTION_READY,
+            tuple(blockers),
+            readiness.evidence_refs,
+            readiness.readiness_event_ref,
+        )
 
     def evaluate(self, evidence: Mapping[str, CertificationEvidence]) -> ProductionReadinessResult:
         blockers = []

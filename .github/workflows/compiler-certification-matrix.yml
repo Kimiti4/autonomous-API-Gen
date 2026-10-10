@@ -1,0 +1,39 @@
+name: Compiler Certification Matrix
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "tiannara/application/compiler/**"
+      - "tiannara/application/intent/**"
+      - "tiannara/domain/models/backend_declaration.py"
+      - "tiannara/domain/models/capability_manifest.py"
+      - "tests/certification/test_compiler_matrix_certification.py"
+      - ".github/workflows/compiler-certification-matrix.yml"
+
+jobs:
+  compiler-matrix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pytest
+      - name: Resolve compiler matrix
+        run: pytest -q tests/certification/test_compiler_matrix_certification.py
+      - name: Enforce certification boundary
+        run: |
+          python - <<'PY'
+          from tiannara.application.hardening.fullstack_gates import (
+              FULLSTACK_HARDENING_GATES, GateResult, GateStatus, certify_hardening
+          )
+          results = [GateResult(g.gate_id, GateStatus.PASS) for g in FULLSTACK_HARDENING_GATES]
+          assert certify_hardening(results)
+          assert not certify_hardening(results[:-1])
+          print("Compiler matrix certification boundary verified.")
+          PY

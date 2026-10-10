@@ -1,0 +1,73 @@
+{
+  "trial_id": "TASKFLOW-ESAP-MULTI-BACKEND-001",
+  "base_trial": "TASKFLOW-ESAP-NATIVE-001",
+  "purpose": "Prove that one technology-neutral TaskFlow authority can be independently lowered into materially different implementation targets.",
+  "authority": "generated_isr",
+  "required_targets": [
+    {
+      "id": "python-fastapi",
+      "language": "python",
+      "framework": "fastapi",
+      "status": "baseline-target"
+    },
+    {
+      "id": "go-stdlib",
+      "language": "go",
+      "framework": "net/http",
+      "status": "cross-language-target"
+    }
+  ],
+  "target_independence": {
+    "shared_inputs": [
+      "original_problem",
+      "acceptance_constraints",
+      "generated_isr"
+    ],
+    "forbidden_cross_target_inputs": [
+      "other_target_source_code",
+      "other_target_architecture_as_template",
+      "other_target_tests_as_generator_input",
+      "other_target_runtime_evidence"
+    ]
+  },
+  "required_pipeline": [
+    "normalize_problem",
+    "derive_isr",
+    "identify_invariants",
+    "select_architecture",
+    "select_backend",
+    "lower",
+    "materialize",
+    "static_verify",
+    "runtime_verify",
+    "collect_evidence",
+    "certify_or_reject"
+  ],
+  "cross_target_equivalence": [
+    "same_required_capabilities",
+    "same_security_invariants",
+    "same_tenant_isolation_invariants",
+    "same_lifecycle_semantics",
+    "same_negative_cases",
+    "same_completion_policy"
+  ],
+  "success_requires": [
+    "both_targets_generated_by_live_esap_pipeline",
+    "no_recorded_replay_used_as_generation_evidence",
+    "both_targets_independently_verified",
+    "both_targets_runtime_verified",
+    "both_targets_trace_back_to_same_isr",
+    "no_unrequested_features_added",
+    "target_specific_failures_are_diagnosed_and_bounded"
+  ],
+  "failure_conditions": [
+    "target_a_source_used_as_target_b_generator_input",
+    "target_b_source_used_as_target_a_generator_input",
+    "backend_name_changes_isr_authority",
+    "unsupported_capability_marked_verified",
+    "simulated_runtime_evidence_presented_as_real",
+    "one_target_certified_only_by_shared_static_tests",
+    "generation_replay_mislabeled_as_live",
+    "feature_growth_beyond_required_scope"
+  ]
+}

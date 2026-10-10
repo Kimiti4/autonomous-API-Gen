@@ -23,6 +23,25 @@ from pathlib import Path
 
 from tiannara.application.compiler.executor import CompilationExecutor
 from tiannara.application.compiler.fastapi_hexagonal_backend import FastAPIHexagonalBackend
+from tiannara.application.compiler.go_hexagonal_backend import GoHexagonalBackend
+from tiannara.application.compiler.rust_axum_backend import RustAxumBackend
+from tiannara.application.compiler.nestjs_backend import NestJSBackend
+from tiannara.application.compiler.spring_boot_backend import SpringBootBackend
+from tiannara.application.compiler.aspnet_core_backend import AspNetCoreBackend
+from tiannara.application.compiler.phoenix_backend import PhoenixBackend
+from tiannara.application.compiler.ktor_backend import KtorBackend
+from tiannara.application.compiler.react_frontend import ReactFrontend
+from tiannara.application.compiler.express_backend import ExpressBackend
+from tiannara.application.compiler.laravel_backend import LaravelBackend
+from tiannara.application.compiler.vue_frontend import VueFrontend
+from tiannara.application.compiler.angular_frontend import AngularFrontend
+from tiannara.application.compiler.next_frontend import NextFrontend
+from tiannara.application.compiler.nuxt_frontend import NuxtFrontend
+from tiannara.application.compiler.svelte_frontend import SvelteFrontend
+from tiannara.application.compiler.liveview_frontend import LiveViewFrontend
+from tiannara.application.compiler.hologram_frontend import HologramFrontend
+from tiannara.application.compiler.scenic_frontend import ScenicFrontend
+from tiannara.application.compiler.rails_backend import RailsBackend
 from tiannara.application.compiler.project_compiler import ProjectCompiler
 from tiannara.application.compiler.registry import CompilerRegistry
 from tiannara.application.compiler.selector import DEFAULT_SELECTION_POLICY, SelectionPolicy
@@ -53,10 +72,53 @@ def fastapi_declaration() -> BackendCapabilityDeclaration:
     )
 
 
+def go_declaration() -> BackendCapabilityDeclaration:
+    """Capability declaration for the hermetic Go stdlib backend."""
+    return GoHexagonalBackend().build_profile_declaration()
+
+
 def build_compiler_registry() -> CompilerRegistry:
-    """Registry with the project's standard registered backends."""
+    """Registry with the independently implemented production backends."""
     registry = CompilerRegistry()
     registry.register(FastAPIHexagonalBackend(), fastapi_declaration())
+    go_backend = GoHexagonalBackend()
+    registry.register(go_backend, go_declaration())
+    rust_backend = RustAxumBackend()
+    registry.register(rust_backend, rust_backend.build_profile_declaration())
+    nest_backend = NestJSBackend()
+    registry.register(nest_backend, nest_backend.build_profile_declaration())
+    spring_backend = SpringBootBackend()
+    registry.register(spring_backend, spring_backend.build_profile_declaration())
+    dotnet_backend = AspNetCoreBackend()
+    registry.register(dotnet_backend, dotnet_backend.build_profile_declaration())
+    phoenix_backend = PhoenixBackend()
+    registry.register(phoenix_backend, phoenix_backend.build_profile_declaration())
+    ktor_backend = KtorBackend()
+    registry.register(ktor_backend, ktor_backend.build_profile_declaration())
+    react_frontend = ReactFrontend()
+    registry.register(react_frontend, react_frontend.build_profile_declaration())
+    express_backend = ExpressBackend()
+    registry.register(express_backend, express_backend.build_profile_declaration())
+    laravel_backend = LaravelBackend()
+    registry.register(laravel_backend, laravel_backend.build_profile_declaration())
+    vue_frontend = VueFrontend()
+    registry.register(vue_frontend, vue_frontend.build_profile_declaration())
+    angular_frontend = AngularFrontend()
+    registry.register(angular_frontend, angular_frontend.build_profile_declaration())
+    next_frontend = NextFrontend()
+    registry.register(next_frontend, next_frontend.build_profile_declaration())
+    nuxt_frontend = NuxtFrontend()
+    registry.register(nuxt_frontend, nuxt_frontend.build_profile_declaration())
+    svelte_frontend = SvelteFrontend()
+    registry.register(svelte_frontend, svelte_frontend.build_profile_declaration())
+    liveview_frontend = LiveViewFrontend()
+    registry.register(liveview_frontend, liveview_frontend.build_profile_declaration())
+    hologram_frontend = HologramFrontend()
+    registry.register(hologram_frontend, hologram_frontend.build_profile_declaration())
+    scenic_frontend = ScenicFrontend()
+    registry.register(scenic_frontend, scenic_frontend.build_profile_declaration())
+    rails_backend = RailsBackend()
+    registry.register(rails_backend, rails_backend.build_profile_declaration())
     return registry
 
 

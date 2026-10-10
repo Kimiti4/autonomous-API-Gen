@@ -152,5 +152,47 @@ class ApiContract(unittest.TestCase):
         self.assertEqual(found.json()["evidence_id"], "E-1")
 
 
+    def test_ingest_idempotency_replays_original_event(self):
+        client = _client(self)
+        payload = dict(EVENT, id="evt-idempotency-replay",
+                       payload={"value": "stable"})
+        headers = dict(WRITER, **{"Idempotency-Key": "idem-a"})
+        first = client.post("/observatory/events", json=payload, headers=headers)
+        second = client.post("/observatory/events", json=payload, headers=headers)
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(first.json()["event_id"], second.json()["event_id"])
+        self.assertFalse(first.json()["idempotent_replay"])
+        self.assertTrue(second.json()["idempotent_replay"])
+        trace = client.get("/observatory/trace/SUBJ-1")
+        self.assertEqual(len(trace.json()), 1)
+
+    def test_ingest_idempotency_rejects_key_reuse_with_changed_request(self):
+        client = _client(self)
+        headers = dict(WRITER, **{"Idempotency-Key": "idem-b"})
+        first_payload = dict(EVENT, id="evt-idempotency-conflict",
+                             payload={"value": "original"})
+        changed_payload = dict(EVENT, id="evt-idempotency-conflict",
+                                payload={"value": "changed"})
+        first = client.post("/observatory/events", json=first_payload,
+                            headers=headers)
+        conflict = client.post("/observatory/events", json=changed_payload,
+                               headers=headers)
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(conflict.status_code, 409)
+        self.assertIn("idempotency key reused", conflict.json()["detail"])
+        trace = client.get("/observatory/trace/SUBJ-1")
+        self.assertEqual(len(trace.json()), 1)
+
+    def test_ingest_idempotency_rejects_blank_or_oversized_key(self):
+        client = _client(self)
+        blank = client.post("/observatory/events", json=EVENT,
+                            headers=dict(WRITER, **{"Idempotency-Key": " "}))
+        oversized = client.post("/observatory/events", json=EVENT,
+                                headers=dict(WRITER, **{"Idempotency-Key": "k" * 201}))
+        self.assertEqual(blank.status_code, 400)
+        self.assertEqual(oversized.status_code, 400)
+
+
 if __name__ == "__main__":
     unittest.main()

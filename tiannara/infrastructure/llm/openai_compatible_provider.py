@@ -19,12 +19,14 @@ from tiannara.domain.models.model_call import (
     ModelCallRecord,
     ModelCallStatus,
     StructuredCompletionRequest,
-    StructuredCompletionResult,
     compute_call_signature,
     hash_payload,
     hash_prompt,
 )
-from tiannara.domain.ports.language_model import LanguageModelProvider
+from tiannara.domain.ports.language_model import (
+    LanguageModelProvider,
+    StructuredCompletionResult,
+)
 
 OutputT = TypeVar("OutputT", bound=BaseModel)
 
@@ -114,7 +116,7 @@ class OpenAICompatibleProvider(LanguageModelProvider):
         usage = payload.get("usage") or {}
         record = ModelCallRecord(
             signature_hash=compute_call_signature(request),
-            model_id=self._model_id,
+            model_id=request.model_id,
             task=request.task,
             output_schema_id=request.output_schema_id,
             prompt_hash=hash_prompt(request.prompt),

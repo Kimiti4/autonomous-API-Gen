@@ -39,7 +39,7 @@ from .projections_knowledge import (
     build_knowledge_memory, build_knowledge_overview)
 from . import projections
 from .governance import COMMAND_ACTIONS, AuthorizationError, GovernanceBoundary
-from .store import SqliteEventStore, StoreIntegrityError
+from .store import (IdempotencyConflict, SqliteEventStore, StoreIntegrityError)
 
 
 class ObservatoryError(Exception):
@@ -68,6 +68,24 @@ class ObservatoryGateway:
             raise ObservatoryError(str(exc)) from exc
         await self.bus.publish(event)
         return event.id
+
+    async def observe_idempotent(
+        self, event: Event, idempotency_key: str, request_hash: str
+    ) -> tuple[str, bool]:
+        """Durably ingest once for a request key and avoid duplicate fan-out."""
+        try:
+            event_id, replayed, inserted = await asyncio.to_thread(
+                self.store.append_idempotent, event, idempotency_key, request_hash)
+        except IdempotencyConflict:
+            raise
+        except StoreIntegrityError as exc:
+            raise IdempotencyConflict(
+                "event id conflicts with stored content") from exc
+        except ValueError as exc:
+            raise ObservatoryError(str(exc)) from exc
+        if inserted:
+            await self.bus.publish(event)
+        return event_id, replayed
 
     async def observe_many(self, events: List[Event]) -> List[str]:
         return [await self.observe(event) for event in events]

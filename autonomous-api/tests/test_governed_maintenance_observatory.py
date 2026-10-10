@@ -12,6 +12,7 @@ from app.engine.governed_maintenance_execution import record_verified_maintenanc
 from app.engine.governed_maintenance_observatory import (
     ObservatoryDeliveryError,
     deliver_maintenance_event,
+    record_and_deliver_verified_maintenance,
 )
 from app.engine.repair_report import build_repair_report
 
@@ -31,7 +32,7 @@ class FakeResponse:
         self.closed = True
 
 
-def maintenance_case():
+def maintenance_inputs():
     observation = RuntimeObservation(
         deployment_id="staging-1",
         observed_revision="rev-a",
@@ -62,6 +63,11 @@ def maintenance_case():
         residuals=(),
         deployment_ready=False,
     )
+    return observation, admission, report
+
+
+def maintenance_case():
+    observation, admission, report = maintenance_inputs()
     return record_verified_maintenance(
         observation, admission, obligation_id="ob-17",
         authorization_ref="approval:ticket-17", repair_report=report,
@@ -154,3 +160,18 @@ def test_delivery_rejects_tampered_event_digest():
             record, tampered, base_url="https://observatory.example",
             token="test-token", opener=lambda *_args, **_kwargs: pytest.fail("must not send"),
         )
+
+
+
+def test_combined_flow_returns_only_after_observatory_acknowledges():
+    observation, admission, report = maintenance_inputs()
+    result = record_and_deliver_verified_maintenance(
+        observation, admission, obligation_id="ob-17",
+        authorization_ref="approval:ticket-17", repair_report=report,
+        base_url="https://observatory.example", token="test-token",
+        opener=lambda *_args, **_kwargs: FakeResponse(),
+    )
+    record, event, event_id = result
+    assert record.observation_digest == observation.digest
+    assert event.repair_report_digest == report.digest
+    assert event_id == "evt-evidence-abc123"

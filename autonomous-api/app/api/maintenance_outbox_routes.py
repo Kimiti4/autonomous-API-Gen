@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+import sqlite3
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
@@ -42,7 +43,7 @@ async def maintenance_outbox_status(
             "summary": outbox.summary(),
             "items": outbox.list_recent(limit=limit),
         }
-    except (OSError, ValueError, RuntimeError):
+    except (OSError, ValueError, RuntimeError, sqlite3.Error):
         return JSONResponse(
             status_code=503,
             content={

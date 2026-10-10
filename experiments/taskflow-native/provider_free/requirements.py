@@ -124,7 +124,7 @@ def analyze_acceptance(
 
     requirements: list[Requirement] = []
     for name in capabilities:
-        status = "supported" if name in handlers else "unsupported"
+        status = "unknown" if name in handlers else "unsupported"
         requirements.append(
             Requirement(
                 requirement_id=_stable_id("capability", name),
@@ -133,7 +133,7 @@ def analyze_acceptance(
                 status=status,
                 source=source,
                 detail=(
-                    "A callable compiler handler is registered; output still requires verification."
+                    "A callable compiler handler is registered, but capability evidence is not yet verified."
                     if status == "supported"
                     else "No provider-free compiler handler is registered."
                 ),

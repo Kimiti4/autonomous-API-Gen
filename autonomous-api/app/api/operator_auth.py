@@ -35,6 +35,11 @@ async def login(payload: dict, response: Response):
     return response
 
 
+async def authenticate_operator_session(request: Request):
+    """Authenticate a dashboard operator session for read-only dashboard dependencies."""
+    return await _session.authenticate(request)
+
+
 @router.get("/session")
 async def session(request: Request):
     ctx = await _session.authenticate(request)

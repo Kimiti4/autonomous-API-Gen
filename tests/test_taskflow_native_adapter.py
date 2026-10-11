@@ -1,13 +1,16 @@
 import json
 from pathlib import Path
+import sys
 
 import pytest
 
-from experiments.taskflow_native.provider_free.native_adapter import adapt_taskflow_snapshot
-
-
 ROOT = Path(__file__).resolve().parents[1]
-PROBLEM = (ROOT / "experiments/taskflow-native/PROBLEM.md").read_text(encoding="utf-8")
+TRIAL_DIR = ROOT / "experiments" / "taskflow-native"
+sys.path.insert(0, str(TRIAL_DIR))
+
+from provider_free.native_adapter import adapt_taskflow_snapshot  # noqa: E402
+
+PROBLEM = (TRIAL_DIR / "PROBLEM.md").read_text(encoding="utf-8")
 ACCEPTANCE = json.loads((ROOT / "golden-projects/taskflow/ACCEPTANCE.json").read_text(encoding="utf-8"))
 
 
@@ -39,7 +42,7 @@ def test_native_graph_has_stable_ids_hashes_and_source_provenance():
     assert first.graph.content_hash() == second.graph.content_hash()
     assert [node.id for node in first.graph.nodes] == [node.id for node in second.graph.nodes]
     assert all(node.provenance.source != "unknown" for node in first.graph.nodes)
-    assert all(node.rationale.startswith(("Specification section:", "Registration or specification mapping alone", "Source:")) or "Source:" in node.rationale for node in first.graph.nodes)
+    assert all("Source:" in node.rationale for node in first.graph.nodes)
 
 
 def test_explicit_obligation_mappings_create_graph_edges_not_pass_evidence():

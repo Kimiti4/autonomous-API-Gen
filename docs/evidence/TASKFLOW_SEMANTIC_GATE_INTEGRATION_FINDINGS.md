@@ -17,7 +17,7 @@
 - Added `experiments/taskflow-native/provider_free/taskflow_semantic_contract.py` with a compiler-owned mandatory field set covering identity/authentication, workspace scope, role permissions, data relationships, task lifecycle, session revocation, API and frontend contracts, persistence, idempotency/audit identity, operations/deployment, and verification traceability.
 - The provider-free adapter now emits a graph-ID/hash-bound `SemanticResolutionRecord` whose mandatory fields are all explicitly `UNRESOLVED`; it also exposes the unresolved field list. This is useful negative evidence and does not enable generation.
 - The guarded typed-ISR transition now rejects records that attempt to weaken the authoritative field set before checking graph binding and resolution completeness.
-- Focused tests now cover the initial unresolved ledger and caller-weakened contract rejection. These changes are committed, but CI has not yet been observed.
+- Focused tests now cover the initial unresolved ledger and caller-weakened contract rejection. Focused GitHub Actions run 38181511301 passed 18 tests in 0.28s on PR merge ref head fe1536a7c0029fea538c9d67bc625cd6c3db7535.
 
 ## Verified boundaries
 
@@ -46,7 +46,7 @@ Before claiming completion, the live TaskFlow orchestration must carry the exact
 
 ## Current disposition
 
-- Authoritative mandatory field set and graph-bound unresolved ledger: **IMPLEMENTED, CI UNKNOWN**.\n- Semantic-resolution model and local pre-builder guard: **IMPLEMENTED, CI UNKNOWN**.
+- Authoritative mandatory field set and graph-bound unresolved ledger: **IMPLEMENTED, focused CI PASS (18 tests)**.\n- Semantic-resolution model and local pre-builder guard: **IMPLEMENTED, focused CI PASS (18 tests)**.
 - Production orchestration integration: **NOT IMPLEMENTED**.
 - Backend-selection enforcement: **NOT IMPLEMENTED**.
 - TaskFlow generation and certification: **NOT RUN / UNKNOWN**.

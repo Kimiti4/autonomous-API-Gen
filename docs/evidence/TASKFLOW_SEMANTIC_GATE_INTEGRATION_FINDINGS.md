@@ -51,7 +51,7 @@ Before claiming completion, the live TaskFlow orchestration must carry the exact
 ## Current disposition
 
 - Authoritative mandatory field set and graph-bound unresolved ledger: **IMPLEMENTED, focused CI PASS (18 tests)**.\n- Semantic-resolution model and local pre-builder guard: **IMPLEMENTED, focused CI PASS (18 tests)**.
-- Production orchestration integration: **NOT IMPLEMENTED**.
-- Backend-selection enforcement: **NOT IMPLEMENTED**.
+- Production integration hook: **IMPLEMENTED behind explicit TaskFlow mode; no resolver configured and no live trial runner wired yet**.
+- Backend-planning revalidation: **IMPLEMENTED when `ProjectCompiler(taskflow_semantic_gate=True)` is used; default mode remains generic**.
 - TaskFlow generation and certification: **NOT RUN / UNKNOWN**.
 - PR remains draft and unmerged.

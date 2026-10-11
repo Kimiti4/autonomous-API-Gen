@@ -12,7 +12,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import json
+from pathlib import Path
+import sys
 from typing import Any, Mapping
+
+ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from constitutional_architecture.isr.model.isr import ISR, ISRProvenance
 from constitutional_architecture.isr.model.module import Module

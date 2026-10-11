@@ -106,6 +106,16 @@ class DeterministicTaskFlowProfileTests(unittest.TestCase):
         self.assertTrue(result["assumptions"])
         self.assertTrue(result["generation_blockers"])
 
+    def test_native_cap_c_compiler_adapter_is_explicitly_blocked(self) -> None:
+        result = build_taskflow_profile(PROBLEM, ACCEPTANCE).as_dict()
+        compatibility = result["compiler_compatibility"]
+        self.assertEqual(compatibility["native_cap_c_system_model_adapter"], "MISSING")
+        self.assertEqual(compatibility["constitutional_isr_pipeline"], "SEPARATE_TYPE")
+        self.assertEqual(compatibility["generation_status"], "BLOCKED")
+        self.assertEqual(compatibility["evidence_status"], "STATIC_INTERFACE_AUDIT_ONLY")
+        self.assertFalse(result["generation_allowed"])
+        self.assertTrue(any("No lossless adapter" in item for item in result["generation_blockers"]))
+
     def test_duplicate_or_malformed_contract_entries_fail_closed(self) -> None:
         invalid = dict(ACCEPTANCE)
         invalid["required_capabilities"] = ACCEPTANCE["required_capabilities"] + [ACCEPTANCE["required_capabilities"][0]]

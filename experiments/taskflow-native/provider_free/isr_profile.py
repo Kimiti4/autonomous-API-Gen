@@ -243,7 +243,7 @@ def main(argv: list[str] | None = None) -> int:
     ).as_dict()
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
-        json.dumps(profile, indent=2, sort_keys=True, ensure_ascii=False) + "\\n",
+        json.dumps(profile, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
     print(json.dumps({

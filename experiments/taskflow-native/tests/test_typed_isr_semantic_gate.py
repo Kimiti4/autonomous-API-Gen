@@ -1,3 +1,6 @@
+import sys
+from pathlib import Path
+
 import pytest
 
 from tiannara.domain.models.requirement_graph import (
@@ -10,7 +13,10 @@ from tiannara.domain.models.semantic_resolution import (
     SemanticResolutionRecord,
     UnresolvedSemanticsError,
 )
-from experiments.taskflow_native.provider_free.typed_isr_gate import build_taskflow_typed_isr
+
+_PROVIDER_FREE = Path(__file__).parents[1] / "provider_free"
+sys.path.insert(0, str(_PROVIDER_FREE))
+from typed_isr_gate import build_taskflow_typed_isr  # noqa: E402
 
 
 def _graph():

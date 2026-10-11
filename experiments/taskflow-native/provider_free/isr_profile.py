@@ -56,6 +56,7 @@ class TaskFlowProfile:
             "source_problem_sha256": self.source_problem_sha256,
             "isr": isr_payload,
             "isr_sha256": self.isr.content_hash,
+            "isr_structurally_valid": self.isr.validate_structure(),
             "traceability": self.traceability,
             "assumptions": list(self.assumptions),
             "generation_blockers": list(self.generation_blockers),

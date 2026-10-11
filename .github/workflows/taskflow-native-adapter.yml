@@ -3,6 +3,10 @@ on:
   pull_request:
     paths:
       - ".github/workflows/taskflow-native-adapter.yml"
+      - "tiannara/domain/models/semantic_resolution.py"
+      - "experiments/taskflow-native/provider_free/typed_isr_gate.py"
+      - "experiments/taskflow-native/tests/test_typed_isr_semantic_gate.py"
+      - "tests/test_semantic_resolution_gate.py"
       - "experiments/taskflow-native/provider_free/native_adapter.py"
       - "tiannara/domain/models/requirement_graph.py"
       - "tiannara/domain/models/system_model.py"
@@ -27,4 +31,4 @@ jobs:
       - name: Install focused test dependencies
         run: python -m pip install "pydantic>=2,<3" pytest
       - name: Verify deterministic native graph and fail-closed generation gate
-        run: python -m pytest tests/test_taskflow_native_adapter.py -q
+        run: python -m pytest tests/test_taskflow_native_adapter.py tests/test_semantic_resolution_gate.py experiments/taskflow-native/tests/test_typed_isr_semantic_gate.py -q

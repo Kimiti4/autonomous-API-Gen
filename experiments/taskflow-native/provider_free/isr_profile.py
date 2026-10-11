@@ -205,8 +205,32 @@ def build_taskflow_profile(
         ),
     )
 
+    problem_obligations = []
+    active_section = None
+    allowed_sections = {
+        "Security and correctness requirements",
+        "Operational requirements",
+    }
+    for line_number, line in enumerate(problem.splitlines(), start=1):
+        stripped = line.strip()
+        if stripped.endswith(":") and not stripped.startswith("-"):
+            heading = stripped[:-1]
+            active_section = heading if heading in allowed_sections else None
+            continue
+        if active_section and stripped.startswith("- "):
+            statement = stripped[2:].strip()
+            problem_obligations.append({
+                "requirement_id": _stable_id("REQ-PROBLEM", statement),
+                "source_path": problem_source,
+                "source_line": line_number,
+                "source_section": active_section,
+                "statement": statement,
+                "status": "UNKNOWN",
+            })
+
     traceability = {
         "source_problem": {"path": problem_source, "sha256": problem_sha},
+        "problem_obligations": problem_obligations,
         "source_acceptance": {"path": acceptance_source, "sha256": contract_sha},
         "capabilities": [
             {
@@ -247,6 +271,7 @@ def build_taskflow_profile(
         "Domain entity schemas, field types, and relationship constraints are UNKNOWN.",
         "Complete role-permission matrix and session invalidation semantics are UNKNOWN.",
         "API/frontend contracts and executable operation semantics are not specified.",
+        "15 explicit problem obligations are inventoried but not yet mapped to typed ISR genes and verified semantics.",
         "No compiler backend output has been generated or independently tested.",
     )
     return TaskFlowProfile(
@@ -290,6 +315,7 @@ def main(argv: list[str] | None = None) -> int:
         "profile_sha256": profile["isr_sha256"],
         "capabilities": len(profile["traceability"]["capabilities"]),
         "entities": len(profile["traceability"]["entities"]),
+        "problem_obligations": len(profile["traceability"]["problem_obligations"]),
         "quality_gates": len(profile["traceability"]["quality_gates"]),
         "negative_cases": len(profile["traceability"]["negative_cases"]),
         "generation_allowed": profile["generation_allowed"],

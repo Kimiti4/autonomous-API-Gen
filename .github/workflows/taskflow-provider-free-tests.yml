@@ -39,13 +39,21 @@ jobs:
         run: |
           python -m unittest discover \
             -s experiments/taskflow-native/tests \
-            -p 'test_provider_free_*.py' \
+            -p 'test_*.py' \
             -v
       - name: Analyze only the snapshotted acceptance contract
         run: |
           python -m provider_free.cli \
             --acceptance out/provider-free-evidence/inputs/golden-projects/taskflow/ACCEPTANCE.json \
             --output out/provider-free-evidence/provider-free-analysis.json
+        working-directory: experiments/taskflow-native
+      - name: Build deterministic partial ISR from snapshot only
+        run: |
+          python -m provider_free.isr_profile \
+            --problem out/provider-free-evidence/inputs/experiments/taskflow-native/PROBLEM.md \
+            --acceptance out/provider-free-evidence/inputs/golden-projects/taskflow/ACCEPTANCE.json \
+            --output out/provider-free-evidence/taskflow-isr-profile.json
+          python -c "import json; p=json.load(open('out/provider-free-evidence/taskflow-isr-profile.json', encoding='utf-8')); assert p['certified'] is False; assert p['generation_allowed'] is False; assert p['network_calls'] == 0; assert len(p['traceability']['capabilities']) == 11; print('partial ISR profile emitted; generation correctly blocked')"
         working-directory: experiments/taskflow-native
       - name: Verify snapshot integrity remains intact after analysis
         run: |

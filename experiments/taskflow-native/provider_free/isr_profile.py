@@ -217,6 +217,16 @@ def build_taskflow_profile(
             }
             for index, name in enumerate(capabilities)
         ],
+        "entities": [
+            {
+                "entity_id": entity.id,
+                "entity_name": entity.name,
+                "source": problem_source,
+                "matched_term": entity.metadata["matched_term"],
+                "schema_status": "UNKNOWN",
+            }
+            for entity in entities
+        ],
         "quality_gates": [
             {"source_pointer": f"/quality_gates/{name}", "criterion_id": _stable_id("AC-GATE", name), "status": "UNKNOWN"}
             for name, enabled in sorted(gates.items()) if enabled

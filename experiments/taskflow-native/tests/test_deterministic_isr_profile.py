@@ -52,6 +52,7 @@ class DeterministicTaskFlowProfileTests(unittest.TestCase):
 
     def test_underspecified_semantics_block_generation(self) -> None:
         result = build_taskflow_profile(PROBLEM, ACCEPTANCE).as_dict()
+        self.assertTrue(result["isr_structurally_valid"])
         self.assertFalse(result["generation_allowed"])
         self.assertFalse(result["certified"])
         self.assertFalse(result["provider_required"])

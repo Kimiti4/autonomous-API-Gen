@@ -40,6 +40,7 @@ from tiannara.domain.models.semantic_resolution import (
     require_taskflow_semantics,
 )
 from tiannara.domain.ports import IntentCompiler
+from tiannara.application.intent.prompts import derive_system_id
 
 
 class ProjectCompilationError(ValueError):

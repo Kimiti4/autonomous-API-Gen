@@ -58,7 +58,7 @@ class DeterministicTaskFlowProfileTests(unittest.TestCase):
         self.assertTrue(all(item["source_line"] > 0 for item in obligations))
         self.assertTrue(all(item["statement"] in PROBLEM for item in obligations))
 
-    def test_quality_gates_and_negative_cases_remain_unknown(self) -> None
+    def test_quality_gates_and_negative_cases_remain_unknown(self) -> None:
         result = build_taskflow_profile(PROBLEM, ACCEPTANCE).as_dict()
         self.assertEqual(
             len(result["traceability"]["quality_gates"]),

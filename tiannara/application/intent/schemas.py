@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from tiannara.domain.models.isr import IntermediateSoftwareRepresentation
 from tiannara.domain.models.model_call import ModelCallRecord
 from tiannara.domain.models.requirement_graph import RequirementGraph
+from tiannara.domain.models.semantic_resolution import SemanticResolutionRecord
 
 
 class NormalizedIntent(BaseModel):
@@ -64,3 +65,4 @@ class IntentCompilationResult(BaseModel):
     call_records: list[ModelCallRecord] = Field(default_factory=list)
     repair_iterations: int = 0
     assumption_ids: list[str] = Field(default_factory=list)
+    semantic_resolution_record: SemanticResolutionRecord | None = None

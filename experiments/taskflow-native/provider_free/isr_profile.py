@@ -23,6 +23,7 @@ if str(ROOT) not in sys.path:
 from constitutional_architecture.isr.model.entity import Entity
 from constitutional_architecture.isr.model.isr import ISR, ISRProvenance
 from constitutional_architecture.isr.model.module import Module
+from constitutional_architecture.isr.model.policy import Policy, PolicyRule, PolicyType
 from constitutional_architecture.isr.model.system import System, SystemMetadata
 from constitutional_architecture.isr.semantics.capability import BusinessCapability
 from constitutional_architecture.isr.semantics.requirement import (
@@ -119,6 +120,91 @@ def build_taskflow_profile(
     contract_sha = _digest_bytes(canonical_contract)
     problem_sha = _digest_bytes(problem.encode("utf-8"))
 
+    problem_obligations = []
+    active_section = None
+    allowed_sections = {
+        "Security and correctness requirements",
+        "Operational requirements",
+    }
+    for line_number, line in enumerate(problem.splitlines(), start=1):
+        stripped = line.strip()
+        if stripped.endswith(":") and not stripped.startswith("-"):
+            heading = stripped[:-1]
+            active_section = heading if heading in allowed_sections else None
+            continue
+        if active_section and stripped.startswith("- "):
+            statement = stripped[2:].strip()
+            problem_obligations.append({
+                "requirement_id": _stable_id("REQ-PROBLEM", statement),
+                "source_path": problem_source,
+                "source_line": line_number,
+                "source_section": active_section,
+                "statement": statement,
+                "status": "UNKNOWN",
+            })
+
+    # Explicit semantic mapping to acceptance capabilities. Mapping is not
+    # evidence of implementation or correctness; unsupported mappings fail closed.
+    obligation_capability_map = {
+        "A user can access only workspaces to which they belong.": ("workspace-tenancy",),
+        "Cross-workspace reads and writes fail closed.": ("workspace-tenancy",),
+        "An assignee must belong to the task's workspace.": ("tasks", "workspace-tenancy"),
+        "Owner-only operations cannot be performed by ordinary members.": ("rbac",),
+        "Task/project/workspace relationships remain consistent.": ("tasks", "projects", "workspace-tenancy"),
+        "Archived records do not reappear in normal active queries.": ("tasks", "projects"),
+        "Authorization outcomes are deterministic and fail closed.": ("rbac", "workspace-tenancy"),
+        "Requests explicitly declared idempotent do not create duplicate effects.": ("audit-trail",),
+        "Security-sensitive mutations have a unique auditable effect identity.": ("audit-trail",),
+        "Authentication sessions can be invalidated and invalidated sessions cannot continue to authorize requests.": ("authentication",),
+        "Expose health/readiness information.": ("operational-observability",),
+        "Produce structured operational/audit evidence.": ("operational-observability", "audit-trail"),
+        "Support repeatable automated verification.": ("operational-observability",),
+        "Be deployable in a reproducible environment.": ("operational-observability",),
+        "Preserve enough provenance to trace each certified capability back to the specification.": ("audit-trail",),
+    }
+    missing_mappings = sorted(
+        item["statement"] for item in problem_obligations
+        if item["statement"] not in obligation_capability_map
+    )
+    if missing_mappings:
+        raise ValueError(f"unmapped canonical problem obligations: {missing_mappings}")
+    capability_ids = {name: _stable_id("CAP", name) for name in capabilities}
+    unknown_targets = sorted({
+        target
+        for targets in obligation_capability_map.values()
+        for target in targets
+        if target not in capability_ids
+    })
+    if unknown_targets:
+        raise ValueError(f"problem obligations target undeclared capabilities: {unknown_targets}")
+
+    policy_id = _stable_id("POLICY", "taskflow-spec-obligations")
+    obligation_policy = Policy(
+        id=policy_id,
+        name="TaskFlow Canonical Specification Obligations",
+        policy_type=PolicyType.COMPLIANCE,
+        description="Source-traced declarative obligations; none imply implementation or verification.",
+        strategy="fail_closed_unknown",
+        rules=tuple(
+            PolicyRule(
+                id=item["requirement_id"],
+                name=f"Specification obligation at line {item['source_line']}",
+                description=item["statement"],
+                rule_type="specification_obligation",
+                parameters={
+                    "source_path": item["source_path"],
+                    "source_line": item["source_line"],
+                    "source_section": item["source_section"],
+                    "status": "UNKNOWN",
+                    "target_capabilities": list(obligation_capability_map[item["statement"]]),
+                },
+                priority=100,
+            )
+            for item in problem_obligations
+        ),
+        metadata={"source": problem_source, "evidence_status": "UNKNOWN"},
+    )
+
     criteria = []
     for name, enabled in sorted(gates.items()):
         if enabled:
@@ -133,23 +219,53 @@ def build_taskflow_profile(
             obligation=f"Required negative case must be executed and its observed outcome recorded: {name}",
             kind=ObligationKind.PRESENCE,
         ))
+    for item in problem_obligations:
+        criterion_id = _stable_id("AC-PROBLEM", item["statement"])
+        criteria.append(AcceptanceCriterion(
+            criterion_id=criterion_id,
+            obligation=f"Canonical specification obligation must be independently demonstrated: {item['statement']}",
+            kind=(
+                ObligationKind.INVARIANT
+                if item["source_section"] == "Security and correctness requirements"
+                else ObligationKind.PRESENCE
+            ),
+            subject_refs=(policy_id,),
+        ))
+        item["target_capabilities"] = list(obligation_capability_map[item["statement"]])
+        item["acceptance_criterion_id"] = criterion_id
+        item["policy_id"] = policy_id
+
+    capability_requirement_refs = {name: [_stable_id("REQ", name)] for name in capabilities}
+    obligation_requirements = []
+    for item in problem_obligations:
+        target_names = obligation_capability_map[item["statement"]]
+        obligation_requirements.append(Requirement(
+            requirement_id=item["requirement_id"],
+            statement=item["statement"],
+            target_refs=tuple(capability_ids[name] for name in target_names),
+            acceptance_refs=(item["acceptance_criterion_id"],),
+            constraint_refs=(policy_id,),
+        ))
+        for name in target_names:
+            capability_requirement_refs[name].append(item["requirement_id"])
 
     capability_genes = tuple(
         BusinessCapability(
-            capability_id=_stable_id("CAP", name),
+            capability_id=capability_ids[name],
             intent=f"Required TaskFlow capability: {name}",
-            requirement_refs=(_stable_id("REQ", name),),
+            requirement_refs=tuple(capability_requirement_refs[name]),
         )
         for name in capabilities
     )
-    requirements = tuple(
+    base_requirements = tuple(
         Requirement(
             requirement_id=_stable_id("REQ", name),
             statement=f"Acceptance contract requires capability: {name}",
-            target_refs=(_stable_id("CAP", name),),
+            target_refs=(capability_ids[name],),
         )
         for name in capabilities
     )
+    requirements = base_requirements + tuple(obligation_requirements)
 
     # Inventory only explicitly named domain concepts from the canonical problem.
     # No fields, relationships, cardinalities, or persistence choices are inferred.
@@ -177,6 +293,7 @@ def build_taskflow_profile(
         name="TaskFlow Domain",
         description="Technology-neutral capability and acceptance profile; entity schemas and relationships unresolved.",
         entities=entities,
+        policies=(obligation_policy,),
     )
     system = System(
         id=_stable_id("SYS", project_id),
@@ -204,29 +321,6 @@ def build_taskflow_profile(
             mutation_description="Built from verified snapshot problem and acceptance contract",
         ),
     )
-
-    problem_obligations = []
-    active_section = None
-    allowed_sections = {
-        "Security and correctness requirements",
-        "Operational requirements",
-    }
-    for line_number, line in enumerate(problem.splitlines(), start=1):
-        stripped = line.strip()
-        if stripped.endswith(":") and not stripped.startswith("-"):
-            heading = stripped[:-1]
-            active_section = heading if heading in allowed_sections else None
-            continue
-        if active_section and stripped.startswith("- "):
-            statement = stripped[2:].strip()
-            problem_obligations.append({
-                "requirement_id": _stable_id("REQ-PROBLEM", statement),
-                "source_path": problem_source,
-                "source_line": line_number,
-                "source_section": active_section,
-                "statement": statement,
-                "status": "UNKNOWN",
-            })
 
     traceability = {
         "source_problem": {"path": problem_source, "sha256": problem_sha},

@@ -21,8 +21,10 @@ from tiannara.domain.models.requirement_graph import (
     NodeProvenance,
 )
 from tiannara.domain.models.system_model import Priority
-from tiannara.domain.models.semantic_resolution import SemanticResolutionRecord
-from taskflow_semantic_contract import build_initial_resolution_record
+from tiannara.domain.models.semantic_resolution import (
+    SemanticResolutionRecord,
+    build_initial_resolution_record,
+)
 
 
 CAPABILITY_MAP: dict[str, tuple[str, ...]] = {

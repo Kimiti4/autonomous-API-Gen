@@ -69,8 +69,22 @@ class IntermediateSoftwareRepresentation(BaseModel):
     content: dict | None = Field(default=None, exclude=True)
 
     def content_hash(self) -> str:
-        payload = self.model_dump_json(exclude={"lineage"})
-        return hashlib.sha256(payload.encode()).hexdigest()
+        # Preserve the established legacy hash byte-for-byte. Typed v1 payload
+        # fields are excluded from normal Pydantic serialization for envelope
+        # compatibility, so explicitly include them in the typed hash path.
+        if self.payload_type == PAYLOAD_TYPE_SYSTEM_MODEL_V1:
+            envelope = self.model_dump(mode="json", exclude={"lineage"})
+            envelope["payload_type"] = self.payload_type
+            envelope["content"] = self.content
+            payload = json.dumps(
+                envelope,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            )
+        else:
+            payload = self.model_dump_json(exclude={"lineage"})
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
     # ------------------------------------------------------------------
     # Capability A: typed ISR accessors

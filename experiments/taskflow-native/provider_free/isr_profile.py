@@ -365,7 +365,7 @@ def build_taskflow_profile(
         "Domain entity schemas, field types, and relationship constraints are UNKNOWN.",
         "Complete role-permission matrix and session invalidation semantics are UNKNOWN.",
         "API/frontend contracts and executable operation semantics are not specified.",
-        "15 explicit problem obligations are inventoried but not yet mapped to typed ISR genes and verified semantics.",
+        "15 explicit problem obligations are mapped to typed requirements and a declarative policy, but their implementation semantics and evidence remain UNKNOWN.",
         "No compiler backend output has been generated or independently tested.",
     )
     return TaskFlowProfile(

@@ -279,6 +279,7 @@ def main(argv: list[str] | None = None) -> int:
     print(json.dumps({
         "profile_sha256": profile["isr_sha256"],
         "capabilities": len(profile["traceability"]["capabilities"]),
+        "entities": len(profile["traceability"]["entities"]),
         "quality_gates": len(profile["traceability"]["quality_gates"]),
         "negative_cases": len(profile["traceability"]["negative_cases"]),
         "generation_allowed": profile["generation_allowed"],

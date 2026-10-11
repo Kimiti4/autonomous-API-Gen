@@ -58,6 +58,31 @@ class DeterministicTaskFlowProfileTests(unittest.TestCase):
         self.assertTrue(all(item["source_line"] > 0 for item in obligations))
         self.assertTrue(all(item["statement"] in PROBLEM for item in obligations))
 
+    def test_problem_obligations_bind_to_typed_requirements_policy_and_criteria(self) -> None:
+        profile = build_taskflow_profile(PROBLEM, ACCEPTANCE)
+        result = profile.as_dict()
+        system = profile.isr.system
+        obligations = result["traceability"]["problem_obligations"]
+        requirement_ids = {item.requirement_id for item in system.requirements}
+        criteria_ids = {item.criterion_id for item in system.acceptance_criteria}
+        policy = system.modules[0].policies[0]
+        self.assertEqual(len(system.requirements), len(ACCEPTANCE["required_capabilities"]) + 15)
+        self.assertEqual(len(policy.rules), 15)
+        self.assertEqual(len({rule.id for rule in policy.rules}), 15)
+        self.assertEqual(len([c for c in system.acceptance_criteria if c.criterion_id.startswith("AC-PROBLEM-")]), 15)
+        for obligation in obligations:
+            self.assertIn(obligation["requirement_id"], requirement_ids)
+            self.assertIn(obligation["acceptance_criterion_id"], criteria_ids)
+            self.assertEqual(obligation["policy_id"], policy.id)
+            self.assertTrue(obligation["target_capabilities"])
+            self.assertEqual(obligation["status"], "UNKNOWN")
+        self.assertTrue(all(
+            ref in requirement_ids
+            for capability in system.business_capabilities
+            for ref in capability.requirement_refs
+        ))
+        self.assertEqual(policy.metadata["evidence_status"], "UNKNOWN")
+
     def test_quality_gates_and_negative_cases_remain_unknown(self) -> None:
         result = build_taskflow_profile(PROBLEM, ACCEPTANCE).as_dict()
         self.assertEqual(

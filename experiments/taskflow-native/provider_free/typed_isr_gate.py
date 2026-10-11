@@ -12,8 +12,10 @@ from collections.abc import Callable
 from typing import TypeVar
 
 from tiannara.domain.models.isr import IntermediateSoftwareRepresentation
-from tiannara.domain.models.semantic_resolution import SemanticResolutionRecord
-from taskflow_semantic_contract import require_taskflow_semantics
+from tiannara.domain.models.semantic_resolution import (
+    SemanticResolutionRecord,
+    require_taskflow_semantics,
+)
 from tiannara.domain.models.system_model import SystemModel
 from tiannara.domain.models.requirement_graph import RequirementGraph
 

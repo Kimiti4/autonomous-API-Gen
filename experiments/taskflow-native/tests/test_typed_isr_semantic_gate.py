@@ -82,3 +82,23 @@ def test_graph_mismatch_blocks_before_model_builder_is_called():
             system_id="taskflow",
         )
     assert calls == []
+
+
+def test_caller_cannot_weaken_authoritative_mandatory_field_set():
+    graph = _graph()
+    incomplete = SemanticResolutionRecord(
+        graph_id=graph.graph_id,
+        graph_hash=graph.content_hash(),
+        required_fields=("security.authorization",),
+        resolutions=(),
+    )
+    calls = []
+
+    with pytest.raises(ValueError, match="authoritative TaskFlow"):
+        build_taskflow_typed_isr(
+            graph=graph,
+            resolutions=incomplete,
+            build_system_model=lambda: calls.append("called"),
+            system_id="taskflow",
+        )
+    assert calls == []

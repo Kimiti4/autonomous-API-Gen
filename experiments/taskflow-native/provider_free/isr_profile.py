@@ -66,6 +66,17 @@ class TaskFlowProfile:
             "certified": False,
             "provider_required": False,
             "network_calls": 0,
+            "compiler_compatibility": {
+                "native_cap_c_system_model_adapter": "MISSING",
+                "constitutional_isr_pipeline": "SEPARATE_TYPE",
+                "generation_status": "BLOCKED",
+                "reason": (
+                    "This profile emits constitutional_architecture.isr.model.isr.ISR; "
+                    "the live Cap-C runner requires tiannara.domain.models.isr."
+                    "IntermediateSoftwareRepresentation carrying a typed SystemModel."
+                ),
+                "evidence_status": "STATIC_INTERFACE_AUDIT_ONLY",
+            },
         }
 
 
@@ -366,6 +377,7 @@ def build_taskflow_profile(
         "Complete role-permission matrix and session invalidation semantics are UNKNOWN.",
         "API/frontend contracts and executable operation semantics are not specified.",
         "15 explicit problem obligations are mapped to typed requirements and a declarative policy, but their implementation semantics and evidence remain UNKNOWN.",
+        "No lossless adapter connects this constitutional ISR to the native Cap-C SystemModel compiler path.",
         "No compiler backend output has been generated or independently tested.",
     )
     return TaskFlowProfile(

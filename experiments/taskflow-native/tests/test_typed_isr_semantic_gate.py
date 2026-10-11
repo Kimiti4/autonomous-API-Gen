@@ -16,6 +16,7 @@ from tiannara.domain.models.semantic_resolution import (
 
 _PROVIDER_FREE = Path(__file__).parents[1] / "provider_free"
 sys.path.insert(0, str(_PROVIDER_FREE))
+from taskflow_semantic_contract import TASKFLOW_MANDATORY_FIELDS  # noqa: E402
 from typed_isr_gate import build_taskflow_typed_isr  # noqa: E402
 
 
@@ -42,8 +43,11 @@ def _resolution(graph, *, resolved):
     return SemanticResolutionRecord(
         graph_id=graph.graph_id,
         graph_hash=graph.content_hash(),
-        required_fields=("security.authorization",),
-        resolutions=(item,),
+        required_fields=TASKFLOW_MANDATORY_FIELDS,
+        resolutions=tuple(
+            item.model_copy(update={"field_path": field})
+            for field in TASKFLOW_MANDATORY_FIELDS
+        ),
     )
 
 

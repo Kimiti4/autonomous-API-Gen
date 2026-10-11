@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from constitutional_architecture.isr.model.entity import Entity
 from constitutional_architecture.isr.model.isr import ISR, ISRProvenance
 from constitutional_architecture.isr.model.module import Module
 from constitutional_architecture.isr.model.system import System, SystemMetadata
@@ -150,10 +151,32 @@ def build_taskflow_profile(
         for name in capabilities
     )
 
+    # Inventory only explicitly named domain concepts from the canonical problem.
+    # No fields, relationships, cardinalities, or persistence choices are inferred.
+    entity_terms = (
+        ("user", "user"),
+        ("workspace", "workspace"),
+        ("project", "project"),
+        ("task", "task"),
+        ("comment", "comment"),
+        ("activity history", "activity history"),
+        ("session", "session"),
+    )
+    entities = tuple(
+        Entity(
+            id=_stable_id("ENT", name),
+            name=name.title().replace(" ", ""),
+            description=f"Concept explicitly named by problem text; schema remains UNKNOWN: {name}",
+            metadata={"source": problem_source, "matched_term": term, "schema_status": "UNKNOWN"},
+        )
+        for name, term in entity_terms
+        if term in problem.casefold()
+    )
     module = Module(
         id="taskflow-domain",
         name="TaskFlow Domain",
-        description="Technology-neutral capability and acceptance profile; domain schema unresolved.",
+        description="Technology-neutral capability and acceptance profile; entity schemas and relationships unresolved.",
+        entities=entities,
     )
     system = System(
         id=_stable_id("SYS", project_id),
@@ -204,7 +227,7 @@ def build_taskflow_profile(
         ],
     }
     assumptions = (
-        {"id": "ASM-DOMAIN-001", "topic": "domain entities and fields", "status": "UNKNOWN", "reason": "The canonical acceptance contract names capabilities but does not define entity schemas or field constraints."},
+        {"id": "ASM-DOMAIN-001", "topic": "domain entities and fields", "status": "UNKNOWN", "reason": "The problem names domain concepts, but does not define field schemas, identity rules, or field constraints."},
         {"id": "ASM-REL-001", "topic": "entity relationships and lifecycle", "status": "UNKNOWN", "reason": "Exact relationship cardinalities, deletion semantics, and lifecycle transitions are underspecified."},
         {"id": "ASM-RBAC-001", "topic": "role-permission matrix", "status": "UNKNOWN", "reason": "Owner/manager/member roles are named, but the complete permission matrix is not defined."},
         {"id": "ASM-API-001", "topic": "API and frontend contracts", "status": "UNKNOWN", "reason": "Endpoint shapes, request/response schemas, and view interaction contracts are not specified."},

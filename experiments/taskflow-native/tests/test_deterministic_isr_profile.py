@@ -37,6 +37,18 @@ class DeterministicTaskFlowProfileTests(unittest.TestCase):
             set(ACCEPTANCE["required_capabilities"]),
         )
 
+    def test_only_explicit_problem_nouns_become_schema_unknown_entities(self) -> None:
+        result = build_taskflow_profile(PROBLEM, ACCEPTANCE).as_dict()
+        entities = result["traceability"]["entities"]
+        self.assertEqual(
+            {item["entity_name"] for item in entities},
+            {"User", "Workspace", "Project", "Task", "Comment", "ActivityHistory", "Session"},
+        )
+        self.assertTrue(all(item["schema_status"] == "UNKNOWN" for item in entities))
+        module = result["isr"]["system"]["modules"][0]
+        self.assertEqual(len(module["entities"]), len(entities))
+        self.assertTrue(all(not entity["fields"] and not entity["relationships"] for entity in module["entities"]))
+
     def test_quality_gates_and_negative_cases_remain_unknown(self) -> None:
         result = build_taskflow_profile(PROBLEM, ACCEPTANCE).as_dict()
         self.assertEqual(

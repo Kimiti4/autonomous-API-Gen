@@ -7,6 +7,8 @@
 - `experiments/taskflow-native/provider_free/native_adapter.py`
 - `experiments/taskflow-native/provider_free/typed_isr_gate.py`
 - `experiments/taskflow-native/README.md` and `evaluate.py`
+- `tiannara/application/intent/compiler.py` (`IntentCompiler.compile_full`)
+- `tiannara/application/compiler/project_compiler.py` (`ProjectCompiler.compile_intent`)
 - `constitutional_architecture/compiler/pipeline.py`
 - `constitutional_architecture/compiler/backends/backend_selector.py`
 - `constitutional_architecture/compiler/passes/validation_pass.py`
@@ -23,11 +25,13 @@
 
 1. The provider-free native adapter builds a deterministic `RequirementGraph`, preserves source traceability, emits an explicit unresolved semantic ledger, and currently returns `system_model=None`, `typed_isr=None`, and `generation_allowed=False`. It does not invoke a live model builder or select a backend.
 2. `build_taskflow_typed_isr()` validates a graph-bound `SemanticResolutionRecord` before invoking its supplied SystemModel builder callback. This proves a local transition boundary only; callers can bypass the helper.
-3. The repository contains more than one compiler path. The constitutional pipeline consumes `constitutional_architecture.isr.model.isr.ISR`; the universal compiler consumes a `CompilationRequest` and validates its ISR payload before backend lookup. Neither currently receives the TaskFlow `RequirementGraph` plus its graph-bound semantic-resolution ledger.
+3. The repository contains more than one compiler path. The constitutional pipeline consumes `constitutional_architecture.isr.model.isr.ISR`; the universal compiler consumes a `CompilationRequest` and validates its ISR payload before backend lookup. Neither currently receives the TaskFlow `RequirementGraph` plus its graph-bound semantic-resolution ledger. The live application path is `ProjectCompiler.compile_intent` → `IntentCompiler.compile_full`; `IntentCompiler` synthesizes `SystemModel` immediately after graph validation, before `ProjectCompiler` derives requirements and selects backends. A gate added only in `ProjectCompiler` would be too late.
 4. The constitutional validation pass currently catches exceptions and reports the ISR as valid in degraded mode. That behavior is not a substitute for a mandatory semantic gate and must not be treated as evidence that the TaskFlow gate is integrated.
 5. The native trial's own README describes a genuine run as requiring a configured reasoning provider. No provider-free generation or application certification is claimed here.
 
 ## Why direct wiring is unsafe right now
+
+5. Production integration must add a TaskFlow-specific pre-synthesis hook at the `IntentCompiler` graph-to-SystemModel boundary (or an equivalent orchestration path that owns the graph before synthesis). It must carry the exact graph-bound ledger forward and require the same validated context before backend planning. Checking only a `generation_allowed` boolean or validating after `compile_full` returns is insufficient.
 
 Adding a check only to a generic backend selector would be insufficient: the selector has no authoritative TaskFlow graph/ledger to validate. Inventing a graph hash from a different ISR payload, reconstructing semantics after backend choice, or translating missing semantics into defaults would break the provenance and fail-closed guarantees.
 

@@ -49,7 +49,16 @@ class DeterministicTaskFlowProfileTests(unittest.TestCase):
         self.assertEqual(len(module["entities"]), len(entities))
         self.assertTrue(all(not entity["fields"] and not entity["relationships"] for entity in module["entities"]))
 
-    def test_quality_gates_and_negative_cases_remain_unknown(self) -> None:
+    def test_explicit_problem_obligations_are_source_traced_and_unknown(self) -> None:
+        result = build_taskflow_profile(PROBLEM, ACCEPTANCE).as_dict()
+        obligations = result["traceability"]["problem_obligations"]
+        self.assertEqual(len(obligations), 15)
+        self.assertEqual(len({item["requirement_id"] for item in obligations}), 15)
+        self.assertTrue(all(item["status"] == "UNKNOWN" for item in obligations))
+        self.assertTrue(all(item["source_line"] > 0 for item in obligations))
+        self.assertTrue(all(item["statement"] in PROBLEM for item in obligations))
+
+    def test_quality_gates_and_negative_cases_remain_unknown(self) -> None
         result = build_taskflow_profile(PROBLEM, ACCEPTANCE).as_dict()
         self.assertEqual(
             len(result["traceability"]["quality_gates"]),

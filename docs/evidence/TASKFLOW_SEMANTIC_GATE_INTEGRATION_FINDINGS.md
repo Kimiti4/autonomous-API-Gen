@@ -19,7 +19,7 @@
 - Added `experiments/taskflow-native/provider_free/taskflow_semantic_contract.py` with a compiler-owned mandatory field set covering identity/authentication, workspace scope, role permissions, data relationships, task lifecycle, session revocation, API and frontend contracts, persistence, idempotency/audit identity, operations/deployment, and verification traceability.
 - The provider-free adapter now emits a graph-ID/hash-bound `SemanticResolutionRecord` whose mandatory fields are all explicitly `UNRESOLVED`; it also exposes the unresolved field list. This is useful negative evidence and does not enable generation.
 - The guarded typed-ISR transition now rejects records that attempt to weaken the authoritative field set before checking graph binding and resolution completeness.
-- Focused tests now cover the initial unresolved ledger and caller-weakened contract rejection. Focused GitHub Actions run 38181511301 passed 18 tests in 0.28s on PR merge ref head fe1536a7c0029fea538c9d67bc625cd6c3db7535.
+- Focused tests now cover the initial unresolved ledger and caller-weakened contract rejection. Focused GitHub Actions run 38181827484 passed 25 tests in 0.58s on PR merge ref head abdd86a6e62e8dc52c9604d3fb7b7ee571b15f3e.
 
 ## Verified boundaries
 
@@ -50,7 +50,7 @@ Before claiming completion, the live TaskFlow orchestration must carry the exact
 
 ## Current disposition
 
-- Authoritative mandatory field set and graph-bound unresolved ledger: **IMPLEMENTED, focused CI PASS (18 tests)**.\n- Semantic-resolution model and local pre-builder guard: **IMPLEMENTED, focused CI PASS (18 tests)**.
+- Authoritative mandatory field set and graph-bound unresolved ledger: **IMPLEMENTED, focused CI PASS (25 tests)**.\n- Semantic-resolution model and local pre-builder guard: **IMPLEMENTED, focused CI PASS (18 tests)**.
 - Production integration hook: **IMPLEMENTED behind explicit TaskFlow mode; no resolver configured and no live trial runner wired yet**.
 - Backend-planning revalidation: **IMPLEMENTED when `ProjectCompiler(taskflow_semantic_gate=True)` is used; default mode remains generic**.
 - TaskFlow generation and certification: **NOT RUN / UNKNOWN**.

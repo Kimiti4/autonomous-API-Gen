@@ -12,10 +12,8 @@ from collections.abc import Callable
 from typing import TypeVar
 
 from tiannara.domain.models.isr import IntermediateSoftwareRepresentation
-from tiannara.domain.models.semantic_resolution import (
-    SemanticResolutionRecord,
-    require_resolved_semantics,
-)
+from tiannara.domain.models.semantic_resolution import SemanticResolutionRecord
+from taskflow_semantic_contract import require_taskflow_semantics
 from tiannara.domain.models.system_model import SystemModel
 from tiannara.domain.models.requirement_graph import RequirementGraph
 
@@ -32,11 +30,7 @@ def build_taskflow_typed_isr(
     lineage: list[str] | None = None,
 ) -> IntermediateSoftwareRepresentation:
     """Gate semantic resolution before invoking any SystemModel builder."""
-    require_resolved_semantics(
-        resolutions,
-        expected_graph_id=graph.graph_id,
-        expected_graph_hash=graph.content_hash(),
-    )
+    require_taskflow_semantics(graph, resolutions)
     model = build_system_model()
     if not isinstance(model, SystemModel):
         raise TypeError("build_system_model must return a validated SystemModel")

@@ -12,9 +12,16 @@
 - `constitutional_architecture/compiler/passes/validation_pass.py`
 - `compiler/kernel.py`
 
+## Latest implementation increment
+
+- Added `experiments/taskflow-native/provider_free/taskflow_semantic_contract.py` with a compiler-owned mandatory field set covering identity/authentication, workspace scope, role permissions, data relationships, task lifecycle, session revocation, API and frontend contracts, persistence, idempotency/audit identity, operations/deployment, and verification traceability.
+- The provider-free adapter now emits a graph-ID/hash-bound `SemanticResolutionRecord` whose mandatory fields are all explicitly `UNRESOLVED`; it also exposes the unresolved field list. This is useful negative evidence and does not enable generation.
+- The guarded typed-ISR transition now rejects records that attempt to weaken the authoritative field set before checking graph binding and resolution completeness.
+- Focused tests now cover the initial unresolved ledger and caller-weakened contract rejection. These changes are committed, but CI has not yet been observed.
+
 ## Verified boundaries
 
-1. The provider-free native adapter builds a deterministic `RequirementGraph`, preserves source traceability, and currently returns `system_model=None`, `typed_isr=None`, and `generation_allowed=False`. It does not invoke a live model builder or select a backend.
+1. The provider-free native adapter builds a deterministic `RequirementGraph`, preserves source traceability, emits an explicit unresolved semantic ledger, and currently returns `system_model=None`, `typed_isr=None`, and `generation_allowed=False`. It does not invoke a live model builder or select a backend.
 2. `build_taskflow_typed_isr()` validates a graph-bound `SemanticResolutionRecord` before invoking its supplied SystemModel builder callback. This proves a local transition boundary only; callers can bypass the helper.
 3. The repository contains more than one compiler path. The constitutional pipeline consumes `constitutional_architecture.isr.model.isr.ISR`; the universal compiler consumes a `CompilationRequest` and validates its ISR payload before backend lookup. Neither currently receives the TaskFlow `RequirementGraph` plus its graph-bound semantic-resolution ledger.
 4. The constitutional validation pass currently catches exceptions and reports the ISR as valid in degraded mode. That behavior is not a substitute for a mandatory semantic gate and must not be treated as evidence that the TaskFlow gate is integrated.
@@ -39,7 +46,7 @@ Before claiming completion, the live TaskFlow orchestration must carry the exact
 
 ## Current disposition
 
-- Semantic-resolution model and local pre-builder guard: **IMPLEMENTED, CI UNKNOWN**.
+- Authoritative mandatory field set and graph-bound unresolved ledger: **IMPLEMENTED, CI UNKNOWN**.\n- Semantic-resolution model and local pre-builder guard: **IMPLEMENTED, CI UNKNOWN**.
 - Production orchestration integration: **NOT IMPLEMENTED**.
 - Backend-selection enforcement: **NOT IMPLEMENTED**.
 - TaskFlow generation and certification: **NOT RUN / UNKNOWN**.

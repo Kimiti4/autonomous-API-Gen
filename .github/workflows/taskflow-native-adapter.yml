@@ -8,6 +8,7 @@ on:
       - "tiannara/application/intent/schemas.py"
       - "tiannara/application/compiler/project_compiler.py"
       - "tests/test_intent_compiler.py"
+      - "tests/test_project_compiler_semantic_gate.py"
       - "experiments/taskflow-native/provider_free/typed_isr_gate.py"
       - "experiments/taskflow-native/provider_free/taskflow_semantic_contract.py"
       - "experiments/taskflow-native/tests/test_typed_isr_semantic_gate.py"

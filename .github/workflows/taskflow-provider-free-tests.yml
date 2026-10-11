@@ -61,3 +61,11 @@ jobs:
             --trial-dir "$GITHUB_WORKSPACE" \
             --evidence-dir experiments/taskflow-native/out/provider-free-evidence \
             --verify
+      - name: Publish provider-free profile and snapshot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: taskflow-provider-free-profile
+          path: experiments/taskflow-native/out/provider-free-evidence/
+          if-no-files-found: error
+          retention-days: 14

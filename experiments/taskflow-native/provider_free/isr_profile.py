@@ -217,3 +217,46 @@ def build_taskflow_profile(
         assumptions=assumptions,
         generation_blockers=blockers,
     )
+
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+    from pathlib import Path
+
+    parser = argparse.ArgumentParser(description="Build a deterministic partial TaskFlow ISR profile offline.")
+    parser.add_argument("--problem", required=True, help="Path to the snapshotted problem text")
+    parser.add_argument("--acceptance", required=True, help="Path to the snapshotted acceptance JSON")
+    parser.add_argument("--output", required=True, help="Output JSON path")
+    args = parser.parse_args(argv)
+
+    problem_path = Path(args.problem)
+    acceptance_path = Path(args.acceptance)
+    output_path = Path(args.output)
+    problem = problem_path.read_text(encoding="utf-8")
+    acceptance = json.loads(acceptance_path.read_text(encoding="utf-8"))
+    profile = build_taskflow_profile(
+        problem,
+        acceptance,
+        problem_source=f"snapshot:{problem_path.as_posix()}",
+        acceptance_source=f"snapshot:{acceptance_path.as_posix()}",
+    ).as_dict()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        json.dumps(profile, indent=2, sort_keys=True, ensure_ascii=False) + "\\n",
+        encoding="utf-8",
+    )
+    print(json.dumps({
+        "profile_sha256": profile["isr_sha256"],
+        "capabilities": len(profile["traceability"]["capabilities"]),
+        "quality_gates": len(profile["traceability"]["quality_gates"]),
+        "negative_cases": len(profile["traceability"]["negative_cases"]),
+        "generation_allowed": profile["generation_allowed"],
+        "certified": profile["certified"],
+        "output": str(output_path),
+    }, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

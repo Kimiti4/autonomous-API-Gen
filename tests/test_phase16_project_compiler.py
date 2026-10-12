@@ -20,6 +20,7 @@ from tiannara.domain.models.isr import (
     IntentSpecification,
     IntermediateSoftwareRepresentation,
 )
+from tiannara.domain.models.semantic_resolution import UnresolvedSemanticsError
 from tiannara.domain.models.system_model import (
     AbstractFieldType,
     DataModelSpec,
@@ -182,3 +183,18 @@ def test_unknown_backend_result_blocks_certification():
     with pytest.raises(ProjectCompilationError) as exc:
         compiler.compile_intent("x", {})
     assert "UNKNOWN" in str(exc.value)
+
+
+def test_taskflow_mode_activates_pre_synthesis_gate_before_backend_planning():
+    class _GateIntentCompiler:
+        def compile_full(self, statement, system_id, *, taskflow_semantic_gate=False):
+            assert taskflow_semantic_gate is True
+            raise UnresolvedSemanticsError(("authorization.workspace_membership_scope",))
+
+    compiler = ProjectCompiler(
+        _GateIntentCompiler(),
+        CompilerRegistry(),
+        taskflow_semantic_gate=True,
+    )
+    with pytest.raises(UnresolvedSemanticsError, match="workspace_membership_scope"):
+        compiler.compile_intent("Build TaskFlow", {})

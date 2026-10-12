@@ -35,7 +35,12 @@ from tiannara.application.compiler.verification import BundleVerificationReport
 from tiannara.application.compiler.writer import write_bundle
 from tiannara.domain.models.backend_declaration import PlannedCompilation
 from tiannara.domain.models.compilation import CompilationResult
+from tiannara.domain.models.semantic_resolution import (
+    SemanticResolutionRecord,
+    require_taskflow_semantics,
+)
 from tiannara.domain.ports import IntentCompiler
+from tiannara.application.intent.prompts import derive_system_id
 
 
 class ProjectCompilationError(ValueError):
@@ -75,6 +80,7 @@ class ProjectCompiler:
         policy: SelectionPolicy | None = None,
         executor: CompilationExecutor | None = None,
         plan_all: bool = False,
+        taskflow_semantic_gate: bool = False,
     ) -> None:
         self._intent_compiler = intent_compiler
         self._registry = registry
@@ -84,12 +90,24 @@ class ProjectCompiler:
         # per requirement (select-all) so the same ISR compiles to each backend.
         # Default False preserves the existing single-best selection semantics.
         self._plan_all = plan_all
+        self._taskflow_semantic_gate = taskflow_semantic_gate
 
     def compile_intent(self, statement: str, hints: dict) -> ProjectCompilationReport:
         # 1. Front-end -> ISR envelope. Use compile_full so model-call
         # provenance is retained for the evidence boundary.
         system_id = hints.get("system_id") or derive_system_id(statement)
-        compilation = self._intent_compiler.compile_full(statement, system_id)
+        if self._taskflow_semantic_gate:
+            compilation = self._intent_compiler.compile_full(
+                statement, system_id, taskflow_semantic_gate=True
+            )
+            record = compilation.semantic_resolution_record
+            if not isinstance(record, SemanticResolutionRecord):
+                raise ProjectCompilationError(
+                    "TaskFlow semantic gate is enabled but no validated resolution ledger was returned"
+                )
+            require_taskflow_semantics(compilation.requirement_graph, record)
+        else:
+            compilation = self._intent_compiler.compile_full(statement, system_id)
         isr = compilation.isr
         model_call_records = list(compilation.call_records)
         statuses = {getattr(record, "status", None) for record in model_call_records}

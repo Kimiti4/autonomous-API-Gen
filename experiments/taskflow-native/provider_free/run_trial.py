@@ -150,10 +150,14 @@ def build_report() -> dict:
         "semantic_payload_schema": payload.schema_version,
         "semantic_payload_sha256": __import__("hashlib").sha256(payload_bytes).hexdigest(),
         "semantic_payload_validated": True,
+        "trusted_payload_consumed_by_project_compiler": False,
+        "semantic_consumer_bindings_verified": False,
+        "backend_selection_attempted": False,
         "blockers": [
             "Trusted resolution envelope verified for the current graph, snapshots, and exact resolution ledger.",
             "Versioned semantic payload shape validated for the exact mandatory field set.",
             "Generation remains blocked: the verified payload is not yet consumed by the live ProjectCompiler and backend semantic-consumption path.",
+            "No native semantic-consumer bindings have been verified; extension-only preservation is not implementation evidence.",
             "Application generation, runtime verification, and certification have not occurred.",
         ],
     })

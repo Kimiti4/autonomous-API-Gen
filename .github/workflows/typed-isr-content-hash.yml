@@ -1,0 +1,28 @@
+name: Typed ISR Content Hash
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/typed-isr-content-hash.yml"
+      - "tiannara/domain/models/isr.py"
+      - "tiannara/domain/models/system_model.py"
+      - "tiannara/domain/models/intent.py"
+      - "tiannara/domain/services/canonical.py"
+      - "tests/test_cap_a_system_model.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  typed-isr-hash:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install focused test dependencies
+        run: python -m pip install "pydantic>=2,<3" pytest
+      - name: Verify typed payload hashing and legacy compatibility
+        run: python -m pytest tests/test_cap_a_system_model.py -q

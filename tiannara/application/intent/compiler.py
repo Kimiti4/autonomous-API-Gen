@@ -40,6 +40,7 @@ from .schemas import (
     ElicitationOutput,
     ExtractionOutput,
     IntentCompilationResult,
+    NormalizedIntent,
     TaskFlowSemanticProjection,
 )
 from .synthesis import synthesize_system_model

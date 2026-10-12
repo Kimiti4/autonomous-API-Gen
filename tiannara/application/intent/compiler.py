@@ -40,6 +40,7 @@ from .schemas import (
     ElicitationOutput,
     ExtractionOutput,
     IntentCompilationResult,
+    TaskFlowSemanticProjection,
 )
 from .synthesis import synthesize_system_model
 
@@ -50,10 +51,12 @@ class IntentCompiler:
         provider: LanguageModelProvider,
         config: IntentCompilerConfig | None = None,
         taskflow_semantic_resolver: Callable[[RequirementGraph, SemanticResolutionRecord], SemanticResolutionRecord] | None = None,
+        taskflow_semantic_projector: Callable[[RequirementGraph, ElicitationOutput, NormalizedIntent, SemanticResolutionRecord], TaskFlowSemanticProjection] | None = None,
     ) -> None:
         self._provider = provider
         self._config = config or IntentCompilerConfig()
         self._taskflow_semantic_resolver = taskflow_semantic_resolver
+        self._taskflow_semantic_projector = taskflow_semantic_projector
 
     def compile(self, statement: str, hints: dict) -> IntermediateSoftwareRepresentation:
         """Port-compatible entry point (matches the domain IntentCompiler port)."""
@@ -131,8 +134,35 @@ class IntentCompiler:
                 raise TypeError("TaskFlow semantic resolver must return SemanticResolutionRecord")
             require_taskflow_semantics(graph, semantic_resolution_record)
 
-        # 7. Synthesis + boundary enforcement
-        model = synthesize_system_model(graph, elicitation_output, normalized)
+        # 7. Synthesis + boundary enforcement. A resolved ledger is not enough:
+        # the ordinary heuristic synthesizer does not consume TaskFlow's
+        # mandatory semantic values. Require an explicit, auditable projection
+        # contract before allowing the gate-enabled path to construct a model.
+        if taskflow_semantic_gate:
+            if self._taskflow_semantic_projector is None:
+                raise ValueError(
+                    "TaskFlow semantic projection is not configured; resolved semantics "
+                    "must be explicitly projected into SystemModel before synthesis"
+                )
+            projection = self._taskflow_semantic_projector(
+                graph, elicitation_output, normalized, semantic_resolution_record
+            )
+            if not isinstance(projection, TaskFlowSemanticProjection):
+                raise TypeError(
+                    "TaskFlow semantic projector must return TaskFlowSemanticProjection"
+                )
+            expected_fields = set(semantic_resolution_record.required_fields)
+            projected_fields = set(projection.projected_fields)
+            if projected_fields != expected_fields:
+                missing = sorted(expected_fields - projected_fields)
+                unexpected = sorted(projected_fields - expected_fields)
+                raise ValueError(
+                    "TaskFlow semantic projection coverage mismatch; "
+                    f"missing={missing}, unexpected={unexpected}"
+                )
+            model = projection.system_model
+        else:
+            model = synthesize_system_model(graph, elicitation_output, normalized)
         isr = IntermediateSoftwareRepresentation.from_system_model(
             system_id,
             model,

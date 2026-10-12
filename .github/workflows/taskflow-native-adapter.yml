@@ -32,6 +32,8 @@ on:
       - "experiments/compiler-benchmarks/taskflow_input_parity.py"
       - "experiments/compiler-benchmarks/tests/test_taskflow_input_parity.py"
       - "experiments/compiler-benchmarks/benchmark_manifest.template.json"
+      - "experiments/compiler-benchmarks/coherence_suite.v1.json"
+      - "experiments/compiler-benchmarks/tests/test_coherence_suite.py"
       - "constitutional_architecture/compiler/passes/validation_pass.py"
       - "tests/test_constitutional_compiler_validation_pass.py"
   workflow_dispatch:
@@ -51,4 +53,4 @@ jobs:
       - name: Install focused test dependencies
         run: python -m pip install "pydantic>=2,<3" pytest
       - name: Verify deterministic native graph and fail-closed generation gate
-        run: PYTHONPATH=.:experiments/taskflow-native:experiments/taskflow-native/provider_free:$PYTHONPATH python -m pytest tests/test_taskflow_native_adapter.py tests/test_taskflow_native_trial_runner.py tests/test_taskflow_semantic_source_audit.py tests/test_taskflow_trusted_evidence.py tests/test_semantic_resolution_gate.py tests/test_intent_compiler.py tests/test_taskflow_semantic_projection.py tests/test_project_compiler_semantic_gate.py experiments/taskflow-native/tests/test_typed_isr_semantic_gate.py experiments/compiler-benchmarks/tests/test_taskflow_input_parity.py tests/test_constitutional_compiler_validation_pass.py tests/test_taskflow_semantic_contract.py -q
+        run: PYTHONPATH=.:experiments/taskflow-native:experiments/taskflow-native/provider_free:$PYTHONPATH python -m pytest tests/test_taskflow_native_adapter.py tests/test_taskflow_native_trial_runner.py tests/test_taskflow_semantic_source_audit.py tests/test_taskflow_trusted_evidence.py tests/test_semantic_resolution_gate.py tests/test_intent_compiler.py tests/test_taskflow_semantic_projection.py tests/test_project_compiler_semantic_gate.py experiments/taskflow-native/tests/test_typed_isr_semantic_gate.py experiments/compiler-benchmarks/tests/test_taskflow_input_parity.py tests/test_constitutional_compiler_validation_pass.py tests/test_taskflow_semantic_contract.py experiments/compiler-benchmarks/tests/test_coherence_suite.py -q

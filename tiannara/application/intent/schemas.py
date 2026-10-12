@@ -7,7 +7,7 @@ replay fixtures and schema drift are detectable.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from tiannara.domain.models.isr import IntermediateSoftwareRepresentation
 from tiannara.domain.models.model_call import ModelCallRecord
@@ -78,6 +78,14 @@ class TaskFlowSemanticProjection(BaseModel):
 
     system_model: SystemModel
     projected_fields: tuple[str, ...]
+
+    @model_validator(mode="after")
+    def validate_projected_fields(self) -> "TaskFlowSemanticProjection":
+        if len(self.projected_fields) != len(set(self.projected_fields)):
+            raise ValueError("projected_fields contains duplicates")
+        if any(not field.strip() for field in self.projected_fields):
+            raise ValueError("projected_fields cannot contain blank paths")
+        return self
 
     @classmethod
     def model_validate_projection(

@@ -12,6 +12,8 @@ from provider_free.semantic_source_audit import build_source_audit
 from provider_free.trusted_evidence import canonical_json, verify_trusted_resolution_envelope
 from tiannara.domain.models.semantic_resolution import (
     UnresolvedSemanticsError,
+    SemanticResolutionRecord,
+    build_initial_resolution_record,
     require_taskflow_semantics,
 )
 
@@ -19,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[3]
 TRIAL = ROOT / "experiments" / "taskflow-native"
 
 
-def _base_report(adapted, source_audit: dict[str, Any]) -> dict[str, Any]:
+def _base_report(adapted, record: SemanticResolutionRecord, source_audit: dict[str, Any]) -> dict[str, Any]:
     return {
         "schema": "tiannara.taskflow.native-trial-preflight.v1",
         "trial_id": "TASKFLOW-ESAP-NATIVE-001",
@@ -27,7 +29,7 @@ def _base_report(adapted, source_audit: dict[str, Any]) -> dict[str, Any]:
         "acceptance_sha256": adapted.acceptance_sha256,
         "requirement_graph_id": adapted.graph.graph_id,
         "requirement_graph_sha256": adapted.graph.content_hash(),
-        "semantic_resolution_record": adapted.semantic_resolutions.model_dump(mode="json"),
+        "semantic_resolution_record": record.model_dump(mode="json"),
         "semantic_source_audit": source_audit,
         "generation_started": False,
         "system_model_constructed": False,
@@ -53,17 +55,29 @@ def build_report() -> dict:
         problem_source="snapshot:experiments/taskflow-native/PROBLEM.md",
         acceptance_source="snapshot:golden-projects/taskflow/ACCEPTANCE.json",
     )
-    report = _base_report(adapted, source_audit)
+    record_path = os.environ.get("TIANNARA_TASKFLOW_RESOLUTION_RECORD")
+    record = build_initial_resolution_record(adapted.graph)
+    record_load_error = None
+    if record_path:
+        try:
+            record = SemanticResolutionRecord.model_validate_json(
+                Path(record_path).read_text(encoding="utf-8")
+            )
+        except (OSError, ValueError) as exc:
+            record_load_error = f"Unable to load semantic resolution record: {exc}"
+    report = _base_report(adapted, record, source_audit)
     try:
-        require_taskflow_semantics(adapted.graph, adapted.semantic_resolutions)
-    except UnresolvedSemanticsError as exc:
+        if record_load_error:
+            raise ValueError(record_load_error)
+        require_taskflow_semantics(adapted.graph, record)
+    except (UnresolvedSemanticsError, ValueError) as exc:
         report.update({
             "status": "BLOCKED",
             "phase": "semantic_preflight",
-            "unresolved_mandatory_semantics": list(exc.fields),
+            "unresolved_mandatory_semantics": list(exc.fields) if isinstance(exc, UnresolvedSemanticsError) else list(record.unresolved_fields()),
             "blockers": [
                 str(exc),
-                "No trusted native semantic resolver or verified human-decision record is configured.",
+                "Supply a complete graph-bound record through TIANNARA_TASKFLOW_RESOLUTION_RECORD only after trusted review.",
                 "Source strings and approval references alone are not trusted evidence.",
             ],
         })
@@ -83,7 +97,7 @@ def build_report() -> dict:
     key_text = os.environ.get("TIANNARA_TASKFLOW_TRUSTED_EVIDENCE_KEY")
     trusted_key = key_text.encode("utf-8") if key_text else None
     verified, evidence_blockers = verify_trusted_resolution_envelope(
-        record=adapted.semantic_resolutions,
+        record=record,
         graph=adapted.graph,
         problem_bytes=problem_bytes,
         acceptance_bytes=canonical_json(acceptance),

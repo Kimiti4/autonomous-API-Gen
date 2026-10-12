@@ -23,6 +23,7 @@ from tiannara.domain.models.semantic_resolution import (
     SemanticResolutionRecord,
     build_initial_resolution_record,
     require_taskflow_semantics,
+    resolutions_by_field,
 )
 from tiannara.domain.ports.language_model import LanguageModelProvider
 
@@ -153,7 +154,8 @@ class IntentCompiler:
                     "TaskFlow semantic projector must return TaskFlowSemanticProjection"
                 )
             expected_fields = set(semantic_resolution_record.required_fields)
-            projected_fields = set(projection.projected_fields)
+            projected_values = projection.projected_values
+            projected_fields = set(projected_values)
             if projected_fields != expected_fields:
                 missing = sorted(expected_fields - projected_fields)
                 unexpected = sorted(projected_fields - expected_fields)
@@ -161,7 +163,24 @@ class IntentCompiler:
                     "TaskFlow semantic projection coverage mismatch; "
                     f"missing={missing}, unexpected={unexpected}"
                 )
+            reviewed_values = {
+                path: resolution.value
+                for path, resolution in resolutions_by_field(
+                    semantic_resolution_record
+                ).items()
+            }
+            if projected_values != reviewed_values:
+                raise ValueError(
+                    "TaskFlow semantic projection changed or omitted reviewed values"
+                )
             model = projection.system_model
+            if (
+                model.requirements_ref.graph_id != graph.graph_id
+                or model.requirements_ref.graph_hash != graph.content_hash()
+            ):
+                raise ValueError(
+                    "TaskFlow projected SystemModel is not bound to the active requirement graph"
+                )
         else:
             model = synthesize_system_model(graph, elicitation_output, normalized)
         isr = IntermediateSoftwareRepresentation.from_system_model(

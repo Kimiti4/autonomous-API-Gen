@@ -159,3 +159,8 @@ The test and validator changes have been committed, but CI for the latest head h
 ## Explicit unresolved-decision docket
 
 The 12 implementation-level questions identified during reconciliation are now tracked in `docs/evidence/taskflow_review/OPEN_IMPLEMENTATION_DECISIONS.v1.md`. They cover session lifetime bounds; exact role/action permissions; project/task deletion versus archive; workspace deletion with dependent data; membership-removal dependencies; MFA recovery; API pagination/versioning; idempotency retention and conflict behavior; audit retention/access; comment deletion rights; date/time semantics; and stable conflict responses. No defaults have been inferred. Each item must be explicitly resolved, typed, traced to a consumer, and tested before the corresponding gate can pass.
+
+
+## Typed semantic gate regression tests (2026-10-13)
+
+Added `tests/test_taskflow_semantic_contract_gate.py` with cases for a structurally complete fixture, a missing required key, a placeholder value, a scalar payload, and a non-authoritative field set. These tests exercise the existing shape validator; they do **not** prove the values are semantically correct, originate from trusted reviewer decisions, are consumed by either compiler, or generate correct artifacts. The production TaskFlow path still explicitly documents that its guarded typed-ISR transition is not wired into all production compiler/backend entry boundaries. The new tests await CI on the new commit.

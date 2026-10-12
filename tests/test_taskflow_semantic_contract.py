@@ -1,7 +1,7 @@
 """Negative and shape tests for the mandatory TaskFlow semantic contract."""
 import pytest
 from tiannara.domain.models.semantic_resolution import ResolutionKind, SemanticResolution, SemanticResolutionRecord, TASKFLOW_MANDATORY_FIELDS
-from tiannara.domain.models.taskflow_semantic_contract import IncompleteTaskFlowSemanticContract, REQUIRED_VALUE_KEYS, validate_taskflow_semantic_contract
+from tiannara.domain.models.taskflow_semantic_contract import IncompleteTaskFlowSemanticContract, REQUIRED_VALUE_KEYS, REQUIRED_VALUE_SHAPES, validate_taskflow_semantic_contract
 
 def _record(value_for):
     return SemanticResolutionRecord(
@@ -12,7 +12,7 @@ def _record(value_for):
     )
 
 def _complete_shape(path):
-    return {key: {"decision": "explicitly-defined"} for key in REQUIRED_VALUE_KEYS[path]}
+    return {key: ([{"decision": "explicitly-defined"}] if shape == "array" else {"decision": "explicitly-defined"}) for key, shape in REQUIRED_VALUE_SHAPES[path].items()}
 
 def test_scalar_values_cannot_satisfy_complex_mandatory_semantics():
     with pytest.raises(IncompleteTaskFlowSemanticContract, match="structured object"):
@@ -21,12 +21,12 @@ def test_scalar_values_cannot_satisfy_complex_mandatory_semantics():
 def test_missing_field_specific_contract_keys_are_rejected():
     def incomplete(path):
         return {REQUIRED_VALUE_KEYS[path][0]: {"decision": "defined"}}
-    with pytest.raises(IncompleteTaskFlowSemanticContract, match="missing or placeholder"):
+    with pytest.raises(IncompleteTaskFlowSemanticContract, match="missing or placeholder|invalid contract value shape"):
         validate_taskflow_semantic_contract(_record(incomplete))
 
 def test_unknown_or_tbd_values_are_rejected():
     def placeholder(path):
-        return {key: {"decision": "TBD"} for key in REQUIRED_VALUE_KEYS[path]}
+        return {key: ([{"decision": "TBD"}] if shape == "array" else {"decision": "TBD"}) for key, shape in REQUIRED_VALUE_SHAPES[path].items()}
     with pytest.raises(IncompleteTaskFlowSemanticContract, match="missing or placeholder"):
         validate_taskflow_semantic_contract(_record(placeholder))
 

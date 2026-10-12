@@ -83,5 +83,29 @@
   "remaining_applications": {
     "discovery_status": "NOT_ENUMERATED",
     "rule": "Add each remaining application only after locating its canonical specification and acceptance criteria; each receives exactly two primary iterations using distinct compiler implementations."
+  },
+  "compiler_pair_qualification": {
+    "status": "BLOCKED_NOT_QUALIFIED",
+    "inventory": "docs/evidence/COMPILER_PATH_QUALIFICATION_INVENTORY.md",
+    "candidate_a": {
+      "compiler_id": "cap_c_project_compiler",
+      "implementation": "tiannara.application.compiler.project_compiler.ProjectCompiler",
+      "status": "NOT_QUALIFIED"
+    },
+    "candidate_b": {
+      "compiler_id": "constitutional_architecture_pipeline",
+      "implementation": "constitutional_architecture.compiler.pipeline.CompilerPipeline",
+      "status": "NOT_QUALIFIED"
+    },
+    "blockers": [
+      "The two pipelines consume different ISR/input representations.",
+      "A deterministic adapter from the same frozen TaskFlow specification and trusted semantic decisions is not yet proven.",
+      "Semantic parity across all mandatory fields and negative cases is not yet demonstrated.",
+      "Independent live invocation and artifact/runtime evidence are not yet recorded."
+    ],
+    "distinction": {
+      "end_to_end_compiler_comparison": "Compare materially different full compilation pipelines.",
+      "cross_target_lowering": "Python/FastAPI and Go/net/http backends under one ISR are a separate experiment, not a substitute for two compiler pipelines."
+    }
   }
 }

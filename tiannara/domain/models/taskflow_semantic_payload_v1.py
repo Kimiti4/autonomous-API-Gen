@@ -52,7 +52,7 @@ class TaskFlowSemanticPayloadV1(BaseModel):
 
     schema_version: str = Field(default="tiannara.taskflow.semantic-payload.v1", min_length=1)
     graph_id: str = Field(min_length=1)
-    graph_hash: str = Field(min_length=1)
+    graph_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     problem_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     acceptance_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     values: dict[str, dict[str, Any]]

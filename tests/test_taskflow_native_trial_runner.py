@@ -25,6 +25,9 @@ def test_trial_runner_records_blocked_preflight_without_claiming_generation():
     assert report["certified"] is False
     assert len(report["unresolved_mandatory_semantics"]) == 15
     assert report["semantic_resolution_record"]["graph_hash"] == report["requirement_graph_sha256"]
+    assert report["semantic_source_audit"]["summary"]["mandatory_fields"] == 15
+    assert report["semantic_source_audit"]["summary"]["resolved_fields"] == 0
+    assert report["semantic_source_audit"]["generation_authorized"] is False
 
 
 def test_trial_runner_does_not_treat_a_structurally_complete_ledger_as_trusted_evidence(monkeypatch):
@@ -64,4 +67,5 @@ def test_trial_runner_does_not_treat_a_structurally_complete_ledger_as_trusted_e
     assert report["generation_started"] is False
     assert report["certified"] is False
     assert report["unresolved_mandatory_semantics"] == []
+    assert report["semantic_source_audit"]["summary"]["resolved_fields"] == 0
     assert any("trusted evidence verification" in item for item in report["blockers"])

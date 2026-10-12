@@ -97,7 +97,7 @@ class TaskFlowSemanticPayloadV1(BaseModel):
         if unresolved:
             raise ValueError("cannot build payload with unresolved fields: " + ", ".join(unresolved))
         by_field = resolutions_by_field(record)
-        values: dict[str, dict[str, JsonValue]] = {}
+        values: dict[str, dict[str, Any]] = {}
         for field_path in TASKFLOW_MANDATORY_FIELDS:
             item = by_field[field_path]
             if item.kind is ResolutionKind.UNRESOLVED or not isinstance(item.value, dict):

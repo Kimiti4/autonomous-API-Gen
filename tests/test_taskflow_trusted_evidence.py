@@ -23,7 +23,6 @@ from tiannara.domain.models.semantic_resolution import (  # noqa: E402
 def _fixture():
     problem_bytes = (TRIAL / "PROBLEM.md").read_bytes()
     acceptance = json.loads((ROOT / "golden-projects" / "taskflow" / "ACCEPTANCE.json").read_text(encoding="utf-8"))
-    import hashlib
     import json as json_module
     acceptance_bytes = json_module.dumps(acceptance, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     adapted = adapt_taskflow_snapshot(problem_bytes.decode("utf-8"), acceptance)

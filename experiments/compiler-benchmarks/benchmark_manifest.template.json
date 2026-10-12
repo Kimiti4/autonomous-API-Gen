@@ -106,6 +106,13 @@
     "distinction": {
       "end_to_end_compiler_comparison": "Compare materially different full compilation pipelines.",
       "cross_target_lowering": "Python/FastAPI and Go/net/http backends under one ISR are a separate experiment, not a substitute for two compiler pipelines."
+    },
+    "input_parity_preflight": {
+      "implementation": "experiments/compiler-benchmarks/taskflow_input_parity.py",
+      "tests": "experiments/compiler-benchmarks/tests/test_taskflow_input_parity.py",
+      "status": "IMPLEMENTED_NOT_YET_CI_VERIFIED",
+      "purpose": "Fail-closed check of declared canonical input hashes, all 15 mandatory field states, semantic-value digest parity, distinct compiler implementation identifiers, and declared downstream consumer bindings.",
+      "limitation": "A passing declaration check is not proof of trusted resolution or actual downstream consumption; the checker never qualifies the compiler pair or authorizes generation."
     }
   }
 }

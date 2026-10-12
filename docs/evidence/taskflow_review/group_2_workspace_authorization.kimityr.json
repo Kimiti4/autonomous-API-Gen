@@ -1,0 +1,98 @@
+{
+  "schema_version": "tiannara.taskflow.reviewer-decision.chat-record.v1",
+  "decision_group": "authorization.workspace_membership_scope+authorization.owner_manager_member_permissions",
+  "reviewer_id": "Kimityr",
+  "approval_status": "APPROVED_IN_CHAT",
+  "approval_source": "Explicit reviewer confirmation in ChatGPT conversation",
+  "cryptographic_signature_present": false,
+  "trusted_hmac_envelope_present": false,
+  "generation_authorized": false,
+  "decisions": {
+    "owner": {
+      "scope": "Full administrative control within the owner's own workspace",
+      "allowed": [
+        "workspace settings",
+        "membership and role administration",
+        "projects",
+        "tasks",
+        "archive and restore",
+        "permanent workspace deletion subject to confirmation and audit"
+      ],
+      "constraints": [
+        "cross-workspace isolation remains mandatory",
+        "integrity safeguards remain mandatory"
+      ]
+    },
+    "manager": {
+      "allowed": [
+        "manage projects and tasks within own workspace",
+        "manage assignments, comments, and archive/restore",
+        "invite ordinary members",
+        "remove ordinary members"
+      ],
+      "forbidden": [
+        "promote, demote, remove, or change roles of owners or managers",
+        "transfer ownership",
+        "permanently delete workspace"
+      ]
+    },
+    "member": {
+      "allowed": [
+        "create projects within own workspace",
+        "manage permitted project content",
+        "view and create workspace tasks",
+        "update permitted task fields and assignments",
+        "comment"
+      ],
+      "forbidden": [
+        "change workspace settings",
+        "manage membership",
+        "change roles"
+      ]
+    },
+    "membership": {
+      "manager_boundary": "no_privileged_roles",
+      "manager_invite_remove": "ordinary members only",
+      "owner_controls_privileged_role_changes": true,
+      "membership_changes_must_be_authorized_and_auditable": true,
+      "affected_sessions_and_cached_permissions_must_follow_defined_revocation_rules": true
+    },
+    "workspace_isolation": {
+      "rule": "All backend reads and writes must be scoped to authenticated, authorized workspace membership.",
+      "cross_workspace_resources_and_assignees": "Reject regardless of role.",
+      "foreign_resource_details": "Must not be disclosed in responses."
+    },
+    "permanent_workspace_deletion": {
+      "authorized_role": "owner_only",
+      "requirements": [
+        "explicit confirmation",
+        "ownership checks",
+        "audit evidence"
+      ],
+      "managers_and_members_forbidden": true
+    },
+    "verification": {
+      "backend_enforcement_required": true,
+      "required_cases": [
+        "cross-workspace reads",
+        "cross-workspace writes",
+        "unauthorized role changes",
+        "member removal",
+        "invalid task assignments",
+        "workspace deletion without owner authority"
+      ]
+    }
+  },
+  "unresolved_operational_details": [
+    "Exact editable project and task fields by role",
+    "Whether members can delete projects/tasks or only archive them",
+    "Whether workspace deletion is permitted while active members or data remain",
+    "Session and cached-permission invalidation behavior after membership changes"
+  ],
+  "limitations": [
+    "This record documents chat approval only.",
+    "It is not a cryptographic attestation or trusted evidence envelope.",
+    "It does not authorize generation.",
+    "Remaining semantic decisions and trusted-evidence requirements must be satisfied before generation."
+  ]
+}

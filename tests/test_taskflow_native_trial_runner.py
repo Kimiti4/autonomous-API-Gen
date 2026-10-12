@@ -71,3 +71,46 @@ def test_trial_runner_does_not_treat_a_structurally_complete_ledger_as_trusted_e
     assert any("No trusted resolution envelope" in item for item in report["blockers"])
     assert any("No out-of-repository trusted evidence key" in item for item in report["blockers"])
     assert report["trusted_evidence_verified"] is False
+
+
+
+def test_trial_runner_loads_external_ledger_but_still_requires_trusted_envelope(monkeypatch, tmp_path):
+    import json
+    from provider_free import run_trial
+    from tiannara.domain.models.semantic_resolution import (
+        SemanticResolution,
+        SemanticResolutionRecord,
+        ResolutionKind,
+        TASKFLOW_MANDATORY_FIELDS,
+    )
+
+    problem = (TRIAL_DIR / "PROBLEM.md").read_text(encoding="utf-8")
+    acceptance = json.loads((ROOT / "golden-projects" / "taskflow" / "ACCEPTANCE.json").read_text(encoding="utf-8"))
+    adapted = run_trial.adapt_taskflow_snapshot(problem, acceptance)
+    ledger = SemanticResolutionRecord(
+        graph_id=adapted.graph.graph_id,
+        graph_hash=adapted.graph.content_hash(),
+        required_fields=TASKFLOW_MANDATORY_FIELDS,
+        resolutions=tuple(
+            SemanticResolution(
+                field_path=field,
+                kind=ResolutionKind.SNAPSHOT,
+                value={"reviewed": True, "field": field},
+                source="reviewer-reviewed-snapshot",
+            )
+            for field in TASKFLOW_MANDATORY_FIELDS
+        ),
+    )
+    ledger_path = tmp_path / "resolution.json"
+    ledger_path.write_text(ledger.model_dump_json(), encoding="utf-8")
+    monkeypatch.setenv("TIANNARA_TASKFLOW_RESOLUTION_RECORD", str(ledger_path))
+    monkeypatch.delenv("TIANNARA_TASKFLOW_EVIDENCE_ENVELOPE", raising=False)
+    monkeypatch.delenv("TIANNARA_TASKFLOW_TRUSTED_EVIDENCE_KEY", raising=False)
+
+    report = run_trial.build_report()
+
+    assert report["status"] == "BLOCKED"
+    assert report["phase"] == "trusted_evidence_verification"
+    assert report["semantic_resolution_record"]["graph_hash"] == report["requirement_graph_sha256"]
+    assert report["trusted_evidence_verified"] is False
+    assert any("No trusted resolution envelope" in item for item in report["blockers"])

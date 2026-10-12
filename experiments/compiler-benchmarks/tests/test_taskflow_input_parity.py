@@ -1,4 +1,5 @@
 """Tests for fail-closed TaskFlow cross-compiler parity preflight."""
+import copy
 import importlib.util
 from pathlib import Path
 
@@ -29,7 +30,7 @@ def valid_manifest():
         },
         "compilers": [
             {"compiler_id": "A", "implementation_id": "impl-A", "fields": fields},
-            {"compiler_id": "B", "implementation_id": "impl-B", "fields": fields.copy()},
+            {"compiler_id": "B", "implementation_id": "impl-B", "fields": copy.deepcopy(fields)},
         ],
     }
 

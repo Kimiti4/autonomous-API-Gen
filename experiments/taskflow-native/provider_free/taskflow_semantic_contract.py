@@ -5,6 +5,8 @@ exists for older imports only; it must not duplicate or weaken the field set.
 """
 from tiannara.domain.models.semantic_resolution import (
     TASKFLOW_MANDATORY_FIELDS,
+    ResolutionKind,
+    SemanticResolution,
     SemanticResolutionRecord,
     build_initial_resolution_record,
     require_taskflow_semantics,
@@ -12,6 +14,8 @@ from tiannara.domain.models.semantic_resolution import (
 
 __all__ = [
     "TASKFLOW_MANDATORY_FIELDS",
+    "ResolutionKind",
+    "SemanticResolution",
     "SemanticResolutionRecord",
     "build_initial_resolution_record",
     "require_taskflow_semantics",

@@ -48,10 +48,16 @@ Before claiming completion, the live TaskFlow orchestration must carry the exact
 7. Test negative paths with spies proving that neither the model builder nor backend registry/selector was called; test positive paths only with a complete, graph-matching resolution record.
 8. Run the bounded TaskFlow generation trial and independently verify generated API, frontend, tenancy, authentication, persistence, runtime behavior, and end-to-end traceability. Keep every unrun result `UNKNOWN`.
 
+## Latest projection-contract hardening
+
+The TaskFlowSemanticProjection contract now carries a mapping of every mandatory field to its exact reviewed value. The model must preserve that mapping in SystemModel.extensions["taskflow_semantic_values"]; the compiler rejects missing/extra fields, changed values, and a SystemModel whose requirements_ref does not match the active graph ID and content hash. Focused tests cover preservation and tampering.
+
+This is intentionally described as **semantic-value preservation**, not proof that a backend implements those values. Carrying reviewed decisions inside the ISR prevents silent loss at the model boundary, but the actual domain/API/data/security mapping and backend consumption still need an explicit, tested projector. No concrete TaskFlow projector is being claimed by this change.
+
 ## Current disposition
 
 - Authoritative mandatory field set and graph-bound unresolved ledger: **IMPLEMENTED, focused CI PASS (25 tests)**.\n- Semantic-resolution model and local pre-builder guard: **IMPLEMENTED, focused CI PASS (18 tests)**.
-- Production pre-synthesis gate: **PARTIAL** — a resolved ledger is now insufficient on its own; TaskFlow mode requires an explicit semantic projector. The concrete projector and trusted provider-free ProjectCompiler path are not implemented.
+- Production pre-synthesis gate: **PARTIAL** — resolved semantics must pass an explicit projection contract that preserves exact reviewed values and graph binding. Concrete domain/API/data/security projection and the trusted provider-free ProjectCompiler path are not implemented.
 - Backend-planning revalidation: **IMPLEMENTED when `ProjectCompiler(taskflow_semantic_gate=True)` is used; default mode remains generic**.
 - TaskFlow generation and certification: **NOT RUN / UNKNOWN**.
 - PR remains draft and unmerged.

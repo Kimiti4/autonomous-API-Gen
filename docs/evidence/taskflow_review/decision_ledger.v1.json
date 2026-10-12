@@ -1,0 +1,1263 @@
+{
+  "schema_version": "tiannara.taskflow.normalized-review-decision-ledger.v1",
+  "ledger_status": "NORMALIZED_PROJECTION_OF_CHAT_RECORDS_NOT_TRUSTED_ATTESTATION",
+  "generated_for_branch": "review/taskflow-group-1-kimityr-clean",
+  "normalization_policy": {
+    "original_records_modified": false,
+    "originals_remain_authoritative_for_exact_chat_record_content": true,
+    "normalized_payload_is_derived_projection": true,
+    "chat_approval_is_cryptographic_attestation": false,
+    "trusted_evidence_envelope_present": false,
+    "generation_authorized": false,
+    "implementation_or_runtime_verified": false,
+    "certification_status": "NOT_CERTIFIED",
+    "normalization_note": "Groups 1–12 use earlier record schemas; Groups 13–14 use a different record shape. This ledger normalizes references and decision payload locations without changing the original records or upgrading their trust level."
+  },
+  "semantic_group_count": 15,
+  "reviewer_decision_group_count": 14,
+  "reviewer_id": "Kimityr",
+  "records": [
+    {
+      "group": 1,
+      "semantic_ids": [
+        "identity.registration_and_authentication"
+      ],
+      "source_record": "docs/evidence/taskflow_review/group_1_registration_authentication.kimityr.json",
+      "source_git_blob_sha": "55635fd2f55639de590a1653e53d3d625f30d81b",
+      "source_schema_version": "tiannara.taskflow.reviewer-decision.chat-record.v1",
+      "reviewer_id": "Kimityr",
+      "approval_status": "CHAT_APPROVED_PENDING_TRUSTED_ATTESTATION",
+      "approval_method": "explicit_user_confirmation_in_chat",
+      "cryptographic_signature_present": false,
+      "trusted_hmac_envelope_present": false,
+      "generation_authorized": false,
+      "implementation_or_runtime_verified": false,
+      "decision_payload": {
+        "registration_and_login": {
+          "identifier_options": [
+            "email",
+            "username"
+          ],
+          "credential": "password",
+          "identifier_normalization": "consistent_normalization_required",
+          "identifier_uniqueness": "enforced",
+          "authentication_response_account_enumeration": "avoid_unnecessary_disclosure"
+        },
+        "email_verification": {
+          "required": true,
+          "unverified_access": [
+            "verification_flow",
+            "account_recovery_flow"
+          ],
+          "workspace_data_access_before_verification": "denied",
+          "workspace_operations_before_verification": "denied"
+        },
+        "password_recovery": {
+          "mechanism": "reset_link",
+          "token_requirements": [
+            "secure_generation",
+            "safe_storage",
+            "single_use",
+            "time_limited",
+            "invalidate_after_use",
+            "invalidate_after_expiry",
+            "avoid_account_enumeration"
+          ]
+        },
+        "session_mechanism": {
+          "allowed_implementation_choices": [
+            "server_managed_opaque_sessions",
+            "signed_access_tokens"
+          ],
+          "required_properties": [
+            "expiry_enforced",
+            "effective_revocation",
+            "security_sensitive_account_changes_invalidate_sessions",
+            "selected_mechanism_documented_and_tested"
+          ]
+        },
+        "multi_factor_authentication": {
+          "required_for_all_users": true,
+          "allowed_methods": [
+            "totp_authenticator_app",
+            "passkey"
+          ],
+          "factor_policy": "either_method_satisfies_mfa; both_not_required_on_every_login",
+          "enrollment_replacement_and_recovery": "protected_against_account_takeover",
+          "password_reset_alone_satisfies_mfa": false
+        },
+        "password_reset_session_policy": {
+          "revoke_all_existing_sessions": true,
+          "fresh_authentication_required": true,
+          "mfa_required_on_reauthentication": true
+        },
+        "verification_obligations": [
+          "identifier_uniqueness",
+          "invalid_credentials",
+          "unverified_account_access_denial",
+          "reset_token_expiry_and_replay",
+          "mfa_enforcement_and_recovery",
+          "session_expiry_and_revocation",
+          "cross_workspace_authorization"
+        ]
+      },
+      "unresolved_details": [],
+      "limitations": [
+        "This file records the reviewer's explicit chat approval; it is not a cryptographic signature.",
+        "Repository trusted-evidence verification remains a separate requirement.",
+        "This record does not itself authorize generation or satisfy the trusted resolution envelope gate."
+      ]
+    },
+    {
+      "group": 2,
+      "semantic_ids": [
+        "authorization.workspace_membership_scope",
+        "authorization.owner_manager_member_permissions"
+      ],
+      "source_record": "docs/evidence/taskflow_review/group_2_workspace_authorization.kimityr.json",
+      "source_git_blob_sha": "5a2f62095cad2e9c5016d54e1264f676b3b88685",
+      "source_schema_version": "tiannara.taskflow.reviewer-decision.chat-record.v1",
+      "reviewer_id": "Kimityr",
+      "approval_status": "APPROVED_IN_CHAT",
+      "approval_method": "Explicit reviewer confirmation in ChatGPT conversation",
+      "cryptographic_signature_present": false,
+      "trusted_hmac_envelope_present": false,
+      "generation_authorized": false,
+      "implementation_or_runtime_verified": false,
+      "decision_payload": {
+        "owner": {
+          "scope": "Full administrative control within the owner's own workspace",
+          "allowed": [
+            "workspace settings",
+            "membership and role administration",
+            "projects",
+            "tasks",
+            "archive and restore",
+            "permanent workspace deletion subject to confirmation and audit"
+          ],
+          "constraints": [
+            "cross-workspace isolation remains mandatory",
+            "integrity safeguards remain mandatory"
+          ]
+        },
+        "manager": {
+          "allowed": [
+            "manage projects and tasks within own workspace",
+            "manage assignments, comments, and archive/restore",
+            "invite ordinary members",
+            "remove ordinary members"
+          ],
+          "forbidden": [
+            "promote, demote, remove, or change roles of owners or managers",
+            "transfer ownership",
+            "permanently delete workspace"
+          ]
+        },
+        "member": {
+          "allowed": [
+            "create projects within own workspace",
+            "manage permitted project content",
+            "view and create workspace tasks",
+            "update permitted task fields and assignments",
+            "comment"
+          ],
+          "forbidden": [
+            "change workspace settings",
+            "manage membership",
+            "change roles"
+          ]
+        },
+        "membership": {
+          "manager_boundary": "no_privileged_roles",
+          "manager_invite_remove": "ordinary members only",
+          "owner_controls_privileged_role_changes": true,
+          "membership_changes_must_be_authorized_and_auditable": true,
+          "affected_sessions_and_cached_permissions_must_follow_defined_revocation_rules": true
+        },
+        "workspace_isolation": {
+          "rule": "All backend reads and writes must be scoped to authenticated, authorized workspace membership.",
+          "cross_workspace_resources_and_assignees": "Reject regardless of role.",
+          "foreign_resource_details": "Must not be disclosed in responses."
+        },
+        "permanent_workspace_deletion": {
+          "authorized_role": "owner_only",
+          "requirements": [
+            "explicit confirmation",
+            "ownership checks",
+            "audit evidence"
+          ],
+          "managers_and_members_forbidden": true
+        },
+        "verification": {
+          "backend_enforcement_required": true,
+          "required_cases": [
+            "cross-workspace reads",
+            "cross-workspace writes",
+            "unauthorized role changes",
+            "member removal",
+            "invalid task assignments",
+            "workspace deletion without owner authority"
+          ]
+        }
+      },
+      "unresolved_details": [
+        "Exact editable project and task fields by role",
+        "Whether members can delete projects/tasks or only archive them",
+        "Whether workspace deletion is permitted while active members or data remain",
+        "Session and cached-permission invalidation behavior after membership changes"
+      ],
+      "limitations": [
+        "This record documents chat approval only.",
+        "It is not a cryptographic attestation or trusted evidence envelope.",
+        "It does not authorize generation.",
+        "Remaining semantic decisions and trusted-evidence requirements must be satisfied before generation."
+      ]
+    },
+    {
+      "group": 3,
+      "semantic_ids": [
+        "data.workspace_project_task_relationships"
+      ],
+      "source_record": "docs/evidence/taskflow_review/group_3_workspace_project_task_relationships.kimityr.json",
+      "source_git_blob_sha": "d09b807c362dc8527996279e28b4d6ed31a4e0a1",
+      "source_schema_version": "tiannara.taskflow.reviewer-decision.chat-record.v1",
+      "reviewer_id": "Kimityr",
+      "approval_status": "APPROVED_IN_CHAT",
+      "approval_method": "Explicit reviewer confirmation in ChatGPT conversation",
+      "cryptographic_signature_present": false,
+      "trusted_hmac_envelope_present": false,
+      "generation_authorized": false,
+      "implementation_or_runtime_verified": false,
+      "decision_payload": {
+        "workspace_ownership": {
+          "initial_owner": "Authenticated user who creates the workspace",
+          "creation_must_establish_owner_and_initial_membership_consistently": true,
+          "workspace_must_have_valid_owner": true,
+          "ownership_changes": "Explicit, authorized, and auditable under applicable authorization policy"
+        },
+        "projects": {
+          "workspace_relationship": "Each project belongs to exactly one existing workspace",
+          "cross_workspace_movement": "NEVER",
+          "workspace_identity_mutable_by_ordinary_update": false,
+          "destination_workspace_needs_separate_project": true
+        },
+        "tasks": {
+          "project_relationship": "Each task belongs to exactly one project",
+          "workspace_scope": "Must agree with the parent project's workspace",
+          "movement": "Allowed only between projects in the same workspace, through an explicitly authorized operation",
+          "cross_workspace_movement": "REJECT",
+          "move_atomicity": "All required changes succeed together or none do",
+          "move_validation": [
+            "destination project exists",
+            "workspace identity matches",
+            "actor is authorized",
+            "relationships remain valid",
+            "assignment remains valid"
+          ]
+        },
+        "assignment_integrity": {
+          "assignee_must_be_valid_member_of_task_workspace": true,
+          "backend_validation_required": true,
+          "foreign_workspace_or_invalid_membership_assignment": "REJECT",
+          "invalid_assignment_must_not_survive_successful_task_move": true
+        },
+        "membership_removal": {
+          "decision": "block_or_reassign",
+          "block_until_ownership_and_assignment_dependencies_are_safely_resolved": true,
+          "related_reassignment_atomic_when_required": true,
+          "audit_required": true,
+          "prevent_orphaned_resources_invalid_assignees_and_stale_membership_authorization": true
+        },
+        "referential_integrity_and_isolation": {
+          "all_workspace_project_task_membership_references_must_be_valid_and_consistent": true,
+          "backend_authorization_and_scope_required_for_protected_reads_and_writes": true,
+          "client_supplied_ids_not_trusted_as_authorization": true,
+          "frontend_filtering_not_an_authorization_control": true,
+          "cross_workspace_reads_and_writes": "FAIL_CLOSED",
+          "foreign_resource_details_must_not_be_disclosed": true
+        },
+        "verification_obligations": [
+          "workspace creation assigns owner to authenticated creator",
+          "projects cannot change workspace through updates or transfer operations",
+          "same-workspace task moves succeed only when authorized and valid",
+          "cross-workspace task moves fail",
+          "invalid projects, workspaces, memberships, and assignees are rejected",
+          "failed moves and removals leave no partial mutations",
+          "member removal cannot leave unresolved ownership or assignment dependencies",
+          "applicable security-sensitive mutations produce unique audit identities"
+        ]
+      },
+      "unresolved_details": [],
+      "limitations": [
+        "This record documents chat approval only.",
+        "It is not a cryptographic attestation or trusted evidence envelope.",
+        "It does not authorize generation.",
+        "Project/task deletion rules and detailed role-specific editable fields remain unresolved in their respective decision groups."
+      ]
+    },
+    {
+      "group": 4,
+      "semantic_ids": [
+        "data.comments_and_activity_history"
+      ],
+      "source_record": "docs/evidence/taskflow_review/group_4_comments_activity_history.kimityr.json",
+      "source_git_blob_sha": "4dc39cd94472ce9ecf20ce5442b236fbdb11a0f1",
+      "source_schema_version": "tiannara.taskflow.reviewer-decision.chat-record.v1",
+      "reviewer_id": "Kimityr",
+      "approval_status": "APPROVED_IN_CHAT",
+      "approval_method": "Explicit reviewer confirmation in ChatGPT conversation",
+      "cryptographic_signature_present": false,
+      "trusted_hmac_envelope_present": false,
+      "generation_authorized": false,
+      "implementation_or_runtime_verified": false,
+      "decision_payload": {
+        "comment_scope": {
+          "ownership": "Each comment belongs to exactly one valid task; workspace scope is derived from task and parent project",
+          "access": "Backend authorization required for the relevant workspace and resource",
+          "cross_workspace_or_invalid_reference": "Reject without disclosing foreign resource details"
+        },
+        "editing": {
+          "author_may_edit_own_comment": true,
+          "owner_manager_may_moderate_within_own_workspace": true,
+          "moderation_subject_to_role_authorization": true,
+          "edits_require_unique_activity_event": true,
+          "comment_cannot_be_reassigned_across_tasks_or_workspaces": true
+        },
+        "deletion": {
+          "policy": "Permanent deletion by author or authorized workspace administrator within applicable permissions",
+          "separate_durable_audit_event_required": true,
+          "audit_event_must_not_retain_deleted_comment_text": true,
+          "deletion_and_required_audit_event_must_be_consistent": true,
+          "unauthorized_deletion_must_not_modify_comment": true
+        },
+        "activity_event_coverage": [
+          "workspace creation and settings changes",
+          "membership invitations, additions, removals, role changes, and ownership changes",
+          "project and task creation, updates, and relationship changes",
+          "task assignment and reassignment, status, priority, and due-date changes",
+          "archive and restore operations",
+          "comment creation, editing, and deletion",
+          "applicable security-sensitive mutations, authentication-related events, and session invalidation"
+        ],
+        "event_integrity": {
+          "minimum_fields": [
+            "unique_event_identity",
+            "event_type",
+            "actor_or_explicit_system_actor",
+            "timestamp",
+            "workspace_and_resource_references"
+          ],
+          "safe_before_after_values_for_meaningful_updates": true,
+          "exclude_credentials_tokens_secrets_and_sensitive_authentication_material": true,
+          "ordinary_mutation_paths_must_not_rewrite_or_erase_history": true,
+          "required_audit_evidence_must_be_attributable_to_documented_mutation": true
+        },
+        "visibility": {
+          "policy": "Resource-authorized workspace members; narrower access for privileged administrative/security events where required",
+          "backend_enforcement_required": true,
+          "frontend_filtering_is_not_authorization": true,
+          "cross_workspace_history_reads": "FAIL_CLOSED"
+        },
+        "retention": {
+          "policy": "Append-only activity history retained for workspace lifetime",
+          "deleted_comment_text_need_not_be_retained_to_preserve_deletion_event": true,
+          "workspace_deletion": "Separate explicit authorized policy, subject to applicable audit and legal retention obligations"
+        },
+        "verification_obligations": [
+          "authorized comment creation, editing, and deletion",
+          "unauthorized comment operations are rejected",
+          "owners and managers cannot moderate comments outside their workspace",
+          "cross-workspace references and reads are rejected without information leakage",
+          "comment deletion creates a unique durable audit event without deleted text",
+          "events contain required identity, actor, timestamp, type, and resource references",
+          "safe before/after values are captured where applicable and secrets excluded",
+          "history access follows resource authorization after membership or role changes",
+          "ordinary application operations do not silently lose, duplicate under the same unique identity, or rewrite required history",
+          "failed mutations do not leave partial business changes or misleading success events",
+          "event coverage is traceable to TaskFlow acceptance criteria and negative tests"
+        ]
+      },
+      "unresolved_details": [],
+      "limitations": [
+        "This record documents chat approval only.",
+        "It is not a cryptographic attestation or trusted evidence envelope.",
+        "It does not authorize generation.",
+        "Implementation and runtime verification remain unestablished by this decision."
+      ]
+    },
+    {
+      "group": 5,
+      "semantic_ids": [
+        "tasks.assignment_status_priority_and_due_dates"
+      ],
+      "source_record": "docs/evidence/taskflow_review/group_5_task_assignment_status_priority_due_dates.kimityr.json",
+      "source_git_blob_sha": "56aced70b8f5b6872d65001d86a1e335db035cb3",
+      "source_schema_version": "tiannara.taskflow.reviewer-decision.chat-record.v1",
+      "reviewer_id": "Kimityr",
+      "approval_status": "APPROVED_IN_CHAT",
+      "approval_method": "explicit_user_confirmation_in_chat",
+      "cryptographic_signature_present": false,
+      "trusted_hmac_envelope_present": false,
+      "generation_authorized": false,
+      "implementation_or_runtime_verified": false,
+      "decision_payload": {
+        "canonical_status_values": {
+          "values": [
+            "backlog",
+            "todo",
+            "in_progress",
+            "blocked",
+            "done"
+          ],
+          "consistency_required_across": [
+            "persistence",
+            "api",
+            "frontend",
+            "filters",
+            "tests"
+          ],
+          "unknown_values": "reject_on_backend"
+        },
+        "transition_rules": {
+          "model": "explicit_transition_graph",
+          "allowed_transitions": "must_be_defined_and_enforced",
+          "completion": "done_requires_valid_authorized_transition; no_extra_completion_field",
+          "reopening": "reopening_done_requires_explicit_allowed_transition_to_active_status",
+          "authorization_and_scope": "every_transition_authorized_and_workspace_scoped",
+          "disallowed_transition": "reject_atomically_without_partial_mutation"
+        },
+        "priority_values": {
+          "values": [
+            "low",
+            "normal",
+            "high",
+            "urgent"
+          ],
+          "ordering": [
+            "low",
+            "normal",
+            "high",
+            "urgent"
+          ],
+          "unknown_values": "reject",
+          "consistency_required_across": [
+            "persistence",
+            "api",
+            "frontend",
+            "sorting",
+            "filters"
+          ]
+        },
+        "due_dates": {
+          "representation": "timestamp",
+          "timezone_requirement": "unambiguous_timestamp_or_timestamp_with_timezone_or_offset",
+          "persistence": "normalize_to_a_consistent_format_such_as_UTC",
+          "display": "use_configured_timezone",
+          "invalid_or_ambiguous_values": "reject",
+          "overdue_tasks": "remain_valid"
+        },
+        "assignment_permissions": {
+          "owners_and_managers": "may_assign_or_reassign_within_their_workspace",
+          "members": "may_assign_or_reassign_only_if_authorized_to_edit_the_task_and_assignment_field",
+          "assignee_constraint": "assignee_must_be_a_valid_member_of_the_task_workspace_at_mutation_time",
+          "enforcement": "backend_validation_required; client-side checks are not authoritative",
+          "invalid_removed_or_foreign_assignee": "must_not_remain_assigned",
+          "task_moves": "follow_group_3_rules; authorized_same_workspace_moves_only; relationship_and_assignment_validation_atomic"
+        },
+        "completion_requirements": {
+          "extra_completion_note_or_field_required": false,
+          "done_still_requires": [
+            "valid_transition",
+            "authorization",
+            "activity_evidence"
+          ]
+        },
+        "activity_history": {
+          "changes_requiring_events": [
+            "status",
+            "priority",
+            "due_date",
+            "assignment"
+          ],
+          "event_requirements": [
+            "unique_event_identity",
+            "actor",
+            "timestamp",
+            "event_type",
+            "resource_references",
+            "safe_change_details"
+          ],
+          "secrets": "must_not_be_logged"
+        },
+        "verification_obligations": [
+          "accept_and_reject_all_status_values",
+          "enforce_transition_graph",
+          "verify_explicit_reopening_from_done",
+          "verify_priority_values_and_ordering",
+          "verify_timestamp_normalization_and_timezone_behavior",
+          "verify_overdue_due_dates_remain_valid",
+          "verify_valid_foreign_and_invalid_assignment_cases",
+          "verify_member_removal_and_task_moves_cannot_leave_invalid_assignments",
+          "verify_failed_updates_leave_no_partial_mutation",
+          "verify_successful_changes_have_activity_evidence",
+          "verify_failed_changes_do_not_emit_misleading_success_events",
+          "map_tests_to_acceptance_criteria"
+        ]
+      },
+      "unresolved_details": [],
+      "limitations": [
+        "This file records the reviewer's explicit chat approval; it is not a cryptographic signature.",
+        "No trusted evidence envelope is present or implied by this approval.",
+        "The record does not authorize generation or satisfy the trusted resolution envelope gate.",
+        "Implementation and runtime behavior remain unverified."
+      ]
+    },
+    {
+      "group": 6,
+      "semantic_ids": [
+        "tasks.archive_visibility"
+      ],
+      "source_record": "docs/evidence/taskflow_review/group_6_archive_visibility.kimityr.json",
+      "source_git_blob_sha": "b0e4a8bd3022b29ee2f7e132ef41cb83755e1052",
+      "source_schema_version": "tiannara.taskflow.reviewer-decision.chat-record.v1",
+      "reviewer_id": "Kimityr",
+      "approval_status": "APPROVED_IN_CHAT",
+      "approval_method": "explicit_user_confirmation_in_chat",
+      "cryptographic_signature_present": false,
+      "trusted_hmac_envelope_present": false,
+      "generation_authorized": false,
+      "implementation_or_runtime_verified": false,
+      "decision_payload": {
+        "archive_permissions": {
+          "projects": "owners_and_managers_only",
+          "tasks": "owners_and_managers_only",
+          "enforcement": [
+            "backend_authorization",
+            "current_role_and_workspace_checks",
+            "relationship_integrity"
+          ]
+        },
+        "restoration_permissions": {
+          "authority": "same_role_authority_as_archiving",
+          "permitted_roles": [
+            "owner",
+            "manager"
+          ],
+          "authorization": "recheck_current_authorization_at_restore_time",
+          "invalid_or_cross_workspace_requests": "fail_closed_without_partial_mutation"
+        },
+        "archived_resource_access": {
+          "ordinary_active_views": "exclude_archived_resources",
+          "authorized_archived_views": "allow_only_with_current_workspace_and_resource_authorization",
+          "direct_requests": "must_not_bypass_archive_policy_or_disclose_foreign_workspace_data",
+          "mutability": "read_only_until_restored"
+        },
+        "search_and_filters": {
+          "default": "exclude_archived_resources",
+          "inclusion": "explicit_archived_filter_or_view_required",
+          "surfaces": [
+            "API",
+            "frontend lists",
+            "search",
+            "dashboard counts",
+            "pagination"
+          ]
+        },
+        "project_archive_behavior": {
+          "task_archive_state": "preserve_independent_task_archive_state",
+          "active_views": "tasks_under_archived_project_hidden",
+          "ordinary_active_task_endpoints_and_search": "must_not_expose_tasks_under_archived_projects_even_when_directly_requested",
+          "authorized_archived_views": "may_expose_resources_subject_to_authorization",
+          "preserved_data": [
+            "assignments",
+            "relationships",
+            "comments",
+            "activity history"
+          ]
+        },
+        "restoration_semantics": {
+          "project_restore": "restore_project_visibility_without_changing_task_archive_states",
+          "previously_active_tasks": "visible_again_in_active_views_after_parent_project_restore",
+          "independently_archived_tasks": "remain_archived",
+          "integrity": "validate_relationships_and_assignment_validity; do_not_revive_invalid_assignments_or_stale_permissions"
+        },
+        "audit_and_integrity": {
+          "archive_restore_events": [
+            "unique_event_identity",
+            "actor",
+            "timestamp",
+            "event_type",
+            "workspace_and_resource_references",
+            "safe_change_details"
+          ],
+          "comments_and_activity_history": "preserve_across_archive_and_restore",
+          "secrets": "credentials_tokens_and_secrets_must_not_be_logged",
+          "failed_operations": "no_misleading_success_events_or_partial_mutations",
+          "audit_history": "ordinary_mutations_must_not_rewrite_or_erase_history"
+        },
+        "verification_obligations": [
+          "owners_and_managers_can_archive_and_restore_within_workspace",
+          "unauthorized_members_cannot_archive_or_restore",
+          "cross_workspace_archive_read_and_restore_requests_fail_closed",
+          "active_lists_search_filters_dashboards_and_pagination_exclude_archived_resources_by_default",
+          "explicit_archived_views_return_only_authorized_resources",
+          "project_archiving_preserves_task_archive_states_and_relationships",
+          "archived_project_tasks_hidden_from_ordinary_active_endpoints_and_search_including_direct_requests",
+          "archived_resources_are_read_only_until_restored",
+          "project_restore_does_not_restore_independently_archived_tasks",
+          "previously_active_tasks_visible_after_project_restore",
+          "archive_restore_events_unique_and_traceable_to_successful_mutations",
+          "rejected_operations_leave_consistent_state_and_audit_without_partial_mutation",
+          "map_tests_to_canonical_acceptance_criteria_and_record_evidence"
+        ]
+      },
+      "unresolved_details": [],
+      "limitations": [
+        "Explicit reviewer chat approval only; not a cryptographic signature.",
+        "No trusted evidence envelope is present or implied.",
+        "Does not authorize generation or satisfy the trusted resolution envelope gate.",
+        "Implementation and runtime behavior remain unverified."
+      ]
+    },
+    {
+      "group": 7,
+      "semantic_ids": [
+        "sessions.revocation_and_expiry"
+      ],
+      "source_record": "docs/evidence/taskflow_review/group_7_sessions_revocation_expiry.kimityr.json",
+      "source_git_blob_sha": "057d427d556a378ba3caa2bb8606e997dd120ead",
+      "source_schema_version": "tiannara.taskflow.reviewer-decision.chat-record.v1",
+      "reviewer_id": "Kimityr",
+      "approval_status": "APPROVED_IN_CHAT",
+      "approval_method": "explicit_user_confirmation_in_chat",
+      "cryptographic_signature_present": false,
+      "trusted_hmac_envelope_present": false,
+      "generation_authorized": false,
+      "implementation_or_runtime_verified": false,
+      "decision_payload": {
+        "session_mechanism": {
+          "permitted_options": [
+            "server_managed_opaque_sessions",
+            "signed_access_tokens"
+          ],
+          "requirements": [
+            "document_validation_expiry_revocation_renewal_and_deployment_behavior",
+            "effective_revocation_required"
+          ]
+        },
+        "expiry": {
+          "policy": [
+            "absolute_maximum_lifetime",
+            "idle_timeout"
+          ],
+          "durations": "must_be_explicit_configurable_within_approved_bounds_documented_and_tested_before_deployment; no numeric durations are approved by this record",
+          "idle_reset": "only qualifying authenticated activity resets the idle timer",
+          "non_qualifying_activity": [
+            "passive_page_loads",
+            "background_polling",
+            "failed_requests"
+          ],
+          "expired_session": "cannot_perform_protected_operations"
+        },
+        "revocation": {
+          "effect": "immediate_for_protected_server_operations_after_revocation_is_committed",
+          "signed_tokens": "must_not_remain_usable_based_only_on_valid_signature_and_unexpired_token",
+          "coverage": "all_applicable_authentication_paths_and_server_instances",
+          "token_expiry_alone": "insufficient_for_effective_revocation"
+        },
+        "security_sensitive_changes": {
+          "revoke_all_active_sessions_after": [
+            "password_reset",
+            "MFA_replacement_or_removal",
+            "suspected_account_compromise",
+            "other_documented_security_sensitive_account_changes"
+          ],
+          "reauthentication": "must_satisfy_approved_MFA_policy",
+          "password_reset_alone_satisfies_MFA": false
+        },
+        "workspace_membership_and_roles": {
+          "membership_removal": "immediately_denies_further_workspace_access",
+          "role_changes": "apply_to_next_protected_operation",
+          "authorization": "use_current_membership_and_effective_permissions",
+          "stale_claims_or_cached_permissions": "must_not_preserve_revoked_access",
+          "session_revocation": "may_supplement_but_must_not_replace_current_authorization_checks"
+        },
+        "renewal": {
+          "if_refresh_tokens_used": [
+            "rotate_on_successful_renewal",
+            "reject_replay",
+            "revoke_associated_token_family_on_detected_reuse"
+          ],
+          "if_refresh_tokens_not_used": "require_fresh_authentication_after_expiry",
+          "must_not_bypass": [
+            "MFA",
+            "absolute_expiry",
+            "idle_expiry",
+            "revocation"
+          ]
+        },
+        "verification_obligations": [
+          "absolute_and_idle_expiry_independently_deny_protected_operations",
+          "only_qualifying_activity_resets_idle_timeout",
+          "password_reset_MFA_changes_and_documented_security_events_revoke_required_sessions",
+          "revoked_opaque_sessions_and_signed_token_sessions_fail_on_subsequent_protected_operations",
+          "revocation_works_across_server_instances_and_does_not_depend_on_token_expiry_alone",
+          "membership_removal_and_role_reduction_immediately_affect_workspace_authorization",
+          "refresh_token_rotation_replay_detection_and_token_family_revocation_work_if_implemented",
+          "renewal_cannot_bypass_MFA_or_expiry",
+          "test_concurrent_requests_failure_handling_and_revocation_races",
+          "map_each_result_to_canonical_acceptance_criteria_with_reproducible_evidence"
+        ]
+      },
+      "unresolved_details": [],
+      "limitations": [
+        "Explicit reviewer chat approval only; this is not a cryptographic signature.",
+        "No trusted evidence envelope is present or implied.",
+        "Numeric expiry durations remain unspecified and must be defined and tested before deployment.",
+        "This record does not authorize generation or satisfy the trusted resolution envelope gate.",
+        "Implementation and runtime behavior remain unverified."
+      ]
+    },
+    {
+      "group": 8,
+      "semantic_ids": [
+        "api.request_response_and_error_contracts"
+      ],
+      "source_record": "docs/evidence/taskflow_review/group_8_api_request_response_error_contracts.kimityr.json",
+      "source_git_blob_sha": "9c981c1088d096fffe674550ff4605a43728dbaf",
+      "source_schema_version": "tiannara.taskflow.reviewer-decision.chat-record.v1",
+      "reviewer_id": "Kimityr",
+      "approval_status": "APPROVED_IN_CHAT",
+      "approval_method": "explicit_user_confirmation_in_chat",
+      "cryptographic_signature_present": false,
+      "trusted_hmac_envelope_present": false,
+      "generation_authorized": false,
+      "implementation_or_runtime_verified": false,
+      "decision_payload": {
+        "api_style": {
+          "selected": "rest_json",
+          "requirements": [
+            "resource-oriented HTTP API with JSON request and response bodies",
+            "document HTTP methods, status codes, routes, authentication, permissions, schemas, and failure behavior",
+            "ordinary resource operations for creation, retrieval, update, and deletion",
+            "task status changes enforce the approved transition graph on the backend",
+            "workspace identity and server-controlled security boundaries are immutable through ordinary updates",
+            "health and readiness may use separately documented formats without exposing secrets"
+          ]
+        },
+        "success_responses": {
+          "selected": "consistent_envelope",
+          "contract": {
+            "envelope": "consistent data field and optional meta field where appropriate",
+            "collections": "documented pagination metadata",
+            "resources": "consistent representation across retrieval and mutation",
+            "empty_results": "distinguishable from failed requests",
+            "mutation_success": "only report success consistently with committed business state and required audit effects",
+            "exceptions": "operational or protocol-specific exceptions must be explicitly documented",
+            "sensitive_data": "never expose credentials, tokens, secrets, or unauthorized foreign-workspace data"
+          }
+        },
+        "errors": {
+          "selected": "stable_code_message_details",
+          "contract": [
+            "stable machine-readable error codes",
+            "safe human-readable messages and optional structured field details",
+            "appropriate documented HTTP status codes",
+            "clients must not depend on parsing message text",
+            "field details must not disclose unauthorized resources",
+            "no stack traces, secrets, credentials, session tokens, or sensitive implementation details",
+            "validation and authorization failures must not leave partial business mutations or misleading success audit events",
+            "use safe request/correlation identifiers where available; they are not authorization credentials or audit-event identities"
+          ]
+        },
+        "authentication_authorization_errors": {
+          "selected": "generic_sensitive",
+          "rules": [
+            "missing, invalid, expired, or revoked authentication prevents protected operations and returns documented unauthenticated behavior",
+            "authenticated but unauthorized actions are denied",
+            "forbidden responses may be used where disclosing resource existence is safe",
+            "foreign or sensitive inaccessible resources are indistinguishable from nonexistent resources where required to prevent enumeration",
+            "do not disclose foreign resource names, membership details, existence, or unauthorized data",
+            "check current membership, roles, session validity, and resource relationships on every protected operation",
+            "client checks, cached claims, and frontend filtering are not authoritative",
+            "preserve Group 1 verification, mandatory MFA, and session revocation requirements"
+          ]
+        },
+        "pagination": {
+          "selected": "limit_cursor_or_page",
+          "contract": [
+            "each collection endpoint documents its strategy, maximum page size, default ordering, unique tie-breaker, filters, and continuation behavior",
+            "cursor or page/limit pagination may be used as appropriate, but each endpoint's strategy must be explicit and stable within its API version",
+            "enforce server-side maximum page sizes and reject or safely bound invalid parameters",
+            "use deterministic ordering with a unique tie-breaker",
+            "document interaction of filters, pagination, and concurrent changes",
+            "ordinary active lists, search, dashboard counts, and pagination exclude archived resources by default",
+            "explicit archived views require current authorization",
+            "tasks under archived projects must not leak through ordinary active endpoints or search, including direct requests",
+            "search and dashboard results respect workspace isolation, current permissions, and archive visibility"
+          ]
+        },
+        "request_validation": {
+          "selected": "strict_field_validation",
+          "contract": [
+            "validate required and optional fields, types, enums, lengths, formats, ranges, and field-level constraints",
+            "reject unknown fields by default unless a schema explicitly documents an extension mechanism",
+            "perform cross-field and domain validation beyond schema validation",
+            "reject unknown task statuses and priorities and enforce the approved transition graph and priority ordering",
+            "require unambiguous due-date timestamps and normalize stored values consistently",
+            "validate project, task, workspace, membership, and assignee relationships on the backend",
+            "reject cross-workspace relationships, invalid assignments, and unauthorized relationship changes",
+            "enforce archive/restore restrictions, current authorization, and session validity independently of schema validation",
+            "invalid requests fail closed without partial mutation or unauthorized disclosure"
+          ]
+        },
+        "contract_evolution": {
+          "selected": "versioned_compatibility",
+          "contract": [
+            "document compatibility guarantees and breaking-change rules for each API version",
+            "prefer additive backward-compatible changes within an existing version",
+            "changes to field meaning, authorization semantics, required request fields, response structures, or established behavior follow explicit breaking-change/versioning policy",
+            "do not silently reinterpret requests or weaken security/integrity guarantees for compatibility",
+            "maintain contract tests for supported behavior, errors, authorization, and negative cases",
+            "record API contract version and immutable identifier or hash in certification evidence manifest"
+          ]
+        },
+        "idempotency_and_audit_traceability": {
+          "contract": [
+            "explicitly declare which mutations support idempotent retries",
+            "document retry identity, actor/operation scope, conflicting reuse behavior, and deduplication retention",
+            "repeated supported requests with the same idempotency identity do not create duplicate business effects or duplicate logical activity/audit effects",
+            "handle concurrent duplicate requests safely",
+            "idempotency identity is distinct from unique audit-event identity",
+            "required mutations retain unique attributable audit identity and event coverage under Group 4",
+            "document atomicity and recovery behavior for business mutation, deduplication state, and required audit effects",
+            "failed or interrupted requests must not falsely report success or silently lose evidence of a committed effect"
+          ]
+        },
+        "verification_obligations": [
+          "contract schemas and success/error formats",
+          "invalid authentication, unverified-account restrictions, MFA policy, and expired/revoked sessions",
+          "role permissions, cross-workspace reads/writes, and foreign-resource information leakage",
+          "invalid workspace/project/task relationships and foreign/invalid assignees",
+          "invalid status transitions, priorities, due dates, and unknown fields",
+          "archive/restore behavior across lists, direct resource requests, search, dashboards, and pagination",
+          "deterministic pagination and filter behavior",
+          "duplicate and concurrent idempotent requests with stable logical effect identity and no duplicate audit effects",
+          "safe logging, request correlation, and absence of sensitive response details",
+          "contract, integration, end-to-end, and regression tests mapped to canonical TaskFlow acceptance criteria",
+          "reproducible build/deployment, runtime observation, and evidence-manifest traceability"
+        ]
+      },
+      "unresolved_details": [],
+      "limitations": [
+        "This record documents explicit chat approval of requirements intent only.",
+        "It is not a cryptographic signature or trusted evidence envelope.",
+        "It does not authorize generation or satisfy the trusted resolution envelope gate.",
+        "Implementation, typed architectural projection, compiler integration, and runtime behavior remain unverified."
+      ]
+    },
+    {
+      "group": 9,
+      "semantic_ids": [
+        "frontend.required_interactions_and_state_transitions"
+      ],
+      "source_record": "docs/evidence/taskflow_review/group_9_frontend_interactions_state_transitions.kimityr.json",
+      "source_git_blob_sha": "a6220e2651fa8b9595738f4670473060cc78a048",
+      "source_schema_version": "tiannara.taskflow.reviewer-decision.chat-record.v1",
+      "reviewer_id": "Kimityr",
+      "approval_status": "APPROVED_IN_CHAT",
+      "approval_method": "explicit_user_confirmation_in_chat",
+      "cryptographic_signature_present": false,
+      "trusted_hmac_envelope_present": false,
+      "generation_authorized": false,
+      "implementation_or_runtime_verified": false,
+      "decision_payload": {
+        "navigation_and_workspace_context": [
+          "Provide clear navigation for workspaces, projects, tasks, search/filtering, and the workspace dashboard.",
+          "Display the current workspace context consistently.",
+          "When changing workspaces, reload authorized data and clear or revalidate selections, cached results, and pending UI state.",
+          "A workspace ID supplied by the frontend is never proof of membership or authorization."
+        ],
+        "required_screens_and_interactions": [
+          "Registration, login, email verification, MFA enrollment/authentication, account recovery, and session-expiry handling.",
+          "Workspace creation and workspace membership views subject to Group 2 permissions.",
+          "Project creation, viewing, and authorized editing.",
+          "Task creation and viewing, assignment, status and priority changes, due-date editing, and permitted task movement.",
+          "Task comments and activity history subject to approved authorization and audit requirements.",
+          "Search, filters, archive-aware views, and a useful workspace dashboard."
+        ],
+        "role_aware_interactions": [
+          "Owners, managers, and members are presented with actions appropriate to their current permissions.",
+          "Hidden or disabled controls improve usability but never replace backend authorization.",
+          "A denied mutation must not be presented as successful.",
+          "Membership or role changes take effect according to Group 7; stale frontend state must not preserve access."
+        ],
+        "state_transitions_and_mutation_integrity": [
+          "Task status controls follow the approved transition graph and allowed status values from Group 5.",
+          "Assignment, project movement, archive/restore, and deletion interactions follow approved relationship and authorization rules.",
+          "The UI reflects a mutation as successful only after the server confirms it.",
+          "Failed or interrupted requests must not leave the interface claiming an unconfirmed state change.",
+          "Retry behavior respects the API idempotency contract; the frontend must not invent duplicate-effect guarantees."
+        ],
+        "loading_empty_and_error_states": [
+          "Distinguish loading, successful results, empty results, validation errors, authorization failures, expired sessions, and service failures.",
+          "Preserve safe user input when appropriate after recoverable errors.",
+          "Provide clear recovery actions without revealing foreign-workspace resource details.",
+          "Do not display stale protected data as though it were freshly authorized."
+        ],
+        "search_filters_archive_and_dashboard": [
+          "Search, lists, pagination, and dashboard results respect workspace isolation, current permissions, and archive visibility.",
+          "Archived resources are excluded from ordinary active views.",
+          "Explicit archived views require authorization; archived resources remain read-only until restored.",
+          "Task archive state remains independent of its parent project's archive state.",
+          "Empty results and failed requests remain distinguishable."
+        ],
+        "verification_obligations": [
+          "Test required screens and state transitions end to end.",
+          "Test role-specific controls and attempts to bypass them.",
+          "Test expired/revoked sessions, workspace switching, stale permissions, and cross-workspace data isolation.",
+          "Test validation, status transitions, archive behavior, search/filter consistency, failed mutations, retries, and duplicate effects.",
+          "Map each required interaction and negative case to canonical acceptance criteria and independently verifiable evidence."
+        ]
+      },
+      "unresolved_details": [],
+      "limitations": [
+        "This record documents explicit chat approval of requirements intent only.",
+        "It is not a cryptographic signature or trusted evidence envelope.",
+        "It does not authorize generation or satisfy the trusted resolution envelope gate.",
+        "Frontend implementation, typed architectural projection, compiler integration, and runtime behavior remain unverified."
+      ]
+    },
+    {
+      "group": 10,
+      "semantic_ids": [
+        "persistence.consistency_and_atomic_mutations"
+      ],
+      "source_record": "docs/evidence/taskflow_review/group_10_persistence_consistency_atomic_mutations.kimityr.json",
+      "source_git_blob_sha": "237f958ec286ff733f7e84c05b8e2572bd77e917",
+      "source_schema_version": "tiannara.taskflow.reviewer-decision.chat-record.v1",
+      "reviewer_id": "Kimityr",
+      "approval_status": "APPROVED_IN_CHAT",
+      "approval_method": "explicit_user_confirmation_in_chat",
+      "cryptographic_signature_present": false,
+      "trusted_hmac_envelope_present": false,
+      "generation_authorized": false,
+      "implementation_or_runtime_verified": false,
+      "decision_payload": {
+        "consistency_and_transaction_boundaries": [
+          "Each business mutation commits all required related changes or leaves the prior valid state intact.",
+          "Use the chosen persistence technology's transaction or equivalent atomic mechanism where available.",
+          "Validate authorization, workspace scope, and relationship integrity as part of the mutation, not only during an earlier frontend read.",
+          "Concurrent operations must not silently violate invariants."
+        ],
+        "operations_requiring_atomic_treatment": [
+          "Workspace creation, initial ownership, and initial membership.",
+          "Project/task creation and required relationship records.",
+          "Task movement between projects, including assignment validity.",
+          "Membership removal or role changes affecting ownership, assignments, or access.",
+          "Task assignment and other integrity-sensitive updates.",
+          "Archive/restore operations and their required audit events.",
+          "Comment creation, editing, or deletion and their required activity evidence.",
+          "Security-sensitive mutations and their unique audit identities."
+        ],
+        "failure_and_rollback": [
+          "If validation or authorization fails, no protected business mutation occurs.",
+          "If a multi-record operation fails before commit, no partial result is visible as a successful operation.",
+          "If a request times out or a process crashes, the system distinguishes a committed operation from an uncommitted one before retrying.",
+          "A failed task move must not leave the task in the destination project with an invalid assignee.",
+          "A failed membership change must not leave orphaned ownership, invalid assignments, or stale effective access."
+        ],
+        "audit_and_idempotency_consistency": [
+          "Required audit/activity evidence must be consistent with the business mutation it describes.",
+          "A mutation must not be reported as successful if required evidence was lost or business state was not committed.",
+          "Retries follow Group 8's idempotency contract and Group 4's unique audit-event requirements.",
+          "If a required effect crosses a transaction boundary, such as publishing an event, use a documented durable recovery mechanism such as an outbox or verified equivalent where needed.",
+          "Do not claim exactly-once delivery merely because retries are deduplicated."
+        ],
+        "concurrent_updates_and_durable_state": [
+          "Concurrent changes preserve referential integrity, workspace isolation, and role/session authorization.",
+          "Where concurrent updates could overwrite one another, use a documented conflict-detection or serialization strategy.",
+          "Persistence survives the failures and restarts covered by the deployment contract.",
+          "Acknowledged committed data must not silently disappear after ordinary process restart or container replacement when the deployment promises persistence.",
+          "Database migrations and recovery procedures must not silently weaken established invariants."
+        ],
+        "verification_obligations": [
+          "Inject failures before and during multi-record mutations and verify rollback or safe recovery.",
+          "Exercise concurrent requests for task moves, assignments, membership changes, and duplicate idempotent mutations.",
+          "Verify business state and required audit evidence remain consistent.",
+          "Test process interruption, restart, and persistence according to the declared deployment environment.",
+          "Verify failed requests do not produce partial state, duplicate logical effects, invalid relationships, or misleading success responses.",
+          "Trace each test to canonical TaskFlow acceptance criteria and preserve reproducible evidence."
+        ]
+      },
+      "unresolved_details": [],
+      "limitations": [
+        "This record documents explicit chat approval of requirements intent only.",
+        "It is not a cryptographic signature or trusted evidence envelope.",
+        "It does not authorize generation or satisfy the trusted resolution envelope gate.",
+        "Persistence implementation, transaction boundaries, typed architectural projection, compiler integration, and runtime behavior remain unverified."
+      ]
+    },
+    {
+      "group": 11,
+      "semantic_ids": [
+        "operations.idempotency_and_unique_effect_identity"
+      ],
+      "source_record": "docs/evidence/taskflow_review/group_11_idempotency_unique_effect_identity.kimityr.json",
+      "source_git_blob_sha": "fe6bdaa12946f504da1c440d94767bd5e5a836d8",
+      "source_schema_version": "tiannara.taskflow.reviewer-decision.chat-record.v1",
+      "reviewer_id": "Kimityr",
+      "approval_status": "APPROVED_IN_CHAT",
+      "approval_method": "explicit_user_confirmation_in_chat",
+      "cryptographic_signature_present": false,
+      "trusted_hmac_envelope_present": false,
+      "generation_authorized": false,
+      "implementation_or_runtime_verified": false,
+      "decision_payload": {
+        "explicit_idempotency_policy": [
+          "Each mutation explicitly declares whether it supports idempotent retries.",
+          "For supported operations, repeating a request with the same valid idempotency identity must not create duplicate business effects.",
+          "Do not assume every HTTP mutation is idempotent merely because its method normally suggests it.",
+          "Document key format, scope, retention, and behavior when a key is reused with a different request."
+        ],
+        "identity_and_request_binding": [
+          "Bind an idempotency identity to the authenticated actor, operation, and appropriate resource/workspace scope.",
+          "Bind the identity to relevant request content so conflicting reuse can be rejected safely.",
+          "Repeated equivalent requests return the original logical outcome or a documented equivalent.",
+          "A request identity is not an audit-event identity and is never an authorization credential."
+        ],
+        "concurrency_and_recovery": [
+          "Concurrent duplicate requests must not independently commit the same logical effect.",
+          "Define behavior for requests that are in progress, fail, time out, or are retried after a process restart.",
+          "Persist enough deduplication state to meet documented retention and recovery guarantees.",
+          "If a result is uncertain after interruption, resolve the committed outcome before executing the effect again.",
+          "Do not claim exactly-once delivery across system boundaries without supporting evidence."
+        ],
+        "unique_audit_and_effect_identity": [
+          "Each committed logical effect requiring audit evidence has a unique, attributable effect/event identity.",
+          "Retries of the same logical effect must not create duplicate logical audit/activity events.",
+          "Distinct successful effects must not be collapsed merely because they share an actor or operation.",
+          "Audit records retain required actor, timestamp, event type, workspace/resource references, and safe details under Group 4.",
+          "Business state, deduplication outcome, and required audit evidence follow Group 10's consistency and recovery contract."
+        ],
+        "security_and_information_disclosure": [
+          "Re-check current authentication, session validity, authorization, workspace scope, and resource relationships on protected requests.",
+          "A previously recorded idempotency key must not grant access after membership removal, role change, or session revocation.",
+          "Replayed outcomes must not disclose data the caller is no longer authorized to see.",
+          "Do not log credentials, tokens, or sensitive request content as deduplication evidence."
+        ],
+        "verification_obligations": [
+          "Test repeated equivalent requests and conflicting reuse of the same key.",
+          "Test concurrent duplicate requests and requests racing with failures or restarts.",
+          "Verify one logical business effect and the required audit identity/evidence.",
+          "Test retries after lost acknowledgements and timeouts.",
+          "Verify deduplication retention and expiry behavior.",
+          "Test authorization changes before replay and confirm old keys cannot bypass access controls.",
+          "Trace results to canonical TaskFlow acceptance criteria and preserve independently verifiable evidence."
+        ]
+      },
+      "unresolved_details": [],
+      "limitations": [
+        "This record documents explicit chat approval of requirements intent only.",
+        "It is not a cryptographic signature or trusted evidence envelope.",
+        "It does not authorize generation or satisfy the trusted resolution envelope gate.",
+        "Idempotency, deduplication, unique effect identity, typed architectural projection, compiler integration, and runtime behavior remain unverified."
+      ]
+    },
+    {
+      "group": 12,
+      "semantic_ids": [
+        "operations.health_readiness_and_audit_evidence"
+      ],
+      "source_record": "docs/evidence/taskflow_review/group_12_health_readiness_audit_evidence.kimityr.json",
+      "source_git_blob_sha": "f8b103788adb0bee644ada3212119573e479996d",
+      "source_schema_version": "tiannara.taskflow.reviewer-decision.chat-record.v1",
+      "reviewer_id": "Kimityr",
+      "approval_status": "APPROVED_IN_CHAT",
+      "approval_method": "explicit_user_confirmation_in_chat",
+      "cryptographic_signature_present": false,
+      "trusted_hmac_envelope_present": false,
+      "generation_authorized": false,
+      "implementation_or_runtime_verified": false,
+      "decision_payload": {
+        "health_and_readiness_semantics": [
+          "Provide distinct, documented health and readiness checks.",
+          "Health indicates whether the process and essential internal mechanisms function sufficiently to remain alive.",
+          "Readiness indicates whether the instance can safely accept the relevant workload, including required persistence or other mandatory dependencies.",
+          "A running process or successful health response does not prove required TaskFlow features work.",
+          "Dependency failures must be reported accurately; unavailable dependencies must not be represented as healthy."
+        ],
+        "safe_operational_endpoints": [
+          "Health and readiness responses use documented status codes and response schemas.",
+          "Responses expose only the minimum information needed by operators and deployment infrastructure.",
+          "Do not disclose credentials, tokens, secrets, personal data, internal configuration, or foreign-workspace information.",
+          "Detailed diagnostics remain available only through appropriately protected operational channels.",
+          "Health checks must not mutate business state or create misleading audit events."
+        ],
+        "structured_audit_and_operational_evidence": [
+          "Security-sensitive mutations produce attributable, structured audit evidence under Group 4.",
+          "Operational logs use consistent, documented fields, including timestamps, severity, event category, and safe correlation identifiers where applicable.",
+          "Audit-event identities remain unique and distinct from request IDs and idempotency keys.",
+          "Record relevant failures, authorization denials, recovery actions, and service interruptions without logging credentials, tokens, or sensitive payloads.",
+          "Preserve the distinction between an attempted operation, an accepted request, a committed mutation, and an independently verified effect."
+        ],
+        "observability_and_failure_handling": [
+          "Capture enough operational information to diagnose failures, latency, dependency outages, and interrupted operations.",
+          "Monitoring failures must not silently disable authorization, audit integrity, or other required security controls.",
+          "If mandatory audit evidence cannot be durably recorded, follow a documented fail-closed or durable-recovery policy appropriate to the operation.",
+          "Recovery and restart behavior must preserve integrity of committed mutations and required evidence.",
+          "Observability mechanisms must not become a route for unauthorized access or mutation."
+        ],
+        "evidence_provenance_and_traceability": [
+          "Every claimed certified capability links to its requirement, implementation artifact, verification result, and relevant runtime evidence.",
+          "Record evidence identity, artifact or test references, timestamps, and integrity digests where appropriate.",
+          "Distinguish observed runtime results from static analysis, unit tests, simulations, declarations, and unexecuted checks.",
+          "Preserve failures and unknown results rather than silently converting them to passes.",
+          "Evidence manifests must not claim a capability is certified solely because an endpoint exists, a process starts, or a test fixture succeeds."
+        ],
+        "verification_obligations": [
+          "Test health and readiness when required dependencies are healthy, degraded, and unavailable.",
+          "Verify health responses do not disclose secrets or sensitive implementation details.",
+          "Verify required audit events for successful, failed, and interrupted mutations.",
+          "Test audit durability, unique event identity, correlation, and recovery behavior.",
+          "Confirm logging or monitoring failures do not silently bypass security requirements.",
+          "Verify evidence manifests distinguish PASS, FAIL, UNKNOWN, BLOCKED, and NOT_RUN accurately.",
+          "Trace each result to canonical acceptance criteria and preserve independently reviewable evidence."
+        ]
+      },
+      "unresolved_details": [],
+      "limitations": [
+        "This record documents explicit chat approval of requirements intent only.",
+        "It is not a cryptographic signature or trusted evidence envelope.",
+        "It does not authorize generation or satisfy the trusted resolution envelope gate.",
+        "Health/readiness, audit durability, observability, evidence provenance, typed architectural projection, compiler integration, and runtime behavior remain unverified."
+      ]
+    },
+    {
+      "group": 13,
+      "semantic_ids": [
+        "deployment.reproducible_execution_environment"
+      ],
+      "source_record": "docs/evidence/taskflow_review/group_13_reproducible_execution_environment.kimityr.json",
+      "source_git_blob_sha": "8c421cf819d6a1c65edccce814d13f69cf2a6e91",
+      "source_schema_version": "non-versioned-record-shape",
+      "reviewer_id": "Kimityr",
+      "approval_status": "APPROVED_IN_CHAT",
+      "approval_method": "conversation",
+      "cryptographic_signature_present": false,
+      "trusted_hmac_envelope_present": false,
+      "generation_authorized": false,
+      "implementation_or_runtime_verified": false,
+      "decision_payload": {
+        "group": 13,
+        "semantic_group": "deployment.reproducible_execution_environment",
+        "requirements": [
+          {
+            "id": "declared_environment",
+            "decision": "Declare runtime versions, dependencies, configuration, required services, and deployment assumptions. This is a reproducibility requirement, not a mandate to use a particular technology stack."
+          },
+          {
+            "id": "dependency_reproducibility",
+            "decision": "Use pinned dependencies and lockfiles, or equivalent immutable dependency records, so builds do not silently resolve to changing versions."
+          },
+          {
+            "id": "configuration_and_secrets",
+            "decision": "Validate required configuration at startup; inject secrets through protected configuration mechanisms; never commit credentials or leak secrets into logs or evidence."
+          },
+          {
+            "id": "repeatable_builds",
+            "decision": "Document build and start commands, preserve build inputs and integrity records, and make builds deterministic where feasible."
+          },
+          {
+            "id": "persistent_state_and_migrations",
+            "decision": "Document durable storage, migration ordering, backup/recovery expectations, and safe persistence across process or container replacement where persistence is promised."
+          },
+          {
+            "id": "environment_parity",
+            "decision": "Document differences among development, test, and deployment environments. Local-only success does not establish deployment verification."
+          },
+          {
+            "id": "operational_recovery",
+            "decision": "Define startup/shutdown behavior, health/readiness expectations, interruption recovery, and failure handling."
+          },
+          {
+            "id": "independent_verification",
+            "decision": "Independently repeat build and deployment-smoke checks; preserve logs and relevant digests; mark simulated, unexecuted, or otherwise unsupported claims honestly."
+          }
+        ]
+      },
+      "unresolved_details": [],
+      "limitations": [
+        "This record records approval expressed in chat only.",
+        "It is not a cryptographic signature or trusted evidence envelope.",
+        "Approval of requirements does not establish implementation, deployment, runtime behavior, or certification.",
+        "No specific framework, language, database, hosting provider, or deployment stack is mandated by this decision."
+      ]
+    },
+    {
+      "group": 14,
+      "semantic_ids": [
+        "verification.required_capability_and_negative_case_mapping"
+      ],
+      "source_record": "docs/evidence/taskflow_review/group_14_required_capability_negative_case_mapping.kimityr.json",
+      "source_git_blob_sha": "7ea4d1074a3dd6e4303bd46c77fc6c90001a4709",
+      "source_schema_version": "non-versioned-record-shape",
+      "reviewer_id": "Kimityr",
+      "approval_status": "APPROVED_IN_CHAT",
+      "approval_method": "conversation",
+      "cryptographic_signature_present": false,
+      "trusted_hmac_envelope_present": false,
+      "generation_authorized": false,
+      "implementation_or_runtime_verified": false,
+      "decision_payload": {
+        "group": 14,
+        "semantic_group": "verification.required_capability_and_negative_case_mapping",
+        "requirements": [
+          {
+            "id": "complete_traceability",
+            "decision": "Every required capability and quality gate maps to canonical requirements, typed architecture elements, implementation artifacts, and specific verification results."
+          },
+          {
+            "id": "negative_case_coverage",
+            "decision": "Each required security and failure scenario has an explicit test, expected outcome, and evidence reference, including cross-workspace access, unauthorized role changes, invalid authentication, expired or revoked sessions, and duplicate idempotent effects."
+          },
+          {
+            "id": "evidence_quality",
+            "decision": "Static inspection, unit tests, integration tests, contract tests, end-to-end tests, deployment smoke tests, and runtime observations remain distinct evidence types."
+          },
+          {
+            "id": "no_simulated_substitution",
+            "decision": "Fixtures, mock responses, declared capabilities, and simulated runtime results cannot satisfy a requirement that requires real execution."
+          },
+          {
+            "id": "honest_result_states",
+            "decision": "Use PASS, FAIL, UNKNOWN, BLOCKED, or NOT_RUN as appropriate. Missing evidence never becomes a pass by default."
+          },
+          {
+            "id": "failure_propagation",
+            "decision": "Any failed required capability or negative-case test blocks certification; unresolved requirements remain explicit blockers."
+          },
+          {
+            "id": "reproducible_evidence",
+            "decision": "Preserve canonical input and acceptance-suite hashes, test commands, relevant logs, artifact digests, and execution environment for each trial."
+          },
+          {
+            "id": "independent_evaluation",
+            "decision": "The evaluator checks generated artifacts against frozen acceptance criteria without giving the generator a golden implementation or its expected solution."
+          },
+          {
+            "id": "certification_boundary",
+            "decision": "A passing mapping audit is necessary but insufficient: generation, deployment, and runtime claims require their own direct evidence."
+          }
+        ]
+      },
+      "unresolved_details": [],
+      "limitations": [
+        "This record records approval expressed in chat only.",
+        "It is not a cryptographic signature or trusted evidence envelope.",
+        "Approval of verification requirements does not establish that tests have run or passed.",
+        "Certification remains blocked by unresolved implementation, evidence, and runtime gates."
+      ]
+    }
+  ]
+}

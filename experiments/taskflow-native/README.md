@@ -42,3 +42,25 @@ A generated project is not successful merely because it resembles the reference 
 The repository has the typed IntentCompiler/ProjectCompiler path and compiler backends needed for the experiment. A genuine run requires a configured LanguageModelProvider or another ESAP-native reasoning provider; a recorded transcript is useful for deterministic regression tests but **does not count as an autonomous generation result**.
 
 Therefore this experiment deliberately records provider availability separately instead of fabricating a result.
+
+## Provider-free semantic preflight
+
+Run the deterministic preflight from the repository root:
+
+```bash
+PYTHONPATH=.:experiments/taskflow-native:experiments/taskflow-native/provider_free:$PYTHONPATH python -m provider_free.run_trial
+```
+
+The runner writes a JSON report to stdout and exits non-zero while the trial is
+blocked. An optional `--output PATH` also writes the report to that path. The
+current expected result is `BLOCKED`: the canonical snapshot produces a
+graph-bound ledger with 15 unresolved mandatory semantic fields. No
+SystemModel, typed ISR, backend plan, generated application, or runtime result
+is claimed.
+
+A complete-looking ledger is not sufficient to proceed. The runner also blocks
+when the ledger is structurally complete but trusted source/certificate
+verification is not implemented. Do not mark caller-supplied provenance strings
+or approval references as trusted evidence. This preflight is not yet the
+full generation orchestrator; the live compiler path must remain behind the
+same semantic and evidence gates.

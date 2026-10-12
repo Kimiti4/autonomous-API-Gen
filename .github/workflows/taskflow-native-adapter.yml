@@ -38,6 +38,7 @@ on:
       - "tests/test_constitutional_compiler_validation_pass.py"
   workflow_dispatch:
 
+# The focused suite covers TaskFlow fail-closed gates and the ten-domain coherence contract.
 permissions:
   contents: read
 

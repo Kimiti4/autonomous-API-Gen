@@ -25,6 +25,9 @@ from tiannara.domain.models.semantic_resolution import (
     require_taskflow_semantics,
     resolutions_by_field,
 )
+from tiannara.domain.models.taskflow_semantic_contract import (
+    validate_taskflow_semantic_contract,
+)
 from tiannara.domain.ports.language_model import LanguageModelProvider
 
 from .config import IntentCompilerConfig
@@ -135,6 +138,11 @@ class IntentCompiler:
             if not isinstance(semantic_resolution_record, SemanticResolutionRecord):
                 raise TypeError("TaskFlow semantic resolver must return SemanticResolutionRecord")
             require_taskflow_semantics(graph, semantic_resolution_record)
+            # Resolution alone proves that fields are present, not that each
+            # field carries the minimum structured contract needed by the
+            # TaskFlow projection. Reject malformed/placeholder payloads before
+            # invoking any projector or constructing a SystemModel.
+            validate_taskflow_semantic_contract(semantic_resolution_record)
 
         # 7. Synthesis + boundary enforcement. A resolved ledger is not enough:
         # the ordinary heuristic synthesizer does not consume TaskFlow's

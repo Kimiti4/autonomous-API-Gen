@@ -20,6 +20,7 @@ from tiannara.domain.models.model_call import (
     hash_payload,
 )
 from tiannara.domain.models.system_model import TechnologyCouplingError
+from tiannara.domain.models.taskflow_semantic_contract import REQUIRED_VALUE_KEYS
 from tiannara.domain.models.semantic_resolution import (
     ResolutionKind,
     SemanticResolution,
@@ -271,8 +272,8 @@ def test_resolved_taskflow_ledger_still_blocks_without_semantic_projection(tmp_p
                 SemanticResolution(
                     field_path=path,
                     kind=ResolutionKind.SNAPSHOT,
-                    value={"reviewed": True},
-                    source="test:trusted-review",
+                    value={key: {"fixture_value": True} for key in REQUIRED_VALUE_KEYS[path]},
+                    source="test:reviewed-fixture",
                 )
                 for path in TASKFLOW_MANDATORY_FIELDS
             ),

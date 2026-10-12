@@ -7,7 +7,7 @@ canonical requirements and authorized reviewer resolve their exact semantics.
 """
 from __future__ import annotations
 
-from typing import Any, TypeAlias
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -18,10 +18,6 @@ from .semantic_resolution import (
     resolutions_by_field,
 )
 from .taskflow_semantic_contract import REQUIRED_VALUE_KEYS
-
-
-JsonScalar: TypeAlias = str | int | float | bool | None
-JsonValue: TypeAlias = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
 
 _PLACEHOLDERS = {"", "unknown", "unresolved", "tbd", "todo", "n/a", "not specified"}
 
@@ -59,7 +55,7 @@ class TaskFlowSemanticPayloadV1(BaseModel):
     graph_hash: str = Field(min_length=1)
     problem_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     acceptance_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-    values: dict[str, dict[str, JsonValue]]
+    values: dict[str, dict[str, Any]]
 
     @model_validator(mode="after")
     def validate_complete_payload(self) -> "TaskFlowSemanticPayloadV1":

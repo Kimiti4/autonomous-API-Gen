@@ -13,7 +13,6 @@ from provider_free.trusted_evidence import canonical_json, verify_trusted_resolu
 from tiannara.domain.models.semantic_resolution import (
     UnresolvedSemanticsError,
     SemanticResolutionRecord,
-    build_initial_resolution_record,
     require_taskflow_semantics,
 )
 
@@ -56,7 +55,7 @@ def build_report() -> dict:
         acceptance_source="snapshot:golden-projects/taskflow/ACCEPTANCE.json",
     )
     record_path = os.environ.get("TIANNARA_TASKFLOW_RESOLUTION_RECORD")
-    record = build_initial_resolution_record(adapted.graph)
+    record = adapted.semantic_resolutions
     record_load_error = None
     if record_path:
         try:

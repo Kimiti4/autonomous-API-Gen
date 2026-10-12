@@ -24,6 +24,19 @@ def test_missing_field_specific_contract_keys_are_rejected():
     with pytest.raises(IncompleteTaskFlowSemanticContract, match="missing or placeholder|invalid contract value shape"):
         validate_taskflow_semantic_contract(_record(incomplete))
 
+def test_wrong_container_type_is_rejected_even_when_nonempty():
+    def wrong_shape(path):
+        value = _complete_shape(path)
+        for key, shape in REQUIRED_VALUE_SHAPES[path].items():
+            if shape == "array":
+                value[key] = {"looks": "non-empty but is not an array"}
+                break
+        return value
+
+    with pytest.raises(IncompleteTaskFlowSemanticContract, match="invalid contract value shape"):
+        validate_taskflow_semantic_contract(_record(wrong_shape))
+
+
 def test_unknown_or_tbd_values_are_rejected():
     def placeholder(path):
         return {key: ([{"decision": "TBD"}] if shape == "array" else {"decision": "TBD"}) for key, shape in REQUIRED_VALUE_SHAPES[path].items()}

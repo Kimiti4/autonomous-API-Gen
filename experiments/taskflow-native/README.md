@@ -64,3 +64,21 @@ verification is not implemented. Do not mark caller-supplied provenance strings
 or approval references as trusted evidence. This preflight is not yet the
 full generation orchestrator; the live compiler path must remain behind the
 same semantic and evidence gates.
+
+## Trusted semantic-resolution envelope
+
+The preflight can verify a reviewer-attested resolution envelope through
+`provider_free.trusted_evidence`. The verifier binds the attestation to the
+active requirement-graph ID/hash, the exact problem and canonical acceptance
+hashes, and the serialized resolution-ledger hash. It checks an HMAC-SHA256
+signature using `TIANNARA_TASKFLOW_TRUSTED_EVIDENCE_KEY`; the JSON envelope
+path is supplied with `TIANNARA_TASKFLOW_EVIDENCE_ENVELOPE`.
+
+The HMAC key is a shared secret and must be provisioned out of band. Keep it
+out of the repository and unavailable to the generator/compiler process; only
+the trusted reviewer workflow may use it to sign an envelope. A valid HMAC
+authenticates that review attestation and its bound inputs, but is not proof
+that generated code works. Missing keys, missing envelopes, tampered ledgers,
+and mismatched snapshots remain blocked. Even a valid envelope does not yet
+authorize generation because live ProjectCompiler orchestration and runtime
+verification remain separate gates.

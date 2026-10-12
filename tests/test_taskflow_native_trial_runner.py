@@ -86,7 +86,12 @@ def test_trial_runner_loads_external_ledger_but_still_requires_trusted_envelope(
 
     problem = (TRIAL_DIR / "PROBLEM.md").read_text(encoding="utf-8")
     acceptance = json.loads((ROOT / "golden-projects" / "taskflow" / "ACCEPTANCE.json").read_text(encoding="utf-8"))
-    adapted = run_trial.adapt_taskflow_snapshot(problem, acceptance)
+    adapted = run_trial.adapt_taskflow_snapshot(
+        problem,
+        acceptance,
+        problem_source="snapshot:experiments/taskflow-native/PROBLEM.md",
+        acceptance_source="snapshot:golden-projects/taskflow/ACCEPTANCE.json",
+    )
     ledger = SemanticResolutionRecord(
         graph_id=adapted.graph.graph_id,
         graph_hash=adapted.graph.content_hash(),

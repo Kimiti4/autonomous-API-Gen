@@ -67,8 +67,9 @@ same semantic and evidence gates.
 
 ## Trusted semantic-resolution envelope
 
-The preflight can verify a reviewer-attested resolution envelope through
-`provider_free.trusted_evidence`. The verifier binds the attestation to the
+The preflight can load a candidate ledger from
+`TIANNARA_TASKFLOW_RESOLUTION_RECORD` and verify a reviewer-attested resolution
+envelope through `provider_free.trusted_evidence`. The verifier binds the attestation to the
 active requirement-graph ID/hash, the exact problem and canonical acceptance
 hashes, and the serialized resolution-ledger hash. It checks an HMAC-SHA256
 signature using `TIANNARA_TASKFLOW_TRUSTED_EVIDENCE_KEY`; the JSON envelope

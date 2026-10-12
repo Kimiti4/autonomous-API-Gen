@@ -164,3 +164,8 @@ The 12 implementation-level questions identified during reconciliation are now t
 ## Typed semantic gate regression tests (2026-10-13)
 
 Added `tests/test_taskflow_semantic_contract_gate.py` with cases for a structurally complete fixture, a missing required key, a placeholder value, a scalar payload, and a non-authoritative field set. These tests exercise the existing shape validator; they do **not** prove the values are semantically correct, originate from trusted reviewer decisions, are consumed by either compiler, or generate correct artifacts. The production TaskFlow path still explicitly documents that its guarded typed-ISR transition is not wired into all production compiler/backend entry boundaries. The new tests await CI on the new commit.
+
+
+## Production intent-compiler boundary hardening (2026-10-13)
+
+The gate-enabled `IntentCompiler.compile_full` path now calls `validate_taskflow_semantic_contract` immediately after graph-bound resolution checks and before invoking the TaskFlow semantic projector. This closes a gap where a complete field index could be graph-bound but still contain scalar, missing-key, or placeholder payloads. The change does not claim semantic correctness or backend consumption: the projection contract still preserves values in `SystemModel.extensions`, which is provenance/carriage rather than proof of implementation. CI for this change is pending.

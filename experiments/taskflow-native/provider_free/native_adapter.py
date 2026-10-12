@@ -21,6 +21,10 @@ from tiannara.domain.models.requirement_graph import (
     NodeProvenance,
 )
 from tiannara.domain.models.system_model import Priority
+from tiannara.domain.models.semantic_resolution import (
+    SemanticResolutionRecord,
+    build_initial_resolution_record,
+)
 
 
 CAPABILITY_MAP: dict[str, tuple[str, ...]] = {
@@ -47,6 +51,7 @@ class NativeAdapterResult:
     graph: RequirementGraph
     problem_sha256: str
     acceptance_sha256: str
+    semantic_resolutions: SemanticResolutionRecord
     system_model: None
     typed_isr: None
     generation_allowed: bool
@@ -60,6 +65,8 @@ class NativeAdapterResult:
             "acceptance_sha256": self.acceptance_sha256,
             "requirement_graph": self.graph.model_dump(mode="json"),
             "requirement_graph_sha256": self.graph.content_hash(),
+            "semantic_resolution_record": self.semantic_resolutions.model_dump(mode="json"),
+            "unresolved_mandatory_semantics": list(self.semantic_resolutions.unresolved_fields()),
             "system_model": None,
             "typed_isr": None,
             "generation_allowed": self.generation_allowed,
@@ -245,6 +252,7 @@ def adapt_taskflow_snapshot(
         graph=graph,
         problem_sha256=problem_hash,
         acceptance_sha256=acceptance_hash,
+        semantic_resolutions=build_initial_resolution_record(graph),
         system_model=None,
         typed_isr=None,
         generation_allowed=False,

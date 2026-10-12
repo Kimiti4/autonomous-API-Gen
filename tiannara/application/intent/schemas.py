@@ -7,11 +7,13 @@ replay fixtures and schema drift are detectable.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from tiannara.domain.models.isr import IntermediateSoftwareRepresentation
 from tiannara.domain.models.model_call import ModelCallRecord
 from tiannara.domain.models.requirement_graph import RequirementGraph
+from tiannara.domain.models.semantic_resolution import SemanticResolutionRecord
+from tiannara.domain.models.system_model import SystemModel
 
 
 class NormalizedIntent(BaseModel):
@@ -64,3 +66,34 @@ class IntentCompilationResult(BaseModel):
     call_records: list[ModelCallRecord] = Field(default_factory=list)
     repair_iterations: int = 0
     assumption_ids: list[str] = Field(default_factory=list)
+    semantic_resolution_record: SemanticResolutionRecord | None = None
+
+class TaskFlowSemanticProjection(BaseModel):
+    """SystemModel plus an explicit declaration of which TaskFlow semantics it consumed.
+
+    This declaration is a reviewable integration contract, not proof that the
+    projector is correct. The projector implementation and its tests must
+    demonstrate that each listed value affects the resulting model.
+    """
+
+    system_model: SystemModel
+    projected_values: dict[str, object]
+
+    @model_validator(mode="after")
+    def validate_projected_values(self) -> "TaskFlowSemanticProjection":
+        if any(not field.strip() for field in self.projected_values):
+            raise ValueError("projected_values cannot contain blank paths")
+        embedded = self.system_model.extensions.get("taskflow_semantic_values")
+        if embedded != self.projected_values:
+            raise ValueError(
+                "SystemModel.extensions.taskflow_semantic_values must preserve "
+                "the exact projected semantic values"
+            )
+        return self
+
+    @classmethod
+    def model_validate_projection(
+        cls, system_model: SystemModel, projected_values: dict[str, object]
+    ) -> "TaskFlowSemanticProjection":
+        return cls(system_model=system_model, projected_values=projected_values)
+

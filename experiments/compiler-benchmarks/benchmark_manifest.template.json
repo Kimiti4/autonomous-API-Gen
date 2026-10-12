@@ -1,0 +1,125 @@
+{
+  "schema_version": "tiannara.comparative-compiler-benchmark.v1",
+  "status": "PROPOSED_NOT_EXECUTED",
+  "policy": {
+    "iterations_per_application": 2,
+    "requires_distinct_compiler_implementations": true,
+    "requires_identical_canonical_input_hashes": true,
+    "requires_isolated_workspaces": true,
+    "independent_acceptance_evaluator": true,
+    "unrun_checks_are": "UNKNOWN",
+    "simulated_evidence_can_certify": false
+  },
+  "applications": [
+    {
+      "application_id": "taskflow",
+      "canonical_problem": "experiments/taskflow-native/PROBLEM.md",
+      "acceptance_criteria": "golden-projects/taskflow/ACCEPTANCE.json",
+      "status": "BLOCKED",
+      "blockers": [
+        "Trusted semantic review and envelope are not yet established.",
+        "Typed semantic projection and downstream backend consumption are not yet proven end to end.",
+        "Two distinct compiler implementations must be qualified before the comparative trial."
+      ],
+      "iterations": [
+        {
+          "iteration_id": "A",
+          "compiler_id": null,
+          "compiler_version": null,
+          "source_revision": null,
+          "input_manifest_sha256": null,
+          "workspace_id": null,
+          "status": "NOT_RUN",
+          "evidence_manifest": null
+        },
+        {
+          "iteration_id": "B",
+          "compiler_id": null,
+          "compiler_version": null,
+          "source_revision": null,
+          "input_manifest_sha256": null,
+          "workspace_id": null,
+          "status": "NOT_RUN",
+          "evidence_manifest": null
+        }
+      ],
+      "comparison_report": null
+    },
+    {
+      "application_id": "readingshelf",
+      "canonical_problem": null,
+      "acceptance_criteria": null,
+      "status": "DEFERRED",
+      "blockers": [
+        "Do not begin until TaskFlow execution and evidence boundaries are sound.",
+        "Locate and freeze the canonical ReadingShelf specification and acceptance criteria before trial setup.",
+        "Qualify two distinct compiler implementations before either iteration."
+      ],
+      "iterations": [
+        {
+          "iteration_id": "A",
+          "compiler_id": null,
+          "compiler_version": null,
+          "source_revision": null,
+          "input_manifest_sha256": null,
+          "workspace_id": null,
+          "status": "NOT_RUN",
+          "evidence_manifest": null
+        },
+        {
+          "iteration_id": "B",
+          "compiler_id": null,
+          "compiler_version": null,
+          "source_revision": null,
+          "input_manifest_sha256": null,
+          "workspace_id": null,
+          "status": "NOT_RUN",
+          "evidence_manifest": null
+        }
+      ],
+      "comparison_report": null
+    }
+  ],
+  "remaining_applications": {
+    "discovery_status": "NOT_ENUMERATED",
+    "rule": "Add each remaining application only after locating its canonical specification and acceptance criteria; each receives exactly two primary iterations using distinct compiler implementations."
+  },
+  "compiler_pair_qualification": {
+    "status": "BLOCKED_NOT_QUALIFIED",
+    "inventory": "docs/evidence/COMPILER_PATH_QUALIFICATION_INVENTORY.md",
+    "candidate_a": {
+      "compiler_id": "cap_c_project_compiler",
+      "implementation": "tiannara.application.compiler.project_compiler.ProjectCompiler",
+      "status": "NOT_QUALIFIED"
+    },
+    "candidate_b": {
+      "compiler_id": "constitutional_architecture_pipeline",
+      "implementation": "constitutional_architecture.compiler.pipeline.CompilerPipeline",
+      "status": "NOT_QUALIFIED"
+    },
+    "blockers": [
+      "Trusted semantic review and a graph/snapshot-bound evidence envelope are not yet established.",
+      "The 15-field TaskFlow semantic carrier audit identifies partial or missing native carriers, including session lifecycle and frontend interaction/state transitions.",
+      "Deterministic adapters into both compiler input representations and semantic parity are not implemented or proven.",
+      "Actual downstream consumer coverage, independent live invocation, and artifact/runtime acceptance evidence are not recorded."
+    ],
+    "distinction": {
+      "end_to_end_compiler_comparison": "Compare materially different full compilation pipelines.",
+      "cross_target_lowering": "Python/FastAPI and Go/net/http backends under one ISR are a separate experiment, not a substitute for two compiler pipelines."
+    },
+    "input_parity_preflight": {
+      "implementation": "experiments/compiler-benchmarks/taskflow_input_parity.py",
+      "tests": "experiments/compiler-benchmarks/tests/test_taskflow_input_parity.py",
+      "status": "CI_PASSED_ON_2f35c3d49b8dbdf0ade4cd69476cbe594901f45d",
+      "purpose": "Fail-closed check of declared canonical input hashes, all 15 mandatory field states, semantic-value digest parity, distinct compiler implementation identifiers, and declared downstream consumer bindings.",
+      "limitation": "A passing declaration check is not proof of trusted resolution or actual downstream consumption; the checker never qualifies the compiler pair or authorizes generation.",
+      "validation_hardening": {
+        "implementation": "constitutional_architecture/compiler/passes/validation_pass.py",
+        "tests": "tests/test_constitutional_compiler_validation_pass.py",
+        "status": "FAIL_CLOSED_CHANGE_CI_PASSED",
+        "evidence_run": "https://github.com/Kimiti4/autonomous-API-Gen/actions/runs/38248010656",
+        "limitation": "This closes the validator-exception success path only; it does not prove complete TaskFlow semantics or runtime correctness."
+      }
+    }
+  }
+}

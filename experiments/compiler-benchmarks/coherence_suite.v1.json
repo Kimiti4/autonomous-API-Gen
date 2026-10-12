@@ -1,0 +1,341 @@
+{
+  "schema_version": "tiannara.coherence-suite.v1",
+  "status": "SPECIFIED_NOT_EXECUTED",
+  "purpose": "A measurable, fail-closed suite for coherence across ten application-generation and maintenance domains. This manifest defines evaluation obligations; it is not execution, compiler qualification, or certification evidence.",
+  "policy": {
+    "iterations_per_application": 2,
+    "requires_two_distinct_end_to_end_compilers": true,
+    "same_frozen_input_for_both_compilers": true,
+    "isolated_workspaces_and_state": true,
+    "independent_acceptance_evaluator": true,
+    "unknown_is_not_pass": true,
+    "simulated_evidence_can_certify": false,
+    "critical_security_or_integrity_failure_is_veto": true,
+    "human_repair_must_be_logged_and_not_replace_primary_artifact": true
+  },
+  "shared_gates": [
+    "canonical_input_hashes",
+    "compiler_identity_and_source_revision",
+    "isolated_reproducible_build",
+    "requirement_to_artifact_to_test_traceability",
+    "unit_integration_contract_and_end_to_end_tests",
+    "negative_case_tests",
+    "runtime_health_and_readiness",
+    "dependency_and_secret_scan",
+    "artifact_hash_manifest",
+    "independent_evidence_review"
+  ],
+  "status_vocabulary": [
+    "PASS",
+    "FAIL",
+    "UNKNOWN",
+    "BLOCKED",
+    "NOT_RUN"
+  ],
+  "applications": [
+    {
+      "application_id": "taskflow",
+      "name": "Full-stack SaaS / tenancy / RBAC",
+      "canonical_problem": "experiments/taskflow-native/PROBLEM.md",
+      "acceptance_criteria": "golden-projects/taskflow/ACCEPTANCE.json",
+      "focus": [
+        "workspace isolation",
+        "owner/manager/member permission matrix",
+        "project/task/assignee referential integrity",
+        "session revocation and expiry",
+        "idempotent mutations and unique audit effect identity",
+        "archive visibility",
+        "API and frontend state contracts"
+      ],
+      "critical_invariants": [
+        "cross-workspace reads and writes are denied",
+        "assignees belong to task workspace",
+        "owner-only actions reject manager/member roles unless explicitly authorized",
+        "revoked sessions cannot authorize subsequent requests",
+        "retries do not duplicate declared-idempotent effects",
+        "archived resources stay out of active queries"
+      ],
+      "negative_cases": [
+        "cross_workspace_read",
+        "cross_workspace_write",
+        "unauthorized_role_mutation",
+        "foreign_project_task",
+        "foreign_workspace_assignee",
+        "duplicate_idempotent_effect",
+        "invalid_authentication",
+        "expired_or_revoked_session"
+      ],
+      "status": "BLOCKED_TRUSTED_SEMANTIC_REVIEW_AND_LIVE_COMPILER_INTEGRATION"
+    },
+    {
+      "application_id": "booking",
+      "name": "Booking system",
+      "canonical_problem": null,
+      "acceptance_criteria": null,
+      "focus": [
+        "availability windows",
+        "timezone and daylight-saving semantics",
+        "overlapping booking prevention",
+        "concurrent reservation attempts",
+        "cancellation and rescheduling",
+        "idempotency and retry behavior"
+      ],
+      "critical_invariants": [
+        "capacity is never oversold under concurrent writes",
+        "interval boundaries and timezone conversion are deterministic",
+        "repeated idempotency keys return the original logical result",
+        "cancellation and rescheduling preserve audit history"
+      ],
+      "negative_cases": [
+        "two_clients_claim_last_slot",
+        "overlapping_reservations",
+        "stale_availability_write",
+        "duplicate_create_retry",
+        "invalid_timezone",
+        "cancel_already_cancelled_booking"
+      ],
+      "status": "SPECIFICATION_REQUIRED"
+    },
+    {
+      "application_id": "commerce",
+      "name": "Commerce system",
+      "canonical_problem": null,
+      "acceptance_criteria": null,
+      "focus": [
+        "catalog and price integrity",
+        "inventory reservations",
+        "order lifecycle",
+        "payment-provider boundary without real payment by default",
+        "outbox/events and delivery retries",
+        "cancellation/refund state constraints"
+      ],
+      "critical_invariants": [
+        "inventory cannot go below permitted bounds",
+        "order transitions follow a declared state machine",
+        "event publication and state mutation are transactionally traceable",
+        "duplicate event delivery does not duplicate effects",
+        "price and quantity are validated server-side"
+      ],
+      "negative_cases": [
+        "concurrent_last_item_purchase",
+        "negative_quantity",
+        "stale_price",
+        "duplicate_order_submission",
+        "duplicate_event_delivery",
+        "illegal_order_transition"
+      ],
+      "status": "SPECIFICATION_REQUIRED"
+    },
+    {
+      "application_id": "wallet-ledger",
+      "name": "Wallet / Ledger",
+      "canonical_problem": null,
+      "acceptance_criteria": null,
+      "focus": [
+        "double-entry postings",
+        "transaction atomicity",
+        "idempotent transfer requests",
+        "concurrent debit protection",
+        "reversal entries",
+        "reconciliation and immutable audit trail"
+      ],
+      "critical_invariants": [
+        "every posted journal balances",
+        "posted entries are immutable and corrections use reversals",
+        "a transfer debits and credits atomically",
+        "idempotent retries never double-post",
+        "reconciliation differences are surfaced rather than silently adjusted"
+      ],
+      "negative_cases": [
+        "unbalanced_journal",
+        "concurrent_double_spend",
+        "duplicate_transfer_retry",
+        "partial_transfer_failure",
+        "mutation_of_posted_entry",
+        "unexplained_reconciliation_difference"
+      ],
+      "status": "SPECIFICATION_REQUIRED"
+    },
+    {
+      "application_id": "telemetry-fleet",
+      "name": "Telemetry / Fleet",
+      "canonical_problem": null,
+      "acceptance_criteria": null,
+      "focus": [
+        "authenticated event ingestion",
+        "schema/version validation",
+        "out-of-order and duplicate events",
+        "device/vehicle identity",
+        "time-series queries and aggregation",
+        "backpressure and retention"
+      ],
+      "critical_invariants": [
+        "invalid events are quarantined with reason",
+        "duplicate event identities do not inflate counts",
+        "late/out-of-order events have deterministic treatment",
+        "tenant/device access is scoped",
+        "ingestion remains bounded under overload"
+      ],
+      "negative_cases": [
+        "forged_device_identity",
+        "malformed_payload",
+        "duplicate_event",
+        "out_of_order_event",
+        "future_timestamp",
+        "overload_backpressure"
+      ],
+      "status": "SPECIFICATION_REQUIRED"
+    },
+    {
+      "application_id": "realtime-collaboration",
+      "name": "Real-time collaboration",
+      "canonical_problem": null,
+      "acceptance_criteria": null,
+      "focus": [
+        "multi-user concurrent edits",
+        "ordering and conflict policy",
+        "presence and disconnect cleanup",
+        "reconnect and replay",
+        "authorization at subscription and mutation boundaries",
+        "bounded fan-out"
+      ],
+      "critical_invariants": [
+        "unauthorized clients receive no protected updates",
+        "concurrent edits resolve according to an explicit deterministic policy",
+        "reconnect does not lose committed changes or duplicate effects",
+        "slow consumers cannot exhaust unbounded memory"
+      ],
+      "negative_cases": [
+        "concurrent_conflicting_edits",
+        "revoked_user_keeps_subscription",
+        "reconnect_after_disconnect",
+        "duplicate_client_message",
+        "slow_consumer_backpressure",
+        "out_of_order_delivery"
+      ],
+      "status": "SPECIFICATION_REQUIRED"
+    },
+    {
+      "application_id": "legacy-repair",
+      "name": "Legacy repair benchmark",
+      "canonical_problem": null,
+      "acceptance_criteria": null,
+      "focus": [
+        "reproduce baseline defects",
+        "bounded repository exploration",
+        "minimal repair",
+        "regression preservation",
+        "dependency/build compatibility",
+        "diff and provenance review"
+      ],
+      "critical_invariants": [
+        "baseline failures are reproducible before repair",
+        "repair is limited to the declared defect scope",
+        "existing passing behavior remains passing",
+        "unrelated changes and silent behavior changes are detected"
+      ],
+      "negative_cases": [
+        "non_reproducing_bug_claim",
+        "regression_in_existing_test",
+        "unrelated_file_mutation",
+        "dependency_breakage",
+        "test_deleted_or_weakened_to_pass"
+      ],
+      "status": "SPECIFICATION_REQUIRED"
+    },
+    {
+      "application_id": "production-incident",
+      "name": "Production incident benchmark",
+      "canonical_problem": null,
+      "acceptance_criteria": null,
+      "focus": [
+        "detect and classify signal",
+        "diagnostic hypothesis with evidence",
+        "root-cause discrimination",
+        "safe repair plan",
+        "recovery verification",
+        "post-incident prevention and audit"
+      ],
+      "critical_invariants": [
+        "diagnosis cites observed evidence and separates facts from hypotheses",
+        "repair is bounded and reversible",
+        "recovery is proven by independent checks",
+        "no destructive action occurs without explicit authorization"
+      ],
+      "negative_cases": [
+        "false_positive_incident",
+        "misleading_correlated_signal",
+        "repair_worsens_service",
+        "recovery_claim_without_probe",
+        "secret_leak_in_logs",
+        "unauthorized_destructive_action"
+      ],
+      "status": "SPECIFICATION_REQUIRED"
+    },
+    {
+      "application_id": "multi-stack-equivalence",
+      "name": "Multi-stack equivalence",
+      "canonical_problem": null,
+      "acceptance_criteria": null,
+      "focus": [
+        "one frozen technology-neutral ISR",
+        "independent stack lowerings",
+        "API and behavior parity",
+        "authorization parity",
+        "persistence and transaction parity",
+        "deployment and traceability parity"
+      ],
+      "critical_invariants": [
+        "all targets consume the same ISR content hash",
+        "unsupported semantics block the target instead of being dropped",
+        "all target-specific acceptance tests share the same behavior contract",
+        "no backend-specific pass can mask a semantic mismatch"
+      ],
+      "negative_cases": [
+        "semantic_field_dropped_by_target",
+        "different_authz_behavior",
+        "different_error_contract",
+        "different_idempotency_behavior",
+        "false_equivalence_from_build_only"
+      ],
+      "status": "SPECIFICATION_REQUIRED"
+    },
+    {
+      "application_id": "enterprise-capstone",
+      "name": "Enterprise capstone",
+      "canonical_problem": null,
+      "acceptance_criteria": null,
+      "focus": [
+        "integrated identity and authorization",
+        "multi-service workflows",
+        "transaction and event boundaries",
+        "operational readiness and recovery",
+        "security and compliance evidence",
+        "end-to-end traceability"
+      ],
+      "critical_invariants": [
+        "cross-service workflows preserve declared invariants under partial failure",
+        "authorization is enforced at each service boundary",
+        "retries and compensation are idempotent",
+        "recovery and audit evidence is independently reproducible",
+        "all required capabilities map to executable tests and artifacts"
+      ],
+      "negative_cases": [
+        "partial_workflow_failure",
+        "duplicate_cross_service_command",
+        "cross_tenant_access",
+        "event_replay",
+        "dependency_outage",
+        "incomplete_audit_trace"
+      ],
+      "status": "SPECIFICATION_REQUIRED"
+    }
+  ],
+  "execution_record": {
+    "compiler_pair_qualification": "NOT_QUALIFIED",
+    "iterations": "NOT_RUN",
+    "artifacts": "NONE",
+    "certification": "NONE",
+    "note": "The nine non-TaskFlow applications have domain-level benchmark outlines here, not frozen canonical application specifications. They must receive reviewed full specifications and versioned acceptance suites before generation trials."
+  }
+}

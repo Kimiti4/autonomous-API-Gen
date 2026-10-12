@@ -20,6 +20,13 @@ from tiannara.domain.models.model_call import (
     hash_payload,
 )
 from tiannara.domain.models.system_model import TechnologyCouplingError
+from tiannara.domain.models.semantic_resolution import (
+    ResolutionKind,
+    SemanticResolution,
+    SemanticResolutionRecord,
+    TASKFLOW_MANDATORY_FIELDS,
+    UnresolvedSemanticsError,
+)
 from tiannara.infrastructure.llm.recorded_provider import RecordedModelProvider
 from tiannara.infrastructure.llm.recording_provider import RecordingModelProvider
 from tiannara.infrastructure.llm.transcript import ModelCallTranscript
@@ -209,3 +216,73 @@ def test_deterministic_across_runs(tmp_path):
     second = compiler.compile_full(STATEMENT, system_id="sys-5")
     assert first.isr.content_hash() == second.isr.content_hash()
     assert first.requirement_graph.content_hash() == second.requirement_graph.content_hash()
+
+
+def test_taskflow_semantic_gate_blocks_before_system_model_synthesis(tmp_path, monkeypatch):
+    config = IntentCompilerConfig()
+    normalized = normalize(STATEMENT)
+    elicitation_payload = _elicitation_payload()
+    elicitation_out = ElicitationOutput.model_validate(elicitation_payload)
+    extraction_payload = _valid_extraction_payload()
+    provider = _seed(
+        tmp_path,
+        [
+            (build_elicitation_request(normalized, config), elicitation_payload),
+            (build_extraction_request(normalized, elicitation_out, config), extraction_payload),
+        ],
+    )
+
+    def forbidden_synthesis(*args, **kwargs):
+        raise AssertionError("SystemModel synthesis must not run with unresolved semantics")
+
+    monkeypatch.setattr(
+        "tiannara.application.intent.compiler.synthesize_system_model",
+        forbidden_synthesis,
+    )
+    compiler = IntentCompiler(provider, config)
+    with pytest.raises(UnresolvedSemanticsError):
+        compiler.compile_full(
+            STATEMENT,
+            system_id="taskflow-gated",
+            taskflow_semantic_gate=True,
+        )
+
+
+def test_resolved_taskflow_ledger_still_blocks_without_semantic_projection(tmp_path):
+    config = IntentCompilerConfig()
+    normalized = normalize(STATEMENT)
+    elicitation_payload = _elicitation_payload()
+    elicitation_out = ElicitationOutput.model_validate(elicitation_payload)
+    extraction_payload = _valid_extraction_payload()
+    provider = _seed(
+        tmp_path,
+        [
+            (build_elicitation_request(normalized, config), elicitation_payload),
+            (build_extraction_request(normalized, elicitation_out, config), extraction_payload),
+        ],
+    )
+
+    def reviewed_ledger(graph, initial):
+        return SemanticResolutionRecord(
+            graph_id=graph.graph_id,
+            graph_hash=graph.content_hash(),
+            required_fields=TASKFLOW_MANDATORY_FIELDS,
+            resolutions=tuple(
+                SemanticResolution(
+                    field_path=path,
+                    kind=ResolutionKind.SNAPSHOT,
+                    value={"reviewed": True},
+                    source="test:trusted-review",
+                )
+                for path in TASKFLOW_MANDATORY_FIELDS
+            ),
+        )
+
+    compiler = IntentCompiler(provider, config, taskflow_semantic_resolver=reviewed_ledger)
+    with pytest.raises(ValueError, match="semantic projection is not configured"):
+        compiler.compile_full(
+            STATEMENT,
+            system_id="taskflow-projection-required",
+            taskflow_semantic_gate=True,
+        )
+

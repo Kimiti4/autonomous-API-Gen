@@ -16,8 +16,15 @@ Evolution Engine's first stage.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from tiannara.domain.models.isr import IntermediateSoftwareRepresentation
-from tiannara.domain.models.requirement_graph import RequirementKind
+from tiannara.domain.models.requirement_graph import RequirementGraph, RequirementKind
+from tiannara.domain.models.semantic_resolution import (
+    SemanticResolutionRecord,
+    build_initial_resolution_record,
+    require_taskflow_semantics,
+    resolutions_by_field,
+)
 from tiannara.domain.ports.language_model import LanguageModelProvider
 
 from .config import IntentCompilerConfig
@@ -34,6 +41,8 @@ from .schemas import (
     ElicitationOutput,
     ExtractionOutput,
     IntentCompilationResult,
+    NormalizedIntent,
+    TaskFlowSemanticProjection,
 )
 from .synthesis import synthesize_system_model
 
@@ -43,16 +52,26 @@ class IntentCompiler:
         self,
         provider: LanguageModelProvider,
         config: IntentCompilerConfig | None = None,
+        taskflow_semantic_resolver: Callable[[RequirementGraph, SemanticResolutionRecord], SemanticResolutionRecord] | None = None,
+        taskflow_semantic_projector: Callable[[RequirementGraph, ElicitationOutput, NormalizedIntent, SemanticResolutionRecord], TaskFlowSemanticProjection] | None = None,
     ) -> None:
         self._provider = provider
         self._config = config or IntentCompilerConfig()
+        self._taskflow_semantic_resolver = taskflow_semantic_resolver
+        self._taskflow_semantic_projector = taskflow_semantic_projector
 
     def compile(self, statement: str, hints: dict) -> IntermediateSoftwareRepresentation:
         """Port-compatible entry point (matches the domain IntentCompiler port)."""
         system_id = hints.get("system_id") or derive_system_id(statement)
         return self.compile_full(statement, system_id).isr
 
-    def compile_full(self, statement: str, system_id: str) -> IntentCompilationResult:
+    def compile_full(
+        self,
+        statement: str,
+        system_id: str,
+        *,
+        taskflow_semantic_gate: bool = False,
+    ) -> IntentCompilationResult:
         normalized = normalize(statement)
         records: list = []
 
@@ -103,8 +122,67 @@ class IntentCompiler:
         if issues or graph is None:
             raise RepairBudgetExceeded(issues, iterations)
 
-        # 6. Synthesis + boundary enforcement
-        model = synthesize_system_model(graph, elicitation_output, normalized)
+        # 6. TaskFlow semantic gate must run before SystemModel synthesis.
+        # Without a configured native resolver, every mandatory field remains
+        # explicitly unresolved and this entry point fails closed.
+        semantic_resolution_record = None
+        if taskflow_semantic_gate:
+            semantic_resolution_record = build_initial_resolution_record(graph)
+            if self._taskflow_semantic_resolver is not None:
+                semantic_resolution_record = self._taskflow_semantic_resolver(
+                    graph, semantic_resolution_record
+                )
+            if not isinstance(semantic_resolution_record, SemanticResolutionRecord):
+                raise TypeError("TaskFlow semantic resolver must return SemanticResolutionRecord")
+            require_taskflow_semantics(graph, semantic_resolution_record)
+
+        # 7. Synthesis + boundary enforcement. A resolved ledger is not enough:
+        # the ordinary heuristic synthesizer does not consume TaskFlow's
+        # mandatory semantic values. Require an explicit, auditable projection
+        # contract before allowing the gate-enabled path to construct a model.
+        if taskflow_semantic_gate:
+            if self._taskflow_semantic_projector is None:
+                raise ValueError(
+                    "TaskFlow semantic projection is not configured; resolved semantics "
+                    "must be explicitly projected into SystemModel before synthesis"
+                )
+            projection = self._taskflow_semantic_projector(
+                graph, elicitation_output, normalized, semantic_resolution_record
+            )
+            if not isinstance(projection, TaskFlowSemanticProjection):
+                raise TypeError(
+                    "TaskFlow semantic projector must return TaskFlowSemanticProjection"
+                )
+            expected_fields = set(semantic_resolution_record.required_fields)
+            projected_values = projection.projected_values
+            projected_fields = set(projected_values)
+            if projected_fields != expected_fields:
+                missing = sorted(expected_fields - projected_fields)
+                unexpected = sorted(projected_fields - expected_fields)
+                raise ValueError(
+                    "TaskFlow semantic projection coverage mismatch; "
+                    f"missing={missing}, unexpected={unexpected}"
+                )
+            reviewed_values = {
+                path: resolution.value
+                for path, resolution in resolutions_by_field(
+                    semantic_resolution_record
+                ).items()
+            }
+            if projected_values != reviewed_values:
+                raise ValueError(
+                    "TaskFlow semantic projection changed or omitted reviewed values"
+                )
+            model = projection.system_model
+            if (
+                model.requirements_ref.graph_id != graph.graph_id
+                or model.requirements_ref.graph_hash != graph.content_hash()
+            ):
+                raise ValueError(
+                    "TaskFlow projected SystemModel is not bound to the active requirement graph"
+                )
+        else:
+            model = synthesize_system_model(graph, elicitation_output, normalized)
         isr = IntermediateSoftwareRepresentation.from_system_model(
             system_id,
             model,
@@ -123,4 +201,5 @@ class IntentCompiler:
             call_records=records,
             repair_iterations=iterations,
             assumption_ids=assumption_ids,
+            semantic_resolution_record=semantic_resolution_record,
         )

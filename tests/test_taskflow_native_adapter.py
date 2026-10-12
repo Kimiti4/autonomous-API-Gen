@@ -66,3 +66,16 @@ def test_adapter_rejects_malformed_quality_gate_contract():
     acceptance["quality_gates"] = {"security": "yes"}
     with pytest.raises(ValueError, match="boolean"):
         adapt_taskflow_snapshot(PROBLEM, acceptance)
+
+
+def test_adapter_carries_authoritative_unresolved_semantic_ledger():
+    result = adapt_taskflow_snapshot(PROBLEM, ACCEPTANCE)
+    report = result.as_dict()
+    ledger = report["semantic_resolution_record"]
+
+    assert ledger["graph_id"] == report["requirement_graph"]["graph_id"]
+    assert ledger["graph_hash"] == report["requirement_graph_sha256"]
+    assert len(ledger["required_fields"]) == 15
+    assert report["unresolved_mandatory_semantics"] == ledger["required_fields"]
+    assert all(item["kind"] == "unresolved" for item in ledger["resolutions"])
+    assert report["generation_allowed"] is False

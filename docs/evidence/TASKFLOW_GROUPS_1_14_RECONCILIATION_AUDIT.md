@@ -169,3 +169,10 @@ Added `tests/test_taskflow_semantic_contract_gate.py` with cases for a structura
 ## Production intent-compiler boundary hardening (2026-10-13)
 
 The gate-enabled `IntentCompiler.compile_full` path now calls `validate_taskflow_semantic_contract` immediately after graph-bound resolution checks and before invoking the TaskFlow semantic projector. This closes a gap where a complete field index could be graph-bound but still contain scalar, missing-key, or placeholder payloads. The change does not claim semantic correctness or backend consumption: the projection contract still preserves values in `SystemModel.extensions`, which is provenance/carriage rather than proof of implementation. CI for this change is pending.
+
+
+## Semantic shape-gate regression and recovery (2026-10-13)
+
+The new pre-projection shape gate correctly rejected a test resolver's generic `{"reviewed": true}` values because they did not contain the required field-specific contract keys. This exposed a stale expectation in `test_resolved_taskflow_ledger_still_blocks_without_semantic_projection`: it expected the later “projector not configured” error before providing a structurally valid fixture. The fixture now builds the minimum declared keys for each mandatory field, so the test can specifically assert that a structurally valid resolved ledger is still blocked when no semantic projector is configured. The fixture provenance is labeled as test data, not as an actual trusted attestation.
+
+Focused TaskFlow Native Adapter workflow for commit `bc8465d6f1d29ce8c0af16b13176cb4aab246404` is **PASS** after this correction. This is evidence that the focused fail-closed test suite passes, not proof of a complete TaskFlow projection, qualified compiler pair, generated application, or runtime certification. General CI and remaining release/campaign workflows were still in progress at the time of this note.

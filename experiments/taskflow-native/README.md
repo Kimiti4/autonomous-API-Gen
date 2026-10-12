@@ -83,3 +83,16 @@ that generated code works. Missing keys, missing envelopes, tampered ledgers,
 and mismatched snapshots remain blocked. Even a valid envelope does not yet
 authorize generation because live ProjectCompiler orchestration and runtime
 verification remain separate gates.
+
+
+### Reviewer decision template (not an authorization artifact)
+
+`provider_free/taskflow_review_decision_template.json` is a field-by-field reviewer worksheet for the 15 mandatory TaskFlow semantics. It records what the canonical problem/acceptance sources actually say and makes unspecified decisions visible as questions instead of compiler defaults.
+
+- All 15 entries intentionally start as `UNRESOLVED`.
+- `reviewer_value`, source hashes, and reviewer authorization fields are intentionally empty.
+- The template is not a trusted resolution ledger, does not contain a signature, and cannot authorize generation.
+- Complete it only through the trusted review process; then produce the separately authenticated evidence envelope required by `run_trial.py`.
+- Do not turn an open question into an assumed default merely to make the generation gate pass.
+
+This template improves review readiness only. Until the trusted envelope is verified and the live semantic projector/backend-consumption gates are implemented, TaskFlow generation and certification remain blocked/UNKNOWN.

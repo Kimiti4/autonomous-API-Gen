@@ -1,0 +1,70 @@
+{
+  "schema_version": "tiannara.taskflow.reviewer-decision.chat-record.v1",
+  "record_type": "requirements_reviewer_decision",
+  "decision_group": "persistence.consistency_and_atomic_mutations",
+  "reviewer_id": "Kimityr",
+  "approval_status": "APPROVED_IN_CHAT",
+  "approval_method": "explicit_user_confirmation_in_chat",
+  "approved_on": "2026-10-12",
+  "decisions": {
+    "consistency_and_transaction_boundaries": [
+      "Each business mutation commits all required related changes or leaves the prior valid state intact.",
+      "Use the chosen persistence technology's transaction or equivalent atomic mechanism where available.",
+      "Validate authorization, workspace scope, and relationship integrity as part of the mutation, not only during an earlier frontend read.",
+      "Concurrent operations must not silently violate invariants."
+    ],
+    "operations_requiring_atomic_treatment": [
+      "Workspace creation, initial ownership, and initial membership.",
+      "Project/task creation and required relationship records.",
+      "Task movement between projects, including assignment validity.",
+      "Membership removal or role changes affecting ownership, assignments, or access.",
+      "Task assignment and other integrity-sensitive updates.",
+      "Archive/restore operations and their required audit events.",
+      "Comment creation, editing, or deletion and their required activity evidence.",
+      "Security-sensitive mutations and their unique audit identities."
+    ],
+    "failure_and_rollback": [
+      "If validation or authorization fails, no protected business mutation occurs.",
+      "If a multi-record operation fails before commit, no partial result is visible as a successful operation.",
+      "If a request times out or a process crashes, the system distinguishes a committed operation from an uncommitted one before retrying.",
+      "A failed task move must not leave the task in the destination project with an invalid assignee.",
+      "A failed membership change must not leave orphaned ownership, invalid assignments, or stale effective access."
+    ],
+    "audit_and_idempotency_consistency": [
+      "Required audit/activity evidence must be consistent with the business mutation it describes.",
+      "A mutation must not be reported as successful if required evidence was lost or business state was not committed.",
+      "Retries follow Group 8's idempotency contract and Group 4's unique audit-event requirements.",
+      "If a required effect crosses a transaction boundary, such as publishing an event, use a documented durable recovery mechanism such as an outbox or verified equivalent where needed.",
+      "Do not claim exactly-once delivery merely because retries are deduplicated."
+    ],
+    "concurrent_updates_and_durable_state": [
+      "Concurrent changes preserve referential integrity, workspace isolation, and role/session authorization.",
+      "Where concurrent updates could overwrite one another, use a documented conflict-detection or serialization strategy.",
+      "Persistence survives the failures and restarts covered by the deployment contract.",
+      "Acknowledged committed data must not silently disappear after ordinary process restart or container replacement when the deployment promises persistence.",
+      "Database migrations and recovery procedures must not silently weaken established invariants."
+    ],
+    "verification_obligations": [
+      "Inject failures before and during multi-record mutations and verify rollback or safe recovery.",
+      "Exercise concurrent requests for task moves, assignments, membership changes, and duplicate idempotent mutations.",
+      "Verify business state and required audit evidence remain consistent.",
+      "Test process interruption, restart, and persistence according to the declared deployment environment.",
+      "Verify failed requests do not produce partial state, duplicate logical effects, invalid relationships, or misleading success responses.",
+      "Trace each test to canonical TaskFlow acceptance criteria and preserve reproducible evidence."
+    ]
+  },
+  "reviewer_confirmation": {
+    "explicit_confirmation_received": true,
+    "confirmation_scope": "complete Group 10 decision record presented in chat",
+    "cryptographic_signature_present": false,
+    "trusted_hmac_envelope_present": false
+  },
+  "generation_authorized": false,
+  "implementation_or_runtime_verified": false,
+  "limitations": [
+    "This record documents explicit chat approval of requirements intent only.",
+    "It is not a cryptographic signature or trusted evidence envelope.",
+    "It does not authorize generation or satisfy the trusted resolution envelope gate.",
+    "Persistence implementation, transaction boundaries, typed architectural projection, compiler integration, and runtime behavior remain unverified."
+  ]
+}

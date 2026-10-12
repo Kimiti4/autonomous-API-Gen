@@ -1,6 +1,6 @@
 # TaskFlow Semantic Payload v1 — implementation contract
 
-**Disposition: DESIGN CONTRACT / NOT IMPLEMENTED / NOT APPROVED FOR GENERATION**
+**Disposition: PARTIALLY IMPLEMENTED / NOT APPROVED FOR GENERATION**
 
 This document narrows the implementation target for the provider-free TaskFlow path. It does not supply reviewer decisions, resolve the open questions in the review template, or authorize compilation. The canonical problem and acceptance snapshots remain authoritative; the semantic ledger remains blocked until an authorized human resolves the gaps and the trusted evidence envelope verifies.
 
@@ -57,7 +57,9 @@ These are required schema obligations, not proposed product decisions. The field
 
 ## 4. Current repository gaps this contract does not pretend to close
 
-The current shallow contract checks that a handful of top-level keys exist and contain non-placeholder values. It does not yet validate these nested schemas or cross-field references. TaskFlowSemanticProjection verifies that a model preserves the submitted mapping in extensions; it does not prove the mapping is projected into typed architecture or consumed by a backend. The generic synthesizer and artifact-family derivation are not a substitute for this projection.
+The new `TaskFlowSemanticPayloadV1` validates a versioned envelope, exact 15-field coverage, per-field required key coverage, JSON-compatible values, nested placeholders, graph binding, and SHA-256-shaped source snapshot hashes. The native trial runner now applies this schema only after trusted-envelope verification and records a canonical payload hash. Tests cover completeness, nested placeholders, missing fields, invalid snapshot hashes, unresolved records, and explicitly reviewed empty collections.
+
+This is an initial structural contract, not yet the full field-specific semantic schema: the nested objects still need domain-specific types and cross-field referential-integrity checks. `TaskFlowSemanticProjection` still verifies only that a model preserves the submitted mapping in extensions; it does not prove the mapping is projected into typed architecture or consumed by a backend. The generic synthesizer and artifact-family derivation are not a substitute for this projection.
 
 The native trial remains blocked until all of the following are complete:
 

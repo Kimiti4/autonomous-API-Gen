@@ -61,3 +61,26 @@ This is intentionally described as **semantic-value preservation**, not proof th
 - Backend-planning revalidation: **IMPLEMENTED when `ProjectCompiler(taskflow_semantic_gate=True)` is used; default mode remains generic**.
 - TaskFlow generation and certification: **NOT RUN / UNKNOWN**.
 - PR remains draft and unmerged.
+
+
+## Downstream-consumption audit (next integration blocker)
+
+Inspected `tiannara/domain/models/system_model.py`, `tiannara/application/intent/synthesis.py`, `tiannara/application/compiler/derivation.py`, and `tiannara/application/compiler/project_compiler.py` on the PR branch.
+
+The current downstream boundary is narrower than the semantic projection contract:
+
+- `SystemModel` has typed structures for capabilities, domains, services, API operations, data models, security, infrastructure, deployment, testing, and operational policies. It has no first-class typed structures for the full TaskFlow frontend state-transition contract, workspace/role permission matrix, session revocation contract, detailed request/response/error schemas, or per-capability negative-case traceability.
+- The generic `synthesize_system_model()` still uses requirement-kind counts and keyword heuristics. It does not accept the TaskFlow resolution ledger; it can choose default authentication, authorization, consistency, deployment, and testing postures.
+- `derive_compilation_requirements()` chooses artifact families from coarse presence checks: services cause backend/frontend/infrastructure/deployment requirements, data models cause database requirements, and a non-empty system name causes documentation requirements. It does not inspect `extensions["taskflow_semantic_values"]`, and it does not prove that a selected backend consumes individual reviewed semantics.
+- Therefore, embedding the 15 reviewed values in `extensions` is useful for provenance but is not a semantic-to-artifact projection. A successful typed-model construction would still not prove that generated code implements the review.
+
+### Required order of work
+
+1. **Define a versioned TaskFlow semantic payload** with explicit typed shapes for each of the 15 paths. Fields whose values are not grounded in the canonical snapshot must remain unresolved until a reviewer supplies an approved decision; do not fill them from SystemModel defaults.
+2. **Extend the technology-agnostic model contract** only where existing typed fields cannot express the reviewed requirement (notably role/action authorization, workspace scoping, session invalidation, API/error contracts, frontend transitions, and verification trace links). Keep these types free of implementation-stack names.
+3. **Implement a deterministic projector** from the validated ledger into those typed structures. It must reject unknown keys, unsupported values, invalid references, and contradictory decisions. It must not infer unspecified relationship cardinalities, field schemas, or permission rules.
+4. **Add downstream consumption contracts** so derivation/backend planning can state which typed semantics each artifact family and backend is required to implement. A backend that cannot demonstrate coverage must be ineligible, not silently selected.
+5. **Add mutation/negative tests** proving that changing each reviewed semantic changes the corresponding typed model or blocks compilation, and that omitted or unsupported semantics stop before backend discovery. Then run focused CI.
+6. Only after the above gates pass and a trusted reviewer envelope is available should the bounded TaskFlow generation trial run. Independently inspect generated source and execute API, frontend, authorization/tenancy, persistence, session-revocation, idempotency, and runtime checks. Keep all unexecuted claims `UNKNOWN`.
+
+This audit is a design/implementation boundary finding, not a claim that the projector or application has been implemented. The correct current status remains **generation blocked; certification UNKNOWN**.

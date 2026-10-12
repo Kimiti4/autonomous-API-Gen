@@ -1,0 +1,57 @@
+{
+  "schema_version": "tiannara.taskflow.reviewer-decision.chat-record.v1",
+  "record_type": "requirements_reviewer_decision",
+  "decision_group": "registration_and_authentication",
+  "reviewer_id": "Kimityr",
+  "approval_status": "CHAT_APPROVED_PENDING_TRUSTED_ATTESTATION",
+  "approval_method": "explicit_user_confirmation_in_chat",
+  "approved_on": "2026-10-12",
+  "approved_decisions": {
+    "registration_and_login": {
+      "identifier_options": ["email", "username"],
+      "credential": "password",
+      "identifier_normalization": "consistent_normalization_required",
+      "identifier_uniqueness": "enforced",
+      "authentication_response_account_enumeration": "avoid_unnecessary_disclosure"
+    },
+    "email_verification": {
+      "required": true,
+      "unverified_access": ["verification_flow", "account_recovery_flow"],
+      "workspace_data_access_before_verification": "denied",
+      "workspace_operations_before_verification": "denied"
+    },
+    "password_recovery": {
+      "mechanism": "reset_link",
+      "token_requirements": ["secure_generation", "safe_storage", "single_use", "time_limited", "invalidate_after_use", "invalidate_after_expiry", "avoid_account_enumeration"]
+    },
+    "session_mechanism": {
+      "allowed_implementation_choices": ["server_managed_opaque_sessions", "signed_access_tokens"],
+      "required_properties": ["expiry_enforced", "effective_revocation", "security_sensitive_account_changes_invalidate_sessions", "selected_mechanism_documented_and_tested"]
+    },
+    "multi_factor_authentication": {
+      "required_for_all_users": true,
+      "allowed_methods": ["totp_authenticator_app", "passkey"],
+      "factor_policy": "either_method_satisfies_mfa; both_not_required_on_every_login",
+      "enrollment_replacement_and_recovery": "protected_against_account_takeover",
+      "password_reset_alone_satisfies_mfa": false
+    },
+    "password_reset_session_policy": {
+      "revoke_all_existing_sessions": true,
+      "fresh_authentication_required": true,
+      "mfa_required_on_reauthentication": true
+    },
+    "verification_obligations": ["identifier_uniqueness", "invalid_credentials", "unverified_account_access_denial", "reset_token_expiry_and_replay", "mfa_enforcement_and_recovery", "session_expiry_and_revocation", "cross_workspace_authorization"]
+  },
+  "reviewer_confirmation": {
+    "explicit_confirmation_received": true,
+    "confirmation_scope": "complete_group_1_decision_record_presented_in_chat",
+    "cryptographic_signature_present": false,
+    "trusted_hmac_envelope_present": false
+  },
+  "generation_authorized": false,
+  "limitations": [
+    "This file records the reviewer's explicit chat approval; it is not a cryptographic signature.",
+    "Repository trusted-evidence verification remains a separate requirement.",
+    "This record does not itself authorize generation or satisfy the trusted resolution envelope gate."
+  ]
+}

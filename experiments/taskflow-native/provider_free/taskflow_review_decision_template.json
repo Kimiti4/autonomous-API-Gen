@@ -1,0 +1,197 @@
+{
+  "schema_version": "tiannara.taskflow.review-decisions.v1",
+  "purpose": "Reviewer input template only. Empty/null entries are unresolved and MUST block generation. This file is not a trusted evidence envelope and cannot authorize compilation.",
+  "snapshot": {
+    "problem_spec_path": "experiments/taskflow-native/PROBLEM.md",
+    "acceptance_path": "golden-projects/taskflow/ACCEPTANCE.json",
+    "problem_sha256": null,
+    "acceptance_sha256": null
+  },
+  "decisions": {
+    "identity.registration_and_authentication": {
+      "status": "UNRESOLVED",
+      "snapshot_evidence": [
+        "Users must be able to register and authenticate.",
+        "Invalid authentication is an acceptance negative case."
+      ],
+      "reviewer_value": null,
+      "open_questions": [
+        "Which registration fields and validation constraints are required?",
+        "Which authentication and credential lifecycle behavior is required?"
+      ]
+    },
+    "authorization.workspace_membership_scope": {
+      "status": "UNRESOLVED",
+      "snapshot_evidence": [
+        "A user can access only workspaces to which they belong.",
+        "Cross-workspace reads and writes fail closed."
+      ],
+      "reviewer_value": null,
+      "open_questions": [
+        "Which resources and operations must be workspace-scoped?",
+        "What exact deny behavior and error contract applies to cross-workspace access?"
+      ]
+    },
+    "authorization.owner_manager_member_permissions": {
+      "status": "UNRESOLVED",
+      "snapshot_evidence": [
+        "Workspaces have owner, manager, and member roles.",
+        "Owner-only operations cannot be performed by ordinary members."
+      ],
+      "reviewer_value": null,
+      "open_questions": [
+        "What is the complete action-by-role permission matrix?",
+        "Which operations are owner-only, manager-allowed, or member-allowed?"
+      ]
+    },
+    "data.workspace_project_task_relationships": {
+      "status": "UNRESOLVED",
+      "snapshot_evidence": [
+        "Users create workspaces, projects, and tasks.",
+        "Task/project/workspace relationships remain consistent.",
+        "Foreign project/task and foreign workspace assignee are negative cases."
+      ],
+      "reviewer_value": null,
+      "open_questions": [
+        "What are the exact ownership and foreign-key invariants?",
+        "Can a project or task be moved between workspaces, and under what conditions?"
+      ]
+    },
+    "data.comments_and_activity_history": {
+      "status": "UNRESOLVED",
+      "snapshot_evidence": [
+        "Users can comment on tasks and inspect activity history."
+      ],
+      "reviewer_value": null,
+      "open_questions": [
+        "Which comment operations and edit/delete rules are allowed?",
+        "Which events must be recorded, and what actor, timestamp, and before/after data are required?"
+      ]
+    },
+    "tasks.assignment_status_priority_and_due_dates": {
+      "status": "UNRESOLVED",
+      "snapshot_evidence": [
+        "Users can create and assign tasks, change task status and priority, and set due dates.",
+        "An assignee must belong to the task's workspace."
+      ],
+      "reviewer_value": null,
+      "open_questions": [
+        "What are the allowed status and priority values and transitions?",
+        "What are the due-date timezone and validation rules?"
+      ]
+    },
+    "tasks.archive_visibility": {
+      "status": "UNRESOLVED",
+      "snapshot_evidence": [
+        "Archived records do not reappear in normal active queries."
+      ],
+      "reviewer_value": null,
+      "open_questions": [
+        "Which record types can be archived, restored, or permanently deleted?",
+        "Which views and filters include archived records?"
+      ]
+    },
+    "sessions.revocation_and_expiry": {
+      "status": "UNRESOLVED",
+      "snapshot_evidence": [
+        "Sessions can be invalidated and invalidated sessions cannot continue to authorize requests.",
+        "Expired or revoked session is a negative case."
+      ],
+      "reviewer_value": null,
+      "open_questions": [
+        "What session expiry, refresh, logout, and revocation semantics are required?",
+        "What is the expected behavior for concurrent requests after revocation?"
+      ]
+    },
+    "api.request_response_and_error_contracts": {
+      "status": "UNRESOLVED",
+      "snapshot_evidence": [
+        "Repeatable automated verification and traceability are required."
+      ],
+      "reviewer_value": null,
+      "open_questions": [
+        "Which operations/endpoints and request/response schemas are required?",
+        "What status/error envelope and validation behavior must each operation expose?"
+      ]
+    },
+    "frontend.required_interactions_and_state_transitions": {
+      "status": "UNRESOLVED",
+      "snapshot_evidence": [
+        "Users can manage workspaces, projects, tasks, comments, search/filter tasks, and view a workspace dashboard."
+      ],
+      "reviewer_value": null,
+      "open_questions": [
+        "Which screens, controls, loading/empty/error states, and navigation flows are required?",
+        "Which interaction states and transition constraints must be tested?"
+      ]
+    },
+    "persistence.consistency_and_atomic_mutations": {
+      "status": "UNRESOLVED",
+      "snapshot_evidence": [
+        "Task/project/workspace relationships remain consistent.",
+        "Security-sensitive mutations have a unique auditable effect identity."
+      ],
+      "reviewer_value": null,
+      "open_questions": [
+        "Which multi-record operations must be atomic?",
+        "What consistency and rollback guarantees are required for each mutation?"
+      ]
+    },
+    "operations.idempotency_and_unique_effect_identity": {
+      "status": "UNRESOLVED",
+      "snapshot_evidence": [
+        "Requests explicitly declared idempotent do not create duplicate effects.",
+        "Security-sensitive mutations have a unique auditable effect identity.",
+        "Duplicate idempotent effect is a negative case."
+      ],
+      "reviewer_value": null,
+      "open_questions": [
+        "Which operations are idempotent and what defines their idempotency key scope?",
+        "What uniqueness and retention rules apply to effect identities?"
+      ]
+    },
+    "operations.health_readiness_and_audit_evidence": {
+      "status": "UNRESOLVED",
+      "snapshot_evidence": [
+        "Expose health/readiness information.",
+        "Produce structured operational/audit evidence."
+      ],
+      "reviewer_value": null,
+      "open_questions": [
+        "Which health/readiness conditions are checked and what is safe to disclose?",
+        "Which audit events and evidence fields are mandatory?"
+      ]
+    },
+    "deployment.reproducible_execution_environment": {
+      "status": "UNRESOLVED",
+      "snapshot_evidence": [
+        "The application must be deployable in a reproducible environment.",
+        "Implementation technology is intentionally unspecified."
+      ],
+      "reviewer_value": null,
+      "open_questions": [
+        "What reproducibility and deployment acceptance checks are required?",
+        "Which runtime/configuration inputs must be pinned or declared?"
+      ]
+    },
+    "verification.required_capability_and_negative_case_mapping": {
+      "status": "UNRESOLVED",
+      "snapshot_evidence": [
+        "Acceptance JSON lists required capabilities, quality gates, and negative cases.",
+        "No certification when a required capability is theatrical, unverified, or supported only by simulated evidence."
+      ],
+      "reviewer_value": null,
+      "open_questions": [
+        "How must every capability and negative case map to executable tests and evidence artifacts?",
+        "What independent runtime evidence is sufficient for each quality gate?"
+      ]
+    }
+  },
+  "authorization": {
+    "reviewer_id": null,
+    "review_reference": null,
+    "reviewed_at": null,
+    "signature_envelope_path": null
+  },
+  "generation_authorized": false
+}

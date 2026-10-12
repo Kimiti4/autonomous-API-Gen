@@ -1,0 +1,83 @@
+{
+  "schema_version": "tiannara.taskflow.reviewer-decision.chat-record.v1",
+  "decision_group": "data.comments_and_activity_history",
+  "reviewer_id": "Kimityr",
+  "approval_status": "APPROVED_IN_CHAT",
+  "approval_source": "Explicit reviewer confirmation in ChatGPT conversation",
+  "cryptographic_signature_present": false,
+  "trusted_hmac_envelope_present": false,
+  "generation_authorized": false,
+  "decisions": {
+    "comment_scope": {
+      "ownership": "Each comment belongs to exactly one valid task; workspace scope is derived from task and parent project",
+      "access": "Backend authorization required for the relevant workspace and resource",
+      "cross_workspace_or_invalid_reference": "Reject without disclosing foreign resource details"
+    },
+    "editing": {
+      "author_may_edit_own_comment": true,
+      "owner_manager_may_moderate_within_own_workspace": true,
+      "moderation_subject_to_role_authorization": true,
+      "edits_require_unique_activity_event": true,
+      "comment_cannot_be_reassigned_across_tasks_or_workspaces": true
+    },
+    "deletion": {
+      "policy": "Permanent deletion by author or authorized workspace administrator within applicable permissions",
+      "separate_durable_audit_event_required": true,
+      "audit_event_must_not_retain_deleted_comment_text": true,
+      "deletion_and_required_audit_event_must_be_consistent": true,
+      "unauthorized_deletion_must_not_modify_comment": true
+    },
+    "activity_event_coverage": [
+      "workspace creation and settings changes",
+      "membership invitations, additions, removals, role changes, and ownership changes",
+      "project and task creation, updates, and relationship changes",
+      "task assignment and reassignment, status, priority, and due-date changes",
+      "archive and restore operations",
+      "comment creation, editing, and deletion",
+      "applicable security-sensitive mutations, authentication-related events, and session invalidation"
+    ],
+    "event_integrity": {
+      "minimum_fields": [
+        "unique_event_identity",
+        "event_type",
+        "actor_or_explicit_system_actor",
+        "timestamp",
+        "workspace_and_resource_references"
+      ],
+      "safe_before_after_values_for_meaningful_updates": true,
+      "exclude_credentials_tokens_secrets_and_sensitive_authentication_material": true,
+      "ordinary_mutation_paths_must_not_rewrite_or_erase_history": true,
+      "required_audit_evidence_must_be_attributable_to_documented_mutation": true
+    },
+    "visibility": {
+      "policy": "Resource-authorized workspace members; narrower access for privileged administrative/security events where required",
+      "backend_enforcement_required": true,
+      "frontend_filtering_is_not_authorization": true,
+      "cross_workspace_history_reads": "FAIL_CLOSED"
+    },
+    "retention": {
+      "policy": "Append-only activity history retained for workspace lifetime",
+      "deleted_comment_text_need_not_be_retained_to_preserve_deletion_event": true,
+      "workspace_deletion": "Separate explicit authorized policy, subject to applicable audit and legal retention obligations"
+    },
+    "verification_obligations": [
+      "authorized comment creation, editing, and deletion",
+      "unauthorized comment operations are rejected",
+      "owners and managers cannot moderate comments outside their workspace",
+      "cross-workspace references and reads are rejected without information leakage",
+      "comment deletion creates a unique durable audit event without deleted text",
+      "events contain required identity, actor, timestamp, type, and resource references",
+      "safe before/after values are captured where applicable and secrets excluded",
+      "history access follows resource authorization after membership or role changes",
+      "ordinary application operations do not silently lose, duplicate under the same unique identity, or rewrite required history",
+      "failed mutations do not leave partial business changes or misleading success events",
+      "event coverage is traceable to TaskFlow acceptance criteria and negative tests"
+    ]
+  },
+  "limitations": [
+    "This record documents chat approval only.",
+    "It is not a cryptographic attestation or trusted evidence envelope.",
+    "It does not authorize generation.",
+    "Implementation and runtime verification remain unestablished by this decision."
+  ]
+}

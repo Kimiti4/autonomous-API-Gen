@@ -98,10 +98,10 @@
       "status": "NOT_QUALIFIED"
     },
     "blockers": [
-      "The two pipelines consume different ISR/input representations.",
-      "A deterministic adapter from the same frozen TaskFlow specification and trusted semantic decisions is not yet proven.",
-      "Semantic parity across all mandatory fields and negative cases is not yet demonstrated.",
-      "Independent live invocation and artifact/runtime evidence are not yet recorded."
+      "Trusted semantic review and a graph/snapshot-bound evidence envelope are not yet established.",
+      "The 15-field TaskFlow semantic carrier audit identifies partial or missing native carriers, including session lifecycle and frontend interaction/state transitions.",
+      "Deterministic adapters into both compiler input representations and semantic parity are not implemented or proven.",
+      "Actual downstream consumer coverage, independent live invocation, and artifact/runtime acceptance evidence are not recorded."
     ],
     "distinction": {
       "end_to_end_compiler_comparison": "Compare materially different full compilation pipelines.",
@@ -110,9 +110,16 @@
     "input_parity_preflight": {
       "implementation": "experiments/compiler-benchmarks/taskflow_input_parity.py",
       "tests": "experiments/compiler-benchmarks/tests/test_taskflow_input_parity.py",
-      "status": "IMPLEMENTED_AWAITING_CI_FOR_LATEST_REVISION",
+      "status": "CI_PASSED_ON_2f35c3d49b8dbdf0ade4cd69476cbe594901f45d",
       "purpose": "Fail-closed check of declared canonical input hashes, all 15 mandatory field states, semantic-value digest parity, distinct compiler implementation identifiers, and declared downstream consumer bindings.",
-      "limitation": "A passing declaration check is not proof of trusted resolution or actual downstream consumption; the checker never qualifies the compiler pair or authorizes generation."
+      "limitation": "A passing declaration check is not proof of trusted resolution or actual downstream consumption; the checker never qualifies the compiler pair or authorizes generation.",
+      "validation_hardening": {
+        "implementation": "constitutional_architecture/compiler/passes/validation_pass.py",
+        "tests": "tests/test_constitutional_compiler_validation_pass.py",
+        "status": "FAIL_CLOSED_CHANGE_CI_PASSED",
+        "evidence_run": "https://github.com/Kimiti4/autonomous-API-Gen/actions/runs/38248010656",
+        "limitation": "This closes the validator-exception success path only; it does not prove complete TaskFlow semantics or runtime correctness."
+      }
     }
   }
 }

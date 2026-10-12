@@ -7,6 +7,7 @@ qualify a compiler pair. Independent evidence is required for those steps.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -35,8 +36,8 @@ def evaluate_input_parity(manifest: dict[str, Any]) -> dict[str, Any]:
         blockers.append("source_hashes must be an object")
     for key in REQUIRED_TOP_LEVEL_HASHES:
         value = sources.get(key)
-        if not isinstance(value, str) or not value.strip():
-            blockers.append(f"missing canonical input hash: {key}")
+        if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
+            blockers.append(f"missing or invalid SHA-256 canonical input hash: {key}")
 
     compilers = manifest.get("compilers")
     if not isinstance(compilers, list) or len(compilers) != 2:

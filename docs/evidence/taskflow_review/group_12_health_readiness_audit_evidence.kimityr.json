@@ -1,0 +1,69 @@
+{
+  "schema_version": "tiannara.taskflow.reviewer-decision.chat-record.v1",
+  "record_type": "requirements_reviewer_decision",
+  "decision_group": "operations.health_readiness_and_audit_evidence",
+  "reviewer_id": "Kimityr",
+  "approval_status": "APPROVED_IN_CHAT",
+  "approval_method": "explicit_user_confirmation_in_chat",
+  "approved_on": "2026-10-12",
+  "decisions": {
+    "health_and_readiness_semantics": [
+      "Provide distinct, documented health and readiness checks.",
+      "Health indicates whether the process and essential internal mechanisms function sufficiently to remain alive.",
+      "Readiness indicates whether the instance can safely accept the relevant workload, including required persistence or other mandatory dependencies.",
+      "A running process or successful health response does not prove required TaskFlow features work.",
+      "Dependency failures must be reported accurately; unavailable dependencies must not be represented as healthy."
+    ],
+    "safe_operational_endpoints": [
+      "Health and readiness responses use documented status codes and response schemas.",
+      "Responses expose only the minimum information needed by operators and deployment infrastructure.",
+      "Do not disclose credentials, tokens, secrets, personal data, internal configuration, or foreign-workspace information.",
+      "Detailed diagnostics remain available only through appropriately protected operational channels.",
+      "Health checks must not mutate business state or create misleading audit events."
+    ],
+    "structured_audit_and_operational_evidence": [
+      "Security-sensitive mutations produce attributable, structured audit evidence under Group 4.",
+      "Operational logs use consistent, documented fields, including timestamps, severity, event category, and safe correlation identifiers where applicable.",
+      "Audit-event identities remain unique and distinct from request IDs and idempotency keys.",
+      "Record relevant failures, authorization denials, recovery actions, and service interruptions without logging credentials, tokens, or sensitive payloads.",
+      "Preserve the distinction between an attempted operation, an accepted request, a committed mutation, and an independently verified effect."
+    ],
+    "observability_and_failure_handling": [
+      "Capture enough operational information to diagnose failures, latency, dependency outages, and interrupted operations.",
+      "Monitoring failures must not silently disable authorization, audit integrity, or other required security controls.",
+      "If mandatory audit evidence cannot be durably recorded, follow a documented fail-closed or durable-recovery policy appropriate to the operation.",
+      "Recovery and restart behavior must preserve integrity of committed mutations and required evidence.",
+      "Observability mechanisms must not become a route for unauthorized access or mutation."
+    ],
+    "evidence_provenance_and_traceability": [
+      "Every claimed certified capability links to its requirement, implementation artifact, verification result, and relevant runtime evidence.",
+      "Record evidence identity, artifact or test references, timestamps, and integrity digests where appropriate.",
+      "Distinguish observed runtime results from static analysis, unit tests, simulations, declarations, and unexecuted checks.",
+      "Preserve failures and unknown results rather than silently converting them to passes.",
+      "Evidence manifests must not claim a capability is certified solely because an endpoint exists, a process starts, or a test fixture succeeds."
+    ],
+    "verification_obligations": [
+      "Test health and readiness when required dependencies are healthy, degraded, and unavailable.",
+      "Verify health responses do not disclose secrets or sensitive implementation details.",
+      "Verify required audit events for successful, failed, and interrupted mutations.",
+      "Test audit durability, unique event identity, correlation, and recovery behavior.",
+      "Confirm logging or monitoring failures do not silently bypass security requirements.",
+      "Verify evidence manifests distinguish PASS, FAIL, UNKNOWN, BLOCKED, and NOT_RUN accurately.",
+      "Trace each result to canonical acceptance criteria and preserve independently reviewable evidence."
+    ]
+  },
+  "reviewer_confirmation": {
+    "explicit_confirmation_received": true,
+    "confirmation_scope": "complete Group 12 decision record presented in chat",
+    "cryptographic_signature_present": false,
+    "trusted_hmac_envelope_present": false
+  },
+  "generation_authorized": false,
+  "implementation_or_runtime_verified": false,
+  "limitations": [
+    "This record documents explicit chat approval of requirements intent only.",
+    "It is not a cryptographic signature or trusted evidence envelope.",
+    "It does not authorize generation or satisfy the trusted resolution envelope gate.",
+    "Health/readiness, audit durability, observability, evidence provenance, typed architectural projection, compiler integration, and runtime behavior remain unverified."
+  ]
+}

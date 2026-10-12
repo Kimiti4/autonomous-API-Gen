@@ -1,0 +1,81 @@
+{
+  "schema_version": "tiannara.taskflow.reviewer-decision.chat-record.v1",
+  "record_type": "requirements_reviewer_decision",
+  "decision_group": "sessions.revocation_and_expiry",
+  "reviewer_id": "Kimityr",
+  "approval_status": "APPROVED_IN_CHAT",
+  "approval_method": "explicit_user_confirmation_in_chat",
+  "approved_on": "2026-10-12",
+  "decisions": {
+    "session_mechanism": {
+      "permitted_options": ["server_managed_opaque_sessions", "signed_access_tokens"],
+      "requirements": ["document_validation_expiry_revocation_renewal_and_deployment_behavior", "effective_revocation_required"]
+    },
+    "expiry": {
+      "policy": ["absolute_maximum_lifetime", "idle_timeout"],
+      "durations": "must_be_explicit_configurable_within_approved_bounds_documented_and_tested_before_deployment; no numeric durations are approved by this record",
+      "idle_reset": "only qualifying authenticated activity resets the idle timer",
+      "non_qualifying_activity": ["passive_page_loads", "background_polling", "failed_requests"],
+      "expired_session": "cannot_perform_protected_operations"
+    },
+    "revocation": {
+      "effect": "immediate_for_protected_server_operations_after_revocation_is_committed",
+      "signed_tokens": "must_not_remain_usable_based_only_on_valid_signature_and_unexpired_token",
+      "coverage": "all_applicable_authentication_paths_and_server_instances",
+      "token_expiry_alone": "insufficient_for_effective_revocation"
+    },
+    "security_sensitive_changes": {
+      "revoke_all_active_sessions_after": [
+        "password_reset",
+        "MFA_replacement_or_removal",
+        "suspected_account_compromise",
+        "other_documented_security_sensitive_account_changes"
+      ],
+      "reauthentication": "must_satisfy_approved_MFA_policy",
+      "password_reset_alone_satisfies_MFA": false
+    },
+    "workspace_membership_and_roles": {
+      "membership_removal": "immediately_denies_further_workspace_access",
+      "role_changes": "apply_to_next_protected_operation",
+      "authorization": "use_current_membership_and_effective_permissions",
+      "stale_claims_or_cached_permissions": "must_not_preserve_revoked_access",
+      "session_revocation": "may_supplement_but_must_not_replace_current_authorization_checks"
+    },
+    "renewal": {
+      "if_refresh_tokens_used": [
+        "rotate_on_successful_renewal",
+        "reject_replay",
+        "revoke_associated_token_family_on_detected_reuse"
+      ],
+      "if_refresh_tokens_not_used": "require_fresh_authentication_after_expiry",
+      "must_not_bypass": ["MFA", "absolute_expiry", "idle_expiry", "revocation"]
+    },
+    "verification_obligations": [
+      "absolute_and_idle_expiry_independently_deny_protected_operations",
+      "only_qualifying_activity_resets_idle_timeout",
+      "password_reset_MFA_changes_and_documented_security_events_revoke_required_sessions",
+      "revoked_opaque_sessions_and_signed_token_sessions_fail_on_subsequent_protected_operations",
+      "revocation_works_across_server_instances_and_does_not_depend_on_token_expiry_alone",
+      "membership_removal_and_role_reduction_immediately_affect_workspace_authorization",
+      "refresh_token_rotation_replay_detection_and_token_family_revocation_work_if_implemented",
+      "renewal_cannot_bypass_MFA_or_expiry",
+      "test_concurrent_requests_failure_handling_and_revocation_races",
+      "map_each_result_to_canonical_acceptance_criteria_with_reproducible_evidence"
+    ]
+  },
+  "reviewer_confirmation": {
+    "explicit_confirmation_received": true,
+    "confirmation_scope": "complete_group_7_decision_record_including_clarifications",
+    "cryptographic_signature_present": false,
+    "trusted_hmac_envelope_present": false
+  },
+  "generation_authorized": false,
+  "implementation_or_runtime_verified": false,
+  "limitations": [
+    "Explicit reviewer chat approval only; this is not a cryptographic signature.",
+    "No trusted evidence envelope is present or implied.",
+    "Numeric expiry durations remain unspecified and must be defined and tested before deployment.",
+    "This record does not authorize generation or satisfy the trusted resolution envelope gate.",
+    "Implementation and runtime behavior remain unverified."
+  ]
+}

@@ -11,7 +11,7 @@ from tiannara.domain.models.semantic_resolution import (
     require_taskflow_semantics,
 )
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 TRIAL = ROOT / "experiments" / "taskflow-native"
 
 

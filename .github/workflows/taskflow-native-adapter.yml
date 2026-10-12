@@ -15,7 +15,6 @@ on:
       - "tests/test_semantic_resolution_gate.py"
       - "experiments/taskflow-native/provider_free/native_adapter.py"
       - "experiments/taskflow-native/provider_free/run_trial.py"
-      - "experiments/taskflow-native/provider_free/taskflow_semantic_contract.py"
       - "tests/test_taskflow_native_trial_runner.py"
       - "tiannara/domain/models/requirement_graph.py"
       - "tiannara/domain/models/system_model.py"

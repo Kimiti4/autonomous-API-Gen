@@ -1,0 +1,75 @@
+{
+  "schema_version": "tiannara.taskflow.reviewer-decision.chat-record.v1",
+  "decision_group": "data.workspace_project_task_relationships",
+  "reviewer_id": "Kimityr",
+  "approval_status": "APPROVED_IN_CHAT",
+  "approval_source": "Explicit reviewer confirmation in ChatGPT conversation",
+  "cryptographic_signature_present": false,
+  "trusted_hmac_envelope_present": false,
+  "generation_authorized": false,
+  "decisions": {
+    "workspace_ownership": {
+      "initial_owner": "Authenticated user who creates the workspace",
+      "creation_must_establish_owner_and_initial_membership_consistently": true,
+      "workspace_must_have_valid_owner": true,
+      "ownership_changes": "Explicit, authorized, and auditable under applicable authorization policy"
+    },
+    "projects": {
+      "workspace_relationship": "Each project belongs to exactly one existing workspace",
+      "cross_workspace_movement": "NEVER",
+      "workspace_identity_mutable_by_ordinary_update": false,
+      "destination_workspace_needs_separate_project": true
+    },
+    "tasks": {
+      "project_relationship": "Each task belongs to exactly one project",
+      "workspace_scope": "Must agree with the parent project's workspace",
+      "movement": "Allowed only between projects in the same workspace, through an explicitly authorized operation",
+      "cross_workspace_movement": "REJECT",
+      "move_atomicity": "All required changes succeed together or none do",
+      "move_validation": [
+        "destination project exists",
+        "workspace identity matches",
+        "actor is authorized",
+        "relationships remain valid",
+        "assignment remains valid"
+      ]
+    },
+    "assignment_integrity": {
+      "assignee_must_be_valid_member_of_task_workspace": true,
+      "backend_validation_required": true,
+      "foreign_workspace_or_invalid_membership_assignment": "REJECT",
+      "invalid_assignment_must_not_survive_successful_task_move": true
+    },
+    "membership_removal": {
+      "decision": "block_or_reassign",
+      "block_until_ownership_and_assignment_dependencies_are_safely_resolved": true,
+      "related_reassignment_atomic_when_required": true,
+      "audit_required": true,
+      "prevent_orphaned_resources_invalid_assignees_and_stale_membership_authorization": true
+    },
+    "referential_integrity_and_isolation": {
+      "all_workspace_project_task_membership_references_must_be_valid_and_consistent": true,
+      "backend_authorization_and_scope_required_for_protected_reads_and_writes": true,
+      "client_supplied_ids_not_trusted_as_authorization": true,
+      "frontend_filtering_not_an_authorization_control": true,
+      "cross_workspace_reads_and_writes": "FAIL_CLOSED",
+      "foreign_resource_details_must_not_be_disclosed": true
+    },
+    "verification_obligations": [
+      "workspace creation assigns owner to authenticated creator",
+      "projects cannot change workspace through updates or transfer operations",
+      "same-workspace task moves succeed only when authorized and valid",
+      "cross-workspace task moves fail",
+      "invalid projects, workspaces, memberships, and assignees are rejected",
+      "failed moves and removals leave no partial mutations",
+      "member removal cannot leave unresolved ownership or assignment dependencies",
+      "applicable security-sensitive mutations produce unique audit identities"
+    ]
+  },
+  "limitations": [
+    "This record documents chat approval only.",
+    "It is not a cryptographic attestation or trusted evidence envelope.",
+    "It does not authorize generation.",
+    "Project/task deletion rules and detailed role-specific editable fields remain unresolved in their respective decision groups."
+  ]
+}

@@ -68,4 +68,6 @@ def test_trial_runner_does_not_treat_a_structurally_complete_ledger_as_trusted_e
     assert report["certified"] is False
     assert report["unresolved_mandatory_semantics"] == []
     assert report["semantic_source_audit"]["summary"]["resolved_fields"] == 0
-    assert any("trusted evidence verification" in item for item in report["blockers"])
+    assert any("No trusted resolution envelope" in item for item in report["blockers"])
+    assert any("No out-of-repository trusted evidence key" in item for item in report["blockers"])
+    assert report["trusted_evidence_verified"] is False

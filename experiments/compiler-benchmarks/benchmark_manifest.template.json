@@ -1,0 +1,87 @@
+{
+  "schema_version": "tiannara.comparative-compiler-benchmark.v1",
+  "status": "PROPOSED_NOT_EXECUTED",
+  "policy": {
+    "iterations_per_application": 2,
+    "requires_distinct_compiler_implementations": true,
+    "requires_identical_canonical_input_hashes": true,
+    "requires_isolated_workspaces": true,
+    "independent_acceptance_evaluator": true,
+    "unrun_checks_are": "UNKNOWN",
+    "simulated_evidence_can_certify": false
+  },
+  "applications": [
+    {
+      "application_id": "taskflow",
+      "canonical_problem": "experiments/taskflow-native/PROBLEM.md",
+      "acceptance_criteria": "golden-projects/taskflow/ACCEPTANCE.json",
+      "status": "BLOCKED",
+      "blockers": [
+        "Trusted semantic review and envelope are not yet established.",
+        "Typed semantic projection and downstream backend consumption are not yet proven end to end.",
+        "Two distinct compiler implementations must be qualified before the comparative trial."
+      ],
+      "iterations": [
+        {
+          "iteration_id": "A",
+          "compiler_id": null,
+          "compiler_version": null,
+          "source_revision": null,
+          "input_manifest_sha256": null,
+          "workspace_id": null,
+          "status": "NOT_RUN",
+          "evidence_manifest": null
+        },
+        {
+          "iteration_id": "B",
+          "compiler_id": null,
+          "compiler_version": null,
+          "source_revision": null,
+          "input_manifest_sha256": null,
+          "workspace_id": null,
+          "status": "NOT_RUN",
+          "evidence_manifest": null
+        }
+      ],
+      "comparison_report": null
+    },
+    {
+      "application_id": "readingshelf",
+      "canonical_problem": null,
+      "acceptance_criteria": null,
+      "status": "DEFERRED",
+      "blockers": [
+        "Do not begin until TaskFlow execution and evidence boundaries are sound.",
+        "Locate and freeze the canonical ReadingShelf specification and acceptance criteria before trial setup.",
+        "Qualify two distinct compiler implementations before either iteration."
+      ],
+      "iterations": [
+        {
+          "iteration_id": "A",
+          "compiler_id": null,
+          "compiler_version": null,
+          "source_revision": null,
+          "input_manifest_sha256": null,
+          "workspace_id": null,
+          "status": "NOT_RUN",
+          "evidence_manifest": null
+        },
+        {
+          "iteration_id": "B",
+          "compiler_id": null,
+          "compiler_version": null,
+          "source_revision": null,
+          "input_manifest_sha256": null,
+          "workspace_id": null,
+          "status": "NOT_RUN",
+          "evidence_manifest": null
+        }
+      ],
+      "comparison_report": null
+    }
+  ],
+  "remaining_applications": {
+    "discovery_status": "NOT_ENUMERATED",
+    "rule": "Add each remaining application only after locating its canonical specification and acceptance criteria; each receives exactly two primary iterations using distinct compiler implementations."
+  }
+}

@@ -127,8 +127,8 @@ Group 1 adds mandatory MFA and email verification before workspace access beyond
 
 ## Required next implementation sequence
 
-1. **Normalize the 14 decision records** into a versioned, deterministic ledger while preserving each original chat record and clearly labeling the trust level as chat-only.
-2. **Validate coverage and conflicts mechanically:** assert all 15 semantic IDs, all 11 required capabilities, all 12 quality gates, and all 8 negative cases are represented; fail closed on missing/duplicate/unknown mappings.
+1. **Completed on the review branch:** normalize the 14 decision records into `docs/evidence/taskflow_review/decision_ledger.v1.json`, preserving originals and explicitly retaining chat-only trust status.
+2. **Validator added; execution awaits CI confirmation:** `experiments/taskflow-native/validate_decision_ledger.py` checks canonical Git blob hashes, original-record blob hashes, all 15 unique semantic IDs, 14 unique groups, all 11 capabilities, 12 quality gates, 8 negative cases, and fail-closed authorization/certification flags. `tests/test_taskflow_decision_ledger_validation.py` adds standard-suite tests including a deliberate duplicate-mapping failure. This validates consistency/coverage only, not semantic compiler consumption or application behavior.
 3. **Resolve implementation blockers without guessing:** specifically session expiry bounds, remaining deletion/membership dependency policies, and any per-operation idempotency/pagination/API details that require implementation-level choices or explicit reviewer resolution.
 4. **Upgrade the shape gate to strict domain-specific models** and field-level traceability. Unsupported values and missing fields must block construction.
 5. **Create deterministic adapters for both compiler candidates** from the same frozen spec, acceptance suite, and trusted ledger; publish exact field-to-native-carrier and consumer bindings.
@@ -147,3 +147,10 @@ Group 1 adds mandatory MFA and email verification before workspace access beyond
 **Certification:** NOT CERTIFIED.
 
 The approval records define requirements; they do not prove implementation or runtime behavior.
+
+
+## Mechanical validation follow-up (2026-10-12)
+
+The review branch now includes a fail-closed validator at `experiments/taskflow-native/validate_decision_ledger.py` and standard-suite tests at `tests/test_taskflow_decision_ledger_validation.py`. The validator recomputes Git blob object IDs for the canonical problem, acceptance suite, and all 14 original reviewer records; checks that ledger and matrix coverage are complete and duplicate-free; compares capabilities, quality gates, and negative cases to the acceptance suite; and rejects any change that upgrades chat records to trusted attestations or marks generation/certification as authorized.
+
+The test and validator changes have been committed, but CI for the latest head has not yet completed. Therefore validator execution is **PENDING CI**, not PASS. Even if it passes, the result establishes record integrity and coverage only. It does not resolve the outstanding session-expiry bounds, role/action and deletion edge cases, trusted envelope, typed carrier/consumer binding, compiler-pair qualification, or runtime acceptance evidence. Generation remains **NOT AUTHORIZED / NOT RUN**.

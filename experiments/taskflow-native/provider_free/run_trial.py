@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from provider_free.native_adapter import adapt_taskflow_snapshot
+from provider_free.semantic_source_audit import build_source_audit
 from tiannara.domain.models.semantic_resolution import (
     UnresolvedSemanticsError,
     require_taskflow_semantics,
@@ -19,6 +20,7 @@ def build_report() -> dict:
     problem = (TRIAL / "PROBLEM.md").read_text(encoding="utf-8")
     acceptance_path = ROOT / "golden-projects" / "taskflow" / "ACCEPTANCE.json"
     acceptance = json.loads(acceptance_path.read_text(encoding="utf-8"))
+    source_audit = build_source_audit()
     adapted = adapt_taskflow_snapshot(
         problem,
         acceptance,
@@ -38,6 +40,8 @@ def build_report() -> dict:
             "requirement_graph_id": adapted.graph.graph_id,
             "requirement_graph_sha256": adapted.graph.content_hash(),
             "semantic_resolution_record": adapted.semantic_resolutions.model_dump(mode="json"),
+        "semantic_source_audit": source_audit,
+            "semantic_source_audit": source_audit,
             "unresolved_mandatory_semantics": list(exc.fields),
             "generation_started": False,
             "system_model_constructed": False,

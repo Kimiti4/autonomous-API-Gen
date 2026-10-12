@@ -27,7 +27,8 @@ They are the strongest materially different full-pipeline candidates identified 
 ### Qualification gates
 
 1. **Input parity:** define a deterministic adapter from the same frozen TaskFlow specification, acceptance criteria, and trusted semantic decisions into each compiler's input representation. Hash all shared source inputs.
-2. **Semantic parity:** prove that the two inputs encode the same required behaviors, security constraints, negative cases, lifecycle semantics, and persistence invariants. Any unsupported field blocks both runs rather than being silently dropped.
+2. **Parity preflight:** `experiments/compiler-benchmarks/taskflow_input_parity.py` checks a proposed declaration for canonical source hashes, all 15 mandatory field states, matching semantic-value digests, distinct compiler/implementation IDs, and declared downstream consumer bindings. A declaration-only match is explicitly not qualification; source hashes, reviewer trust, and real consumer use still require independent verification.
+3. **Semantic parity:** prove that the two inputs encode the same required behaviors, security constraints, negative cases, lifecycle semantics, and persistence invariants. Any unsupported field blocks both runs rather than being silently dropped.
 3. **No authority leakage:** neither path may read the golden reference implementation, the other compiler's output, or the other compiler's test/runtime evidence as generation input.
 4. **Independent invocation:** run each compiler separately in a clean workspace and record compiler source revision, configuration, dependency state, and invocation command.
 5. **Artifact separation:** isolate generated files, caches, databases, secrets, runtime processes, and evidence by compiler and iteration.
@@ -47,6 +48,7 @@ Both are valuable, but answer different questions and need separate reports. Do 
 
 ## Current disposition
 
+- Parity preflight: **implemented; focused CI passed for its current tested commit; declarations alone cannot qualify the pair**.
 - End-to-end compiler pair: **BLOCKED / NOT QUALIFIED**.
 - TaskFlow A/B generation: **NOT RUN**.
 - Cross-target Python/Go backend trial: existing contract found; execution and certification status must be established from its own evidence.

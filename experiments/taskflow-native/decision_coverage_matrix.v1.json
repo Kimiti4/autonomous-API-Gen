@@ -1,0 +1,474 @@
+{
+  "schema_version": "tiannara.taskflow.requirement-verification-matrix.v1",
+  "status": "DECISION_COVERAGE_ONLY_IMPLEMENTATION_EVIDENCE_PENDING",
+  "canonical_sources": {
+    "problem": {
+      "path": "experiments/taskflow-native/PROBLEM.md",
+      "git_blob_sha": "277cf74dc8dbe1c6c4dd6cc4f74999fc8159e4b0"
+    },
+    "acceptance": {
+      "path": "golden-projects/taskflow/ACCEPTANCE.json",
+      "git_blob_sha": "4ac75d2784375b6c0f6ddbbe1b90915f948529a"
+    }
+  },
+  "required_capabilities": [
+    {
+      "id": "authentication",
+      "decision_groups": [
+        1,
+        7,
+        8
+      ],
+      "implementation_status": "UNKNOWN",
+      "test_status": "NOT_RUN",
+      "evidence_status": "UNKNOWN",
+      "evidence_ref": null
+    },
+    {
+      "id": "workspace-tenancy",
+      "decision_groups": [
+        2,
+        3,
+        6,
+        7,
+        8,
+        9
+      ],
+      "implementation_status": "UNKNOWN",
+      "test_status": "NOT_RUN",
+      "evidence_status": "UNKNOWN",
+      "evidence_ref": null
+    },
+    {
+      "id": "rbac",
+      "decision_groups": [
+        2,
+        3,
+        8,
+        9
+      ],
+      "implementation_status": "UNKNOWN",
+      "test_status": "NOT_RUN",
+      "evidence_status": "UNKNOWN",
+      "evidence_ref": null
+    },
+    {
+      "id": "projects",
+      "decision_groups": [
+        3,
+        6,
+        10
+      ],
+      "implementation_status": "UNKNOWN",
+      "test_status": "NOT_RUN",
+      "evidence_status": "UNKNOWN",
+      "evidence_ref": null
+    },
+    {
+      "id": "tasks",
+      "decision_groups": [
+        3,
+        5,
+        6,
+        10,
+        11
+      ],
+      "implementation_status": "UNKNOWN",
+      "test_status": "NOT_RUN",
+      "evidence_status": "UNKNOWN",
+      "evidence_ref": null
+    },
+    {
+      "id": "comments",
+      "decision_groups": [
+        4,
+        8,
+        10,
+        11
+      ],
+      "implementation_status": "UNKNOWN",
+      "test_status": "NOT_RUN",
+      "evidence_status": "UNKNOWN",
+      "evidence_ref": null
+    },
+    {
+      "id": "activity-history",
+      "decision_groups": [
+        4,
+        10,
+        11,
+        12
+      ],
+      "implementation_status": "UNKNOWN",
+      "test_status": "NOT_RUN",
+      "evidence_status": "UNKNOWN",
+      "evidence_ref": null
+    },
+    {
+      "id": "search-filter",
+      "decision_groups": [
+        6,
+        8,
+        9
+      ],
+      "implementation_status": "UNKNOWN",
+      "test_status": "NOT_RUN",
+      "evidence_status": "UNKNOWN",
+      "evidence_ref": null
+    },
+    {
+      "id": "dashboard",
+      "decision_groups": [
+        6,
+        9,
+        12
+      ],
+      "implementation_status": "UNKNOWN",
+      "test_status": "NOT_RUN",
+      "evidence_status": "UNKNOWN",
+      "evidence_ref": null
+    },
+    {
+      "id": "audit-trail",
+      "decision_groups": [
+        4,
+        10,
+        11,
+        12,
+        14
+      ],
+      "implementation_status": "UNKNOWN",
+      "test_status": "NOT_RUN",
+      "evidence_status": "UNKNOWN",
+      "evidence_ref": null
+    },
+    {
+      "id": "operational-observability",
+      "decision_groups": [
+        12,
+        13,
+        14
+      ],
+      "implementation_status": "UNKNOWN",
+      "test_status": "NOT_RUN",
+      "evidence_status": "UNKNOWN",
+      "evidence_ref": null
+    }
+  ],
+  "quality_gates": [
+    {
+      "id": "requirements_traceability",
+      "status": "NOT_RUN",
+      "evidence_ref": null
+    },
+    {
+      "id": "api_contract",
+      "status": "NOT_RUN",
+      "evidence_ref": null
+    },
+    {
+      "id": "security",
+      "status": "NOT_RUN",
+      "evidence_ref": null
+    },
+    {
+      "id": "unit_tests",
+      "status": "NOT_RUN",
+      "evidence_ref": null
+    },
+    {
+      "id": "integration_tests",
+      "status": "NOT_RUN",
+      "evidence_ref": null
+    },
+    {
+      "id": "contract_tests",
+      "status": "NOT_RUN",
+      "evidence_ref": null
+    },
+    {
+      "id": "e2e_tests",
+      "status": "NOT_RUN",
+      "evidence_ref": null
+    },
+    {
+      "id": "regression_tests",
+      "status": "NOT_RUN",
+      "evidence_ref": null
+    },
+    {
+      "id": "build",
+      "status": "NOT_RUN",
+      "evidence_ref": null
+    },
+    {
+      "id": "deployment_smoke_test",
+      "status": "NOT_RUN",
+      "evidence_ref": null
+    },
+    {
+      "id": "runtime_observation",
+      "status": "NOT_RUN",
+      "evidence_ref": null
+    },
+    {
+      "id": "evidence_manifest",
+      "status": "NOT_RUN",
+      "evidence_ref": null
+    }
+  ],
+  "negative_cases": [
+    {
+      "id": "cross_workspace_read",
+      "groups": [
+        2,
+        3,
+        6,
+        8,
+        9
+      ],
+      "test_status": "NOT_RUN",
+      "implementation_status": "UNKNOWN",
+      "evidence_ref": null
+    },
+    {
+      "id": "cross_workspace_write",
+      "groups": [
+        2,
+        3,
+        8,
+        10
+      ],
+      "test_status": "NOT_RUN",
+      "implementation_status": "UNKNOWN",
+      "evidence_ref": null
+    },
+    {
+      "id": "unauthorized_role_mutation",
+      "groups": [
+        2,
+        8,
+        9
+      ],
+      "test_status": "NOT_RUN",
+      "implementation_status": "UNKNOWN",
+      "evidence_ref": null
+    },
+    {
+      "id": "foreign_project_task",
+      "groups": [
+        3,
+        8,
+        10
+      ],
+      "test_status": "NOT_RUN",
+      "implementation_status": "UNKNOWN",
+      "evidence_ref": null
+    },
+    {
+      "id": "foreign_workspace_assignee",
+      "groups": [
+        3,
+        5,
+        10
+      ],
+      "test_status": "NOT_RUN",
+      "implementation_status": "UNKNOWN",
+      "evidence_ref": null
+    },
+    {
+      "id": "duplicate_idempotent_effect",
+      "groups": [
+        8,
+        10,
+        11,
+        12
+      ],
+      "test_status": "NOT_RUN",
+      "implementation_status": "UNKNOWN",
+      "evidence_ref": null
+    },
+    {
+      "id": "invalid_authentication",
+      "groups": [
+        1,
+        7,
+        8
+      ],
+      "test_status": "NOT_RUN",
+      "implementation_status": "UNKNOWN",
+      "evidence_ref": null
+    },
+    {
+      "id": "expired_or_revoked_session",
+      "groups": [
+        1,
+        7,
+        8,
+        9
+      ],
+      "test_status": "NOT_RUN",
+      "implementation_status": "UNKNOWN",
+      "evidence_ref": null
+    }
+  ],
+  "semantic_groups": [
+    {
+      "id": "identity.registration_and_authentication",
+      "decision_group": 1,
+      "approval_status": "APPROVED_IN_CHAT",
+      "typed_semantic_status": "BLOCKED",
+      "consumer_binding_status": "UNKNOWN",
+      "implementation_status": "UNKNOWN",
+      "test_status": "NOT_RUN",
+      "evidence_ref": null
+    },
+    {
+      "id": "authorization.workspace_membership_scope",
+      "decision_group": 2,
+      "approval_status": "APPROVED_IN_CHAT",
+      "typed_semantic_status": "BLOCKED",
+      "consumer_binding_status": "UNKNOWN",
+      "implementation_status": "UNKNOWN",
+      "test_status": "NOT_RUN",
+      "evidence_ref": null
+    },
+    {
+      "id": "authorization.owner_manager_member_permissions",
+      "decision_group": 2,
+      "approval_status": "APPROVED_IN_CHAT",
+      "typed_semantic_status": "BLOCKED",
+      "consumer_binding_status": "UNKNOWN",
+      "implementation_status": "UNKNOWN",
+      "test_status": "NOT_RUN",
+      "evidence_ref": null
+    },
+    {
+      "id": "data.workspace_project_task_relationships",
+      "decision_group": 3,
+      "approval_status": "APPROVED_IN_CHAT",
+      "typed_semantic_status": "BLOCKED",
+      "consumer_binding_status": "UNKNOWN",
+      "implementation_status": "UNKNOWN",
+      "test_status": "NOT_RUN",
+      "evidence_ref": null
+    },
+    {
+      "id": "data.comments_and_activity_history",
+      "decision_group": 4,
+      "approval_status": "APPROVED_IN_CHAT",
+      "typed_semantic_status": "BLOCKED",
+      "consumer_binding_status": "UNKNOWN",
+      "implementation_status": "UNKNOWN",
+      "test_status": "NOT_RUN",
+      "evidence_ref": null
+    },
+    {
+      "id": "tasks.assignment_status_priority_and_due_dates",
+      "decision_group": 5,
+      "approval_status": "APPROVED_IN_CHAT",
+      "typed_semantic_status": "BLOCKED",
+      "consumer_binding_status": "UNKNOWN",
+      "implementation_status": "UNKNOWN",
+      "test_status": "NOT_RUN",
+      "evidence_ref": null
+    },
+    {
+      "id": "tasks.archive_visibility",
+      "decision_group": 6,
+      "approval_status": "APPROVED_IN_CHAT",
+      "typed_semantic_status": "BLOCKED",
+      "consumer_binding_status": "UNKNOWN",
+      "implementation_status": "UNKNOWN",
+      "test_status": "NOT_RUN",
+      "evidence_ref": null
+    },
+    {
+      "id": "sessions.revocation_and_expiry",
+      "decision_group": 7,
+      "approval_status": "APPROVED_IN_CHAT",
+      "typed_semantic_status": "BLOCKED",
+      "consumer_binding_status": "UNKNOWN",
+      "implementation_status": "UNKNOWN",
+      "test_status": "NOT_RUN",
+      "evidence_ref": null
+    },
+    {
+      "id": "api.request_response_and_error_contracts",
+      "decision_group": 8,
+      "approval_status": "APPROVED_IN_CHAT",
+      "typed_semantic_status": "BLOCKED",
+      "consumer_binding_status": "UNKNOWN",
+      "implementation_status": "UNKNOWN",
+      "test_status": "NOT_RUN",
+      "evidence_ref": null
+    },
+    {
+      "id": "frontend.required_interactions_and_state_transitions",
+      "decision_group": 9,
+      "approval_status": "APPROVED_IN_CHAT",
+      "typed_semantic_status": "BLOCKED",
+      "consumer_binding_status": "UNKNOWN",
+      "implementation_status": "UNKNOWN",
+      "test_status": "NOT_RUN",
+      "evidence_ref": null
+    },
+    {
+      "id": "persistence.consistency_and_atomic_mutations",
+      "decision_group": 10,
+      "approval_status": "APPROVED_IN_CHAT",
+      "typed_semantic_status": "BLOCKED",
+      "consumer_binding_status": "UNKNOWN",
+      "implementation_status": "UNKNOWN",
+      "test_status": "NOT_RUN",
+      "evidence_ref": null
+    },
+    {
+      "id": "operations.idempotency_and_unique_effect_identity",
+      "decision_group": 11,
+      "approval_status": "APPROVED_IN_CHAT",
+      "typed_semantic_status": "BLOCKED",
+      "consumer_binding_status": "UNKNOWN",
+      "implementation_status": "UNKNOWN",
+      "test_status": "NOT_RUN",
+      "evidence_ref": null
+    },
+    {
+      "id": "operations.health_readiness_and_audit_evidence",
+      "decision_group": 12,
+      "approval_status": "APPROVED_IN_CHAT",
+      "typed_semantic_status": "BLOCKED",
+      "consumer_binding_status": "UNKNOWN",
+      "implementation_status": "UNKNOWN",
+      "test_status": "NOT_RUN",
+      "evidence_ref": null
+    },
+    {
+      "id": "deployment.reproducible_execution_environment",
+      "decision_group": 13,
+      "approval_status": "APPROVED_IN_CHAT",
+      "typed_semantic_status": "BLOCKED",
+      "consumer_binding_status": "UNKNOWN",
+      "implementation_status": "UNKNOWN",
+      "test_status": "NOT_RUN",
+      "evidence_ref": null
+    },
+    {
+      "id": "verification.required_capability_and_negative_case_mapping",
+      "decision_group": 14,
+      "approval_status": "APPROVED_IN_CHAT",
+      "typed_semantic_status": "BLOCKED",
+      "consumer_binding_status": "UNKNOWN",
+      "implementation_status": "UNKNOWN",
+      "test_status": "NOT_RUN",
+      "evidence_ref": null
+    }
+  ],
+  "generation_authorized": false,
+  "certified": false,
+  "policy": {
+    "simulated_evidence_satisfies_live_runtime_gate": false,
+    "missing_evidence_defaults_to_pass": false,
+    "chat_approval_is_cryptographic_attestation": false
+  }
+}

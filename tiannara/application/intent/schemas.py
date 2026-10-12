@@ -77,21 +77,23 @@ class TaskFlowSemanticProjection(BaseModel):
     """
 
     system_model: SystemModel
-    projected_fields: tuple[str, ...]
+    projected_values: dict[str, object]
 
     @model_validator(mode="after")
-    def validate_projected_fields(self) -> "TaskFlowSemanticProjection":
-        if len(self.projected_fields) != len(set(self.projected_fields)):
-            raise ValueError("projected_fields contains duplicates")
-        if any(not field.strip() for field in self.projected_fields):
-            raise ValueError("projected_fields cannot contain blank paths")
+    def validate_projected_values(self) -> "TaskFlowSemanticProjection":
+        if any(not field.strip() for field in self.projected_values):
+            raise ValueError("projected_values cannot contain blank paths")
+        embedded = self.system_model.extensions.get("taskflow_semantic_values")
+        if embedded != self.projected_values:
+            raise ValueError(
+                "SystemModel.extensions.taskflow_semantic_values must preserve "
+                "the exact projected semantic values"
+            )
         return self
 
     @classmethod
     def model_validate_projection(
-        cls, system_model: SystemModel, projected_fields: tuple[str, ...]
+        cls, system_model: SystemModel, projected_values: dict[str, object]
     ) -> "TaskFlowSemanticProjection":
-        if len(projected_fields) != len(set(projected_fields)):
-            raise ValueError("projected_fields contains duplicates")
-        return cls(system_model=system_model, projected_fields=projected_fields)
+        return cls(system_model=system_model, projected_values=projected_values)
 

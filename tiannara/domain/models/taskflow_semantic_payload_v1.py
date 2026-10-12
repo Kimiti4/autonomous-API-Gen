@@ -37,14 +37,10 @@ def _validate_json_value(value: Any, path: str) -> None:
             raise ValueError(f"{path}: placeholder value is not an explicit semantic decision")
         return
     if isinstance(value, list):
-        if not value:
-            raise ValueError(f"{path}: empty list is not an explicit semantic decision")
         for index, item in enumerate(value):
             _validate_json_value(item, f"{path}[{index}]")
         return
     if isinstance(value, dict):
-        if not value:
-            raise ValueError(f"{path}: empty object is not an explicit semantic decision")
         for key, item in value.items():
             if not isinstance(key, str) or not key.strip():
                 raise ValueError(f"{path}: object keys must be non-empty strings")

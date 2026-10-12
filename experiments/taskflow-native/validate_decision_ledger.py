@@ -49,7 +49,7 @@ def _load(root: Path, relative_path: Path, errors: list[str]) -> Any | None:
 
 def git_blob_sha(content: bytes) -> str:
     """Return the Git SHA-1 for a blob, including Git's object header."""
-    header = b"blob " + str(len(content)).encode("ascii") + b"\\0"
+    header = b"blob " + str(len(content)).encode("ascii") + b"\0"
     return hashlib.sha1(header + content).hexdigest()
 
 

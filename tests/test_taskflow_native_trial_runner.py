@@ -1,8 +1,6 @@
-import json
+from dataclasses import replace
 from pathlib import Path
 import sys
-
-import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 TRIAL_DIR = ROOT / "experiments" / "taskflow-native"
@@ -56,7 +54,7 @@ def test_trial_runner_does_not_treat_a_structurally_complete_ledger_as_trusted_e
                 for field in TASKFLOW_MANDATORY_FIELDS
             ),
         )
-        return result.model_copy(update={"semantic_resolutions": ledger})
+        return replace(result, semantic_resolutions=ledger)
 
     monkeypatch.setattr(run_trial, "adapt_taskflow_snapshot", complete_but_untrusted)
     report = run_trial.build_report()

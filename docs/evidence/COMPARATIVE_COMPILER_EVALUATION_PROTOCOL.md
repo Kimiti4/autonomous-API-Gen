@@ -15,6 +15,8 @@ The compiler identities must be recorded by implementation name/version and sour
 
 ### Fairness and isolation controls
 
+Before compiler qualification, run the fail-closed declaration checker at `experiments/compiler-benchmarks/taskflow_input_parity.py` against a proposed shared-input manifest. It must cover all 15 mandatory TaskFlow fields and reject unresolved fields, missing canonical hashes, differing semantic-value digests, duplicate implementation identities, or missing downstream-consumer bindings. A successful preflight means only that declarations are internally consistent; it is **not** evidence that digests are authentic, fields are actually consumed, or the compilers are qualified. Those claims require trusted review and independent source/runtime evidence.
+
 1. Freeze and hash the canonical problem statement, acceptance criteria, assets, and any reviewed semantic ledger before either iteration.
 2. Both compilers receive semantically equivalent inputs and the same allowed tools, dependency/network policy, resource budget, timeout, and environment constraints.
 3. Use separate clean workspaces, output directories, databases, credentials, and runtime instances. No artifact, generated code, state, or hidden cache may leak from A to B or vice versa.

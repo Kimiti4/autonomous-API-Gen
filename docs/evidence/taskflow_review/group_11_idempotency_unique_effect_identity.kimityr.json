@@ -1,0 +1,66 @@
+{
+  "schema_version": "tiannara.taskflow.reviewer-decision.chat-record.v1",
+  "record_type": "requirements_reviewer_decision",
+  "decision_group": "operations.idempotency_and_unique_effect_identity",
+  "reviewer_id": "Kimityr",
+  "approval_status": "APPROVED_IN_CHAT",
+  "approval_method": "explicit_user_confirmation_in_chat",
+  "approved_on": "2026-10-12",
+  "decisions": {
+    "explicit_idempotency_policy": [
+      "Each mutation explicitly declares whether it supports idempotent retries.",
+      "For supported operations, repeating a request with the same valid idempotency identity must not create duplicate business effects.",
+      "Do not assume every HTTP mutation is idempotent merely because its method normally suggests it.",
+      "Document key format, scope, retention, and behavior when a key is reused with a different request."
+    ],
+    "identity_and_request_binding": [
+      "Bind an idempotency identity to the authenticated actor, operation, and appropriate resource/workspace scope.",
+      "Bind the identity to relevant request content so conflicting reuse can be rejected safely.",
+      "Repeated equivalent requests return the original logical outcome or a documented equivalent.",
+      "A request identity is not an audit-event identity and is never an authorization credential."
+    ],
+    "concurrency_and_recovery": [
+      "Concurrent duplicate requests must not independently commit the same logical effect.",
+      "Define behavior for requests that are in progress, fail, time out, or are retried after a process restart.",
+      "Persist enough deduplication state to meet documented retention and recovery guarantees.",
+      "If a result is uncertain after interruption, resolve the committed outcome before executing the effect again.",
+      "Do not claim exactly-once delivery across system boundaries without supporting evidence."
+    ],
+    "unique_audit_and_effect_identity": [
+      "Each committed logical effect requiring audit evidence has a unique, attributable effect/event identity.",
+      "Retries of the same logical effect must not create duplicate logical audit/activity events.",
+      "Distinct successful effects must not be collapsed merely because they share an actor or operation.",
+      "Audit records retain required actor, timestamp, event type, workspace/resource references, and safe details under Group 4.",
+      "Business state, deduplication outcome, and required audit evidence follow Group 10's consistency and recovery contract."
+    ],
+    "security_and_information_disclosure": [
+      "Re-check current authentication, session validity, authorization, workspace scope, and resource relationships on protected requests.",
+      "A previously recorded idempotency key must not grant access after membership removal, role change, or session revocation.",
+      "Replayed outcomes must not disclose data the caller is no longer authorized to see.",
+      "Do not log credentials, tokens, or sensitive request content as deduplication evidence."
+    ],
+    "verification_obligations": [
+      "Test repeated equivalent requests and conflicting reuse of the same key.",
+      "Test concurrent duplicate requests and requests racing with failures or restarts.",
+      "Verify one logical business effect and the required audit identity/evidence.",
+      "Test retries after lost acknowledgements and timeouts.",
+      "Verify deduplication retention and expiry behavior.",
+      "Test authorization changes before replay and confirm old keys cannot bypass access controls.",
+      "Trace results to canonical TaskFlow acceptance criteria and preserve independently verifiable evidence."
+    ]
+  },
+  "reviewer_confirmation": {
+    "explicit_confirmation_received": true,
+    "confirmation_scope": "complete Group 11 decision record presented in chat",
+    "cryptographic_signature_present": false,
+    "trusted_hmac_envelope_present": false
+  },
+  "generation_authorized": false,
+  "implementation_or_runtime_verified": false,
+  "limitations": [
+    "This record documents explicit chat approval of requirements intent only.",
+    "It is not a cryptographic signature or trusted evidence envelope.",
+    "It does not authorize generation or satisfy the trusted resolution envelope gate.",
+    "Idempotency, deduplication, unique effect identity, typed architectural projection, compiler integration, and runtime behavior remain unverified."
+  ]
+}

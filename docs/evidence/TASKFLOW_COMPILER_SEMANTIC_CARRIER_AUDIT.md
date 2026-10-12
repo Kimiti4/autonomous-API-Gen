@@ -32,14 +32,22 @@ Candidate A is Cap-C `SystemModel` via `ProjectCompiler`; candidate B is `consti
 
 1. **The models are not semantically equivalent yet.** Candidate A has useful typed security, data, API, deployment, testing and operational fields. Candidate B has richer entity relationships, permissions, operations and workflows. Neither inspected model alone provides every TaskFlow contract as a first-class, verified semantic.
 2. **Extensions and metadata are not a substitute for consumption.** Putting the original values in `SystemModel.extensions`, `Module.metadata`, or descriptions can preserve data, but it does not prove that a backend implements the obligation. Such carriers may be used as provenance only unless a consumer is independently traced and tested.
-3. **Compiler B's validation pass had a degraded success path; a fail-closed correction is now committed.** `constitutional_architecture/compiler/passes/validation_pass.py` previously logged validation exceptions as “assuming valid” and returned success. The implementation now emits an error and returns `success=False` if validation throws or reports invalid architecture. Focused regression tests cover validator exceptions, invalid results and valid results; they are awaiting the newest CI run.
+3. **Compiler B's validation pass had a degraded success path; a fail-closed correction is now committed.** `constitutional_architecture/compiler/passes/validation_pass.py` previously logged validation exceptions as “assuming valid” and returned success. The implementation now emits an error and returns `success=False` if validation throws or reports invalid architecture. Focused regression tests cover validator exceptions, invalid results and valid results; the focused workflow passed on commit `8fe970922659b088a522bac3ff765e8414059e3a`.
 4. **Compiler A's bundle verification is not TaskFlow acceptance verification.** `ProjectCompiler` runs a backend build-profile verifier and documentation validation. Those checks do not by themselves prove workspace isolation, role matrix, session revocation, atomic mutations, frontend transitions, or negative-case behavior.
 5. **Do not fill missing semantics with defaults.** The canonical review template intentionally has unresolved decisions. No adapter should infer role permissions, session rules, UI flows, transaction boundaries or API error contracts to make a pipeline compile.
+
+## Additional implementation gate now present
+
+A field-specific structural contract gate now exists at `tiannara/domain/models/taskflow_semantic_contract.py`. It defines minimum required structures for all 15 mandatory fields and rejects scalar values, missing keys, and placeholder-only values before the guarded TaskFlow typed-ISR builder runs. Regression tests are in `tests/test_taskflow_semantic_contract.py`.
+
+Focused CI passed at [run #38253197307](https://github.com/Kimiti4/autonomous-API-Gen/actions/runs/38253197307), exact head `8fe970922659b088a522bac3ff765e8414059e3a`.
+
+This is only a **shape gate**: nested values are not yet domain-specific validated models, no reviewer decisions have been supplied, and passing it does not prove compiler consumption or runtime behavior. It must not be represented as semantic completeness or generation authorization.
 
 ## Required next gates
 
 1. Complete trusted review of the 15-field ledger and verify the graph/snapshot-bound evidence envelope.
-2. Design a technology-neutral semantic carrier for currently missing contracts (especially session lifecycle and frontend interaction/state transitions), with explicit schema versioning and field-level traceability.
+2. Upgrade the current minimum shape gate into strict, versioned domain-specific value models (especially session lifecycle and frontend interaction/state transitions), with field-level source/reviewer traceability and rejection of unsupported values.
 3. Implement separate deterministic adapters for the two candidate input models. Each adapter must reject unresolved/unsupported values, emit a field-to-native-carrier map, and preserve exact source/value digests.
 4. Add negative tests proving that deleting or weakening any required semantic blocks adapter construction or fails a downstream behavior test.
 5. Audit actual consumers/pass implementations, including Compiler B validation's degraded exception behavior. Do not treat the `CompilationResult.verification` summary as proof of TaskFlow behavior.

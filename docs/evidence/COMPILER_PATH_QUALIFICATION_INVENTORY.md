@@ -48,7 +48,7 @@ Both are valuable, but answer different questions and need separate reports. Do 
 
 ## Current disposition
 
-- Parity preflight: **implemented; focused CI passed for its current tested commit; declarations alone cannot qualify the pair**.
+- Parity preflight: **implemented; latest hash-format validation change awaits focused CI; declarations alone cannot qualify the pair**.
 - End-to-end compiler pair: **BLOCKED / NOT QUALIFIED**.
 - TaskFlow A/B generation: **NOT RUN**.
 - Cross-target Python/Go backend trial: existing contract found; execution and certification status must be established from its own evidence.

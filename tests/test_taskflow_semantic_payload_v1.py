@@ -121,3 +121,14 @@ def test_empty_collections_are_allowed_when_reviewed_and_bound():
         acceptance_sha256=ACCEPTANCE_HASH,
     )
     assert payload.values[TASKFLOW_MANDATORY_FIELDS[0]][REQUIRED_VALUE_KEYS[TASKFLOW_MANDATORY_FIELDS[0]][0]] == []
+
+def test_payload_rejects_malformed_requirement_graph_hash():
+    record = _record()
+    malformed = record.model_copy(update={"graph_hash": "not-a-hash"})
+    with pytest.raises(ValidationError, match="graph_hash"):
+        TaskFlowSemanticPayloadV1.from_resolution_record(
+            malformed,
+            problem_sha256=PROBLEM_HASH,
+            acceptance_sha256=ACCEPTANCE_HASH,
+        )
+

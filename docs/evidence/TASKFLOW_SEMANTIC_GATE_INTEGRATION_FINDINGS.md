@@ -51,7 +51,7 @@ Before claiming completion, the live TaskFlow orchestration must carry the exact
 ## Current disposition
 
 - Authoritative mandatory field set and graph-bound unresolved ledger: **IMPLEMENTED, focused CI PASS (25 tests)**.\n- Semantic-resolution model and local pre-builder guard: **IMPLEMENTED, focused CI PASS (18 tests)**.
-- Production integration hook: **IMPLEMENTED behind explicit TaskFlow mode; no resolver configured and no live trial runner wired yet**.
+- Production pre-synthesis gate: **PARTIAL** — a resolved ledger is now insufficient on its own; TaskFlow mode requires an explicit semantic projector. The concrete projector and trusted provider-free ProjectCompiler path are not implemented.
 - Backend-planning revalidation: **IMPLEMENTED when `ProjectCompiler(taskflow_semantic_gate=True)` is used; default mode remains generic**.
 - TaskFlow generation and certification: **NOT RUN / UNKNOWN**.
 - PR remains draft and unmerged.

@@ -15,6 +15,7 @@ from tiannara.domain.models.semantic_resolution import (
     SemanticResolutionRecord,
     require_taskflow_semantics,
 )
+from tiannara.domain.models.taskflow_semantic_payload_v1 import TaskFlowSemanticPayloadV1
 
 ROOT = Path(__file__).resolve().parents[3]
 TRIAL = ROOT / "experiments" / "taskflow-native"
@@ -117,15 +118,42 @@ def build_report() -> dict:
         })
         return report
 
+    try:
+        payload = TaskFlowSemanticPayloadV1.from_resolution_record(
+            record,
+            problem_sha256=adapted.problem_sha256,
+            acceptance_sha256=adapted.acceptance_sha256,
+        )
+    except (ValueError, TypeError) as exc:
+        report.update({
+            "status": "BLOCKED",
+            "phase": "semantic_payload_validation",
+            "unresolved_mandatory_semantics": [],
+            "trusted_evidence_verified": True,
+            "trusted_evidence_signer": envelope.get("signer_id") if envelope else None,
+            "semantic_payload_validated": False,
+            "blockers": [
+                "Trusted resolution envelope verified for the current graph, snapshots, and exact resolution ledger.",
+                f"Versioned TaskFlow semantic payload validation failed: {exc}",
+                "Generation, model construction, backend selection, runtime verification, and certification have not occurred.",
+            ],
+        })
+        return report
+
+    payload_bytes = canonical_json(payload.model_dump(mode="json"))
     report.update({
         "status": "BLOCKED",
         "phase": "compiler_integration",
         "unresolved_mandatory_semantics": [],
         "trusted_evidence_verified": True,
         "trusted_evidence_signer": envelope.get("signer_id") if envelope else None,
+        "semantic_payload_schema": payload.schema_version,
+        "semantic_payload_sha256": __import__("hashlib").sha256(payload_bytes).hexdigest(),
+        "semantic_payload_validated": True,
         "blockers": [
             "Trusted resolution envelope verified for the current graph, snapshots, and exact resolution ledger.",
-            "Generation remains blocked: the verified evidence path is not yet wired to the live ProjectCompiler trial orchestrator.",
+            "Versioned semantic payload shape validated for the exact mandatory field set.",
+            "Generation remains blocked: the verified payload is not yet consumed by the live ProjectCompiler and backend semantic-consumption path.",
             "Application generation, runtime verification, and certification have not occurred.",
         ],
     })

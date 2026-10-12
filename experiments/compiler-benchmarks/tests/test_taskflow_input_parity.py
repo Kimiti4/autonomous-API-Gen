@@ -93,3 +93,10 @@ def test_missing_consumer_binding_blocks():
     report = evaluate_input_parity(manifest)
     assert report["status"] == "BLOCKED"
     assert any("lacks downstream consumer binding" in blocker for blocker in report["blockers"])
+
+def test_malformed_canonical_hash_blocks():
+    manifest = valid_manifest()
+    manifest["source_hashes"]["problem_sha256"] = "not-a-sha256"
+    report = evaluate_input_parity(manifest)
+    assert report["status"] == "BLOCKED"
+    assert any("invalid SHA-256" in blocker for blocker in report["blockers"])

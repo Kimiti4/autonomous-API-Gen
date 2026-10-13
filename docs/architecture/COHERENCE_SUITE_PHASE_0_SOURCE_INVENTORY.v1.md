@@ -118,3 +118,22 @@ Legend:
 - Tests: **NOT RUN** during this inventory.
 - Generated applications: **NOT BUILT OR STARTED** during this inventory.
 - Benchmark certification: **NONE CLAIMED**.
+
+
+## Expanded repository inventory: backend registrations and existing tests
+
+A subsequent directory-level inspection found 34 modules under `tiannara/application/compiler/` and 20 implementations registered by `build_compiler_registry()`: FastAPI, Go, Rust Axum, NestJS, Spring Boot, ASP.NET Core, Phoenix, Ktor, Express, Laravel, Rails, plus React, Vue, Angular, Next, Nuxt, Svelte, LiveView, Hologram, and Scenic frontends. This establishes implementation breadth, not equal capability or semantic equivalence across all those implementations.
+
+Relevant existing tests include:
+- `tests/test_cap_c_derivation.py`
+- `tests/test_cap_c_backend_selection.py`
+- `tests/test_taskflow_multi_backend_compiler.py`
+- `tests/test_taskflow_semantic_contract.py`
+- `tests/test_project_compiler_semantic_gate.py`
+- `tests/test_r29_10_7_backend_conformance.py` and its expansion
+- `tests/test_r29_31_2_backend_matrix.py`
+- `tests/test_r29_31_5_certification.py`
+
+These suites must be read and mapped to the benchmark obligations before reusing them as evidence. Their existence alone is not evidence that they passed on this branch or that they exercise live generated applications.
+
+A concrete mismatch was found between the active derivation implementation and `tests/test_cap_c_derivation.py`: the test previously asserted that service-bearing systems produced only a backend-service requirement and that a named system without services produced no requirements. The implementation also derives frontend, infrastructure, deployment, and documentation requirements for the former, and a documentation requirement for the latter. The test was updated to reflect the current rule set and to check that a backend which only satisfies backend-service cannot satisfy the complete artifact plan. This source edit is awaiting CI; it has not been executed locally in this audit.

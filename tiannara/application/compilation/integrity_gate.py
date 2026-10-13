@@ -84,6 +84,7 @@ class CompilationIntegrityGate:
         trusted_hmac_keys: Mapping[str, bytes] | None = None,
         allowed_runner_ids: frozenset[str] = frozenset(),
         evidence_store: Any = None,
+        obligation_policy: Any = None,
     ) -> None:
         self._ledger = ledger
         # Trust roots are injected by trusted application configuration, never
@@ -93,6 +94,8 @@ class CompilationIntegrityGate:
         # The retrieval adapter is also a trusted startup dependency, not a
         # per-compilation payload supplied by the caller.
         self._evidence_store = evidence_store
+        # The required suite and scenario matrix are trusted policy, not caller input.
+        self._obligation_policy = obligation_policy
 
     def verify(
         self,
@@ -180,6 +183,12 @@ class CompilationIntegrityGate:
                 False,
                 "trusted obligation evidence requires a configured audited evidence store",
             )
+        if self._obligation_policy is None:
+            return GateResult(
+                GATE_OBLIGATION_EVIDENCE,
+                False,
+                "trusted obligation evidence requires a reviewed suite policy",
+            )
 
         previously_used: set[str] = set()
         for event in active.events():
@@ -198,6 +207,7 @@ class CompilationIntegrityGate:
         )
         verdict = certify_trusted_obligation_suite(
             effective_request,
+            policy=self._obligation_policy,
             expected_source_graph_hash=result.isr_hash,
             evidence_store=self._evidence_store,
             trusted_hmac_keys=self._trusted_hmac_keys,

@@ -19,6 +19,7 @@ MATRIX_PATH = Path("experiments/taskflow-native/decision_coverage_matrix.v1.json
 PROBLEM_PATH = Path("experiments/taskflow-native/PROBLEM.md")
 ACCEPTANCE_PATH = Path("golden-projects/taskflow/ACCEPTANCE.json")
 OPEN_DECISIONS_PATH = Path("docs/evidence/taskflow_review/OPEN_IMPLEMENTATION_DECISIONS.v1.json")
+CONSUMER_TRACE_PATH = Path("docs/evidence/taskflow_review/SEMANTIC_CONSUMER_TRACE.v1.json")
 
 EXPECTED_SEMANTIC_IDS = {
     "identity.registration_and_authentication",
@@ -60,7 +61,8 @@ def validate(root: Path) -> list[str]:
     matrix = _load(root, MATRIX_PATH, errors)
     acceptance = _load(root, ACCEPTANCE_PATH, errors)
     open_decisions = _load(root, OPEN_DECISIONS_PATH, errors)
-    if not all(item is not None for item in (ledger, matrix, acceptance, open_decisions)):
+    consumer_trace = _load(root, CONSUMER_TRACE_PATH, errors)
+    if not all(item is not None for item in (ledger, matrix, acceptance, open_decisions, consumer_trace)):
         return errors
 
     # Bind the matrix to the exact canonical specification and acceptance bytes.
@@ -225,6 +227,38 @@ def validate(root: Path) -> list[str]:
         f"OID-{index:03d}" for index in range(1, 13)
     }:
         errors.append("open-decision docket IDs must be unique and cover OID-001..OID-012")
+
+    # A machine-readable trace ledger prevents metadata mirroring from being
+    # mislabeled as actual native semantic consumption.
+    if consumer_trace.get("schema_version") != "taskflow-semantic-consumer-trace.v1":
+        errors.append("semantic consumer trace schema_version is invalid")
+    if consumer_trace.get("status") != "BLOCKED":
+        errors.append("semantic consumer trace status must remain BLOCKED until consumer evidence exists")
+    if consumer_trace.get("generation_authorized") is not False or consumer_trace.get("certified") is not False:
+        errors.append("semantic consumer trace must not authorize generation or certification")
+    trace_fields = consumer_trace.get("fields")
+    if not isinstance(trace_fields, list) or len(trace_fields) != 15:
+        errors.append("semantic consumer trace must contain exactly 15 field records")
+        trace_fields = trace_fields if isinstance(trace_fields, list) else []
+    trace_ids = []
+    for item in trace_fields:
+        if not isinstance(item, dict):
+            errors.append("semantic consumer trace entry must be an object")
+            continue
+        semantic_id = item.get("semantic_id")
+        trace_ids.append(semantic_id)
+        if item.get("status") != "BLOCKED":
+            errors.append(f"{semantic_id}: consumer status must remain BLOCKED until verified evidence exists")
+        if item.get("typed_destination") is not None or item.get("consumer_source") is not None:
+            errors.append(f"{semantic_id}: unverified native destination/consumer must remain null")
+        if item.get("causal_mutation_test") != "NOT_RUN":
+            errors.append(f"{semantic_id}: causal mutation test must remain NOT_RUN absent evidence")
+        if item.get("omission_weakening_test") != "NOT_RUN":
+            errors.append(f"{semantic_id}: omission/weakening test must remain NOT_RUN absent evidence")
+        if item.get("runtime_acceptance_ids") != [] or item.get("evidence_refs") != []:
+            errors.append(f"{semantic_id}: runtime/evidence references must remain empty absent verification")
+    if len(trace_ids) != len(set(trace_ids)) or set(trace_ids) != EXPECTED_SEMANTIC_IDS:
+        errors.append("semantic consumer trace IDs must be unique and cover the authoritative 15 semantic IDs")
     return errors
 
 

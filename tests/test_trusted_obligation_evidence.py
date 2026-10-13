@@ -138,6 +138,7 @@ def test_signed_runner_evidence_passes_and_is_bound_to_the_source():
     assert result.disposition is Disposition.PASS
     assert result.ok
     assert result.attestation_ids == ("attestation-build-44-scenario-1",)
+    assert result.evidence_audit_ids == ("evidence-read-audit-1001",)
 
 
 
@@ -236,6 +237,7 @@ def test_integrity_gate_records_attestation_and_rejects_replay():
     assert recorded[0].payload["attestation_ids"] == [
         "attestation-build-44-scenario-1"
     ]
+    assert recorded[0].payload["evidence_audit_ids"] == ["evidence-read-audit-1001"]
 
     second = gate._gate_i_obligations(compiled, request(), ledger)
     assert not second.held
@@ -260,3 +262,22 @@ def test_configured_gate_rejects_missing_obligation_request():
     assert result.gate_id == GATE_OBLIGATION_EVIDENCE
     assert not result.held
     assert "missing or invalid request" in result.evidence
+
+
+def test_evidence_without_store_audit_receipt_cannot_pass():
+    store = FakeTrustedEvidenceStore()
+    store.bundle = RetrievedTrustedEvidence(
+        payload=PAYLOAD,
+        attestation=signed_attestation(),
+    )
+    result = certify_trusted_obligation_suite(
+        request(),
+        policy=policy(),
+        expected_source_graph_hash=SOURCE_HASH,
+        evidence_store=store,
+        trusted_hmac_keys={"ci-key-1": KEY},
+        allowed_runner_ids=frozenset({RUNNER}),
+    )
+    assert result.disposition is Disposition.UNKNOWN
+    assert not result.ok
+    assert any("omitted its access-audit receipt" in blocker for blocker in result.blockers)

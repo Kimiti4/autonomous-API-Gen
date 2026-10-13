@@ -97,6 +97,9 @@ class FakeTrustedEvidenceStore:
         self.bundle = RetrievedTrustedEvidence(
             payload=PAYLOAD,
             attestation=attestation or signed_attestation(),
+            audit_event_id="evidence-read-audit-1001",
+            authorized_principal="compiler-certification-service",
+            retrieved_at="2026-10-13T15:01:00Z",
         )
         self.reads = []
 

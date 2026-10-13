@@ -1,6 +1,4 @@
 """Causal and fail-closed tests for typed authorization semantic consumption."""
-import copy
-
 import pytest
 
 from tiannara.domain.models.authorization_semantic_obligations import (
@@ -64,8 +62,6 @@ def test_consumer_produces_typed_obligations_bound_to_graph():
 
 def test_mutating_workspace_semantics_changes_consumption_digest():
     original = _record()
-    changed_scope = copy.deepcopy(original.resolutions[1].value)
-    # Resolve by path rather than relying on record ordering.
     changed_scope = {
         "scoped_resources": ["workspace", "project", "task", "comment"],
         "scoped_operations": ["read", "write"],
@@ -90,20 +86,29 @@ def test_omitted_authorization_semantic_fails_closed():
 
 
 def test_scalar_authorization_semantic_fails_closed():
+    base = _record()
+    malformed = SemanticResolutionRecord(
+        graph_id=base.graph_id,
+        graph_hash=base.graph_hash,
+        required_fields=base.required_fields,
+        resolutions=tuple(
+            SemanticResolution(
+                field_path=item.field_path,
+                kind=ResolutionKind.SNAPSHOT,
+                value=(
+                    "rbac"
+                    if item.field_path == "authorization.workspace_membership_scope"
+                    else item.value
+                ),
+                source="test:mutated",
+            )
+            if item.field_path in {
+                "authorization.workspace_membership_scope",
+                "authorization.owner_manager_member_permissions",
+            }
+            else item
+            for item in base.resolutions
+        ),
+    )
     with pytest.raises(AuthorizationSemanticConsumptionError, match="non-empty object"):
-        consume_authorization_semantics(_record(workspace={"scoped_resources": "all"}).__class__(
-            graph_id="taskflow-auth-test", graph_hash="a" * 64,
-            required_fields=TASKFLOW_MANDATORY_FIELDS,
-            resolutions=tuple(
-                SemanticResolution(
-                    field_path=item.field_path,
-                    kind=ResolutionKind.SNAPSHOT,
-                    value="rbac" if item.field_path == "authorization.workspace_membership_scope" else item.value,
-                    source="test:mutated",
-                ) if item.field_path in {
-                    "authorization.workspace_membership_scope",
-                    "authorization.owner_manager_member_permissions",
-                } else item
-                for item in _record().resolutions
-            ),
-        ))
+        consume_authorization_semantics(malformed)

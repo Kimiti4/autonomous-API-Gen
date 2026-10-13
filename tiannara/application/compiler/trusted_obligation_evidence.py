@@ -99,13 +99,20 @@ class TrustedEvidenceStore(Protocol):
 
 
 @dataclass(frozen=True)
-class TrustedObligationCertificationRequest:
-    """Inputs from a trusted evidence retrieval boundary for one compile."""
+class TrustedObligationSuitePolicy:
+    """Trusted suite definition loaded from reviewed, versioned configuration."""
 
+    suite_id: str
     required_obligation_ids: tuple[str, ...]
-    records: tuple[CompilerObligationRecord, ...]
     expected_consumer_bindings: Mapping[str, str]
     required_scenario_ids: Mapping[str, tuple[str, ...]]
+
+
+@dataclass(frozen=True)
+class TrustedObligationCertificationRequest:
+    """Source-derived obligation records for one compile; no caller-selected suite."""
+
+    records: tuple[CompilerObligationRecord, ...]
     previously_used_attestation_ids: frozenset[str] = frozenset()
 
 
@@ -162,6 +169,7 @@ def verify_attestation(
 def certify_trusted_obligation_suite(
     request: TrustedObligationCertificationRequest,
     *,
+    policy: TrustedObligationSuitePolicy,
     expected_source_graph_hash: str,
     evidence_store: TrustedEvidenceStore,
     trusted_hmac_keys: Mapping[str, bytes],
@@ -171,8 +179,8 @@ def certify_trusted_obligation_suite(
 
     All evidence references are resolved through the configured trusted store
     and must have a signed attestation from an allow-listed runner. The suite
-    fails closed on duplicate/missing
-    records, missing attestations, untrusted runners, invalid signatures,
+    fails closed on duplicate/missing records, missing attestations, untrusted
+    runners, invalid signatures,
     stale source/consumer bindings, or unverified evidence.
     """
     records_by_id: dict[str, CompilerObligationRecord] = {}
@@ -186,12 +194,12 @@ def certify_trusted_obligation_suite(
             records_by_id[record.obligation_id] = record
 
     evaluations = []
-    for obligation_id in request.required_obligation_ids:
+    for obligation_id in policy.required_obligation_ids:
         record = records_by_id.get(obligation_id)
         if record is None:
             continue
-        scenario_ids = request.required_scenario_ids.get(obligation_id, ())
-        expected_consumer = request.expected_consumer_bindings.get(obligation_id, "")
+        scenario_ids = policy.required_scenario_ids.get(obligation_id, ())
+        expected_consumer = policy.expected_consumer_bindings.get(obligation_id, "")
         trust_blockers: list[str] = []
         evidence_for_verifier: dict[str, bytes] = {}
 
@@ -207,6 +215,13 @@ def certify_trusted_obligation_suite(
             if retrieved is None:
                 trust_blockers.append(
                     f"{obligation_id}/{scenario.scenario_id}: missing retrieved bytes or signed attestation"
+                )
+                continue
+            if not isinstance(retrieved, RetrievedTrustedEvidence) or not isinstance(
+                retrieved.attestation, TrustedEvidenceAttestation
+            ):
+                trust_blockers.append(
+                    f"{obligation_id}/{scenario.scenario_id}: evidence store returned an invalid bundle"
                 )
                 continue
             evidence = retrieved.payload
@@ -269,7 +284,7 @@ def certify_trusted_obligation_suite(
     aggregate = assemble_obligation_certification(
         evaluations,
         expected_source_graph_hash=expected_source_graph_hash,
-        required_obligation_ids=request.required_obligation_ids,
+        required_obligation_ids=policy.required_obligation_ids,
     )
     if not duplicate_ids and not replayed_attestation_ids:
         return aggregate

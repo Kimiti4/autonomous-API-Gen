@@ -183,3 +183,10 @@ Focused TaskFlow Native Adapter workflow for commit `bc8465d6f1d29ce8c0af16b1317
 The pre-projection gate previously checked required key names and non-placeholder content but accepted an object in a position intended to be an array (or other wrong container types). It now declares the minimum outer JSON shape for each required key across all 15 semantic groups and rejects non-empty values with the wrong container type. Regression tests cover wrong container types, missing keys, placeholder values, scalar group values, and complete minimum shapes. The projection-gate fixture was updated to conform to these declared shapes.
 
 This remains **structural validation, not a complete domain schema**: nested item types, cross-field invariants, exact approved policy values, and downstream code-generation consumption still require implementation and tests. In particular, this change does not resolve the 12 reviewer decisions in the open docket. Latest CI for the shape-type change is pending; no PASS is claimed until the run completes.
+
+
+## Machine-readable open-decision register and validator extension
+
+The 12-item docket now has a machine-readable companion at `docs/evidence/taskflow_review/OPEN_IMPLEMENTATION_DECISIONS.v1.json`. Each decision starts with `status: OPEN`, a null reviewer answer and approval reference, `implementation_status: BLOCKED`, and `test_status: NOT_RUN`. The decision-ledger validator now checks those fail-closed invariants and a regression test deliberately injects an assumed answer to verify that it is rejected.
+
+The previous CI batch passed on commit `33d917a2c0687ef884736432570832c6535f83f5`, including TaskFlow Native Adapter, Secret Scan, release gates, compiler matrix, campaign A, and general CI/CD. The additional machine-readable docket and validator/test updates are newer commits; their CI must be evaluated separately and is not covered by that earlier green result.

@@ -88,10 +88,18 @@ class TrustedEvidenceAttestation(BaseModel):
 
 @dataclass(frozen=True)
 class RetrievedTrustedEvidence:
-    """One payload and its attestation returned by the configured evidence store."""
+    """Payload plus runner attestation and store-side access-audit receipt.
+
+    The store is a trusted startup dependency. Each read must provide a stable
+    audit event ID, the authorized principal used for the read, and a retrieval
+    timestamp; absent metadata cannot be promoted to trusted evidence.
+    """
 
     payload: bytes
     attestation: TrustedEvidenceAttestation
+    audit_event_id: str = ""
+    authorized_principal: str = ""
+    retrieved_at: str = ""
 
 
 class TrustedEvidenceStore(Protocol):
@@ -249,6 +257,11 @@ def certify_trusted_obligation_suite(
             ):
                 trust_blockers.append(
                     f"{obligation_id}/{scenario.scenario_id}: evidence store returned an invalid bundle"
+                )
+                continue
+            if not all((retrieved.audit_event_id.strip(), retrieved.authorized_principal.strip(), retrieved.retrieved_at.strip())):
+                trust_blockers.append(
+                    f"{obligation_id}/{scenario.scenario_id}: evidence store omitted its access-audit receipt"
                 )
                 continue
             evidence = retrieved.payload

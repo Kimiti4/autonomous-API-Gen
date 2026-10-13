@@ -18,6 +18,7 @@ LEDGER_PATH = Path("docs/evidence/taskflow_review/decision_ledger.v1.json")
 MATRIX_PATH = Path("experiments/taskflow-native/decision_coverage_matrix.v1.json")
 PROBLEM_PATH = Path("experiments/taskflow-native/PROBLEM.md")
 ACCEPTANCE_PATH = Path("golden-projects/taskflow/ACCEPTANCE.json")
+OPEN_DECISIONS_PATH = Path("docs/evidence/taskflow_review/OPEN_IMPLEMENTATION_DECISIONS.v1.json")
 
 EXPECTED_SEMANTIC_IDS = {
     "identity.registration_and_authentication",
@@ -58,7 +59,8 @@ def validate(root: Path) -> list[str]:
     ledger = _load(root, LEDGER_PATH, errors)
     matrix = _load(root, MATRIX_PATH, errors)
     acceptance = _load(root, ACCEPTANCE_PATH, errors)
-    if not all(item is not None for item in (ledger, matrix, acceptance)):
+    open_decisions = _load(root, OPEN_DECISIONS_PATH, errors)
+    if not all(item is not None for item in (ledger, matrix, acceptance, open_decisions)):
         return errors
 
     # Bind the matrix to the exact canonical specification and acceptance bytes.
@@ -187,6 +189,42 @@ def validate(root: Path) -> list[str]:
         errors.append("matrix generation_authorized must be false")
     if matrix.get("certified") is not False:
         errors.append("matrix certified must be false")
+
+    # Open reviewer choices must remain visibly unresolved until an explicit answer.
+    if open_decisions.get("schema_version") != "taskflow-open-implementation-decisions.v1":
+        errors.append("open-decision docket schema_version is invalid")
+    if open_decisions.get("status") != "OPEN":
+        errors.append("open-decision docket status must remain OPEN until all decisions are reviewed")
+    if open_decisions.get("generation_authorized") is not False:
+        errors.append("open-decision docket generation_authorized must be false")
+    if open_decisions.get("certified") is not False:
+        errors.append("open-decision docket certified must be false")
+    decisions = open_decisions.get("decisions")
+    if not isinstance(decisions, list) or len(decisions) != 12:
+        errors.append("open-decision docket must contain exactly 12 decisions")
+        decisions = decisions if isinstance(decisions, list) else []
+    decision_ids = []
+    for decision in decisions:
+        if not isinstance(decision, dict):
+            errors.append("open-decision entry must be an object")
+            continue
+        decision_id = decision.get("id")
+        decision_ids.append(decision_id)
+        if decision.get("status") == "OPEN":
+            if decision.get("reviewer_answer") is not None:
+                errors.append(f"{decision_id}: open decision must not contain an answer")
+            if decision.get("reviewer_id") is not None or decision.get("approval_reference") is not None:
+                errors.append(f"{decision_id}: open decision must not claim reviewer approval")
+            if decision.get("implementation_status") != "BLOCKED":
+                errors.append(f"{decision_id}: unresolved implementation must remain BLOCKED")
+            if decision.get("test_status") != "NOT_RUN":
+                errors.append(f"{decision_id}: unresolved decision tests must remain NOT_RUN")
+        else:
+            errors.append(f"{decision_id}: unknown status {decision.get('status')!r}")
+    if len(decision_ids) != len(set(decision_ids)) or set(decision_ids) != {
+        f"OID-{index:03d}" for index in range(1, 13)
+    }:
+        errors.append("open-decision docket IDs must be unique and cover OID-001..OID-012")
     return errors
 
 
@@ -203,7 +241,7 @@ def main() -> int:
         return 1
     print("TASKFLOW DECISION LEDGER VALIDATION: PASS")
     print("Validated: source blob hashes, 14 unique records, 15 semantic IDs,")
-    print("acceptance capability/gate/negative-case coverage, and fail-closed status flags.")
+    print("acceptance coverage, 12 explicitly unresolved decisions, and fail-closed status flags.")
     print("Not validated: trusted attestation, semantic compiler consumption, application behavior, or certification.")
     return 0
 

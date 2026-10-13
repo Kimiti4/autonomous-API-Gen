@@ -109,6 +109,19 @@ class TrustedObligationSuitePolicy:
     expected_consumer_bindings: Mapping[str, str]
     required_scenario_ids: Mapping[str, tuple[str, ...]]
 
+    def __post_init__(self) -> None:
+        if not self.suite_id.strip():
+            raise ValueError("suite_id must not be blank")
+        if not self.required_obligation_ids:
+            raise ValueError("trusted suite must require at least one obligation")
+        if len(set(self.required_obligation_ids)) != len(self.required_obligation_ids):
+            raise ValueError("trusted suite contains duplicate obligation IDs")
+        for obligation_id in self.required_obligation_ids:
+            if not self.expected_consumer_bindings.get(obligation_id, "").strip():
+                raise ValueError(f"expected consumer missing for {obligation_id}")
+            if not self.required_scenario_ids.get(obligation_id):
+                raise ValueError(f"required scenarios missing for {obligation_id}")
+
 
 @dataclass(frozen=True)
 class TrustedObligationCertificationRequest:

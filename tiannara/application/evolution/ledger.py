@@ -537,6 +537,7 @@ class EvolutionLedger:
         suite_id: str,
         obligation_records: tuple[Any, ...],
         attestation_ids: tuple[str, ...],
+        evidence_audit_ids: tuple[str, ...] = (),
         evolution_id: str = "",
     ) -> str:
         """Chain-anchor an obligation evidence decision and consumed attestation IDs.
@@ -568,6 +569,7 @@ class EvolutionLedger:
             "blockers": list(verdict.blockers),
             "obligation_records": list(record_summaries),
             "attestation_ids": sorted(set(attestation_ids)),
+            "evidence_audit_ids": sorted(set(evidence_audit_ids)),
         }
         event = EvolutionEvent(
             event_id="",

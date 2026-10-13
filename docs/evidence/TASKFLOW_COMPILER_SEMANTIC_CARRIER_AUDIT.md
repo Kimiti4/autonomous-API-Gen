@@ -38,7 +38,7 @@ Candidate A is Cap-C `SystemModel` via `ProjectCompiler`; candidate B is `consti
 
 ## Additional implementation gate now present
 
-A field-specific structural contract gate now exists at `tiannara/domain/models/taskflow_semantic_contract.py`. It defines minimum required structures for all 15 mandatory fields and rejects scalar values, missing keys, and placeholder-only values before the guarded TaskFlow typed-ISR builder runs. Regression tests are in `tests/test_taskflow_semantic_contract.py`.
+A field-specific structural contract gate exists at `tiannara/domain/models/taskflow_semantic_contract.py`. It defines minimum required structures for all 15 mandatory fields and rejects scalar values, missing keys, placeholder-only values, wrong container types, and unreviewed extra keys before the guarded TaskFlow typed-ISR builder runs. The latest hardening adds an explicit regression test proving that an extra `unreviewed_fallback` field fails closed. Regression tests are in `tests/test_taskflow_semantic_contract.py`.
 
 Focused CI passed at [run #38253197307](https://github.com/Kimiti4/autonomous-API-Gen/actions/runs/38253197307), exact head `8fe970922659b088a522bac3ff765e8414059e3a`.
 
@@ -60,3 +60,7 @@ This is only a **shape gate**: nested values are not yet domain-specific validat
 - Compiler pair: **NOT QUALIFIED**.
 - TaskFlow generation iterations A and B: **NOT RUN**.
 - This document is a source-model audit, not execution or certification evidence.
+
+## Contract-key closure hardening (2026-10-13)
+
+The structural gate now requires the set of keys for each mandatory semantic object to match the declared contract exactly. Previously, a payload could satisfy required-key checks while carrying extra unreviewed keys that downstream code might interpret as fallback semantics. The gate now rejects such keys, and a negative regression test covers the case. This closes an input-shape ambiguity only: nested list/object contents are still not full domain-specific typed models, and the values are not proven to be consumed by either compiler. Latest CI must confirm this change before it is treated as test-verified.

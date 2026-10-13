@@ -90,8 +90,6 @@ class TrustedObligationCertificationRequest:
     records: tuple[CompilerObligationRecord, ...]
     evidence_bytes_by_ref: Mapping[str, bytes]
     attestations_by_ref: Mapping[str, TrustedEvidenceAttestation]
-    trusted_hmac_keys: Mapping[str, bytes]
-    allowed_runner_ids: frozenset[str]
     expected_consumer_bindings: Mapping[str, str]
     required_scenario_ids: Mapping[str, tuple[str, ...]]
     previously_used_attestation_ids: frozenset[str] = frozenset()
@@ -151,6 +149,8 @@ def certify_trusted_obligation_suite(
     request: TrustedObligationCertificationRequest,
     *,
     expected_source_graph_hash: str,
+    trusted_hmac_keys: Mapping[str, bytes],
+    allowed_runner_ids: frozenset[str],
 ) -> ObligationCertificationVerdict:
     """Verify signed evidence for each required obligation, then aggregate.
 
@@ -202,8 +202,8 @@ def certify_trusted_obligation_suite(
                 expected_obligation_id=obligation_id,
                 expected_scenario=scenario,
                 expected_consumer_binding=expected_consumer,
-                trusted_hmac_keys=request.trusted_hmac_keys,
-                allowed_runner_ids=request.allowed_runner_ids,
+                trusted_hmac_keys=trusted_hmac_keys,
+                allowed_runner_ids=allowed_runner_ids,
             )
             if valid:
                 evidence_for_verifier[scenario.evidence_ref] = evidence

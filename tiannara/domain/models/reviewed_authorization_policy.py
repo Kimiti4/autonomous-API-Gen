@@ -145,6 +145,8 @@ class ReviewedAuthorizationPolicy(_StrictModel):
     decisions: AuthorizationDecisions
     unresolved_operational_details: tuple[str, ...] = Field(min_length=1)
     limitations: tuple[str, ...] = Field(min_length=1)
+    source_record_sha: str = Field(pattern=r"^[0-9a-f]{40}$")
+    canonical_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
     @model_validator(mode="after")
     def preserve_open_decisions_and_evidence_limits(self) -> "ReviewedAuthorizationPolicy":
@@ -165,8 +167,6 @@ class ReviewedAuthorizationPolicy(_StrictModel):
         if set(self.limitations) != expected_limitations or len(self.limitations) != len(expected_limitations):
             raise ValueError("all reviewed source limitations must remain explicit")
         return self
-    source_record_sha: str = Field(pattern=r"^[0-9a-f]{40}$")
-    canonical_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
     @classmethod
     def from_source_bytes(

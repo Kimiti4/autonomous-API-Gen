@@ -126,6 +126,26 @@ class ProjectCompiler:
                 "intent compiler returned a legacy (non-typed) ISR; the pure "
                 "Cap-C pipeline requires a typed SystemModel payload"
             )
+        # Fail closed at the application compiler boundary. The current
+        # capability requirements and backend port do not yet accept typed
+        # authorization obligations, so merely passing the TaskFlow gate must
+        # not authorize backend generation. This guard is intentionally
+        # conservative until a backend/runtime contract consumes and enforces
+        # the obligations and the acceptance suite proves workspace isolation.
+        if self._taskflow_semantic_gate:
+            obligations = getattr(
+                compilation, "authorization_semantic_obligations", None
+            )
+            if obligations is None:
+                raise ProjectCompilationError(
+                    "TaskFlow authorization gate is enabled but typed authorization "
+                    "obligations are missing; backend generation is blocked"
+                )
+            raise ProjectCompilationError(
+                "TaskFlow authorization obligations were resolved by the intent "
+                "compiler, but no registered backend/runtime consumer currently "
+                "proves enforcement; generation remains blocked"
+            )
         # 3. Derive requirements
         requirements = derive_compilation_requirements(model)
         # 4. Plan (select-all when calibrating, single-best otherwise)

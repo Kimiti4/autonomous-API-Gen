@@ -83,12 +83,16 @@ class CompilationIntegrityGate:
         *,
         trusted_hmac_keys: Mapping[str, bytes] | None = None,
         allowed_runner_ids: frozenset[str] = frozenset(),
+        evidence_store: Any = None,
     ) -> None:
         self._ledger = ledger
         # Trust roots are injected by trusted application configuration, never
         # accepted from the per-compilation request.
         self._trusted_hmac_keys = dict(trusted_hmac_keys or {})
         self._allowed_runner_ids = frozenset(allowed_runner_ids)
+        # The retrieval adapter is also a trusted startup dependency, not a
+        # per-compilation payload supplied by the caller.
+        self._evidence_store = evidence_store
 
     def verify(
         self,
@@ -170,6 +174,12 @@ class CompilationIntegrityGate:
                 False,
                 "trusted obligation evidence requires an append-only audit ledger",
             )
+        if self._evidence_store is None:
+            return GateResult(
+                GATE_OBLIGATION_EVIDENCE,
+                False,
+                "trusted obligation evidence requires a configured audited evidence store",
+            )
 
         previously_used: set[str] = set()
         for event in active.events():
@@ -189,6 +199,7 @@ class CompilationIntegrityGate:
         verdict = certify_trusted_obligation_suite(
             effective_request,
             expected_source_graph_hash=result.isr_hash,
+            evidence_store=self._evidence_store,
             trusted_hmac_keys=self._trusted_hmac_keys,
             allowed_runner_ids=self._allowed_runner_ids,
         )

@@ -534,6 +534,7 @@ class EvolutionLedger:
         verdict: Any,
         *,
         source_graph_hash: str,
+        suite_id: str,
         obligation_records: tuple[Any, ...],
         attestation_ids: tuple[str, ...],
         evolution_id: str = "",
@@ -557,6 +558,7 @@ class EvolutionLedger:
         payload = {
             "schema_version": "1.0",
             "source_graph_hash": source_graph_hash,
+            "suite_id": suite_id,
             "disposition": verdict.disposition.value,
             "required_obligations": list(verdict.required_obligations),
             "passed_obligations": list(verdict.passed_obligations),

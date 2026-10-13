@@ -134,6 +134,7 @@ def test_signed_runner_evidence_passes_and_is_bound_to_the_source():
     )
     assert result.disposition is Disposition.PASS
     assert result.ok
+    assert result.attestation_ids == ("attestation-build-44-scenario-1",)
 
 
 
@@ -241,3 +242,18 @@ def test_integrity_gate_records_attestation_and_rejects_replay():
         event for event in ledger.events()
         if event.event_type.value == "certification"
     ]) == 2
+
+
+def test_configured_gate_rejects_missing_obligation_request():
+    ledger = EvolutionLedger()
+    gate = CompilationIntegrityGate(
+        ledger,
+        trusted_hmac_keys={"ci-key-1": KEY},
+        allowed_runner_ids=frozenset({RUNNER}),
+        evidence_store=FakeTrustedEvidenceStore(),
+        obligation_policy=policy(),
+    )
+    result = gate._gate_i_obligations(SimpleNamespace(isr_hash=SOURCE_HASH), None, ledger)
+    assert result.gate_id == GATE_OBLIGATION_EVIDENCE
+    assert not result.held
+    assert "missing or invalid request" in result.evidence

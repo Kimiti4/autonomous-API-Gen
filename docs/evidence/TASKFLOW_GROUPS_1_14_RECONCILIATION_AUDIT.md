@@ -204,3 +204,8 @@ The `TaskFlow Native Adapter` workflow now explicitly runs `experiments/taskflow
 ## Validator finding and correction (2026-10-13)
 
 The newly enforced focused workflow executed the ledger validator and correctly failed closed: the coverage matrix's recorded Git blob SHA for `golden-projects/taskflow/ACCEPTANCE.json` differed by one character from the actual blob SHA returned by GitHub's Contents API. The canonical acceptance file itself was not changed. The matrix reference was corrected to the verified blob SHA `4ac75d2784375b6c0f6ddbbe1b909d15f948529a`. The first run's result remains **FAIL**; the correction is not considered verified until the focused workflow reruns successfully on the corrected commit. The pytest step was skipped after the validator failure, so no result is claimed for the ledger regression tests from that run.
+
+
+## Machine-readable consumer trace register (2026-10-13)
+
+Added `docs/evidence/taskflow_review/SEMANTIC_CONSUMER_TRACE.v1.json`, with a separate record for each of the 15 mandatory semantic paths. Until evidence exists, native destinations and consumer source locations are null, causal and omission/weakening tests are `NOT_RUN`, runtime/evidence references are empty, and each path remains `BLOCKED`. The ledger validator now rejects unsupported upgrades of any of these fields. This is a tracking/control artifact, not proof that any semantic path is consumed.

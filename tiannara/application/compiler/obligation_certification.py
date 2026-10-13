@@ -29,6 +29,7 @@ class ObligationCertificationVerdict:
     failed_obligations: tuple[str, ...]
     unknown_obligations: tuple[str, ...]
     blockers: tuple[str, ...]
+    attestation_ids: tuple[str, ...] = ()
 
     @property
     def ok(self) -> bool:

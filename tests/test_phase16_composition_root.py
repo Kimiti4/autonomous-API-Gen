@@ -24,6 +24,7 @@ from tiannara.application.compiler.composition import (
 )
 from tiannara.application.compiler.project_compiler import ProjectCompilationReport
 from tiannara.application.compiler.writer import write_bundle
+from tiannara.interfaces.cli.main import main as cli_main
 from tiannara.application.intent.config import IntentCompilerConfig
 from tiannara.application.intent.prompts import (
     build_elicitation_request,
@@ -74,10 +75,10 @@ def _record(request, payload: dict) -> ModelCallRecord:
     )
 
 
-def _seed_transcript(tmp_path: Path) -> Path:
+def _seed_transcript(tmp_path: Path, statement: str = STATEMENT) -> Path:
     """Commit a minimal, schema-valid elicitation+extraction transcript."""
     config = IntentCompilerConfig()
-    normalized = normalize(STATEMENT)
+    normalized = normalize(statement)
     elicitation = ElicitationOutput(**_ELICITATION)
     transcript_path = tmp_path / "transcript.jsonl"
     transcript = ModelCallTranscript(transcript_path)
@@ -132,6 +133,25 @@ def test_composition_root_wires_mandatory_taskflow_gate(tmp_path):
     # root. The ordinary recorded fixture contains no trusted TaskFlow decisions.
     with pytest.raises(UnresolvedSemanticsError):
         compiler.compile_intent("Build TaskFlow", {})
+
+
+def test_cli_taskflow_gate_flag_blocks_before_materialization(tmp_path, capsys):
+    transcript_path = _seed_transcript(tmp_path, "Build TaskFlow")
+    exit_code = cli_main([
+        "create",
+        "Build TaskFlow",
+        "--provider",
+        "recorded",
+        "--transcript",
+        str(transcript_path),
+        "--out",
+        str(tmp_path / "generated"),
+        "--taskflow-semantic-gate",
+    ])
+
+    assert exit_code == 1
+    assert "TaskFlow semantic gate blocked compilation" in capsys.readouterr().out
+    assert not (tmp_path / "generated").exists()
 
 
 def test_real_intent_compiler_replay_signatures_are_byte_stable(tmp_path):

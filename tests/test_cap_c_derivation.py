@@ -2,8 +2,13 @@
 
 import copy
 
+import pytest
+
 from tiannara.application.compiler.derivation import derive_compilation_requirements
-from tiannara.domain.models.backend_declaration import ArtifactKind
+from tiannara.domain.models.backend_declaration import (
+    ArtifactKind,
+    BackendCapabilityDeclaration,
+)
 from tiannara.domain.models.capability_manifest import BundleCapability
 from tiannara.domain.models.system_model import (
     DataModelSpec,
@@ -90,7 +95,10 @@ def test_derivation_is_pure_does_not_mutate_input():
 
 def test_derived_requirements_are_selectable_by_real_backend():
     from tiannara.application.compiler.registry import CompilerRegistry
-    from tiannara.application.compiler.selector import plan_compilation
+    from tiannara.application.compiler.selector import (
+        BackendSelectionError,
+        plan_compilation,
+    )
     from tiannara.application.compiler.fastapi_hexagonal_backend import (
         FastAPIHexagonalBackend,
     )
@@ -98,7 +106,7 @@ def test_derived_requirements_are_selectable_by_real_backend():
     registry = CompilerRegistry()
     registry.register(
         FastAPIHexagonalBackend(),
-        __import__("tiannara.domain.models.backend_declaration", fromlist=["BackendCapabilityDeclaration"]).BackendCapabilityDeclaration(
+        BackendCapabilityDeclaration(
             backend_id="fastapi_hexagonal",
             artifact_kinds=[ArtifactKind.BACKEND_SERVICE],
             capabilities=[
@@ -121,11 +129,10 @@ def test_derived_requirements_are_selectable_by_real_backend():
     # The backend is eligible for the backend-service requirement, but the
     # complete artifact plan must fail until all other required artifact kinds
     # have a registered compatible backend.
-    from tiannara.application.compiler.selector import BackendSelectionError
-    import pytest
-
     with pytest.raises(BackendSelectionError):
-        plan_compilation(registry, derive_compilation_requirements(_system_model_with_service()))
+        plan_compilation(
+            registry, derive_compilation_requirements(_system_model_with_service())
+        )
     plan = plan_compilation(
         registry,
         [r for r in derive_compilation_requirements(_system_model_with_service())

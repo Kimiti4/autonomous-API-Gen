@@ -304,9 +304,9 @@ def certify_trusted_obligation_suite(
             f"replayed attestation IDs: {sorted(replayed_attestation_ids)}"
         )
     disposition = (
-        Disposition.FAIL
-        if aggregate.disposition is Disposition.FAIL
-        else Disposition.UNKNOWN
+        Disposition.UNKNOWN
+        if aggregate.disposition is Disposition.PASS
+        else aggregate.disposition
     )
     return replace(
         aggregate,

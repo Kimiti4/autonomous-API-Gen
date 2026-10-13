@@ -51,6 +51,8 @@ def verify_obligation_evidence(
     invalid_refs: list[str] = []
     verified: list[str] = []
 
+    if not required_scenario_ids:
+        blockers.append("at least one required acceptance scenario must be specified")
     if record.source_graph_hash != expected_source_graph_hash:
         blockers.append("source graph hash does not match the expected source")
     if record.applicability.value != "required":
@@ -78,6 +80,10 @@ def verify_obligation_evidence(
         if evidence is None:
             invalid_refs.append(scenario.evidence_ref)
             blockers.append(f"evidence bytes are unavailable for scenario {scenario_id}")
+            continue
+        if not isinstance(evidence, bytes):
+            invalid_refs.append(scenario.evidence_ref)
+            blockers.append(f"evidence payload is not bytes for scenario {scenario_id}")
             continue
         actual_hash = hashlib.sha256(evidence).hexdigest()
         if actual_hash != scenario.evidence_sha256:

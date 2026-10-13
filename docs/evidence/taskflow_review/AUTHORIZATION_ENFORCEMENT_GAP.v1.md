@@ -44,3 +44,32 @@ This is not sufficient to enforce the reviewed TaskFlow authorization semantics.
 ## Evidence limitations
 
 This is a source audit, not a runtime test. No generated TaskFlow application was built or exercised as part of this audit. CI/test status must be checked separately; absent status data is not a pass.
+
+## Follow-up: pure authorization primitives added (not runtime-integrated)
+
+Commit `a073f32fc41df3480ee4445057487402719dacf3` adds
+`tiannara/domain/models/authorization_enforcement.py` with fail-closed,
+framework-independent checks for:
+
+- exact actor/workspace membership, including active membership and row binding;
+- same-workspace resource scope with non-disclosing denial;
+- explicit role checks;
+- owner-only permanent workspace deletion with confirmation, ownership, and audit prerequisites;
+- owner-only changes to privileged roles.
+
+Commit `e797f146bdd9067a13d5350600a55a5d29a35053` adds seven adversarial
+unit tests covering valid membership, absent/inactive/mismatched membership,
+cross-workspace resources, denied roles, deletion safeguards, and privileged
+role changes.
+
+**Boundary:** these are pure policy primitives. They do not authenticate a
+principal, load membership from trusted storage, implement session revocation,
+scope generated repositories, or prove that generated routes call these
+checks. They are not yet emitted or wired into
+`FastAPIHexagonalBackend`. The generated backend's API-key dependency remains
+insufficient for workspace/RBAC enforcement.
+
+The four unresolved operational decisions in the reviewed Group 2 record remain
+open. The TaskFlow compiler guard and all 15 semantic-consumer trace entries
+must remain blocked. Workflow runs were queued/pending when inspected; test
+execution and CI success are not yet confirmed.

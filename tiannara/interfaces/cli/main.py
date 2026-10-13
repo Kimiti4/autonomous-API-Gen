@@ -7,6 +7,7 @@ import shutil
 from tiannara.application.harness.manifest import StratifiedManifest
 from tiannara.application.compiler.composition import build_project_compiler
 from tiannara.application.compiler.project_compiler import ProjectCompilationError
+from tiannara.domain.models.semantic_resolution import UnresolvedSemanticsError
 from tiannara.application.compiler.verification import BundleVerifier
 from tiannara.application.factory import (
     RematerializationRepairProvider,
@@ -149,6 +150,9 @@ def main(argv: list[str] | None = None) -> int:
                 taskflow_semantic_gate=args.taskflow_semantic_gate,
             )
             report = compiler.compile_intent(args.statement, hints)
+        except UnresolvedSemanticsError as exc:
+            print(f"error: TaskFlow semantic gate blocked compilation: {exc}")
+            return 1
         except ProjectCompilationError as exc:
             print(f"error: compilation failed: {exc}")
             return 1
@@ -201,6 +205,9 @@ def main(argv: list[str] | None = None) -> int:
         )
         try:
             report = factory.run(args.statement, out_root=args.out, force=args.force)
+        except UnresolvedSemanticsError as exc:
+            print(f"error: TaskFlow semantic gate blocked compilation: {exc}")
+            return 1
         except ProjectCompilationError as exc:
             print(f"error: compilation failed: {exc}")
             return 1

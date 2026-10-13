@@ -36,6 +36,7 @@ class DecisionLedgerValidationTests(unittest.TestCase):
                 validator.PROBLEM_PATH,
                 validator.ACCEPTANCE_PATH,
                 validator.OPEN_DECISIONS_PATH,
+                validator.CONSUMER_TRACE_PATH,
             ]
             ledger = json.loads((REPO_ROOT / validator.LEDGER_PATH).read_text(encoding="utf-8"))
             required.extend(Path(record["source_record"]) for record in ledger["records"])
@@ -55,6 +56,35 @@ class DecisionLedgerValidationTests(unittest.TestCase):
                 errors,
             )
 
+    def test_unverified_consumer_cannot_claim_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            required = [
+                validator.LEDGER_PATH,
+                validator.MATRIX_PATH,
+                validator.PROBLEM_PATH,
+                validator.ACCEPTANCE_PATH,
+                validator.OPEN_DECISIONS_PATH,
+                validator.CONSUMER_TRACE_PATH,
+            ]
+            ledger = json.loads((REPO_ROOT / validator.LEDGER_PATH).read_text(encoding="utf-8"))
+            required.extend(Path(record["source_record"]) for record in ledger["records"])
+            for relative in required:
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(REPO_ROOT / relative, target)
+
+            trace_path = root / validator.CONSUMER_TRACE_PATH
+            trace = json.loads(trace_path.read_text(encoding="utf-8"))
+            trace["fields"][0]["status"] = "PASS"
+            trace_path.write_text(json.dumps(trace), encoding="utf-8")
+
+            errors = validator.validate(root)
+            self.assertTrue(
+                any("consumer status must remain BLOCKED" in error for error in errors),
+                errors,
+            )
+
     def test_duplicate_semantic_mapping_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -64,6 +94,7 @@ class DecisionLedgerValidationTests(unittest.TestCase):
                 validator.PROBLEM_PATH,
                 validator.ACCEPTANCE_PATH,
                 validator.OPEN_DECISIONS_PATH,
+                validator.CONSUMER_TRACE_PATH,
             ]
             ledger = json.loads((REPO_ROOT / validator.LEDGER_PATH).read_text(encoding="utf-8"))
             required.extend(Path(record["source_record"]) for record in ledger["records"])

@@ -95,8 +95,12 @@ def verify_obligation_evidence(
             continue
         verified.append(scenario_id)
 
-    if record.disposition is Disposition.FAIL:
-        blockers.append("source record is already marked FAIL")
+    observed_failure = any(
+        scenario.outcome in ("FAIL", "ERROR")
+        for scenario in record.acceptance_scenarios
+    )
+    if record.disposition is Disposition.FAIL or observed_failure:
+        blockers.append("source record or an acceptance scenario records failure")
         disposition = Disposition.FAIL
     elif record.disposition in (
         Disposition.BLOCKED_NO_CONSUMER,

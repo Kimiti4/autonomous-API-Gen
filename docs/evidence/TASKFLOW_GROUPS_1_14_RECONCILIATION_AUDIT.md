@@ -190,3 +190,12 @@ This remains **structural validation, not a complete domain schema**: nested ite
 The 12-item docket now has a machine-readable companion at `docs/evidence/taskflow_review/OPEN_IMPLEMENTATION_DECISIONS.v1.json`. Each decision starts with `status: OPEN`, a null reviewer answer and approval reference, `implementation_status: BLOCKED`, and `test_status: NOT_RUN`. The decision-ledger validator now checks those fail-closed invariants and a regression test deliberately injects an assumed answer to verify that it is rejected.
 
 The previous CI batch passed on commit `33d917a2c0687ef884736432570832c6535f83f5`, including TaskFlow Native Adapter, Secret Scan, release gates, compiler matrix, campaign A, and general CI/CD. The additional machine-readable docket and validator/test updates are newer commits; their CI must be evaluated separately and is not covered by that earlier green result.
+
+
+## Source-level semantic consumer trace (2026-10-13)
+
+A dedicated [semantic consumer trace audit](TASKFLOW_SEMANTIC_CONSUMER_TRACE_AUDIT.md) now records the inspected code path. The gate-enabled `IntentCompiler` checks required field coverage, exact reviewed-value equality, and requirement-graph binding, but `TaskFlowSemanticProjection` only mirrors values into `SystemModel.extensions["taskflow_semantic_values"]`. The generic `derive_compilation_requirements` path derives broad artifact requirements from services/capabilities/APIs/data models/system name and does not read that extension. Consequently, metadata preservation is not proof of domain behavior. Typed native consumers, causal mutation/omission tests, and cross-compiler semantic parity remain **BLOCKED**.
+
+## Focused CI enforcement (2026-10-13)
+
+The `TaskFlow Native Adapter` workflow now explicitly runs `experiments/taskflow-native/validate_decision_ledger.py` and `tests/test_taskflow_decision_ledger_validation.py`, and its path filters include the ledger, original reviewer records, coverage matrix, docket, and validator. This closes the prior CI coverage gap where the ledger test existed but was not explicitly part of the focused workflow. The workflow must pass on the resulting latest commit before this new enforcement is considered verified.

@@ -220,6 +220,7 @@ def certify_trusted_obligation_suite(
             records_by_id[record.obligation_id] = record
 
     evaluations = []
+    verified_attestation_ids: set[str] = set()
     for obligation_id in policy.required_obligation_ids:
         record = records_by_id.get(obligation_id)
         if record is None:
@@ -277,6 +278,7 @@ def certify_trusted_obligation_suite(
             )
             if valid:
                 evidence_for_verifier[scenario.evidence_ref] = evidence
+                verified_attestation_ids.add(attestation.attestation_id)
             else:
                 trust_blockers.append(f"{obligation_id}/{scenario.scenario_id}: {reason}")
 
@@ -312,6 +314,10 @@ def certify_trusted_obligation_suite(
         evaluations,
         expected_source_graph_hash=expected_source_graph_hash,
         required_obligation_ids=policy.required_obligation_ids,
+    )
+    aggregate = replace(
+        aggregate,
+        attestation_ids=tuple(sorted(verified_attestation_ids)),
     )
     if not duplicate_ids and not replayed_attestation_ids:
         return aggregate

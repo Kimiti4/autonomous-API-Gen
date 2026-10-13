@@ -32,6 +32,7 @@ on:
       - "experiments/taskflow-native/validate_decision_ledger.py"
       - "docs/evidence/taskflow_review/**"
       - "docs/evidence/TASKFLOW_GROUPS_1_14_RECONCILIATION_AUDIT.md"
+      - "docs/evidence/TASKFLOW_SEMANTIC_CONSUMER_TRACE_AUDIT.md"
       - "tests/test_taskflow_decision_ledger_validation.py"
       - "golden-projects/taskflow/ACCEPTANCE.json"
       - "experiments/compiler-benchmarks/taskflow_input_parity.py"

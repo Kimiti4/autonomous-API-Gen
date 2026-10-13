@@ -134,14 +134,16 @@ class CompilationIntegrityGate:
             self._gate_f(isr, primary),
             self._gate_g(isr, backend),
         )
-        h_result, event_range = self._gate_h(primary, ledger)
+        active_ledger = ledger if ledger is not None else self._ledger
+        h_result, event_range = self._gate_h(primary, active_ledger)
         gates = gates + (h_result,)
-        if obligation_suite is not None:
+        # Once trusted obligation policy is configured, Gate I is mandatory.
+        # Callers cannot bypass evidence certification by omitting the request.
+        if self._obligation_policy is not None or obligation_suite is not None:
             obligation_gate = self._gate_i_obligations(
-                primary, obligation_suite, ledger
+                primary, obligation_suite, active_ledger
             )
             gates = gates + (obligation_gate,)
-            active_ledger = ledger if ledger is not None else self._ledger
             if event_range is not None and active_ledger is not None:
                 event_range = (event_range[0], active_ledger.latest_event_hash)
         held = all(gate.held for gate in gates)
@@ -161,10 +163,9 @@ class CompilationIntegrityGate:
     ) -> GateResult:
         """Verify signed scenario evidence and chain-anchor the decision.
 
-        The suite is optional for backward compatibility, but when supplied it
-        is a mandatory ninth gate. Missing ledger, missing trusted keys,
-        invalid signatures, stale bindings, replay, or incomplete scenarios
-        prevent certification.
+        When trusted policy is configured, verify() requires this gate on every
+        compile. Missing request, ledger, store, policy, trusted keys, invalid
+        signatures, stale bindings, replay, or incomplete scenarios fail closed.
         """
         from tiannara.application.compiler.trusted_obligation_evidence import (
             certify_trusted_obligation_suite,
@@ -176,6 +177,15 @@ class CompilationIntegrityGate:
                 GATE_OBLIGATION_EVIDENCE,
                 False,
                 "trusted obligation evidence requires an append-only audit ledger",
+            )
+        from tiannara.application.compiler.trusted_obligation_evidence import (
+            TrustedObligationCertificationRequest,
+        )
+        if not isinstance(request, TrustedObligationCertificationRequest):
+            return GateResult(
+                GATE_OBLIGATION_EVIDENCE,
+                False,
+                "trusted obligation evidence requires source-derived obligation records; missing or invalid request",
             )
         if self._evidence_store is None:
             return GateResult(
@@ -198,9 +208,6 @@ class CompilationIntegrityGate:
                     item for item in payload.get("attestation_ids", [])
                     if isinstance(item, str)
                 )
-        attestation_ids = tuple(sorted({
-            item.attestation_id for item in request.attestations_by_ref.values()
-        }))
         effective_request = replace(
             request,
             previously_used_attestation_ids=frozenset(previously_used),
@@ -218,7 +225,7 @@ class CompilationIntegrityGate:
             source_graph_hash=result.isr_hash,
             suite_id=self._obligation_policy.suite_id,
             obligation_records=tuple(request.records),
-            attestation_ids=attestation_ids,
+            attestation_ids=verdict.attestation_ids,
         )
         chain_ok = active.verify_event_chain()
         held = verdict.ok and chain_ok

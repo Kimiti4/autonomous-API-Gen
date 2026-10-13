@@ -220,6 +220,46 @@ def test_deterministic_across_runs(tmp_path):
     assert first.requirement_graph.content_hash() == second.requirement_graph.content_hash()
 
 
+@pytest.mark.parametrize("entrypoint", ["compile", "compile_full"])
+def test_taskflow_scoped_compiler_cannot_bypass_gate(tmp_path, monkeypatch, entrypoint):
+    config = IntentCompilerConfig()
+    normalized = normalize(STATEMENT)
+    elicitation_payload = _elicitation_payload()
+    elicitation_out = ElicitationOutput.model_validate(elicitation_payload)
+    provider = _seed(
+        tmp_path,
+        [
+            (build_elicitation_request(normalized, config), elicitation_payload),
+            (build_extraction_request(normalized, elicitation_out, config), _valid_extraction_payload()),
+        ],
+    )
+
+    def forbidden_synthesis(*args, **kwargs):
+        raise AssertionError("SystemModel synthesis must not run before semantic resolution")
+
+    monkeypatch.setattr(
+        "tiannara.application.intent.compiler.synthesize_system_model",
+        forbidden_synthesis,
+    )
+    compiler = IntentCompiler(
+        provider,
+        config,
+        taskflow_semantic_gate_required=True,
+    )
+
+    with pytest.raises(UnresolvedSemanticsError):
+        if entrypoint == "compile":
+            # The port-compatible entry point must preserve the instance policy.
+            compiler.compile(STATEMENT, {})
+        else:
+            # An explicit False must not downgrade a TaskFlow-scoped compiler.
+            compiler.compile_full(
+                STATEMENT,
+                system_id="taskflow-gate-bypass-attempt",
+                taskflow_semantic_gate=False,
+            )
+
+
 def test_taskflow_semantic_gate_blocks_before_system_model_synthesis(tmp_path, monkeypatch):
     config = IntentCompilerConfig()
     normalized = normalize(STATEMENT)

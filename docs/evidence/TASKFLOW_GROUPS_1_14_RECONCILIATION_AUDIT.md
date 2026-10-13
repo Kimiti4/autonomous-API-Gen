@@ -199,3 +199,8 @@ A dedicated [semantic consumer trace audit](TASKFLOW_SEMANTIC_CONSUMER_TRACE_AUD
 ## Focused CI enforcement (2026-10-13)
 
 The `TaskFlow Native Adapter` workflow now explicitly runs `experiments/taskflow-native/validate_decision_ledger.py` and `tests/test_taskflow_decision_ledger_validation.py`, and its path filters include the ledger, original reviewer records, coverage matrix, docket, and validator. This closes the prior CI coverage gap where the ledger test existed but was not explicitly part of the focused workflow. The workflow must pass on the resulting latest commit before this new enforcement is considered verified.
+
+
+## Validator finding and correction (2026-10-13)
+
+The newly enforced focused workflow executed the ledger validator and correctly failed closed: the coverage matrix's recorded Git blob SHA for `golden-projects/taskflow/ACCEPTANCE.json` differed by one character from the actual blob SHA returned by GitHub's Contents API. The canonical acceptance file itself was not changed. The matrix reference was corrected to the verified blob SHA `4ac75d2784375b6c0f6ddbbe1b909d15f948529a`. The first run's result remains **FAIL**; the correction is not considered verified until the focused workflow reruns successfully on the corrected commit. The pytest step was skipped after the validator failure, so no result is claimed for the ledger regression tests from that run.

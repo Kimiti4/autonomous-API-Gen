@@ -125,9 +125,15 @@ def build_compiler_registry() -> CompilerRegistry:
 def build_intent_compiler(
     provider,
     config: IntentCompilerConfig | None = None,
+    *,
+    taskflow_semantic_gate_required: bool = False,
 ) -> IntentCompiler:
-    """Construct the real typed IntentCompiler backed by ``provider``."""
-    return IntentCompiler(provider, config=config or IntentCompilerConfig())
+    """Construct the typed IntentCompiler with an optional mandatory TaskFlow profile."""
+    return IntentCompiler(
+        provider,
+        config=config or IntentCompilerConfig(),
+        taskflow_semantic_gate_required=taskflow_semantic_gate_required,
+    )
 
 
 def build_project_compiler(
@@ -139,6 +145,7 @@ def build_project_compiler(
     policy: SelectionPolicy | None = None,
     executor: CompilationExecutor | None = None,
     plan_all: bool = False,
+    taskflow_semantic_gate: bool = False,
 ) -> ProjectCompiler:
     """Compose a ready-to-run ProjectCompiler.
 
@@ -165,6 +172,10 @@ def build_project_compiler(
     plan_all:
         When True, plan every satisfying backend per requirement (select-all)
         instead of the single best. Defaults to False (existing semantics).
+    taskflow_semantic_gate:
+        When True, require semantic resolution at both the IntentCompiler and
+        ProjectCompiler boundaries. This blocks unresolved TaskFlow inputs; it
+        does not by itself authorize generation or certify runtime enforcement.
     """
     if provider is not None:
         intent_provider = provider
@@ -184,7 +195,11 @@ def build_project_compiler(
     else:
         raise CompositionError(f"unknown provider mode: {provider_mode!r}")
 
-    intent_compiler = build_intent_compiler(intent_provider, config=config)
+    intent_compiler = build_intent_compiler(
+        intent_provider,
+        config=config,
+        taskflow_semantic_gate_required=taskflow_semantic_gate,
+    )
     chosen_registry = registry if registry is not None else build_compiler_registry()
     return ProjectCompiler(
         intent_compiler,
@@ -192,6 +207,7 @@ def build_project_compiler(
         policy=policy or DEFAULT_SELECTION_POLICY,
         executor=executor or CompilationExecutor(chosen_registry),
         plan_all=plan_all,
+        taskflow_semantic_gate=taskflow_semantic_gate,
     )
 
 

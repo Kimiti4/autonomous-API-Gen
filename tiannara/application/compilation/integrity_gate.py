@@ -28,7 +28,7 @@ backends arrive as the ``CompilerBackend`` protocol seam.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import Any, Optional
+from typing import Any, Mapping, Optional
 
 from constitutional_architecture.isr.semantics.projection import canonicalize
 
@@ -77,8 +77,18 @@ class CompilationIntegrityVerdict:
 class CompilationIntegrityGate:
     """Certifies one ISR -> backend compilation under the eight gates."""
 
-    def __init__(self, ledger: Any = None) -> None:
+    def __init__(
+        self,
+        ledger: Any = None,
+        *,
+        trusted_hmac_keys: Mapping[str, bytes] | None = None,
+        allowed_runner_ids: frozenset[str] = frozenset(),
+    ) -> None:
         self._ledger = ledger
+        # Trust roots are injected by trusted application configuration, never
+        # accepted from the per-compilation request.
+        self._trusted_hmac_keys = dict(trusted_hmac_keys or {})
+        self._allowed_runner_ids = frozenset(allowed_runner_ids)
 
     def verify(
         self,
@@ -176,6 +186,8 @@ class CompilationIntegrityGate:
         verdict = certify_trusted_obligation_suite(
             effective_request,
             expected_source_graph_hash=result.isr_hash,
+            trusted_hmac_keys=self._trusted_hmac_keys,
+            allowed_runner_ids=self._allowed_runner_ids,
         )
         event_id = active.record_obligation_certification(
             verdict,

@@ -121,6 +121,7 @@ def request(*, previously_used=frozenset()):
         previously_used_attestation_ids=previously_used,
     )
 
+
 def test_signed_runner_evidence_passes_and_is_bound_to_the_source():
     result = certify_trusted_obligation_suite(
         request(),
@@ -137,8 +138,11 @@ def test_signed_runner_evidence_passes_and_is_bound_to_the_source():
 def test_untrusted_runner_cannot_certify():
     result = certify_trusted_obligation_suite(
         request(),
+        policy=policy(),
         expected_source_graph_hash=SOURCE_HASH,
-        evidence_store=FakeTrustedEvidenceStore(signed_attestation(runner_id="untrusted-runner")),
+        evidence_store=FakeTrustedEvidenceStore(
+            signed_attestation(runner_id="untrusted-runner")
+        ),
         trusted_hmac_keys={"ci-key-1": KEY},
         allowed_runner_ids=frozenset({RUNNER}),
     )
@@ -150,8 +154,11 @@ def test_untrusted_runner_cannot_certify():
 def test_invalid_signature_cannot_certify():
     result = certify_trusted_obligation_suite(
         request(),
+        policy=policy(),
         expected_source_graph_hash=SOURCE_HASH,
-        evidence_store=FakeTrustedEvidenceStore(signed_attestation(signature_override="f" * 64)),
+        evidence_store=FakeTrustedEvidenceStore(
+            signed_attestation(signature_override="f" * 64)
+        ),
         trusted_hmac_keys={"ci-key-1": KEY},
         allowed_runner_ids=frozenset({RUNNER}),
     )
@@ -162,6 +169,7 @@ def test_invalid_signature_cannot_certify():
 def test_unknown_key_cannot_certify():
     result = certify_trusted_obligation_suite(
         request(),
+        policy=policy(),
         expected_source_graph_hash=SOURCE_HASH,
         evidence_store=FakeTrustedEvidenceStore(),
         trusted_hmac_keys={},
@@ -175,6 +183,7 @@ def test_replayed_attestation_id_cannot_certify():
     attestation = signed_attestation()
     result = certify_trusted_obligation_suite(
         request(previously_used=frozenset({attestation.attestation_id})),
+        policy=policy(),
         expected_source_graph_hash=SOURCE_HASH,
         evidence_store=FakeTrustedEvidenceStore(attestation),
         trusted_hmac_keys={"ci-key-1": KEY},

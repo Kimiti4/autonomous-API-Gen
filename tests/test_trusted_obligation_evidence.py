@@ -12,6 +12,7 @@ from tiannara.application.compiler.trusted_obligation_evidence import (
     RetrievedTrustedEvidence,
     TrustedEvidenceAttestation,
     TrustedObligationCertificationRequest,
+    TrustedObligationSuitePolicy,
     certify_trusted_obligation_suite,
 )
 from tiannara.application.evolution.ledger import EvolutionLedger
@@ -103,20 +104,27 @@ class FakeTrustedEvidenceStore:
         return self.bundle if evidence_ref == EVIDENCE_REF else None
 
 
-def request(*, previously_used=frozenset()):
-    return TrustedObligationCertificationRequest(
+def policy():
+    return TrustedObligationSuitePolicy(
+        suite_id="taskflow-auth-v1",
         required_obligation_ids=("auth.workspace_scope",),
-        records=(obligation_record(),),
         expected_consumer_bindings={"auth.workspace_scope": CONSUMER},
         required_scenario_ids={
             "auth.workspace_scope": ("cross-workspace-read-denied",)
         },
+    )
+
+
+def request(*, previously_used=frozenset()):
+    return TrustedObligationCertificationRequest(
+        records=(obligation_record(),),
         previously_used_attestation_ids=previously_used,
     )
 
 def test_signed_runner_evidence_passes_and_is_bound_to_the_source():
     result = certify_trusted_obligation_suite(
         request(),
+        policy=policy(),
         expected_source_graph_hash=SOURCE_HASH,
         evidence_store=FakeTrustedEvidenceStore(),
         trusted_hmac_keys={"ci-key-1": KEY},
@@ -183,6 +191,7 @@ def test_integrity_gate_records_attestation_and_rejects_replay():
         trusted_hmac_keys={"ci-key-1": KEY},
         allowed_runner_ids=frozenset({RUNNER}),
         evidence_store=FakeTrustedEvidenceStore(),
+        obligation_policy=policy(),
     )
     compiled = SimpleNamespace(isr_hash=SOURCE_HASH)
 

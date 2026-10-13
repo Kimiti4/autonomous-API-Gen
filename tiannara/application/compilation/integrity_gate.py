@@ -75,7 +75,7 @@ class CompilationIntegrityVerdict:
 
 
 class CompilationIntegrityGate:
-    """Certifies one ISR -> backend compilation under the eight gates."""
+    """Certifies one ISR -> backend compilation under eight gates, plus optional evidence gate I."""
 
     def __init__(
         self,
@@ -134,6 +134,9 @@ class CompilationIntegrityGate:
                 primary, obligation_suite, ledger
             )
             gates = gates + (obligation_gate,)
+            active_ledger = ledger if ledger is not None else self._ledger
+            if event_range is not None and active_ledger is not None:
+                event_range = (event_range[0], active_ledger.latest_event_hash)
         held = all(gate.held for gate in gates)
         return CompilationIntegrityVerdict(
             held,

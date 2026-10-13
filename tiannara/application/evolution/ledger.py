@@ -528,6 +528,56 @@ class EvolutionLedger:
         self.append_event(event, evolution_id=evolution_id)
         return event.event_id
 
+
+    def record_obligation_certification(
+        self,
+        verdict: Any,
+        *,
+        source_graph_hash: str,
+        obligation_records: tuple[Any, ...],
+        attestation_ids: tuple[str, ...],
+        evolution_id: str = "",
+    ) -> str:
+        """Chain-anchor an obligation evidence decision and consumed attestation IDs.
+
+        The ledger records hashes and verdict metadata, not raw evidence bytes
+        or signing keys. The event is written for PASS and non-PASS outcomes so
+        rejected/replayed evidence attempts remain auditable.
+        """
+        record_summaries = tuple(
+            {
+                "obligation_id": record.obligation_id,
+                "obligation_hash": record.obligation_hash,
+                "source_graph_hash": record.source_graph_hash,
+                "consumer_binding": record.consumer_binding,
+                "disposition": record.disposition.value,
+            }
+            for record in obligation_records
+        )
+        payload = {
+            "schema_version": "1.0",
+            "source_graph_hash": source_graph_hash,
+            "disposition": verdict.disposition.value,
+            "required_obligations": list(verdict.required_obligations),
+            "passed_obligations": list(verdict.passed_obligations),
+            "blocked_obligations": list(verdict.blocked_obligations),
+            "failed_obligations": list(verdict.failed_obligations),
+            "unknown_obligations": list(verdict.unknown_obligations),
+            "blockers": list(verdict.blockers),
+            "obligation_records": list(record_summaries),
+            "attestation_ids": sorted(set(attestation_ids)),
+        }
+        event = EvolutionEvent(
+            event_id="",
+            evolution_id=evolution_id or f"obligation-certification-{source_graph_hash[:12]}",
+            sequence=0,
+            event_type=EventType.CERTIFICATION,
+            subject_id=source_graph_hash,
+            payload=payload,
+            isr_hash=source_graph_hash,
+        )
+        return self.append_event(event, evolution_id=evolution_id)
+
     # -- R2.10.7: conformance evidence (duck-typed, additive) ------------------
 
     def record_conformance(self, report: Any, *, evolution_id: str = "") -> str:

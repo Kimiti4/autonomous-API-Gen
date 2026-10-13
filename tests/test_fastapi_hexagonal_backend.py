@@ -234,6 +234,22 @@ def test_generated_service_crud(generated):
     assert service.get(item.id) is None
 
 
+def test_generated_api_fails_closed_when_authentication_is_unconfigured(generated):
+    pytest.importorskip("fastapi")
+    pytest.importorskip("httpx")
+
+    from fastapi.testclient import TestClient
+
+    slug, _tmp, _ = generated
+    main = importlib.import_module(f"{slug}.main")
+    config = importlib.import_module(f"{slug}.config")
+
+    app = main.create_app(config.Settings(api_key=""))
+    response = TestClient(app).get("/items")
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Authentication is not configured"
+
+
 def test_generated_api_behaviour(generated):
     pytest.importorskip("fastapi")
     pytest.importorskip("httpx")

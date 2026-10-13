@@ -41,6 +41,7 @@ def signed_attestation(*, signature_override=None, runner_id=RUNNER):
         "runner_id": runner_id,
         "source_graph_hash": SOURCE_HASH,
         "obligation_id": "auth.workspace_scope",
+        "obligation_hash": obligation_record().obligation_hash,
         "scenario_id": "cross-workspace-read-denied",
         "outcome": "PASS",
         "evidence_ref": EVIDENCE_REF,

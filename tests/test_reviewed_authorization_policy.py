@@ -17,6 +17,18 @@ def _blob_sha(data: bytes) -> str:
     return hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\x00" + data).hexdigest()
 
 
+def _load():
+    raw = SOURCE.read_bytes()
+    return json.loads(raw)
+
+
+def _parse_changed(record):
+    raw = json.dumps(record, ensure_ascii=False, indent=2).encode("utf-8")
+    return ReviewedAuthorizationPolicy.from_source_bytes(
+        raw, source_record_sha=_blob_sha(raw)
+    )
+
+
 def test_group_2_policy_parses_with_source_binding_and_open_decisions_preserved():
     raw = SOURCE.read_bytes()
     policy = ReviewedAuthorizationPolicy.from_source_bytes(raw, source_record_sha=_blob_sha(raw))
@@ -32,7 +44,7 @@ def test_group_2_policy_parses_with_source_binding_and_open_decisions_preserved(
 
 def test_source_bytes_cannot_be_changed_while_reusing_original_git_blob_sha():
     raw = SOURCE.read_bytes()
-    changed = json.loads(raw)
+    changed = _load()
     changed["decisions"]["workspace_isolation"]["foreign_resource_details"] = "May disclose"
     changed_raw = json.dumps(changed, indent=2).encode("utf-8")
 
@@ -43,24 +55,32 @@ def test_source_bytes_cannot_be_changed_while_reusing_original_git_blob_sha():
 
 
 def test_missing_policy_section_is_rejected():
-    raw = SOURCE.read_bytes()
-    changed = json.loads(raw)
+    changed = _load()
     del changed["decisions"]["membership"]
-    changed_raw = json.dumps(changed).encode("utf-8")
 
     with pytest.raises(ValidationError):
-        ReviewedAuthorizationPolicy.from_source_bytes(
-            changed_raw, source_record_sha=_blob_sha(changed_raw)
-        )
+        _parse_changed(changed)
 
 
 def test_owner_only_deletion_safeguards_cannot_be_weakened():
-    raw = SOURCE.read_bytes()
-    changed = json.loads(raw)
+    changed = _load()
     changed["decisions"]["permanent_workspace_deletion"]["requirements"].remove("audit evidence")
-    changed_raw = json.dumps(changed).encode("utf-8")
 
     with pytest.raises(ValidationError, match="all three reviewed safeguards"):
-        ReviewedAuthorizationPolicy.from_source_bytes(
-            changed_raw, source_record_sha=_blob_sha(changed_raw)
-        )
+        _parse_changed(changed)
+
+
+def test_manager_permission_cannot_be_weakened_or_rewritten():
+    changed = _load()
+    changed["decisions"]["manager"]["forbidden"].remove("transfer ownership")
+
+    with pytest.raises(ValidationError, match="manager.forbidden"):
+        _parse_changed(changed)
+
+
+def test_required_negative_case_cannot_be_omitted():
+    changed = _load()
+    changed["decisions"]["verification"]["required_cases"].remove("cross-workspace writes")
+
+    with pytest.raises(ValidationError, match="verification.required_cases"):
+        _parse_changed(changed)

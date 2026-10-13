@@ -27,7 +27,7 @@ backends arrive as the ``CompilerBackend`` protocol seam.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Optional
 
 from constitutional_architecture.isr.semantics.projection import canonicalize
@@ -59,6 +59,7 @@ GATE_BACKEND_INDEPENDENCE = "E_backend_independence"
 GATE_ROUND_TRIP = "F_round_trip"
 GATE_CONSTITUTIONAL_PRESERVATION = "G_constitutional_preservation"
 GATE_EVIDENCE_BINDING = "H_evidence_binding"
+GATE_OBLIGATION_EVIDENCE = "I_obligation_evidence"
 
 
 @dataclass(frozen=True)
@@ -86,6 +87,7 @@ class CompilationIntegrityGate:
         backend: CompilerBackend,
         *,
         ledger: Any = None,
+        obligation_suite: Any = None,
     ) -> CompilationIntegrityVerdict:
         """Run all eight gates. The gate compiles the ISR three times (the
         primary compile, the determinism twin, and the different-target
@@ -117,12 +119,91 @@ class CompilationIntegrityGate:
         )
         h_result, event_range = self._gate_h(primary, ledger)
         gates = gates + (h_result,)
+        if obligation_suite is not None:
+            obligation_gate = self._gate_i_obligations(
+                primary, obligation_suite, ledger
+            )
+            gates = gates + (obligation_gate,)
         held = all(gate.held for gate in gates)
         return CompilationIntegrityVerdict(
             held,
             gates,
             primary if held else None,
             event_range,
+        )
+
+
+    def _gate_i_obligations(
+        self,
+        result: CompilationResult,
+        request: Any,
+        ledger: Any,
+    ) -> GateResult:
+        """Verify signed scenario evidence and chain-anchor the decision.
+
+        The suite is optional for backward compatibility, but when supplied it
+        is a mandatory ninth gate. Missing ledger, missing trusted keys,
+        invalid signatures, stale bindings, replay, or incomplete scenarios
+        prevent certification.
+        """
+        from tiannara.application.compiler.trusted_obligation_evidence import (
+            certify_trusted_obligation_suite,
+        )
+
+        active = ledger if ledger is not None else self._ledger
+        if active is None:
+            return GateResult(
+                GATE_OBLIGATION_EVIDENCE,
+                False,
+                "trusted obligation evidence requires an append-only audit ledger",
+            )
+
+        previously_used: set[str] = set()
+        for event in active.events():
+            payload = event.payload or {}
+            if event.event_type.value == "certification":
+                previously_used.update(
+                    item for item in payload.get("attestation_ids", [])
+                    if isinstance(item, str)
+                )
+        attestation_ids = tuple(sorted({
+            item.attestation_id for item in request.attestations_by_ref.values()
+        }))
+        effective_request = replace(
+            request,
+            previously_used_attestation_ids=frozenset(previously_used),
+        )
+        verdict = certify_trusted_obligation_suite(
+            effective_request,
+            expected_source_graph_hash=result.isr_hash,
+        )
+        event_id = active.record_obligation_certification(
+            verdict,
+            source_graph_hash=result.isr_hash,
+            obligation_records=tuple(request.records),
+            attestation_ids=attestation_ids,
+        )
+        chain_ok = active.verify_event_chain()
+        held = verdict.ok and chain_ok
+        return GateResult(
+            GATE_OBLIGATION_EVIDENCE,
+            held,
+            (
+                f"obligation evidence {verdict.disposition.value}; "
+                f"{len(verdict.passed_obligations)}/{len(verdict.required_obligations)} "
+                f"required obligations passed; decision chain-anchored as "
+                f"'{event_id}' and intact"
+                if held
+                else (
+                    f"obligation evidence {verdict.disposition.value}; "
+                    f"passed={list(verdict.passed_obligations)}, "
+                    f"blocked={list(verdict.blocked_obligations)}, "
+                    f"failed={list(verdict.failed_obligations)}, "
+                    f"unknown={list(verdict.unknown_obligations)}; "
+                    f"blockers={list(verdict.blockers)}; "
+                    f"audit_chain_intact={chain_ok}"
+                )
+            ),
         )
 
     # -- the eight gates -------------------------------------------------------

@@ -75,7 +75,7 @@ class CompilationIntegrityVerdict:
 
 
 class CompilationIntegrityGate:
-    """Certifies one ISR -> backend compilation under eight gates, plus optional evidence gate I."""
+    """Certifies an ISR -> backend compile only when gates A-I all hold."""
 
     def __init__(
         self,
@@ -106,9 +106,12 @@ class CompilationIntegrityGate:
         ledger: Any = None,
         obligation_suite: Any = None,
     ) -> CompilationIntegrityVerdict:
-        """Run all eight gates. The gate compiles the ISR three times (the
-        primary compile, the determinism twin, and the different-target
-        independence probe) — none of which may touch the ISR."""
+        """Run integrity gates A-H and mandatory trusted-obligation gate I.
+
+        The backend is compiled three times (primary, determinism twin, and
+        alternate target). Gate I is always present; missing trust configuration
+        or a missing source-derived obligation request fails certification closed.
+        """
         before = canonicalize(isr.system)
         primary = backend.compile(isr, target)
         after = canonicalize(isr.system)
@@ -137,15 +140,14 @@ class CompilationIntegrityGate:
         active_ledger = ledger if ledger is not None else self._ledger
         h_result, event_range = self._gate_h(primary, active_ledger)
         gates = gates + (h_result,)
-        # Once trusted obligation policy is configured, Gate I is mandatory.
-        # Callers cannot bypass evidence certification by omitting the request.
-        if self._obligation_policy is not None or obligation_suite is not None:
-            obligation_gate = self._gate_i_obligations(
-                primary, obligation_suite, active_ledger
-            )
-            gates = gates + (obligation_gate,)
-            if event_range is not None and active_ledger is not None:
-                event_range = (event_range[0], active_ledger.latest_event_hash)
+        # Gate I is unconditional: callers cannot obtain a certified result by
+        # omitting the trusted policy or obligation request.
+        obligation_gate = self._gate_i_obligations(
+            primary, obligation_suite, active_ledger
+        )
+        gates = gates + (obligation_gate,)
+        if event_range is not None and active_ledger is not None:
+            event_range = (event_range[0], active_ledger.latest_event_hash)
         held = all(gate.held for gate in gates)
         return CompilationIntegrityVerdict(
             held,

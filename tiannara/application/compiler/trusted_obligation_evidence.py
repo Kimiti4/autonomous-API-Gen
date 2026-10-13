@@ -12,7 +12,7 @@ import hashlib
 import hmac
 import json
 from dataclasses import dataclass, replace
-from typing import Mapping
+from typing import Mapping, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -84,13 +84,26 @@ class TrustedEvidenceAttestation(BaseModel):
 
 
 @dataclass(frozen=True)
+class RetrievedTrustedEvidence:
+    """One payload and its attestation returned by the configured evidence store."""
+
+    payload: bytes
+    attestation: TrustedEvidenceAttestation
+
+
+class TrustedEvidenceStore(Protocol):
+    """Trusted, authorized, auditable evidence retrieval boundary."""
+
+    def read(self, evidence_ref: str) -> RetrievedTrustedEvidence | None:
+        """Resolve a reference or return None; implementations must audit reads."""
+
+
+@dataclass(frozen=True)
 class TrustedObligationCertificationRequest:
     """Inputs from a trusted evidence retrieval boundary for one compile."""
 
     required_obligation_ids: tuple[str, ...]
     records: tuple[CompilerObligationRecord, ...]
-    evidence_bytes_by_ref: Mapping[str, bytes]
-    attestations_by_ref: Mapping[str, TrustedEvidenceAttestation]
     expected_consumer_bindings: Mapping[str, str]
     required_scenario_ids: Mapping[str, tuple[str, ...]]
     previously_used_attestation_ids: frozenset[str] = frozenset()
@@ -150,13 +163,15 @@ def certify_trusted_obligation_suite(
     request: TrustedObligationCertificationRequest,
     *,
     expected_source_graph_hash: str,
+    evidence_store: TrustedEvidenceStore,
     trusted_hmac_keys: Mapping[str, bytes],
     allowed_runner_ids: frozenset[str],
 ) -> ObligationCertificationVerdict:
     """Verify signed evidence for each required obligation, then aggregate.
 
-    All evidence references must have bytes and a signed attestation from a
-    trusted, allow-listed runner. The suite fails closed on duplicate/missing
+    All evidence references are resolved through the configured trusted store
+    and must have a signed attestation from an allow-listed runner. The suite
+    fails closed on duplicate/missing
     records, missing attestations, untrusted runners, invalid signatures,
     stale source/consumer bindings, or unverified evidence.
     """
@@ -181,13 +196,21 @@ def certify_trusted_obligation_suite(
         evidence_for_verifier: dict[str, bytes] = {}
 
         for scenario in record.acceptance_scenarios:
-            evidence = request.evidence_bytes_by_ref.get(scenario.evidence_ref)
-            attestation = request.attestations_by_ref.get(scenario.evidence_ref)
-            if evidence is None or attestation is None:
+            try:
+                retrieved = evidence_store.read(scenario.evidence_ref)
+            except Exception as exc:
+                trust_blockers.append(
+                    f"{obligation_id}/{scenario.scenario_id}: evidence retrieval failed "
+                    f"({type(exc).__name__})"
+                )
+                continue
+            if retrieved is None:
                 trust_blockers.append(
                     f"{obligation_id}/{scenario.scenario_id}: missing retrieved bytes or signed attestation"
                 )
                 continue
+            evidence = retrieved.payload
+            attestation = retrieved.attestation
             if attestation.attestation_id in seen_attestation_ids:
                 trust_blockers.append(
                     f"{obligation_id}/{scenario.scenario_id}: duplicate attestation ID in suite"

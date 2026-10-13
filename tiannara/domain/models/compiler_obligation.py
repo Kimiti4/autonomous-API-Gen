@@ -86,6 +86,11 @@ class CompilerObligationRecord(BaseModel):
             "applicability": self.applicability.value,
             "applicability_reason": self.applicability_reason,
             "required_strength": self.required_strength.value,
+            "consumer_binding": self.consumer_binding,
+            "enforcement_points": [
+                {"kind": point.kind, "locator": point.locator}
+                for point in self.enforcement_points
+            ],
             "limitations": list(self.limitations),
         }
 

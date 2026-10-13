@@ -216,6 +216,7 @@ class CompilationIntegrityGate:
         event_id = active.record_obligation_certification(
             verdict,
             source_graph_hash=result.isr_hash,
+            suite_id=self._obligation_policy.suite_id,
             obligation_records=tuple(request.records),
             attestation_ids=attestation_ids,
         )

@@ -95,7 +95,7 @@ def test_blocked_consumer_cannot_pass():
 
 
 def test_pass_with_verifier_blockers_cannot_pass():
-    result = assemble(((record(), verdict(Disposition.PASS, ok=False, blockers=("missing evidence",)),))
+    result = assemble(((record(), verdict(Disposition.PASS, ok=False, blockers=("missing evidence",))),))
     assert result.disposition is Disposition.UNKNOWN
     assert not result.ok
 

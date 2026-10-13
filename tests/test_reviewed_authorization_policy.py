@@ -84,3 +84,19 @@ def test_required_negative_case_cannot_be_omitted():
 
     with pytest.raises(ValidationError, match="verification.required_cases"):
         _parse_changed(changed)
+
+
+def test_unresolved_operational_decisions_cannot_be_dropped():
+    changed = _load()
+    changed["unresolved_operational_details"].pop()
+
+    with pytest.raises(ValidationError, match="all four reviewed unresolved"):
+        _parse_changed(changed)
+
+
+def test_trust_and_generation_limitations_cannot_be_dropped():
+    changed = _load()
+    changed["limitations"].remove("It does not authorize generation.")
+
+    with pytest.raises(ValidationError, match="source limitations must remain explicit"):
+        _parse_changed(changed)

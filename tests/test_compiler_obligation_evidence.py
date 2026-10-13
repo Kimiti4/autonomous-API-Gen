@@ -112,3 +112,12 @@ def test_string_payload_is_not_accepted_as_evidence_bytes():
     verdict = verify(passing_record(), evidence="not bytes")
     assert verdict.disposition is Disposition.UNKNOWN
     assert any("not bytes" in blocker for blocker in verdict.blockers)
+
+
+def test_observed_scenario_failure_is_fail_not_unknown():
+    original = passing_record().acceptance_scenarios[0]
+    failed_scenario = original.model_copy(update={"outcome": "FAIL"})
+    record = passing_record(acceptance_scenarios=(failed_scenario,))
+    verdict = verify(record)
+    assert verdict.disposition is Disposition.FAIL
+    assert not verdict.ok

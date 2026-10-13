@@ -8,7 +8,7 @@
     },
     "acceptance": {
       "path": "golden-projects/taskflow/ACCEPTANCE.json",
-      "git_blob_sha": "4ac75d2784375b6c0f6ddbbe1b90915f948529a"
+      "git_blob_sha": "4ac75d2784375b6c0f6ddbbe1b909d15f948529a"
     }
   },
   "required_capabilities": [

@@ -30,6 +30,7 @@ class ObligationCertificationVerdict:
     unknown_obligations: tuple[str, ...]
     blockers: tuple[str, ...]
     attestation_ids: tuple[str, ...] = ()
+    evidence_audit_ids: tuple[str, ...] = ()
 
     @property
     def ok(self) -> bool:

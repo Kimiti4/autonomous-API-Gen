@@ -63,7 +63,7 @@ def signed_attestation(*, signature_override=None, runner_id=RUNNER):
     return TrustedEvidenceAttestation(**fields)
 
 
-def obligation_record():
+def obligation_record(statement="Cross-workspace reads must be denied without disclosing foreign data."):
     scenario = ScenarioEvidence(
         scenario_id="cross-workspace-read-denied",
         outcome="PASS",
@@ -78,7 +78,7 @@ def obligation_record():
         source_graph_id="taskflow-v1",
         source_graph_hash=SOURCE_HASH,
         domain="authorization",
-        statement="Cross-workspace reads must be denied without disclosing foreign data.",
+        statement=statement,
         applicability=Applicability.REQUIRED,
         required_strength=Strength.MUST,
         enforcement_points=(
@@ -116,9 +116,9 @@ def policy():
     )
 
 
-def request(*, previously_used=frozenset()):
+def request(*, previously_used=frozenset(), record=None):
     return TrustedObligationCertificationRequest(
-        records=(obligation_record(),),
+        records=(record or obligation_record(),),
         previously_used_attestation_ids=previously_used,
     )
 
@@ -135,6 +135,21 @@ def test_signed_runner_evidence_passes_and_is_bound_to_the_source():
     assert result.disposition is Disposition.PASS
     assert result.ok
 
+
+
+def test_signature_cannot_be_reused_after_obligation_semantics_change():
+    changed_record = obligation_record(statement="Every workspace read may expose foreign data.")
+    result = certify_trusted_obligation_suite(
+        request(record=changed_record),
+        policy=policy(),
+        expected_source_graph_hash=SOURCE_HASH,
+        evidence_store=FakeTrustedEvidenceStore(),
+        trusted_hmac_keys={"ci-key-1": KEY},
+        allowed_runner_ids=frozenset({RUNNER}),
+    )
+    assert result.disposition is Disposition.UNKNOWN
+    assert not result.ok
+    assert any("obligation hash binding" in blocker for blocker in result.blockers)
 
 def test_untrusted_runner_cannot_certify():
     result = certify_trusted_obligation_suite(

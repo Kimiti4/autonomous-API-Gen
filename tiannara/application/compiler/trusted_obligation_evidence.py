@@ -12,6 +12,7 @@ import hashlib
 import hmac
 import json
 from dataclasses import dataclass, replace
+from types import MappingProxyType
 from typing import Mapping, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -110,6 +111,14 @@ class TrustedObligationSuitePolicy:
     required_scenario_ids: Mapping[str, tuple[str, ...]]
 
     def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "expected_consumer_bindings",
+            MappingProxyType(dict(self.expected_consumer_bindings)),
+        )
+        object.__setattr__(
+            self, "required_scenario_ids",
+            MappingProxyType({key: tuple(value) for key, value in self.required_scenario_ids.items()}),
+        )
         if not self.suite_id.strip():
             raise ValueError("suite_id must not be blank")
         if not self.required_obligation_ids:

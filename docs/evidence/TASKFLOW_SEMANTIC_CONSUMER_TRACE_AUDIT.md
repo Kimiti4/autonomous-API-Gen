@@ -36,6 +36,10 @@ Do not mark a field consumed merely because it is copied to an extension or incl
 6. **Artifact traceability:** record requirement ID, semantic path, native consumer, generated artifact/hash, test ID/command, result, and evidence digest.
 7. **Independent runtime proof:** test the generated application's externally observable behavior, including the canonical negative cases. Static or mocked evidence cannot certify runtime behavior.
 
+## Machine-readable consumer trace
+
+The field-level fail-closed register is maintained at [`docs/evidence/taskflow_review/SEMANTIC_CONSUMER_TRACE.v1.json`](taskflow_review/SEMANTIC_CONSUMER_TRACE.v1.json). It has one record per mandatory semantic ID. Until a native destination, source consumer, causal mutation/omission test, and runtime acceptance evidence exist, each record remains `BLOCKED`, tests remain `NOT_RUN`, and evidence references remain empty. The decision-ledger validator now checks this register and rejects any unsupported status upgrade.
+
 ## Minimum evidence table for future qualification
 
 | Semantic path | Typed destination | Consumer source location | Causal mutation test | Omission/weakening test | Runtime acceptance IDs | Status |

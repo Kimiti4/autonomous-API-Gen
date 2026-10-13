@@ -37,6 +37,17 @@ def test_wrong_container_type_is_rejected_even_when_nonempty():
         validate_taskflow_semantic_contract(_record(wrong_shape))
 
 
+def test_unreviewed_extra_contract_keys_are_rejected():
+    def extra(path):
+        value = _complete_shape(path)
+        if path == "sessions.revocation_and_expiry":
+            value["unreviewed_fallback"] = {"enabled": True}
+        return value
+
+    with pytest.raises(IncompleteTaskFlowSemanticContract, match="unexpected contract keys.*unreviewed_fallback"):
+        validate_taskflow_semantic_contract(_record(extra))
+
+
 def test_unknown_or_tbd_values_are_rejected():
     def placeholder(path):
         return {key: ([{"decision": "TBD"}] if shape == "array" else {"decision": "TBD"}) for key, shape in REQUIRED_VALUE_SHAPES[path].items()}

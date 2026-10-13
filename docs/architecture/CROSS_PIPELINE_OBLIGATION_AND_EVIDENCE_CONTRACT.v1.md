@@ -140,8 +140,9 @@ The contract must prohibit transitions based solely on a declaration or on a dow
 
 - Initial Pydantic contract model: `tiannara/domain/models/compiler_obligation.py`.
 - Initial adversarial/unit coverage: `tests/test_compiler_obligation.py`.
-- The model validates source hash shape, deterministic obligation hashing, strict fields, explicit NOT_APPLICABLE reasons, and PASS requirements for consumer binding, enforcement points, and passing scenario evidence.
-- The model is not yet integrated into either compiler pipeline; a PASS record constructed by application code is not itself trusted evidence. The future evidence assembler must verify the referenced artifacts and executed test results independently.
-- CI has been triggered by the commits; results are pending at time of update. No local test run is claimed.
+- Independent evidence verifier: `tiannara/application/compiler/obligation_evidence.py`, with adversarial coverage in `tests/test_compiler_obligation_evidence.py`. It checks source/consumer binding, required scenario completeness, and evidence-byte hashes while preserving observed failures.
+- Aggregate evidence gate: `tiannara/application/compiler/obligation_certification.py`, with tests in `tests/test_compiler_obligation_certification.py`. It requires the authoritative required-obligation list, rejects duplicate/missing/stale-source records, and only returns PASS when every required obligation has an independently verified passing verdict.
+- These modules establish the evidence-verification and aggregation primitives, but are **not yet wired into either existing compiler certification entry point**. Evidence-byte hash matching establishes integrity, not the truth of a runner assertion; authorized evidence retrieval and trusted-runner provenance remain open requirements.
+- CI for the verifier/assembler changes is in progress or not yet associated with the latest test commit; no local test run is claimed.
 - No benchmark is certified by this document.
 - TaskFlow authorization remains blocked until policy decisions, lossless semantic projection, runtime consumer integration, trusted executable evidence, and independent evidence verification are complete.

@@ -28,6 +28,10 @@ from tiannara.domain.models.semantic_resolution import (
 from tiannara.domain.models.taskflow_semantic_contract import (
     validate_taskflow_semantic_contract,
 )
+from tiannara.domain.models.authorization_semantic_obligations import (
+    AuthorizationSemanticObligations,
+    consume_authorization_semantics,
+)
 from tiannara.domain.ports.language_model import LanguageModelProvider
 
 from .config import IntentCompilerConfig
@@ -129,6 +133,7 @@ class IntentCompiler:
         # Without a configured native resolver, every mandatory field remains
         # explicitly unresolved and this entry point fails closed.
         semantic_resolution_record = None
+        authorization_obligations: AuthorizationSemanticObligations | None = None
         if taskflow_semantic_gate:
             semantic_resolution_record = build_initial_resolution_record(graph)
             if self._taskflow_semantic_resolver is not None:
@@ -143,6 +148,12 @@ class IntentCompiler:
             # TaskFlow projection. Reject malformed/placeholder payloads before
             # invoking any projector or constructing a SystemModel.
             validate_taskflow_semantic_contract(semantic_resolution_record)
+            # Consume authorization entries into a typed, graph-bound contract
+            # before projection. This is not runtime enforcement; the downstream
+            # backend/runtime gate remains blocked until it enforces the contract.
+            authorization_obligations = consume_authorization_semantics(
+                semantic_resolution_record
+            )
 
         # 7. Synthesis + boundary enforcement. A resolved ledger is not enough:
         # the ordinary heuristic synthesizer does not consume TaskFlow's
@@ -210,4 +221,5 @@ class IntentCompiler:
             repair_iterations=iterations,
             assumption_ids=assumption_ids,
             semantic_resolution_record=semantic_resolution_record,
+            authorization_semantic_obligations=authorization_obligations,
         )

@@ -13,6 +13,7 @@ from tiannara.domain.models.isr import IntermediateSoftwareRepresentation
 from tiannara.domain.models.model_call import ModelCallRecord
 from tiannara.domain.models.requirement_graph import RequirementGraph
 from tiannara.domain.models.semantic_resolution import SemanticResolutionRecord
+from tiannara.domain.models.authorization_semantic_obligations import AuthorizationSemanticObligations
 from tiannara.domain.models.system_model import SystemModel
 
 
@@ -67,6 +68,9 @@ class IntentCompilationResult(BaseModel):
     repair_iterations: int = 0
     assumption_ids: list[str] = Field(default_factory=list)
     semantic_resolution_record: SemanticResolutionRecord | None = None
+    # Typed and graph-bound authorization values consumed by the TaskFlow gate.
+    # Presence documents compiler consumption, not backend/runtime enforcement.
+    authorization_semantic_obligations: AuthorizationSemanticObligations | None = None
 
 class TaskFlowSemanticProjection(BaseModel):
     """SystemModel plus an explicit declaration of which TaskFlow semantics it consumed.

@@ -1,6 +1,6 @@
 # Cross-Pipeline Obligation and Evidence Contract v1
 
-Status: **PROPOSED DESIGN — not implemented, not certified**
+Status: **INITIAL CONTRACT MODEL IMPLEMENTED — adapters and runtime evidence integration remain incomplete; not certified**
 
 Branch: `review/taskflow-group-1-kimityr-clean`  
 Related: [Coherence suite plan](COHERENCE_SUITE_AND_CROSS_COMPILER_ENGINEERING_PLAN.v1.md), [Phase 0 inventory](COHERENCE_SUITE_PHASE_0_SOURCE_INVENTORY.v1.md)
@@ -138,7 +138,10 @@ The contract must prohibit transitions based solely on a declaration or on a dow
 
 ## Current status
 
-- Design only. No shared schema has been implemented by this document.
-- No tests were run as part of the design pass.
+- Initial Pydantic contract model: `tiannara/domain/models/compiler_obligation.py`.
+- Initial adversarial/unit coverage: `tests/test_compiler_obligation.py`.
+- The model validates source hash shape, deterministic obligation hashing, strict fields, explicit NOT_APPLICABLE reasons, and PASS requirements for consumer binding, enforcement points, and passing scenario evidence.
+- The model is not yet integrated into either compiler pipeline; a PASS record constructed by application code is not itself trusted evidence. The future evidence assembler must verify the referenced artifacts and executed test results independently.
+- CI has been triggered by the commits; results are pending at time of update. No local test run is claimed.
 - No benchmark is certified by this document.
-- TaskFlow authorization remains blocked until policy decisions, lossless semantic projection, runtime consumer integration, and trusted executable evidence are complete.
+- TaskFlow authorization remains blocked until policy decisions, lossless semantic projection, runtime consumer integration, trusted executable evidence, and independent evidence verification are complete.

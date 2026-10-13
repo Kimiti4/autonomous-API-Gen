@@ -16,20 +16,63 @@ class _StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
+def _exact_items(actual: tuple[str, ...], expected: set[str], label: str) -> None:
+    if set(actual) != expected or len(actual) != len(expected):
+        raise ValueError(f"{label} must preserve the complete reviewed item set")
+
+
 class OwnerPolicy(_StrictModel):
-    scope: str = Field(min_length=1)
+    scope: Literal["Full administrative control within the owner's own workspace"]
     allowed: tuple[str, ...]
     constraints: tuple[str, ...]
+
+    @model_validator(mode="after")
+    def preserve_reviewed_owner_rules(self) -> "OwnerPolicy":
+        _exact_items(self.allowed, {
+            "workspace settings", "membership and role administration", "projects",
+            "tasks", "archive and restore",
+            "permanent workspace deletion subject to confirmation and audit",
+        }, "owner.allowed")
+        _exact_items(self.constraints, {
+            "cross-workspace isolation remains mandatory",
+            "integrity safeguards remain mandatory",
+        }, "owner.constraints")
+        return self
 
 
 class ManagerPolicy(_StrictModel):
     allowed: tuple[str, ...]
     forbidden: tuple[str, ...]
 
+    @model_validator(mode="after")
+    def preserve_reviewed_manager_rules(self) -> "ManagerPolicy":
+        _exact_items(self.allowed, {
+            "manage projects and tasks within own workspace",
+            "manage assignments, comments, and archive/restore",
+            "invite ordinary members", "remove ordinary members",
+        }, "manager.allowed")
+        _exact_items(self.forbidden, {
+            "promote, demote, remove, or change roles of owners or managers",
+            "transfer ownership", "permanently delete workspace",
+        }, "manager.forbidden")
+        return self
+
 
 class MemberPolicy(_StrictModel):
     allowed: tuple[str, ...]
     forbidden: tuple[str, ...]
+
+    @model_validator(mode="after")
+    def preserve_reviewed_member_rules(self) -> "MemberPolicy":
+        _exact_items(self.allowed, {
+            "create projects within own workspace", "manage permitted project content",
+            "view and create workspace tasks", "update permitted task fields and assignments",
+            "comment",
+        }, "member.allowed")
+        _exact_items(self.forbidden, {
+            "change workspace settings", "manage membership", "change roles",
+        }, "member.forbidden")
+        return self
 
 
 class MembershipPolicy(_StrictModel):
@@ -57,7 +100,7 @@ class PermanentWorkspaceDeletionPolicy(_StrictModel):
     def require_all_safeguards(self) -> "PermanentWorkspaceDeletionPolicy":
         if set(self.requirements) != {
             "explicit confirmation", "ownership checks", "audit evidence"
-        }:
+        } or len(self.requirements) != 3:
             raise ValueError("workspace deletion must retain all three reviewed safeguards")
         return self
 
@@ -65,6 +108,15 @@ class PermanentWorkspaceDeletionPolicy(_StrictModel):
 class VerificationPolicy(_StrictModel):
     backend_enforcement_required: Literal[True]
     required_cases: tuple[str, ...]
+
+    @model_validator(mode="after")
+    def preserve_required_negative_cases(self) -> "VerificationPolicy":
+        _exact_items(self.required_cases, {
+            "cross-workspace reads", "cross-workspace writes",
+            "unauthorized role changes", "member removal", "invalid task assignments",
+            "workspace deletion without owner authority",
+        }, "verification.required_cases")
+        return self
 
 
 class AuthorizationDecisions(_StrictModel):
@@ -97,8 +149,10 @@ class ReviewedAuthorizationPolicy(_StrictModel):
     canonical_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
     @classmethod
-    def from_source_bytes(cls, source_bytes: bytes, *, source_record_sha: str) -> "ReviewedAuthorizationPolicy":
-        """Parse the exact tracked bytes and verify their Git blob identity."""
+    def from_source_bytes(
+        cls, source_bytes: bytes, *, source_record_sha: str
+    ) -> "ReviewedAuthorizationPolicy":
+        """Parse exact tracked bytes and verify their Git blob identity."""
         actual_blob_sha = hashlib.sha1(
             b"blob " + str(len(source_bytes)).encode("ascii") + b"\x00" + source_bytes
         ).hexdigest()

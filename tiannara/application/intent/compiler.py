@@ -61,16 +61,26 @@ class IntentCompiler:
         config: IntentCompilerConfig | None = None,
         taskflow_semantic_resolver: Callable[[RequirementGraph, SemanticResolutionRecord], SemanticResolutionRecord] | None = None,
         taskflow_semantic_projector: Callable[[RequirementGraph, ElicitationOutput, NormalizedIntent, SemanticResolutionRecord], TaskFlowSemanticProjection] | None = None,
+        taskflow_semantic_gate_required: bool = False,
     ) -> None:
         self._provider = provider
         self._config = config or IntentCompilerConfig()
         self._taskflow_semantic_resolver = taskflow_semantic_resolver
         self._taskflow_semantic_projector = taskflow_semantic_projector
+        # A TaskFlow-scoped compiler instance cannot be downgraded by choosing
+        # the generic port method or passing taskflow_semantic_gate=False.
+        # Generic projects retain the existing default unless they opt into
+        # this explicit profile at composition time.
+        self._taskflow_semantic_gate_required = taskflow_semantic_gate_required
 
     def compile(self, statement: str, hints: dict) -> IntermediateSoftwareRepresentation:
         """Port-compatible entry point (matches the domain IntentCompiler port)."""
         system_id = hints.get("system_id") or derive_system_id(statement)
-        return self.compile_full(statement, system_id).isr
+        return self.compile_full(
+            statement,
+            system_id,
+            taskflow_semantic_gate=self._taskflow_semantic_gate_required,
+        ).isr
 
     def compile_full(
         self,
@@ -79,6 +89,12 @@ class IntentCompiler:
         *,
         taskflow_semantic_gate: bool = False,
     ) -> IntentCompilationResult:
+        # The instance-level profile is authoritative. A caller may enable the
+        # gate for a single call, but cannot disable a gate required by the
+        # composition root.
+        taskflow_semantic_gate = (
+            taskflow_semantic_gate or self._taskflow_semantic_gate_required
+        )
         normalized = normalize(statement)
         records: list = []
 

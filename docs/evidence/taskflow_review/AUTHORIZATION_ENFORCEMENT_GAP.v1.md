@@ -41,6 +41,12 @@ This is not sufficient to enforce the reviewed TaskFlow authorization semantics.
 - Verify the generated test suite runs and record its actual result, including build/runtime provenance.
 - Update `SEMANTIC_CONSUMER_TRACE.v1.json` only when each required consumer and acceptance evidence is present.
 
+## Additional backend hardening: missing API-key configuration
+
+The generic FastAPI backend also had a fail-open configuration branch: when authentication was required but `settings.api_key` was empty, its generated dependency returned successfully. The backend template now returns HTTP 503 (`Authentication is not configured`) in that condition, and a generated-application regression test asserts this behavior.
+
+This is a narrow authentication-configuration safeguard only. It does **not** establish actor identity, workspace membership, role permissions, session revocation, or workspace-scoped repository operations. It does not unblock TaskFlow generation or change the semantic-consumer trace status.
+
 ## Evidence limitations
 
 This is a source audit, not a runtime test. No generated TaskFlow application was built or exercised as part of this audit. CI/test status must be checked separately; absent status data is not a pass.

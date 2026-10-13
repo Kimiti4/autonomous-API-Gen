@@ -229,6 +229,7 @@ def certify_trusted_obligation_suite(
 
     evaluations = []
     verified_attestation_ids: set[str] = set()
+    evidence_audit_ids: set[str] = set()
     for obligation_id in policy.required_obligation_ids:
         record = records_by_id.get(obligation_id)
         if record is None:
@@ -264,6 +265,7 @@ def certify_trusted_obligation_suite(
                     f"{obligation_id}/{scenario.scenario_id}: evidence store omitted its access-audit receipt"
                 )
                 continue
+            evidence_audit_ids.add(retrieved.audit_event_id)
             evidence = retrieved.payload
             attestation = retrieved.attestation
             if attestation.attestation_id in seen_attestation_ids:
@@ -331,6 +333,7 @@ def certify_trusted_obligation_suite(
     aggregate = replace(
         aggregate,
         attestation_ids=tuple(sorted(verified_attestation_ids)),
+        evidence_audit_ids=tuple(sorted(evidence_audit_ids)),
     )
     if not duplicate_ids and not replayed_attestation_ids:
         return aggregate

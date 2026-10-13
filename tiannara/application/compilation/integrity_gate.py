@@ -228,6 +228,7 @@ class CompilationIntegrityGate:
             suite_id=self._obligation_policy.suite_id,
             obligation_records=tuple(request.records),
             attestation_ids=verdict.attestation_ids,
+            evidence_audit_ids=verdict.evidence_audit_ids,
         )
         chain_ok = active.verify_event_chain()
         held = verdict.ok and chain_ok

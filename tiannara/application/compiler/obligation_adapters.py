@@ -6,7 +6,6 @@ compiler's success/BundleVerifier result is likewise not behavioral proof.
 """
 from __future__ import annotations
 
-import hashlib
 from typing import Any
 
 from tiannara.domain.models.compiler_obligation import (

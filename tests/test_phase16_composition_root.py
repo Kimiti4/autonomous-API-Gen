@@ -31,6 +31,7 @@ from tiannara.application.intent.prompts import (
     normalize,
 )
 from tiannara.application.intent.schemas import ElicitationOutput, ExtractionOutput
+from tiannara.domain.models.semantic_resolution import UnresolvedSemanticsError
 from tiannara.domain.models.model_call import (
     ModelCallRecord,
     compute_call_signature,
@@ -117,6 +118,20 @@ def test_real_intent_compiler_replays_and_produces_verified_bundle(tmp_path):
     slug = outcome.result.system_name
     assert (out_dir / slug / "main.py").exists()
     assert (out_dir / "Dockerfile").exists()
+
+
+def test_composition_root_wires_mandatory_taskflow_gate(tmp_path):
+    transcript_path = _seed_transcript(tmp_path)
+    compiler = build_project_compiler(
+        "recorded",
+        transcript_path=transcript_path,
+        taskflow_semantic_gate=True,
+    )
+
+    # The flag must reach the pre-synthesis gate through the real composition
+    # root. The ordinary recorded fixture contains no trusted TaskFlow decisions.
+    with pytest.raises(UnresolvedSemanticsError):
+        compiler.compile_intent("Build TaskFlow", {})
 
 
 def test_real_intent_compiler_replay_signatures_are_byte_stable(tmp_path):

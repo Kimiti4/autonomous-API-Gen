@@ -209,3 +209,8 @@ The newly enforced focused workflow executed the ledger validator and correctly 
 ## Machine-readable consumer trace register (2026-10-13)
 
 Added `docs/evidence/taskflow_review/SEMANTIC_CONSUMER_TRACE.v1.json`, with a separate record for each of the 15 mandatory semantic paths. Until evidence exists, native destinations and consumer source locations are null, causal and omission/weakening tests are `NOT_RUN`, runtime/evidence references are empty, and each path remains `BLOCKED`. The ledger validator now rejects unsupported upgrades of any of these fields. This is a tracking/control artifact, not proof that any semantic path is consumed.
+
+
+## Corrected validator verification result (2026-10-13)
+
+The corrected coverage matrix and consumer-trace enforcement passed the focused `TaskFlow Native Adapter` workflow at commit `411dc64f6b49d9a3cb04d466aaf878e423340c0e`: the decision-ledger validator reported **PASS**, and the focused pytest command reported **68 passed in 1.67s**. This includes the regression that rejects an unsupported `PASS` claim for a semantic consumer without evidence. The initial stale-hash run remains recorded as a real **FAIL** followed by a correction and successful rerun. This focused result verifies the validator and associated fail-closed gates only; it does not establish native semantic consumption, authorize TaskFlow generation, or certify an application. Other workflows for the current branch head must be checked independently.

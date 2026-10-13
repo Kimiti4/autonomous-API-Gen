@@ -94,6 +94,7 @@ class TrustedObligationCertificationRequest:
     allowed_runner_ids: frozenset[str]
     expected_consumer_bindings: Mapping[str, str]
     required_scenario_ids: Mapping[str, tuple[str, ...]]
+    previously_used_attestation_ids: frozenset[str] = frozenset()
 
 
 def verify_attestation(
@@ -160,6 +161,8 @@ def certify_trusted_obligation_suite(
     """
     records_by_id: dict[str, CompilerObligationRecord] = {}
     duplicate_ids: set[str] = set()
+    seen_attestation_ids: set[str] = set()
+    replayed_attestation_ids: set[str] = set()
     for record in request.records:
         if record.obligation_id in records_by_id:
             duplicate_ids.add(record.obligation_id)
@@ -183,6 +186,14 @@ def certify_trusted_obligation_suite(
                 trust_blockers.append(
                     f"{obligation_id}/{scenario.scenario_id}: missing retrieved bytes or signed attestation"
                 )
+                continue
+            if attestation.attestation_id in seen_attestation_ids:
+                trust_blockers.append(f"{obligation_id}/{scenario.scenario_id}: duplicate attestation ID in suite")
+                continue
+            seen_attestation_ids.add(attestation.attestation_id)
+            if attestation.attestation_id in request.previously_used_attestation_ids:
+                replayed_attestation_ids.add(attestation.attestation_id)
+                trust_blockers.append(f"{obligation_id}/{scenario.scenario_id}: attestation ID was already consumed")
                 continue
             valid, reason = verify_attestation(
                 attestation,
@@ -233,7 +244,7 @@ def certify_trusted_obligation_suite(
         expected_source_graph_hash=expected_source_graph_hash,
         required_obligation_ids=request.required_obligation_ids,
     )
-    if not duplicate_ids:
+    if not duplicate_ids and not replayed_attestation_ids:
         return aggregate
 
     # Duplicate IDs are contradictory input even if the first record passed.
@@ -241,5 +252,5 @@ def certify_trusted_obligation_suite(
     return replace(
         aggregate,
         disposition=Disposition.UNKNOWN if aggregate.disposition is not Disposition.FAIL else Disposition.FAIL,
-        blockers=tuple((*aggregate.blockers, f"duplicate obligation IDs: {sorted(duplicate_ids)}")),
+        blockers=tuple((*aggregate.blockers, *([f"duplicate obligation IDs: {sorted(duplicate_ids)}"] if duplicate_ids else []), *([f"replayed attestation IDs: {sorted(replayed_attestation_ids)}"] if replayed_attestation_ids else []))),
     )

@@ -27,6 +27,34 @@ class DecisionLedgerValidationTests(unittest.TestCase):
         errors = validator.validate(REPO_ROOT)
         self.assertEqual(errors, [], "\n".join(errors))
 
+    def test_open_decisions_cannot_silently_claim_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            required = [
+                validator.LEDGER_PATH,
+                validator.MATRIX_PATH,
+                validator.PROBLEM_PATH,
+                validator.ACCEPTANCE_PATH,
+                validator.OPEN_DECISIONS_PATH,
+            ]
+            ledger = json.loads((REPO_ROOT / validator.LEDGER_PATH).read_text(encoding="utf-8"))
+            required.extend(Path(record["source_record"]) for record in ledger["records"])
+            for relative in required:
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(REPO_ROOT / relative, target)
+
+            docket_path = root / validator.OPEN_DECISIONS_PATH
+            docket = json.loads(docket_path.read_text(encoding="utf-8"))
+            docket["decisions"][0]["reviewer_answer"] = "assumed default"
+            docket_path.write_text(json.dumps(docket), encoding="utf-8")
+
+            errors = validator.validate(root)
+            self.assertTrue(
+                any("open decision must not contain an answer" in error for error in errors),
+                errors,
+            )
+
     def test_duplicate_semantic_mapping_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -35,6 +63,7 @@ class DecisionLedgerValidationTests(unittest.TestCase):
                 validator.MATRIX_PATH,
                 validator.PROBLEM_PATH,
                 validator.ACCEPTANCE_PATH,
+                validator.OPEN_DECISIONS_PATH,
             ]
             ledger = json.loads((REPO_ROOT / validator.LEDGER_PATH).read_text(encoding="utf-8"))
             required.extend(Path(record["source_record"]) for record in ledger["records"])

@@ -1,0 +1,267 @@
+{
+  "schema_version": "taskflow-open-implementation-decisions.v1",
+  "status": "OPEN",
+  "generation_authorized": false,
+  "certified": false,
+  "resolution_policy": "No answer is inferred. Each decision requires explicit reviewer answer, reviewer identity, approval reference, and subsequent typed-consumer and test evidence.",
+  "decisions": [
+    {
+      "id": "OID-001",
+      "area": "Session lifetime",
+      "question": "Exact absolute lifetime, idle timeout, and permitted configuration bounds.",
+      "status": "OPEN",
+      "reviewer_answer": null,
+      "reviewer_id": null,
+      "approval_reference": null,
+      "required_fields": [
+        "absolute_lifetime",
+        "idle_timeout",
+        "minimum_configured_lifetime",
+        "maximum_configured_lifetime"
+      ],
+      "required_tests": [
+        "expiry boundary tests",
+        "idle reset qualification tests",
+        "configuration bound rejection tests"
+      ],
+      "implementation_status": "BLOCKED",
+      "test_status": "NOT_RUN"
+    },
+    {
+      "id": "OID-002",
+      "area": "Role/action matrix",
+      "question": "Explicit allowed and denied operations by role, resource type, and resource state.",
+      "status": "OPEN",
+      "reviewer_answer": null,
+      "reviewer_id": null,
+      "approval_reference": null,
+      "required_fields": [
+        "operation_role_resource_state_matrix"
+      ],
+      "required_tests": [
+        "allow/deny tests for each matrix cell",
+        "cross-workspace denial tests"
+      ],
+      "implementation_status": "BLOCKED",
+      "test_status": "NOT_RUN"
+    },
+    {
+      "id": "OID-003",
+      "area": "Delete versus archive",
+      "question": "Permanent deletion and archive/restore permissions for projects and tasks by role.",
+      "status": "OPEN",
+      "reviewer_answer": null,
+      "reviewer_id": null,
+      "approval_reference": null,
+      "required_fields": [
+        "project_delete_permissions",
+        "task_delete_permissions",
+        "archive_permissions"
+      ],
+      "required_tests": [
+        "role matrix tests",
+        "archive visibility tests",
+        "audit event tests"
+      ],
+      "implementation_status": "BLOCKED",
+      "test_status": "NOT_RUN"
+    },
+    {
+      "id": "OID-004",
+      "area": "Workspace deletion with dependants",
+      "question": "Deletion preconditions, cascade or blocking behavior, retention, confirmation, and recovery.",
+      "status": "OPEN",
+      "reviewer_answer": null,
+      "reviewer_id": null,
+      "approval_reference": null,
+      "required_fields": [
+        "workspace_delete_preconditions",
+        "dependent_data_policy",
+        "recovery_policy"
+      ],
+      "required_tests": [
+        "dependency matrix tests",
+        "atomicity and recovery tests"
+      ],
+      "implementation_status": "BLOCKED",
+      "test_status": "NOT_RUN"
+    },
+    {
+      "id": "OID-005",
+      "area": "Membership removal dependencies",
+      "question": "Last-owner handling and transfer/reassignment requirements for projects and tasks.",
+      "status": "OPEN",
+      "reviewer_answer": null,
+      "reviewer_id": null,
+      "approval_reference": null,
+      "required_fields": [
+        "membership_removal_preconditions",
+        "ownership_transfer_policy",
+        "assignee_reassignment_policy"
+      ],
+      "required_tests": [
+        "last-owner tests",
+        "ownership/assignment integrity tests"
+      ],
+      "implementation_status": "BLOCKED",
+      "test_status": "NOT_RUN"
+    },
+    {
+      "id": "OID-006",
+      "area": "MFA recovery",
+      "question": "Allowed recovery factors and proofs, rate limits, notifications, and session invalidation.",
+      "status": "OPEN",
+      "reviewer_answer": null,
+      "reviewer_id": null,
+      "approval_reference": null,
+      "required_fields": [
+        "mfa_recovery_methods",
+        "recovery_proof_requirements",
+        "rate_limits",
+        "notification_policy",
+        "session_invalidation"
+      ],
+      "required_tests": [
+        "recovery abuse tests",
+        "replay/rate-limit tests",
+        "session invalidation tests"
+      ],
+      "implementation_status": "BLOCKED",
+      "test_status": "NOT_RUN"
+    },
+    {
+      "id": "OID-007",
+      "area": "API pagination and versioning",
+      "question": "Page limits, cursor/offset shape, stable ordering, and compatibility/versioning policy.",
+      "status": "OPEN",
+      "reviewer_answer": null,
+      "reviewer_id": null,
+      "approval_reference": null,
+      "required_fields": [
+        "default_page_size",
+        "maximum_page_size",
+        "pagination_contract",
+        "stable_ordering",
+        "api_versioning_policy"
+      ],
+      "required_tests": [
+        "boundary tests",
+        "stable pagination tests",
+        "compatibility tests"
+      ],
+      "implementation_status": "BLOCKED",
+      "test_status": "NOT_RUN"
+    },
+    {
+      "id": "OID-008",
+      "area": "Idempotency contract",
+      "question": "Endpoint inventory, scope, retention, canonical request fingerprint, and mismatch behavior.",
+      "status": "OPEN",
+      "reviewer_answer": null,
+      "reviewer_id": null,
+      "approval_reference": null,
+      "required_fields": [
+        "idempotent_endpoint_inventory",
+        "key_scope",
+        "retention_period",
+        "request_fingerprint_rule",
+        "payload_conflict_response",
+        "replay_authorization_rule"
+      ],
+      "required_tests": [
+        "concurrent duplicate tests",
+        "lost-ack/restart tests",
+        "payload conflict tests"
+      ],
+      "implementation_status": "BLOCKED",
+      "test_status": "NOT_RUN"
+    },
+    {
+      "id": "OID-009",
+      "area": "Audit retention and access",
+      "question": "Retention by event class and access/export/deletion policy for sensitive security events.",
+      "status": "OPEN",
+      "reviewer_answer": null,
+      "reviewer_id": null,
+      "approval_reference": null,
+      "required_fields": [
+        "event_classes",
+        "retention_by_class",
+        "access_matrix",
+        "export_policy",
+        "deletion_policy",
+        "tamper_evidence_policy"
+      ],
+      "required_tests": [
+        "access denial tests",
+        "retention enforcement tests",
+        "audit integrity tests"
+      ],
+      "implementation_status": "BLOCKED",
+      "test_status": "NOT_RUN"
+    },
+    {
+      "id": "OID-010",
+      "area": "Comment deletion",
+      "question": "Author deletion rights, moderator rights, and exact metadata retained after body removal.",
+      "status": "OPEN",
+      "reviewer_answer": null,
+      "reviewer_id": null,
+      "approval_reference": null,
+      "required_fields": [
+        "author_delete_policy",
+        "moderator_delete_policy",
+        "retained_audit_metadata"
+      ],
+      "required_tests": [
+        "authorization tests",
+        "deleted-body non-retention tests",
+        "audit continuity tests"
+      ],
+      "implementation_status": "BLOCKED",
+      "test_status": "NOT_RUN"
+    },
+    {
+      "id": "OID-011",
+      "area": "Date/time semantics",
+      "question": "Canonical due-date type, timezone rule, DST handling, and API serialization.",
+      "status": "OPEN",
+      "reviewer_answer": null,
+      "reviewer_id": null,
+      "approval_reference": null,
+      "required_fields": [
+        "due_date_type",
+        "timezone_policy",
+        "dst_policy",
+        "api_serialization"
+      ],
+      "required_tests": [
+        "timezone/DST boundary tests",
+        "round-trip serialization tests"
+      ],
+      "implementation_status": "BLOCKED",
+      "test_status": "NOT_RUN"
+    },
+    {
+      "id": "OID-012",
+      "area": "Conflict responses",
+      "question": "Stable status/error codes and retryability for stale writes, key conflicts, and illegal transitions.",
+      "status": "OPEN",
+      "reviewer_answer": null,
+      "reviewer_id": null,
+      "approval_reference": null,
+      "required_fields": [
+        "stale_update_response",
+        "idempotency_conflict_response",
+        "illegal_transition_response",
+        "retryability_policy"
+      ],
+      "required_tests": [
+        "contract tests for each conflict",
+        "retry behavior tests"
+      ],
+      "implementation_status": "BLOCKED",
+      "test_status": "NOT_RUN"
+    }
+  ]
+}

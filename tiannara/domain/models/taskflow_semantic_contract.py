@@ -139,16 +139,23 @@ def validate_taskflow_semantic_contract(record: SemanticResolutionRecord) -> Non
         if not isinstance(item.value, Mapping):
             issues.append(f"{path}: value must be a structured object")
             continue
-        missing = []
+        expected_keys = set(REQUIRED_VALUE_SHAPES[path])
+        actual_keys = set(item.value)
+        missing = sorted(expected_keys - actual_keys)
+        unexpected = sorted(actual_keys - expected_keys)
         wrong_shape = []
         for key, expected_shape in REQUIRED_VALUE_SHAPES[path].items():
-            value = item.value.get(key)
-            if key not in item.value or not _has_content(value):
+            if key not in item.value:
+                continue
+            value = item.value[key]
+            if not _has_content(value):
                 missing.append(key)
             elif not _matches_shape(value, expected_shape):
                 wrong_shape.append(f"{key} (expected non-empty {expected_shape})")
         if missing:
-            issues.append(f"{path}: missing or placeholder contract keys: {', '.join(missing)}")
+            issues.append(f"{path}: missing or placeholder contract keys: {', '.join(sorted(set(missing)))}")
+        if unexpected:
+            issues.append(f"{path}: unexpected contract keys: {', '.join(unexpected)}")
         if wrong_shape:
             issues.append(f"{path}: invalid contract value shape: {', '.join(wrong_shape)}")
     if issues:

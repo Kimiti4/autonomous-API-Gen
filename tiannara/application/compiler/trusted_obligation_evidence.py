@@ -40,6 +40,7 @@ class TrustedEvidenceAttestation(BaseModel):
     runner_id: str = Field(min_length=1, max_length=256)
     source_graph_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     obligation_id: str = Field(min_length=1, max_length=256)
+    obligation_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     scenario_id: str = Field(min_length=1, max_length=256)
     outcome: str = Field(pattern=r"^(PASS|FAIL|ERROR|NOT_RUN|INCONCLUSIVE)$")
     evidence_ref: str = Field(min_length=1, max_length=2048)
@@ -64,6 +65,7 @@ class TrustedEvidenceAttestation(BaseModel):
             "runner_id": self.runner_id,
             "source_graph_hash": self.source_graph_hash,
             "obligation_id": self.obligation_id,
+            "obligation_hash": self.obligation_hash,
             "scenario_id": self.scenario_id,
             "outcome": self.outcome,
             "evidence_ref": self.evidence_ref,
@@ -122,6 +124,7 @@ def verify_attestation(
     evidence: bytes,
     expected_source_graph_hash: str,
     expected_obligation_id: str,
+    expected_obligation_hash: str,
     expected_scenario: ScenarioEvidence,
     expected_consumer_binding: str,
     trusted_hmac_keys: Mapping[str, bytes],
@@ -142,6 +145,7 @@ def verify_attestation(
     expected_fields = (
         (attestation.source_graph_hash, expected_source_graph_hash, "source graph"),
         (attestation.obligation_id, expected_obligation_id, "obligation"),
+        (attestation.obligation_hash, expected_obligation_hash, "obligation hash"),
         (attestation.scenario_id, expected_scenario.scenario_id, "scenario"),
         (attestation.outcome, expected_scenario.outcome, "outcome"),
         (attestation.evidence_ref, expected_scenario.evidence_ref, "evidence reference"),
@@ -243,6 +247,7 @@ def certify_trusted_obligation_suite(
                 evidence=evidence,
                 expected_source_graph_hash=expected_source_graph_hash,
                 expected_obligation_id=obligation_id,
+                expected_obligation_hash=record.obligation_hash,
                 expected_scenario=scenario,
                 expected_consumer_binding=expected_consumer,
                 trusted_hmac_keys=trusted_hmac_keys,

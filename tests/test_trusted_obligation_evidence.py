@@ -9,6 +9,7 @@ from tiannara.application.compilation.integrity_gate import (
     GATE_OBLIGATION_EVIDENCE,
 )
 from tiannara.application.compiler.trusted_obligation_evidence import (
+    RetrievedTrustedEvidence,
     TrustedEvidenceAttestation,
     TrustedObligationCertificationRequest,
     certify_trusted_obligation_suite,
@@ -87,13 +88,25 @@ def obligation_record():
     )
 
 
-def request(attestation=None, *, previously_used=frozenset()):
-    attestation = attestation or signed_attestation()
+class FakeTrustedEvidenceStore:
+    """Test double for the trusted store boundary; production uses audited storage."""
+
+    def __init__(self, attestation=None):
+        self.bundle = RetrievedTrustedEvidence(
+            payload=PAYLOAD,
+            attestation=attestation or signed_attestation(),
+        )
+        self.reads = []
+
+    def read(self, evidence_ref):
+        self.reads.append(evidence_ref)
+        return self.bundle if evidence_ref == EVIDENCE_REF else None
+
+
+def request(*, previously_used=frozenset()):
     return TrustedObligationCertificationRequest(
         required_obligation_ids=("auth.workspace_scope",),
         records=(obligation_record(),),
-        evidence_bytes_by_ref={EVIDENCE_REF: PAYLOAD},
-        attestations_by_ref={EVIDENCE_REF: attestation},
         expected_consumer_bindings={"auth.workspace_scope": CONSUMER},
         required_scenario_ids={
             "auth.workspace_scope": ("cross-workspace-read-denied",)
@@ -101,11 +114,11 @@ def request(attestation=None, *, previously_used=frozenset()):
         previously_used_attestation_ids=previously_used,
     )
 
-
 def test_signed_runner_evidence_passes_and_is_bound_to_the_source():
     result = certify_trusted_obligation_suite(
         request(),
         expected_source_graph_hash=SOURCE_HASH,
+        evidence_store=FakeTrustedEvidenceStore(),
         trusted_hmac_keys={"ci-key-1": KEY},
         allowed_runner_ids=frozenset({RUNNER}),
     )
@@ -115,8 +128,9 @@ def test_signed_runner_evidence_passes_and_is_bound_to_the_source():
 
 def test_untrusted_runner_cannot_certify():
     result = certify_trusted_obligation_suite(
-        request(signed_attestation(runner_id="untrusted-runner")),
+        request(),
         expected_source_graph_hash=SOURCE_HASH,
+        evidence_store=FakeTrustedEvidenceStore(signed_attestation(runner_id="untrusted-runner")),
         trusted_hmac_keys={"ci-key-1": KEY},
         allowed_runner_ids=frozenset({RUNNER}),
     )
@@ -127,8 +141,9 @@ def test_untrusted_runner_cannot_certify():
 
 def test_invalid_signature_cannot_certify():
     result = certify_trusted_obligation_suite(
-        request(signed_attestation(signature_override="f" * 64)),
+        request(),
         expected_source_graph_hash=SOURCE_HASH,
+        evidence_store=FakeTrustedEvidenceStore(signed_attestation(signature_override="f" * 64)),
         trusted_hmac_keys={"ci-key-1": KEY},
         allowed_runner_ids=frozenset({RUNNER}),
     )
@@ -140,6 +155,7 @@ def test_unknown_key_cannot_certify():
     result = certify_trusted_obligation_suite(
         request(),
         expected_source_graph_hash=SOURCE_HASH,
+        evidence_store=FakeTrustedEvidenceStore(),
         trusted_hmac_keys={},
         allowed_runner_ids=frozenset({RUNNER}),
     )
@@ -150,8 +166,9 @@ def test_unknown_key_cannot_certify():
 def test_replayed_attestation_id_cannot_certify():
     attestation = signed_attestation()
     result = certify_trusted_obligation_suite(
-        request(attestation, previously_used=frozenset({attestation.attestation_id})),
+        request(previously_used=frozenset({attestation.attestation_id})),
         expected_source_graph_hash=SOURCE_HASH,
+        evidence_store=FakeTrustedEvidenceStore(attestation),
         trusted_hmac_keys={"ci-key-1": KEY},
         allowed_runner_ids=frozenset({RUNNER}),
     )
@@ -165,6 +182,7 @@ def test_integrity_gate_records_attestation_and_rejects_replay():
         ledger,
         trusted_hmac_keys={"ci-key-1": KEY},
         allowed_runner_ids=frozenset({RUNNER}),
+        evidence_store=FakeTrustedEvidenceStore(),
     )
     compiled = SimpleNamespace(isr_hash=SOURCE_HASH)
 

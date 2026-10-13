@@ -3,6 +3,7 @@
 **Status:** OPEN — requires explicit reviewer resolution before the affected semantics can be frozen for generation.  
 **Scope:** Only details not fixed by the canonical problem, acceptance suite, or Groups 1–14 chat-approved records.  
 **Authority:** This docket proposes no silent defaults. A selected value must be added to the canonical decision record/ledger, traced into typed semantics, and tested.  
+**Machine-readable register:** `docs/evidence/taskflow_review/OPEN_IMPLEMENTATION_DECISIONS.v1.json`.
 **Generation:** NOT AUTHORIZED.
 
 ## Decision register

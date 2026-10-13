@@ -11,7 +11,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Mapping
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -21,6 +21,7 @@ from tiannara.application.compiler.obligation_certification import (
     assemble_obligation_certification,
 )
 from tiannara.application.compiler.obligation_evidence import (
+    ObligationEvidenceVerdict,
     verify_obligation_evidence,
 )
 from tiannara.domain.models.compiler_obligation import (
@@ -188,12 +189,16 @@ def certify_trusted_obligation_suite(
                 )
                 continue
             if attestation.attestation_id in seen_attestation_ids:
-                trust_blockers.append(f"{obligation_id}/{scenario.scenario_id}: duplicate attestation ID in suite")
+                trust_blockers.append(
+                    f"{obligation_id}/{scenario.scenario_id}: duplicate attestation ID in suite"
+                )
                 continue
             seen_attestation_ids.add(attestation.attestation_id)
             if attestation.attestation_id in request.previously_used_attestation_ids:
                 replayed_attestation_ids.add(attestation.attestation_id)
-                trust_blockers.append(f"{obligation_id}/{scenario.scenario_id}: attestation ID was already consumed")
+                trust_blockers.append(
+                    f"{obligation_id}/{scenario.scenario_id}: attestation ID was already consumed"
+                )
                 continue
             valid, reason = verify_attestation(
                 attestation,
@@ -229,7 +234,6 @@ def certify_trusted_obligation_suite(
                 if verdict.disposition is Disposition.FAIL
                 else Disposition.UNKNOWN
             )
-            from tiannara.application.compiler.obligation_evidence import ObligationEvidenceVerdict
             verdict = ObligationEvidenceVerdict(
                 disposition=disposition,
                 verified_scenarios=verdict.verified_scenarios,
@@ -247,10 +251,22 @@ def certify_trusted_obligation_suite(
     if not duplicate_ids and not replayed_attestation_ids:
         return aggregate
 
-    # Duplicate IDs are contradictory input even if the first record passed.
-    from dataclasses import replace
+    # Duplicate IDs and replay are contradictory input even if the first
+    # record passed.
+    extra_blockers = []
+    if duplicate_ids:
+        extra_blockers.append(f"duplicate obligation IDs: {sorted(duplicate_ids)}")
+    if replayed_attestation_ids:
+        extra_blockers.append(
+            f"replayed attestation IDs: {sorted(replayed_attestation_ids)}"
+        )
+    disposition = (
+        Disposition.FAIL
+        if aggregate.disposition is Disposition.FAIL
+        else Disposition.UNKNOWN
+    )
     return replace(
         aggregate,
-        disposition=Disposition.UNKNOWN if aggregate.disposition is not Disposition.FAIL else Disposition.FAIL,
-        blockers=tuple((*aggregate.blockers, *([f"duplicate obligation IDs: {sorted(duplicate_ids)}"] if duplicate_ids else []), *([f"replayed attestation IDs: {sorted(replayed_attestation_ids)}"] if replayed_attestation_ids else []))),
+        disposition=disposition,
+        blockers=tuple((*aggregate.blockers, *extra_blockers)),
     )

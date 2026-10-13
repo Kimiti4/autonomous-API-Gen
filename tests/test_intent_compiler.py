@@ -12,7 +12,8 @@ from tiannara.application.intent import (
     build_repair_request,
     normalize,
 )
-from tiannara.application.intent.schemas import ElicitationOutput, ExtractionOutput
+from tiannara.application.intent.schemas import ElicitationOutput, ExtractionOutput, TaskFlowSemanticProjection
+from tiannara.domain.models.system_model import RequirementsReference, SystemModel
 from tiannara.domain.models.model_call import (
     ModelCallRecord,
     ModelCallStatus,
@@ -287,3 +288,103 @@ def test_resolved_taskflow_ledger_still_blocks_without_semantic_projection(tmp_p
             taskflow_semantic_gate=True,
         )
 
+
+
+def _taskflow_reviewed_ledger(graph, _initial):
+    return SemanticResolutionRecord(
+        graph_id=graph.graph_id,
+        graph_hash=graph.content_hash(),
+        required_fields=TASKFLOW_MANDATORY_FIELDS,
+        resolutions=tuple(
+            SemanticResolution(
+                field_path=path,
+                kind=ResolutionKind.SNAPSHOT,
+                value={
+                    key: ([{"fixture_value": True}] if shape == "array" else {"fixture_value": True})
+                    for key, shape in REQUIRED_VALUE_SHAPES[path].items()
+                },
+                source="test:reviewed-fixture",
+            )
+            for path in TASKFLOW_MANDATORY_FIELDS
+        ),
+    )
+
+
+def _taskflow_projection(values, graph):
+    model = SystemModel(
+        system_name="taskflow-test",
+        problem_statement="TaskFlow semantic projection test",
+        requirements_ref=RequirementsReference(
+            graph_id=graph.graph_id,
+            graph_hash=graph.content_hash(),
+        ),
+        extensions={"taskflow_semantic_values": values},
+    )
+    return TaskFlowSemanticProjection(system_model=model, projected_values=values)
+
+
+def test_taskflow_projection_must_cover_all_mandatory_fields(tmp_path):
+    config = IntentCompilerConfig()
+    normalized = normalize(STATEMENT)
+    elicitation_payload = _elicitation_payload()
+    elicitation_out = ElicitationOutput.model_validate(elicitation_payload)
+    provider = _seed(
+        tmp_path,
+        [
+            (build_elicitation_request(normalized, config), elicitation_payload),
+            (build_extraction_request(normalized, elicitation_out, config), _valid_extraction_payload()),
+        ],
+    )
+
+    def incomplete_projector(graph, _elicitation, _normalized, record):
+        values = {record.required_fields[0]: record.resolutions[0].value}
+        return _taskflow_projection(values, graph)
+
+    compiler = IntentCompiler(
+        provider,
+        config,
+        taskflow_semantic_resolver=_taskflow_reviewed_ledger,
+        taskflow_semantic_projector=incomplete_projector,
+    )
+    with pytest.raises(ValueError, match="projection coverage mismatch"):
+        compiler.compile_full(
+            STATEMENT,
+            system_id="taskflow-incomplete-projection",
+            taskflow_semantic_gate=True,
+        )
+
+
+def test_taskflow_projection_cannot_change_reviewed_values(tmp_path):
+    config = IntentCompilerConfig()
+    normalized = normalize(STATEMENT)
+    elicitation_payload = _elicitation_payload()
+    elicitation_out = ElicitationOutput.model_validate(elicitation_payload)
+    provider = _seed(
+        tmp_path,
+        [
+            (build_elicitation_request(normalized, config), elicitation_payload),
+            (build_extraction_request(normalized, elicitation_out, config), _valid_extraction_payload()),
+        ],
+    )
+
+    def altered_projector(graph, _elicitation, _normalized, record):
+        values = {item.field_path: item.value for item in record.resolutions}
+        values["authorization.workspace_membership_scope"] = {
+            "scoped_resources": [{"fixture_value": "weakened"}],
+            "scoped_operations": [{"fixture_value": True}],
+            "cross_scope_denial": {"fixture_value": True},
+        }
+        return _taskflow_projection(values, graph)
+
+    compiler = IntentCompiler(
+        provider,
+        config,
+        taskflow_semantic_resolver=_taskflow_reviewed_ledger,
+        taskflow_semantic_projector=altered_projector,
+    )
+    with pytest.raises(ValueError, match="changed or omitted reviewed values"):
+        compiler.compile_full(
+            STATEMENT,
+            system_id="taskflow-altered-projection",
+            taskflow_semantic_gate=True,
+        )

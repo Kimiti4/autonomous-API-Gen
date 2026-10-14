@@ -383,9 +383,14 @@ def test_compilation_dry_run():
         },
     )
 
-    assert report.success is True
-    assert report.artifact_count > 0
+    # The default gateway is a dry-run preview; it must never be treated
+    # as successful compilation or as files that actually exist.
+    assert report.success is False
+    assert report.artifact_count == 0
     assert len(report.jobs) == 5
+    assert all(job.status == "DRY_RUN" for job in report.jobs)
+    assert all(job.artifacts == [] for job in report.jobs)
+    assert all("not created" in job.logs[-1] for job in report.jobs)
 
 
 def test_default_compilation_targets_count():

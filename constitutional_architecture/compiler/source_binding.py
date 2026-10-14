@@ -12,6 +12,7 @@ from typing import Mapping
 
 from constitutional_architecture.isr.model.isr import ISR
 from tiannara.domain.models.requirement_graph import RequirementGraph
+from tiannara.domain.models.system_model import SystemModel
 
 
 @dataclass(frozen=True)
@@ -20,6 +21,7 @@ class ConstitutionalSourceBinding:
     expected_source_sha256: str
     graph: RequirementGraph
     graph_to_isr_requirement_ids: Mapping[str, str]
+    system_model: SystemModel | None = None
 
 
 @dataclass(frozen=True)
@@ -66,6 +68,42 @@ def verify_constitutional_source_binding(
         blockers.append("requirement graph contains no nodes")
     if not isr.system.requirements:
         blockers.append("constitutional ISR contains no requirements")
+    architecture_ref = getattr(isr.system, "intent_architecture_ref", None)
+    if architecture_ref is not None:
+        if not architecture_ref.projection_complete:
+            blockers.extend(
+                f"typed architecture projection incomplete: {item}"
+                for item in architecture_ref.projection_blockers
+            )
+        if binding.system_model is None:
+            blockers.append("typed SystemModel is required to verify architecture projection")
+        else:
+            if binding.system_model.content_hash() != architecture_ref.system_model_sha256:
+                blockers.append("typed SystemModel hash differs from the bound architecture projection")
+            try:
+                from constitutional_architecture.isr.semantics.intent_projection import (
+                    project_intent_to_constitutional_isr,
+                )
+                expected_projection = project_intent_to_constitutional_isr(
+                    source_bytes=binding.source_bytes,
+                    graph=graph,
+                    system_model=binding.system_model,
+                    system_id=isr.system.id,
+                )
+                if expected_projection.blockers:
+                    blockers.append(
+                        "bound typed SystemModel cannot be completely projected: "
+                        + "; ".join(expected_projection.blockers)
+                    )
+                if expected_projection.candidate_isr is None:
+                    blockers.append("bound typed SystemModel did not produce a candidate ISR")
+                elif expected_projection.candidate_isr.system.modules != isr.system.modules:
+                    blockers.append("constitutional ISR modules differ from deterministic typed architecture projection")
+            except Exception as exc:
+                blockers.append(
+                    f"typed architecture projection verification unavailable: "
+                    f"{type(exc).__name__}: {exc}"
+                )
     graph_ref = getattr(isr.system, "requirement_graph_ref", None)
     if graph_ref is not None:
         if not graph_ref.projection_complete:

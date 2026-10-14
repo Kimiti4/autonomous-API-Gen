@@ -220,10 +220,10 @@ def test_default_corpus_covers_all_categories():
 
 
 # ---------------------------------------------------------------------------
-# Full stub trial (compile → all stub stages → CERTIFIED)
+# Unconfigured execution stages must never produce CERTIFIED
 # ---------------------------------------------------------------------------
 
-def test_full_stub_trial_certified():
+def test_full_stub_trial_not_certified():
     runner = CampaignRunner()
     plan = _plan()
     backend = _backend()
@@ -235,9 +235,17 @@ def test_full_stub_trial_certified():
         revision_id="rev1",
         backend=backend,
     )
-    assert trial.verdict == "CERTIFIED"
+    assert trial.verdict == "NOT_CERTIFIED"
     assert len(trial.stages) == 8
-    assert all(se.passed for se in trial.stages)
+    by_stage = {se.stage: se for se in trial.stages}
+    assert by_stage[TrialStage.STRUCTURAL].passed
+    assert by_stage[TrialStage.SEMANTIC].passed
+    for stage in (
+        TrialStage.BUILD, TrialStage.TEST, TrialStage.DEPLOY,
+        TrialStage.RUNTIME, TrialStage.DESTROY, TrialStage.VERIFY,
+    ):
+        assert not by_stage[stage].passed
+        assert "not_configured" in by_stage[stage].detail or "no independent verifier" in by_stage[stage].detail
     assert trial.metrics.isr_semantic_conformance == 1.0
     assert trial.backend == "python-fastapi"
 

@@ -54,7 +54,11 @@ class System:
     reliability_requirements: tuple[ReliabilityRequirement, ...] = ()
     architectural_boundaries: tuple[ArchitecturalBoundary, ...] = ()
     requirements: tuple[Requirement, ...] = ()
-    # Loss-aware projection provenance; all records are first-class ISR semantics.\n    requirement_graph_ref: Optional[RequirementGraphReference] = None\n    requirement_source_metadata: tuple[RequirementSourceMetadata, ...] = ()\n    requirement_relations: tuple[RequirementRelation, ...] = ()\n    acceptance_criteria: tuple[AcceptanceCriterion, ...] = ()
+    # Loss-aware projection provenance; all records are first-class ISR semantics.
+    requirement_graph_ref: Optional[RequirementGraphReference] = None
+    requirement_source_metadata: tuple[RequirementSourceMetadata, ...] = ()
+    requirement_relations: tuple[RequirementRelation, ...] = ()
+    acceptance_criteria: tuple[AcceptanceCriterion, ...] = ()
     deployment_intents: tuple[DeploymentIntent, ...] = ()
     testing_anchors: tuple[TestingAnchor, ...] = ()
     # Documentation intents (R2.10.3-I): WHAT must be documented, for whom,

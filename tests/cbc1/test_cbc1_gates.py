@@ -287,3 +287,39 @@ def test_independent_verify_separate_process():
 
 
 import subprocess
+
+
+
+def test_campaign_runner_records_full_stack_gate_against_candidate():
+    class _Result:
+        passed = True
+        findings = ()
+
+    class _FullStackVerifier:
+        def __init__(self):
+            self.calls = 0
+
+        def __call__(self, frontend, api, backend, effects, consequences):
+            self.calls += 1
+            return _Result()
+
+    verifier = _FullStackVerifier()
+    runner = CampaignRunner(full_stack_verifier=verifier)
+    trial = runner.run_trial(
+        intent="candidate-binding-test",
+        category="api",
+        novelty_class="template",
+        plan=_plan(),
+        revision_id="rev-candidate-binding",
+        backend=_backend(),
+        full_stack_inputs=("frontend-ir", "api-contract-ir", "backend-ir", (), ()),
+    )
+
+    verify = next(stage for stage in trial.stages if stage.stage == TrialStage.VERIFY)
+    assert verifier.calls == 1
+    assert "full-stack verification passed" in verify.detail
+    assert "candidate_hash=" in verify.detail
+    # Independent generated-candidate verification remains mandatory.
+    assert "no independent verifier configured" in verify.detail
+    assert verify.passed is False
+    assert trial.verdict == "NOT_CERTIFIED"

@@ -1116,6 +1116,8 @@ def test_source_binding_rejects_mutated_typed_architecture_genes():
         system_model=model,
         graph_to_isr_requirement_ids={node.id: node.id for node in graph.nodes},
     )
+    baseline_report = verify_constitutional_source_binding(binding=binding, isr=isr)
+    assert baseline_report.complete, baseline_report.blockers
 
     original_module = isr.system.modules[0]
     changed_api = replace(

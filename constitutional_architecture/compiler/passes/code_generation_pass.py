@@ -55,7 +55,17 @@ class CodeGenerationPass(CompilerPass):
         # code. The backend must explicitly declare that it has been certified
         # to consume source-derived semantics. Existing backends do not yet
         # satisfy that contract; fail before any backend can emit artifacts.
-        if ctx.config.require_source_binding:
+        source_graph_ref = getattr(
+            getattr(getattr(ctx, "original_isr", None), "system", None),
+            "requirement_graph_ref",
+            None,
+        )
+        source_bound_compilation = bool(
+            ctx.config.require_source_binding
+            or getattr(ctx, "source_binding", None) is not None
+            or source_graph_ref is not None
+        )
+        if source_bound_compilation:
             uncertified = [
                 backend.name
                 for backend in backends

@@ -7,6 +7,7 @@ or runtime enforcement merely because a requirement was parsed.
 """
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 from dataclasses import dataclass
@@ -51,6 +52,9 @@ class SourceProjectionContext(BaseModel):
     schema_version: str = "source-projection-context.v1"
     source_id: str = Field(min_length=1, max_length=512)
     snapshot_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    # Retain exact input bytes so downstream constitutional binding can use
+    # the same snapshot rather than reconstructing it from normalized text.
+    source_bytes_b64: str = Field(min_length=1)
     graph_id: str = Field(min_length=1, max_length=256)
     graph_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     graph_json: str = Field(min_length=2)
@@ -68,6 +72,14 @@ class SourceProjectionContext(BaseModel):
             raise ValueError("graph_json is not canonical")
         if graph_payload.get("graph_id") != self.graph_id:
             raise ValueError("graph identity does not match frozen graph payload")
+        try:
+            source_bytes = base64.b64decode(self.source_bytes_b64, validate=True)
+        except (ValueError, base64.binascii.Error) as exc:
+            raise ValueError("source_bytes_b64 must be valid base64") from exc
+        if not source_bytes:
+            raise ValueError("source snapshot bytes must not be empty")
+        if sha256_bytes(source_bytes) != self.snapshot_sha256:
+            raise ValueError("source snapshot bytes do not match snapshot_sha256")
         # Recompute using the domain's canonical hash contract. Do not
         # duplicate its JSON encoding rules here (notably Unicode handling).
         actual_graph_hash = RequirementGraph.model_validate(graph_payload).content_hash()
@@ -82,6 +94,7 @@ class SourceProjectionContext(BaseModel):
             "schema_version": self.schema_version,
             "source_id": self.source_id,
             "snapshot_sha256": self.snapshot_sha256,
+            "source_bytes_b64": self.source_bytes_b64,
             "graph_id": self.graph_id,
             "graph_sha256": self.graph_sha256,
             "graph_json": self.graph_json,
@@ -117,6 +130,7 @@ def create_source_projection_context(
         "schema_version": "source-projection-context.v1",
         "source_id": source_id,
         "snapshot_sha256": sha256_bytes(source_bytes),
+        "source_bytes_b64": base64.b64encode(source_bytes).decode("ascii"),
         "graph_id": graph.graph_id,
         "graph_sha256": graph_hash,
         "graph_json": graph_json,
@@ -125,6 +139,36 @@ def create_source_projection_context(
     return SourceProjectionContext(
         **values,
         context_sha256=sha256_bytes(canonical_json_bytes(values)),
+    )
+
+
+def to_constitutional_source_binding(
+    context: SourceProjectionContext,
+    *,
+    graph_to_isr_requirement_ids: dict[str, str],
+):
+    """Create the constitutional binding from the exact frozen source bytes.
+
+    The graph must explicitly carry the same exact-byte SHA-256 in provenance.
+    This binds identity and requirement IDs only; it does not prove semantic
+    extraction fidelity or that ISR obligations are implemented.
+    """
+    from constitutional_architecture.compiler.source_binding import (
+        ConstitutionalSourceBinding,
+    )
+
+    source_bytes = base64.b64decode(context.source_bytes_b64, validate=True)
+    graph = RequirementGraph.model_validate(json.loads(context.graph_json))
+    provenance_hash = getattr(graph.provenance, "source_statement_hash", None)
+    if provenance_hash != context.snapshot_sha256:
+        raise ValueError(
+            "requirement graph provenance does not bind the exact source snapshot"
+        )
+    return ConstitutionalSourceBinding(
+        source_bytes=source_bytes,
+        expected_source_sha256=context.snapshot_sha256,
+        graph=graph,
+        graph_to_isr_requirement_ids=graph_to_isr_requirement_ids,
     )
 
 

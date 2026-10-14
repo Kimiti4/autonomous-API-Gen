@@ -21,7 +21,9 @@ class PublicationResult:
     repo_url: str; commit_refs: tuple[str,...]; ledger_ref: str; bundle_hash: str
 
 def publish_bundle(bundle: SystemDeploymentBundle, provider: RepositoryProvider, ledger: EvolutionLedger, certification_gate) -> PublicationResult:
-    # Gate: never publish if not CERTIFIED
+    # Gate: publication requires explicit, already-earned certification evidence.
+    if not bundle.certification_refs:
+        raise ValueError("publication blocked: no certification evidence references supplied")
     for ref in bundle.certification_refs:
         ev = ledger.event_by_ref(ref)
         if ev is None or ev.payload.get("verdict") != "CERTIFIED":

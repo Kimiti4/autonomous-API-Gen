@@ -5,6 +5,7 @@ from typing import Any
 
 from constitutional_architecture.compiler.compiler_context import CompilerContext
 from constitutional_architecture.compiler.pass_interface import CompilerPass
+from constitutional_architecture.compiler.quality.diagnostics import DiagnosticSeverity
 from constitutional_architecture.compiler.pass_registry import PassRegistry
 
 
@@ -34,11 +35,27 @@ class PassManager:
                     all_success = False
                     ctx.diagnostics.error("COMP-PASS-001", f"Pass '{pass_id}' failed: {result.description}")
 
+                # Fatal diagnostics represent an indeterminate or unsafe state,
+                # not a recoverable pass failure. Do not execute dependent or
+                # later passes after a mandatory gate becomes indeterminate.
+                if any(
+                    diagnostic.severity == DiagnosticSeverity.FATAL
+                    for diagnostic in ctx.diagnostics.diagnostics
+                ):
+                    all_success = False
+                    break
+
             except Exception as e:
                 elapsed_ms = (time.perf_counter() - start) * 1000
                 ctx.record_pass_timing(pass_id, elapsed_ms)
                 ctx.diagnostics.error("COMP-PASS-002", f"Pass '{pass_id}' raised exception: {e}")
                 all_success = False
+
+                if any(
+                    diagnostic.severity == DiagnosticSeverity.FATAL
+                    for diagnostic in ctx.diagnostics.diagnostics
+                ):
+                    break
 
         return all_success
 

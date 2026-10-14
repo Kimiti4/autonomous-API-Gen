@@ -96,6 +96,10 @@ def test_happy_path_records_and_provenance(tmp_path):
     assert {"req-book", "req-avail", "asm-1"} <= node_ids
     assert result.assumption_ids == ["asm-1"]
     assert result.isr.system_model() is not None
+    # Graph provenance must bind exact caller bytes, not normalized text.
+    assert result.requirement_graph.provenance.source_statement_hash == hashlib.sha256(
+        STATEMENT.encode("utf-8")
+    ).hexdigest()
 
 
 def test_repair_converges_in_one_iteration(tmp_path):
@@ -131,6 +135,9 @@ def test_repair_converges_in_one_iteration(tmp_path):
     result = compiler.compile_full(STATEMENT, system_id="sys-2")
     assert result.repair_iterations == 1
     assert len(result.call_records) == 3
+    assert result.requirement_graph.provenance.source_statement_hash == hashlib.sha256(
+        STATEMENT.encode("utf-8")
+    ).hexdigest()
 
 
 def test_repair_diverges_and_raises(tmp_path):

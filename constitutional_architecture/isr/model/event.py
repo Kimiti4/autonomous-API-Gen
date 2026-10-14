@@ -38,3 +38,7 @@ class Event:
     ordering_required: bool = False
     ttl_seconds: Optional[int] = None
     metadata: dict[str, str] = field(default_factory=dict)
+    ordering_semantics: str = "none"
+    producer_service_id: Optional[str] = None
+    consumer_service_ids: tuple[str, ...] = ()
+    payload_model_id: Optional[str] = None

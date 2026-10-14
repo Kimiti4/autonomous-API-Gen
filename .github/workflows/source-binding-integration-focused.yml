@@ -20,6 +20,10 @@ on:
       - "hardening/source-binding-mainline-integration"
     paths:
       - "constitutional_architecture/compiler/source_binding.py"
+      - "tests/test_intent_projection_adapter.py"
+      - "constitutional_architecture/isr/model/system.py"
+      - "constitutional_architecture/isr/semantics/requirement.py"
+      - "constitutional_architecture/isr/semantics/intent_projection.py"
       - "constitutional_architecture/compiler/compilation_config.py"
       - "constitutional_architecture/compiler/compiler_context.py"
       - "constitutional_architecture/compiler/pipeline.py"

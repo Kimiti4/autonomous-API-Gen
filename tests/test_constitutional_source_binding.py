@@ -111,3 +111,23 @@ def test_pipeline_fails_closed_when_source_binding_is_required_but_absent():
     assert not result.success
     assert result.error_count == 1
     assert result.diagnostics[0].code == "COMP-SOURCE-BINDING-001"
+
+
+def test_pipeline_blocks_invalid_source_graph_isr_binding_before_generation():
+    source = b"Workspace isolation is mandatory."
+    isr, binding = _binding(
+        source,
+        mapped={"REQ-NOT-REAL": "ISR-NOT-REAL"},
+    )
+    result = CompilerPipeline().compile(
+        isr,
+        CompilationConfig(project_name="bound-gate-test", require_source_binding=True),
+        source_binding=binding,
+    )
+    assert not result.success
+    assert result.error_count >= 1
+    assert any(
+        diagnostic.code == "COMP-SOURCE-BINDING-003"
+        for diagnostic in result.diagnostics
+    )
+    assert result.artifact_count == 0

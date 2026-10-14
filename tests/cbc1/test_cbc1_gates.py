@@ -294,14 +294,17 @@ def test_campaign_runner_records_full_stack_gate_against_candidate():
     class _Result:
         passed = True
         findings = ()
+        candidate_hash = ""
 
     class _FullStackVerifier:
         def __init__(self):
             self.calls = 0
 
-        def __call__(self, frontend, api, backend, effects, consequences):
+        def verify_bound(self, inputs, candidate_hash):
             self.calls += 1
-            return _Result()
+            result = _Result()
+            result.candidate_hash = candidate_hash
+            return result
 
     verifier = _FullStackVerifier()
     runner = CampaignRunner(full_stack_verifier=verifier)
@@ -317,7 +320,7 @@ def test_campaign_runner_records_full_stack_gate_against_candidate():
 
     verify = next(stage for stage in trial.stages if stage.stage == TrialStage.VERIFY)
     assert verifier.calls == 1
-    assert "full-stack verification passed" in verify.detail
+    assert "full-stack verification passed with matching candidate binding" in verify.detail
     assert "candidate_hash=" in verify.detail
     # Independent generated-candidate verification remains mandatory.
     assert "no independent verifier configured" in verify.detail

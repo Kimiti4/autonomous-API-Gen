@@ -304,9 +304,11 @@ def test_campaign_a_success_matrix():
         os.path.join(d, "ledger.jsonl"),
         os.path.join(d, "agg.json"),
     )
-    # The success matrix counts certified trials only. With no configured
-    # execution adapters, it must remain empty.
-    assert summary["success_matrix"] == {}
+    # The aggregator preserves the corpus dimensions, but every count must
+    # remain zero because no trial was certified.
+    matrix = summary["success_matrix"]
+    assert len(matrix) == 13
+    assert all(count == 0 for category in matrix.values() for count in category.values())
 
 
 def test_campaign_a_failure_taxonomy_empty():

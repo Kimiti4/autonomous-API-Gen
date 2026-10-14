@@ -57,6 +57,7 @@ class Service:
     domain_id: Optional[str] = None
     responsibility_refs: tuple[str, ...] = ()
     exposed_capability_refs: tuple[str, ...] = ()
+    communication_styles: tuple[str, ...] = ()
 
     def get_operation(self, name: str) -> Optional[Operation]:
         for op in self.operations:

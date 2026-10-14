@@ -244,12 +244,19 @@ def _full_compilation_result(statement: str, *, include_context: bool = True):
 
 
 class _FullResultIntentCompiler:
-    def __init__(self, *, include_context: bool = True):
+    def __init__(
+        self,
+        *,
+        include_context: bool = True,
+        context_statement: str | None = None,
+    ):
         self.include_context = include_context
+        self.context_statement = context_statement
 
     def compile_full(self, statement, system_id, *, taskflow_semantic_gate=False):
         return _full_compilation_result(
-            statement, include_context=self.include_context
+            self.context_statement if self.context_statement is not None else statement,
+            include_context=self.include_context,
         )
 
 
@@ -271,6 +278,19 @@ def test_generic_generation_accepts_matching_source_context_and_graph_identity()
     report = compiler.compile_intent(statement, {})
     assert report.ok is True
     assert report.generation_mode == "no_model_calls"
+
+
+def test_generic_generation_blocks_context_from_another_source_snapshot():
+    statement = "Build an order management service"
+    compiler = ProjectCompiler(
+        _FullResultIntentCompiler(
+            include_context=True,
+            context_statement="Build an unrelated social network",
+        ),
+        _registry_with_fastapi(),
+    )
+    with pytest.raises(ProjectCompilationError, match="exact caller statement bytes"):
+        compiler.compile_intent(statement, {})
 
 def test_taskflow_mode_activates_pre_synthesis_gate_before_backend_planning():
     class _GateIntentCompiler:

@@ -32,18 +32,17 @@ def verify_effect_consequences(
     consequences: tuple[EffectConsequence, ...],
     backend: BackendIR,
 ) -> tuple[ConsequenceFinding, ...]:
-    """Validate declared consequence coverage without silently resolving ambiguity.
+    """Validate consequence coverage without silently resolving ambiguity.
 
-    This checks the completeness and uniqueness of the *declarations*. It does
-    not prove that the backend enforces the declared policies at runtime.
+    This checks completeness and uniqueness of declarations. It does not prove
+    that the backend enforces the declared policies at runtime.
     """
-    del backend  # Backend realization is verified by separate implementation evidence.
+    del backend  # Runtime realization requires separate implementation evidence.
     findings: list[ConsequenceFinding] = []
 
     effect_counts = Counter(effect.effect_id for effect in effects)
     consequence_counts = Counter(c.effect_id for c in consequences)
     effect_ids = set(effect_counts)
-    consequence_ids = set(consequence_counts)
 
     for effect_id, count in sorted(effect_counts.items()):
         if not effect_id:
@@ -73,9 +72,7 @@ def verify_effect_consequences(
         if consequence_counts[c.effect_id] == 1
     }
     for effect in effects:
-        if not effect.effect_id:
-            continue
-        if effect_counts[effect.effect_id] > 1:
+        if not effect.effect_id or effect_counts[effect.effect_id] > 1:
             continue
         c = by_id.get(effect.effect_id)
         if c is None:
@@ -101,17 +98,14 @@ def verify_effect_consequences(
             ))
         if not c.retry_policy:
             findings.append(ConsequenceFinding(
-                "EFFECT-CONS-005", effect.effect_id,
-                "effect has no retry policy"
+                "EFFECT-CONS-005", effect.effect_id, "effect has no retry policy"
             ))
         if not c.concurrency_policy:
             findings.append(ConsequenceFinding(
-                "EFFECT-CONS-006", effect.effect_id,
-                "effect has no concurrency policy"
+                "EFFECT-CONS-006", effect.effect_id, "effect has no concurrency policy"
             ))
         if not c.recovery_policy:
             findings.append(ConsequenceFinding(
-                "EFFECT-CONS-007", effect.effect_id,
-                "effect has no recovery policy"
+                "EFFECT-CONS-007", effect.effect_id, "effect has no recovery policy"
             ))
     return tuple(findings)

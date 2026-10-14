@@ -554,8 +554,8 @@ def test_projection_lowers_domain_service_component_data_and_event_semantics():
     entity = module.entities[0]
     assert entity.owning_service_id == "workspace-service"
     assert entity.invariants == ("workspace identity is immutable",)
-    assert [field.field_type.value for field in entity.fields] == ["text", "enum"]
-    assert [field.abstract_source_type for field in entity.fields] == ["text", "enumeration"]
+    assert [field.field_type.value for field in entity.fields] == ["text", "enum", "reference"]
+    assert [field.abstract_source_type for field in entity.fields] == ["text", "enumeration", "reference"]
     assert entity.fields[2].reference_target == "workspace-record"
     assert entity.relationships[0].target_entity_id == "workspace-record"
     assert entity.relationships[0].field_name == "parent_workspace"

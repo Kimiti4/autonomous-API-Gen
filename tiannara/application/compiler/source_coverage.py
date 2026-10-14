@@ -145,3 +145,88 @@ def verify_source_graph_coverage(
         unbound_required_node_ids=unbound_required,
         blockers=tuple(blockers),
     )
+
+
+
+@dataclass(frozen=True)
+class GraphISRTraceabilityReport:
+    """Structural traceability from requirement graph nodes into the typed ISR."""
+
+    graph_id: str
+    graph_sha256: str
+    system_model_sha256: str
+    mapped_required_node_ids: tuple[str, ...]
+    unmapped_required_node_ids: tuple[str, ...]
+    unknown_requirement_ids: tuple[str, ...]
+    blockers: tuple[str, ...]
+
+    @property
+    def complete(self) -> bool:
+        return not self.blockers and not self.unmapped_required_node_ids and not self.unknown_requirement_ids
+
+
+def verify_graph_system_model_traceability(
+    *,
+    graph: RequirementGraph,
+    system_model: object,
+) -> GraphISRTraceabilityReport:
+    """Require mandatory graph requirements to be traced by typed ISR capabilities.
+
+    This checks structural references only. It does not prove that capability
+    descriptions or downstream implementations semantically satisfy a mapped
+    requirement; that requires independent obligation and runtime evidence.
+    """
+    from tiannara.domain.models.system_model import SystemModel
+
+    blockers: list[str] = []
+    if not isinstance(system_model, SystemModel):
+        return GraphISRTraceabilityReport(
+            graph_id=graph.graph_id,
+            graph_sha256=graph.content_hash(),
+            system_model_sha256="",
+            mapped_required_node_ids=(),
+            unmapped_required_node_ids=tuple(
+                sorted(node.id for node in graph.nodes if node.priority.value == "must")
+            ),
+            unknown_requirement_ids=(),
+            blockers=("typed SystemModel is missing or invalid",),
+        )
+
+    if system_model.requirements_ref.graph_id != graph.graph_id:
+        blockers.append("typed ISR references a different requirement graph ID")
+    if system_model.requirements_ref.graph_hash != graph.content_hash():
+        blockers.append("typed ISR references a different requirement graph hash")
+
+    known_requirement_ids = {node.id for node in graph.nodes}
+    required_ids = {node.id for node in graph.nodes if node.priority.value == "must"}
+    traced_ids = [
+        requirement_id
+        for capability in system_model.capabilities
+        for requirement_id in capability.traced_requirement_ids
+    ]
+    traced_set = set(traced_ids)
+    unknown = tuple(sorted(traced_set - known_requirement_ids))
+    if unknown:
+        blockers.append(f"typed ISR references unknown requirement IDs: {list(unknown)}")
+
+    duplicates = sorted(item for item in traced_set if traced_ids.count(item) > 1)
+    if duplicates:
+        blockers.append(f"typed ISR duplicates requirement trace links: {duplicates}")
+
+    mapped_required = tuple(sorted(required_ids & traced_set))
+    unmapped_required = tuple(sorted(required_ids - traced_set))
+    if unmapped_required:
+        blockers.append(
+            "mandatory requirement graph nodes lack typed ISR capability trace links: "
+            + str(list(unmapped_required))
+        )
+
+    return GraphISRTraceabilityReport(
+        graph_id=graph.graph_id,
+        graph_sha256=graph.content_hash(),
+        system_model_sha256=system_model.content_hash(),
+        mapped_required_node_ids=mapped_required,
+        unmapped_required_node_ids=unmapped_required,
+        unknown_requirement_ids=unknown,
+        blockers=tuple(blockers),
+    )

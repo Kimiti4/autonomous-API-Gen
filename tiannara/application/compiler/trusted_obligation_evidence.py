@@ -131,13 +131,30 @@ class TrustedObligationSuitePolicy:
             raise ValueError("suite_id must not be blank")
         if not self.required_obligation_ids:
             raise ValueError("trusted suite must require at least one obligation")
-        if len(set(self.required_obligation_ids)) != len(self.required_obligation_ids):
+        required_ids = set(self.required_obligation_ids)
+        if len(required_ids) != len(self.required_obligation_ids):
             raise ValueError("trusted suite contains duplicate obligation IDs")
+        # The three policy indexes are one reviewed contract. Extra keys can
+        # conceal stale policy entries; missing keys can weaken enforcement.
+        if set(self.expected_consumer_bindings) != required_ids:
+            raise ValueError(
+                "consumer-binding keys must exactly match required obligation IDs"
+            )
+        if set(self.required_scenario_ids) != required_ids:
+            raise ValueError(
+                "scenario-policy keys must exactly match required obligation IDs"
+            )
         for obligation_id in self.required_obligation_ids:
-            if not self.expected_consumer_bindings.get(obligation_id, "").strip():
+            consumer = self.expected_consumer_bindings[obligation_id]
+            if not consumer.strip():
                 raise ValueError(f"expected consumer missing for {obligation_id}")
-            if not self.required_scenario_ids.get(obligation_id):
+            scenarios = self.required_scenario_ids[obligation_id]
+            if not scenarios or any(not item.strip() for item in scenarios):
                 raise ValueError(f"required scenarios missing for {obligation_id}")
+            if len(set(scenarios)) != len(scenarios):
+                raise ValueError(
+                    f"required scenarios contain duplicates for {obligation_id}"
+                )
 
 
 @dataclass(frozen=True)

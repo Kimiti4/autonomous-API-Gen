@@ -53,6 +53,10 @@ class BusinessCapability:
     interface_refs: tuple[str, ...] = ()
     constraint_refs: tuple[str, ...] = ()
     requirement_refs: tuple[str, ...] = ()
+    name: str = ""
+    description: str = ""
+    criticality: str = "core"
+    priority: str = "must"
 
     def __post_init__(self) -> None:
         if not self.capability_id:

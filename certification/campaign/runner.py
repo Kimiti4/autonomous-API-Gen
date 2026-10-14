@@ -46,11 +46,16 @@ def _run_independent_verifier(verifier: Any, candidate_dir: str,
     return True, "independent verification passed"
 
 
+def _unconfigured_stage(stage: TrialStage) -> tuple[bool, str]:
+    """A missing execution adapter is absence of evidence, never a pass."""
+    return False, f"not_configured: no real {stage.value} stage adapter supplied"
+
+
 class CampaignRunner:
     """Orchestrates a single CBC-1 trial: compile → stage pipeline → evidence → verdict.
 
-    Stage implementations are injected; for unit tests, use stub stages.
-    For behavioral CI, use docker_stages.*. Missing verification is a hard failure.
+    Execution adapters are injected. Missing build, test, deploy, runtime,
+    destroy, or independent-verification adapters are hard failures.
     """
 
     def __init__(
@@ -129,34 +134,39 @@ class CampaignRunner:
                 b_ok, b_hash = self.builder.build(d, tag)
                 _record(TrialStage.BUILD, b_ok, f"build_hash={b_hash}")
             else:
-                _record(TrialStage.BUILD, True, "stub-build")
+                ok, detail = _unconfigured_stage(TrialStage.BUILD)
+                _record(TrialStage.BUILD, ok, detail)
 
             if self.tester and backend_test_cmd:
                 image = f"cbc1-{trial_id[:8]}"
                 t_ok, t_hash = self.tester.run_tests(image, backend_test_cmd)
                 _record(TrialStage.TEST, t_ok, f"test_hash={t_hash}")
             else:
-                _record(TrialStage.TEST, True, "stub-test")
+                ok, detail = _unconfigured_stage(TrialStage.TEST)
+                _record(TrialStage.TEST, ok, detail)
 
             cid = ""
             if self.deployer:
                 d_ok, cid = self.deployer.deploy(f"cbc1-{trial_id[:8]}", 8000 + hash(trial_id) % 1000)
                 _record(TrialStage.DEPLOY, d_ok, f"cid={cid}")
             else:
-                _record(TrialStage.DEPLOY, True, "stub-deploy")
+                ok, detail = _unconfigured_stage(TrialStage.DEPLOY)
+                _record(TrialStage.DEPLOY, ok, detail)
 
             if self.prober:
                 port = 8000 + hash(trial_id) % 1000
                 r_ok = self.prober.probe(port)
                 _record(TrialStage.RUNTIME, r_ok, f"runtime_ok={r_ok}")
             else:
-                _record(TrialStage.RUNTIME, True, "stub-runtime")
+                ok, detail = _unconfigured_stage(TrialStage.RUNTIME)
+                _record(TrialStage.RUNTIME, ok, detail)
 
             if self.destroyer and cid:
                 x_ok = self.destroyer.destroy(cid)
                 _record(TrialStage.DESTROY, x_ok, f"destroy_ok={x_ok}")
             else:
-                _record(TrialStage.DESTROY, True, "stub-destroy")
+                ok, detail = _unconfigured_stage(TrialStage.DESTROY)
+                _record(TrialStage.DESTROY, ok, detail)
 
             plan_hash = hashlib.sha256(
                 json.dumps(sorted(backend.element_paths(plan).values())).encode("utf-8")

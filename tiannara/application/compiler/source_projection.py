@@ -33,7 +33,7 @@ def sha256_bytes(value: bytes) -> str:
 
 def canonical_json_bytes(value: object) -> bytes:
     return json.dumps(
-        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=True
     ).encode("utf-8")
 
 

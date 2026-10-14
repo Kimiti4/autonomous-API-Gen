@@ -514,6 +514,8 @@ def test_projection_lowers_domain_service_component_data_and_event_semantics():
 
     assert result.ready_for_compilation
     assert result.candidate_isr.validate_structure()
+    assert result.candidate_isr.system.security_posture.authorization == "none"
+    assert result.candidate_isr.system.security_posture.encryption_in_transit_required is True
     module = result.candidate_isr.system.modules[0]
     assert module.id == "domain-core"
     assert {service.id for service in module.services} == {
@@ -591,3 +593,49 @@ def test_source_binding_rejects_a_different_typed_system_model_hash():
 
     assert not report.complete
     assert any("SystemModel hash differs" in blocker for blocker in report.blockers)
+
+
+def test_source_binding_rejects_mutated_security_posture():
+    source = b"Workspace members must be isolated."
+    graph = RequirementGraph(
+        graph_id="security-posture-graph",
+        nodes=[
+            RequirementNode(
+                id="REQ-A",
+                kind=RequirementKind.CONSTRAINT,
+                statement="Workspace access is isolated.",
+                priority=Priority.MUST,
+            )
+        ],
+        provenance=GraphProvenance(
+            source_statement_hash=hashlib.sha256(source).hexdigest()
+        ),
+    )
+    model = SystemModel(
+        system_name="workspace-service",
+        problem_statement="Provide isolated workspaces.",
+        requirements_ref=RequirementsReference(
+            graph_id=graph.graph_id, graph_hash=graph.content_hash()
+        ),
+        domains=[{"id": "domain-core", "name": "Core domain"}],
+    )
+    result = project_intent_to_constitutional_isr(
+        source_bytes=source, graph=graph, system_model=model, system_id="workspace-system"
+    )
+    isr = result.candidate_isr
+    changed_security = replace(isr.system.security_posture, authorization="abac")
+    changed_isr = replace(
+        isr, system=replace(isr.system, security_posture=changed_security)
+    )
+    binding = ConstitutionalSourceBinding(
+        source_bytes=source,
+        expected_source_sha256=hashlib.sha256(source).hexdigest(),
+        graph=graph,
+        system_model=model,
+        graph_to_isr_requirement_ids={node.id: node.id for node in graph.nodes},
+    )
+
+    report = verify_constitutional_source_binding(binding=binding, isr=changed_isr)
+
+    assert not report.complete
+    assert any("security posture differs" in blocker for blocker in report.blockers)

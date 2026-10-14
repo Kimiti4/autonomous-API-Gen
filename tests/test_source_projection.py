@@ -1,0 +1,141 @@
+"""Tests for universal source-bound obligation projection."""
+import pytest
+from pydantic import ValidationError
+
+from tiannara.application.compiler.source_projection import (
+    SourceProjectionContext,
+    create_source_projection_context,
+    project_obligations,
+    verify_exact_projection,
+)
+from tiannara.domain.models.compiler_obligation import Disposition
+from tiannara.domain.models.requirement_graph import (
+    GraphProvenance,
+    RequirementGraph,
+    RequirementKind,
+    RequirementNode,
+)
+from tiannara.domain.models.semantic_resolution import (
+    ResolutionKind,
+    SemanticResolution,
+    SemanticResolutionRecord,
+)
+from tiannara.domain.models.system_model import Priority
+
+
+def graph():
+    return RequirementGraph(
+        graph_id="graph-project-alpha",
+        nodes=[
+            RequirementNode(
+                id="REQ-auth-scope",
+                kind=RequirementKind.CONSTRAINT,
+                statement="A user can access only resources in their workspace.",
+                priority=Priority.MUST,
+                acceptance_criteria=["Cross-workspace read is denied"],
+                rationale="Source: requirements.md#L12",
+            ),
+            RequirementNode(
+                id="REQ-health",
+                kind=RequirementKind.QUALITY,
+                statement="Expose health and readiness endpoints.",
+                priority=Priority.SHOULD,
+                acceptance_criteria=["Health and readiness are independently observable"],
+            ),
+        ],
+        provenance=GraphProvenance(
+            origin="reviewed_source_snapshot",
+            taxonomy_version="requirements.v1",
+        ),
+    )
+
+
+def resolution_for(g):
+    return SemanticResolutionRecord(
+        graph_id=g.graph_id,
+        graph_hash=g.content_hash(),
+        required_fields=("security.authorization_model",),
+        resolutions=(
+            SemanticResolution(
+                field_path="security.authorization_model",
+                kind=ResolutionKind.UNRESOLVED,
+            ),
+        ),
+    )
+
+
+def context():
+    g = graph()
+    return create_source_projection_context(
+        source_id="repo://example/project@source-snapshot-7",
+        source_bytes=b"# Requirements\nA user can access only resources in their workspace.",
+        graph=g,
+        semantic_resolution=resolution_for(g),
+    )
+
+
+def test_projection_is_source_and_graph_bound_and_unknown_by_default():
+    result = project_obligations(context())
+    assert len(result.records) == 2
+    assert result.records[0].source_graph_hash == result.graph_sha256
+    assert all(item.disposition is Disposition.UNKNOWN for item in result.records)
+    assert result.snapshot_sha256
+    assert result.context_sha256
+    assert not result.generation_allowed
+    assert result.unresolved_semantics == ("security.authorization_model",)
+
+
+def test_exact_projection_rejects_omission_and_semantic_weakening():
+    ctx = context()
+    records = project_obligations(ctx, require_resolved_semantics_before_generation=False).records
+    assert verify_exact_projection(ctx, records) == ()
+    assert any("omitted" in item for item in verify_exact_projection(ctx, records[:1]))
+    changed = records[0].model_copy(update={"statement": "Authorization is optional."})
+    blockers = verify_exact_projection(ctx, (changed, records[1]))
+    assert any("altered" in item for item in blockers)
+
+
+def test_projection_context_rejects_tampered_graph_hash():
+    ctx = context()
+    with pytest.raises(ValidationError, match="graph hash does not match"):
+        SourceProjectionContext.model_validate(
+            {
+                **ctx.model_dump(mode="json"),
+                "graph_sha256": "0" * 64,
+            }
+        )
+
+
+def test_projection_context_rejects_resolution_for_another_graph():
+    g = graph()
+    wrong = SemanticResolutionRecord(
+        graph_id="another-graph",
+        graph_hash="1" * 64,
+        required_fields=(),
+        resolutions=(),
+    )
+    with pytest.raises(ValueError, match="does not match the supplied graph"):
+        create_source_projection_context(
+            source_id="repo://example/project@source-snapshot-7",
+            source_bytes=b"requirements",
+            graph=g,
+            semantic_resolution=wrong,
+        )
+
+
+def test_source_snapshot_bytes_change_snapshot_identity():
+    g = graph()
+    first = create_source_projection_context(
+        source_id="repo://example/project",
+        source_bytes=b"requirements version one",
+        graph=g,
+        semantic_resolution=resolution_for(g),
+    )
+    second = create_source_projection_context(
+        source_id="repo://example/project",
+        source_bytes=b"requirements version two",
+        graph=g,
+        semantic_resolution=resolution_for(g),
+    )
+    assert first.snapshot_sha256 != second.snapshot_sha256
+    assert first.context_sha256 != second.context_sha256

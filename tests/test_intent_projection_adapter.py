@@ -22,6 +22,21 @@ from tiannara.domain.models.requirement_graph import (
     VerificationMethod,
 )
 from tiannara.domain.models.system_model import (
+    AbstractFieldType,
+    ApiOperation,
+    ApiSpec,
+    ComponentKind,
+    ComponentSpec,
+    CommunicationStyle,
+    ConsistencyPosture,
+    DataModelSpec,
+    DeliverySemantics,
+    DomainSpec,
+    EventOrdering,
+    EventSpec,
+    FieldSpec,
+    InteractionStyle,
+    OperationSemantics,
     Priority,
     RequirementsReference,
     ServiceSpec,
@@ -904,3 +919,234 @@ def test_source_binding_rejects_mutated_requirement_statement():
         "deterministic full typed projection" in blocker
         for blocker in report.blockers
     )
+
+
+def _complete_architecture_model():
+    source, graph, base = _inputs()
+    payload = base.model_dump()
+    payload.update(
+        {
+            "capabilities": [
+                {
+                    "id": "cap-audit",
+                    "name": "Audit access",
+                    "description": "Access decisions are auditable.",
+                    "criticality": "core",
+                    "priority": "must",
+                    "traced_requirement_ids": ["REQ-AUDIT"],
+                }
+            ],
+            "domains": [
+                {
+                    "id": "domain-core",
+                    "name": "Core domain",
+                    "description": "Owns workspace and audit concepts.",
+                    "capability_ids": ["cap-audit"],
+                    "ubiquitous_language": {"workspace": "An isolated collaboration area."},
+                }
+            ],
+            "services": [
+                {
+                    "id": "workspace-service",
+                    "name": "Workspace service",
+                    "domain_id": "domain-core",
+                    "responsibilities": ["Manage workspace membership", "Record access decisions"],
+                    "exposed_capability_ids": ["cap-audit"],
+                    "communication_styles": ["synchronous_request_response", "asynchronous_event"],
+                }
+            ],
+            "components": [
+                {
+                    "id": "workspace-policy",
+                    "service_id": "workspace-service",
+                    "name": "Workspace policy",
+                    "responsibility": "Enforce workspace isolation.",
+                    "kind": "policy",
+                }
+            ],
+            "apis": [
+                {
+                    "id": "workspace-api",
+                    "name": "Workspace API",
+                    "provider_service_id": "workspace-service",
+                    "consumer_service_ids": [],
+                    "interaction_style": "request_response",
+                    "operations": [
+                        {
+                            "name": "create_workspace",
+                            "description": "Create an isolated workspace.",
+                            "semantics": "command",
+                            "idempotent": True,
+                        },
+                        {
+                            "name": "get_workspace",
+                            "description": "Read a workspace.",
+                            "semantics": "query",
+                            "idempotent": True,
+                        },
+                    ],
+                }
+            ],
+            "data_models": [
+                {
+                    "id": "workspace-record",
+                    "name": "Workspace record",
+                    "owning_service_id": "workspace-service",
+                    "fields": [
+                        {
+                            "name": "state",
+                            "type": "enumeration",
+                            "required": True,
+                            "description": "Lifecycle state.",
+                            "enumeration_values": ["active", "archived"],
+                        }
+                    ],
+                    "invariants": ["An archived workspace cannot accept new members."],
+                    "consistency": "strong",
+                },
+                {
+                    "id": "workspace-member",
+                    "name": "Workspace member",
+                    "owning_service_id": "workspace-service",
+                    "fields": [
+                        {
+                            "name": "workspace_id",
+                            "type": "reference",
+                            "required": True,
+                            "reference_target_model_id": "workspace-record",
+                        },
+                        {
+                            "name": "joined_at",
+                            "type": "timestamp",
+                            "required": True,
+                        },
+                    ],
+                    "invariants": ["A member belongs to exactly one workspace."],
+                    "consistency": "strong",
+                },
+            ],
+            "events": [
+                {
+                    "id": "workspace-created",
+                    "name": "Workspace created",
+                    "producer_service_id": "workspace-service",
+                    "consumer_service_ids": ["workspace-service"],
+                    "payload_model_id": "workspace-record",
+                    "delivery_semantics": "at_least_once",
+                    "ordering": "partition_ordered",
+                }
+            ],
+            "extensions": {},
+        }
+    )
+    return source, graph, SystemModel.model_validate(payload)
+
+
+def test_complete_typed_architecture_lowers_without_loss_blockers():
+    source, graph, model = _complete_architecture_model()
+    result = project_intent_to_constitutional_isr(
+        source_bytes=source, graph=graph, system_model=model, system_id="workspace-system"
+    )
+
+    assert result.ready_for_compilation, result.blockers
+    system = result.candidate_isr.system
+    assert system.intent_architecture_ref.system_model_sha256 == model.content_hash()
+    assert system.intent_architecture_ref.projection_complete
+    assert len(system.modules) == 1
+    module = system.modules[0]
+    assert module.id == "domain-core"
+    assert module.description == "Owns workspace and audit concepts."
+    assert module.ubiquitous_language == (
+        ("workspace", "An isolated collaboration area."),
+    )
+    assert module.capability_refs == ("cap-audit",)
+    service = module.services[0]
+    assert service.is_stateless is None  # source declares no service-level statefulness
+    assert service.responsibility_refs == (
+        "Manage workspace membership",
+        "Record access decisions",
+    )
+    assert service.communication_styles == (
+        "synchronous_request_response",
+        "asynchronous_event",
+    )
+    assert module.components[0].responsibility == "Enforce workspace isolation."
+    api = module.api_contracts[0]
+    assert api.interaction_style == "request_response"
+    assert [(op.name, op.semantics, op.idempotent) for op in api.operations] == [
+        ("create_workspace", "command", True),
+        ("get_workspace", "query", True),
+    ]
+    record = next(entity for entity in module.entities if entity.id == "workspace-record")
+    assert record.fields[0].enum_values == ("active", "archived")
+    assert record.fields[0].abstract_source_type == "enumeration"
+    member = next(entity for entity in module.entities if entity.id == "workspace-member")
+    assert member.fields[0].reference_target == "workspace-record"
+    assert member.fields[1].abstract_source_type == "timestamp"
+    assert member.invariants == ("A member belongs to exactly one workspace.",)
+    event = module.events[0]
+    assert event.guarantee.value == "at_least_once"
+    assert event.ordering_semantics == "partition_ordered"
+    assert event.payload_model_id == "workspace-record"
+    assert system.security_posture.authorization == model.security.authorization.value
+    assert system.infrastructure_posture.topology == model.infrastructure.topology.value
+    assert system.deployment_posture.rollout_strategy == model.deployment.rollout_strategy.value
+    assert system.testing_posture.required_levels == tuple(
+        level.value for level in model.testing.required_levels
+    )
+    assert system.documentation_posture.required_artifacts == tuple(
+        model.documentation.required_artifacts
+    )
+    assert system.operational_posture.observability_requirements == tuple(
+        requirement.value for requirement in model.operational_policies.observability_requirements
+    )
+
+
+def test_source_binding_rejects_mutated_typed_architecture_genes():
+    source, graph, model = _complete_architecture_model()
+    result = project_intent_to_constitutional_isr(
+        source_bytes=source, graph=graph, system_model=model, system_id="workspace-system"
+    )
+    assert result.ready_for_compilation
+    isr = result.candidate_isr
+    binding = ConstitutionalSourceBinding(
+        source_bytes=source,
+        expected_source_sha256=hashlib.sha256(source).hexdigest(),
+        graph=graph,
+        system_model=model,
+        graph_to_isr_requirement_ids={node.id: node.id for node in graph.nodes},
+    )
+
+    original_module = isr.system.modules[0]
+    changed_api = replace(
+        original_module.api_contracts[0],
+        operations=(
+            replace(original_module.api_contracts[0].operations[0], idempotent=False),
+            original_module.api_contracts[0].operations[1],
+        ),
+    )
+    changed_event = replace(original_module.events[0], ordering_semantics="none")
+    changed_entity = replace(
+        next(entity for entity in original_module.entities if entity.id == "workspace-record"),
+        invariants=("Unrelated invariant.",),
+    )
+    changed_entities = tuple(
+        changed_entity if entity.id == changed_entity.id else entity
+        for entity in original_module.entities
+    )
+    variants = [
+        replace(original_module, api_contracts=(changed_api,)),
+        replace(original_module, events=(changed_event,)),
+        replace(original_module, entities=changed_entities),
+        replace(original_module, description="Mutated domain description."),
+    ]
+    for changed_module in variants:
+        changed_isr = replace(
+            isr, system=replace(isr.system, modules=(changed_module,))
+        )
+        report = verify_constitutional_source_binding(binding=binding, isr=changed_isr)
+        assert not report.complete
+        assert any(
+            "modules differ" in blocker or "full typed projection" in blocker
+            for blocker in report.blockers
+        )

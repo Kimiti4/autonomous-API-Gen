@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 from constitutional_architecture.isr.model.component import Component
 from constitutional_architecture.isr.model.api_contract import ApiContract, ApiOperationContract
-from constitutional_architecture.isr.model.entity import Entity
+from constitutional_architecture.isr.model.entity import Entity, Relationship
 from constitutional_architecture.isr.model.event import Event, EventGuarantee
 from constitutional_architecture.isr.model.fields import Field, FieldCardinality, FieldType
 from constitutional_architecture.isr.model.isr import ISR
@@ -267,6 +267,7 @@ def project_intent_to_constitutional_isr(
 
     field_type_map = {
         "identifier": FieldType.IDENTIFIER,
+        "reference": FieldType.REFERENCE,
         "text": FieldType.TEXT,
         "integer": FieldType.INTEGER,
         "decimal": FieldType.DECIMAL,
@@ -288,11 +289,19 @@ def project_intent_to_constitutional_isr(
         for source_field in data_model.fields:
             target_type = field_type_map.get(source_field.type.value)
             if source_field.type.value == "reference":
-                blockers.append(
-                    f"field '{data_model.id}.{source_field.name}' is a reference without "
-                    "a declared target model"
-                )
-                continue
+                target_id = source_field.reference_target_model_id
+                if not target_id:
+                    blockers.append(
+                        f"field '{data_model.id}.{source_field.name}' is a reference without "
+                        "a declared target model"
+                    )
+                    continue
+                if target_id not in model_by_id:
+                    blockers.append(
+                        f"field '{data_model.id}.{source_field.name}' references unknown model "
+                        f"'{target_id}'"
+                    )
+                    continue
             if target_type is None:
                 blockers.append(
                     f"field '{data_model.id}.{source_field.name}' has unsupported type "
@@ -310,6 +319,7 @@ def project_intent_to_constitutional_isr(
                     ),
                     description=source_field.description,
                     enum_values=tuple(source_field.enumeration_values),
+                    reference_target=source_field.reference_target_model_id,
                     abstract_source_type=source_field.type.value,
                 )
             )
@@ -319,6 +329,17 @@ def project_intent_to_constitutional_isr(
                 name=data_model.name,
                 description=f"Data model owned by service {data_model.owning_service_id}",
                 fields=tuple(projected_fields),
+                relationships=tuple(
+                    Relationship(
+                        target_entity_id=source_field.reference_target_model_id,
+                        relationship_type="reference",
+                        field_name=source_field.name,
+                        description=source_field.description,
+                    )
+                    for source_field in data_model.fields
+                    if source_field.type.value == "reference"
+                    and source_field.reference_target_model_id in model_by_id
+                ),
                 owning_service_id=data_model.owning_service_id,
                 invariants=tuple(data_model.invariants),
                 consistency_posture=data_model.consistency.value,

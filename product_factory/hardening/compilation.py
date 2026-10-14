@@ -5,6 +5,7 @@ Phase 24.3 — Product Compilation Execution with Phase 25 Backends.
 from __future__ import annotations
 
 from typing import Any, Dict, List, Protocol
+import re
 
 from ..utils import deterministic_id, utcnow
 from .models import CompilationJob, CompilationReport, CompilationTarget
@@ -139,7 +140,8 @@ class CompilationExecutor:
                     if (
                         isinstance(evidence, dict)
                         and evidence.get("exit_code") == 0
-                        and evidence.get("artifact_manifest_sha256")
+                        and isinstance(evidence.get("artifact_manifest_sha256"), str)
+                        and re.fullmatch(r"[0-9a-f]{64}", evidence["artifact_manifest_sha256"])
                         and artifacts
                     ):
                         job.status = "SUCCEEDED"

@@ -1,10 +1,12 @@
-"""Loss-aware projection from the intent graph into constitutional ISR semantics.
+"""Loss-aware projection from typed intent into constitutional ISR semantics.
 
-The adapter deliberately separates a candidate projection from authorization to
-compile it. Requirement graph identity, node metadata, and graph relations are
-projected into first-class ISR records. Typed architectural fields not yet
-translated into constitutional genes are reported as blockers; a candidate
-with blockers must never be passed to source-bound compilation.
+The adapter deterministically lowers requirement graph identity, requirement
+metadata and relations, bounded contexts, services, components, capabilities,
+API contracts, data models, events and system policy postures into first-class
+ISR genes. It never invents transport paths or silently drops unsupported source
+semantics. Candidate projection is separate from authorization to compile:
+any blocker prevents source-bound compilation and must be independently checked
+against the exact source snapshot and typed SystemModel.
 """
 from __future__ import annotations
 

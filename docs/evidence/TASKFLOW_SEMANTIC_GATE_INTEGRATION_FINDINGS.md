@@ -101,3 +101,19 @@ This prevents stale or extra policy entries from silently coexisting with the au
 The live integrity gate currently receives a `TrustedObligationCertificationRequest` independently of the TaskFlow snapshot-derived `RequirementGraph` and `SemanticResolutionRecord`. Its configured suite defines required IDs, but it cannot independently prove that each record's statement, source graph identity, and semantic meaning are the canonical projection of the active TaskFlow snapshot. The current generic integrity gate also passes `CompilationResult.isr_hash` as the expected source-graph hash; that is only valid if an explicit, verified graph-to-ISR identity binding exists, which the TaskFlow path has not yet established.
 
 Therefore the next implementation must introduce a trusted, immutable projection context carrying the canonical snapshot identity/hash, graph identity/hash, and validated semantic-resolution record into obligation projection and certification. It must derive obligation content from that context (not accept it as caller-authored truth), and certification must compare the context to the compilation source before evidence is considered. No caller-supplied hash or boolean alone may establish that binding. Until this context is integrated and tested across the live compiler path, TaskFlow generation remains blocked and certification remains UNKNOWN.
+
+
+## Universal developer foundation: source-bound obligation projection
+
+A framework-neutral projection module has been added at `tiannara/application/compiler/source_projection.py`, with focused tests in `tests/test_source_projection.py`. It is deliberately not TaskFlow-specific and does not depend on a target language or compiler backend.
+
+Current behavior:
+- Freezes the exact source snapshot hash, canonical RequirementGraph payload/hash, and graph-bound semantic-resolution record into an immutable context.
+- Derives one deterministic obligation record per graph node; the records remain `UNKNOWN` and carry no fabricated consumer/enforcement claim.
+- Detects altered, missing, extra, or duplicate caller-supplied projected obligations.
+- Blocks generation while required semantic fields remain unresolved.
+- Includes regression coverage for graph-hash tampering, cross-graph resolution, source snapshot identity changes, omission, and semantic weakening.
+
+This is the first shared primitive for a universal developer: future projects (TaskFlow, ledger, capstone, and other applications) should reuse the same source/requirement/obligation contract rather than receive one-off compiler readiness patches. Language and compiler choice belong in realization adapters after the technology-neutral semantics are stable; each adapter must preserve the same obligation IDs and source bindings and provide its own consumer-bound build/test/runtime evidence.
+
+**Important limitation:** this module establishes deterministic content identity and traceability, not source authenticity or proof that a graph was faithfully parsed from the original source bytes. A trusted ingestion/projection boundary must create and attest the source-to-graph derivation, and the live compiler must bind that attested context to the actual ISR before Gate I can rely on it. The integrity gate currently accepts obligation records independently and uses the ISR hash where the field is named source-graph hash; that ambiguity is not yet fixed. Therefore this new primitive does not authorize TaskFlow generation or certify the universal developer.

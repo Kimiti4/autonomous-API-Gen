@@ -52,9 +52,10 @@ class DryRunCompilerGateway:
             artifacts.append(f"{backend_id}/.github/workflows/ci.yml")
 
         return {
-            "artifacts": artifacts,
+            "simulated": True,
+            "preview_artifacts": artifacts,
             "logs": [
-                f"Dry-run compilation for backend {backend_id}.",
+                f"DRY RUN ONLY: no files were generated for backend {backend_id}.",
                 f"Environment: {environment}.",
             ],
         }
@@ -122,14 +123,22 @@ class CompilationExecutor:
                     environment=environment,
                 )
 
-                artifacts = output.get("artifacts", [])
                 logs = output.get("logs", [])
-
-                job.status = "SUCCEEDED"
-                job.artifacts = artifacts
-                job.logs = logs
-
-                artifact_count += len(artifacts)
+                if output.get("simulated") is True:
+                    # A preview is useful for planning, but is not a generated
+                    # artifact and cannot satisfy a compilation or promotion gate.
+                    preview = output.get("preview_artifacts", [])
+                    job.status = "DRY_RUN"
+                    job.artifacts = []
+                    job.logs = [*logs, f"Preview-only paths (not created): {preview}"]
+                    if target.required:
+                        missing_required_backends.append(target.backend_id)
+                else:
+                    artifacts = output.get("artifacts", [])
+                    job.status = "SUCCEEDED"
+                    job.artifacts = artifacts
+                    job.logs = logs
+                    artifact_count += len(artifacts)
 
             except Exception as exc:
                 job.status = "FAILED"

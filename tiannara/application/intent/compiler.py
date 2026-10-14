@@ -146,7 +146,7 @@ class IntentCompiler:
                 extraction,
                 elicitation_output.assumptions,
                 tags,
-                normalized.source_statement_hash,
+                source_snapshot_sha256,
             )
         if issues or graph is None:
             raise RepairBudgetExceeded(issues, iterations)

@@ -1047,6 +1047,7 @@ def test_complete_typed_architecture_lowers_without_loss_blockers():
     assert module.capability_refs == ("cap-audit",)
     service = module.services[0]
     assert service.is_stateless is None  # source declares no service-level statefulness
+    assert service.description == ""  # do not synthesize a description from responsibilities
     assert service.responsibility_refs == (
         "Manage workspace membership",
         "Record access decisions",
@@ -1063,6 +1064,7 @@ def test_complete_typed_architecture_lowers_without_loss_blockers():
         ("get_workspace", "query", True),
     ]
     record = next(entity for entity in module.entities if entity.id == "workspace-record")
+    assert record.description == ""  # source has no data-model description field
     assert record.fields[0].enum_values == ("active", "archived")
     assert record.fields[0].abstract_source_type == "enumeration"
     member = next(entity for entity in module.entities if entity.id == "workspace-member")

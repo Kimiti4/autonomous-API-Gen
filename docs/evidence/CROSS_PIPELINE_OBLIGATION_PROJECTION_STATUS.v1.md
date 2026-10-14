@@ -18,6 +18,8 @@ The universal projection is deliberately independent of language, framework, bac
 - No consumer, enforcement point, implementation, or successful evidence is invented. Projected records stay `UNKNOWN`, without a consumer binding or enforcement point.
 - Projection verification recomputes the expected records and manifest hash from the active graph instead of trusting the supplied projection hash.
 - Obligation hashes now bind acceptance criteria and rationale as well as the previously hashed semantic fields, so changing acceptance criteria changes the obligation hash.
+- `source_bound_certification.py` verifies the graph-to-projection binding and requires the reviewed suite's required IDs to equal the projection's required IDs exactly before any evidence lookup. It uses the graph hash—not the ISR hash—as the source identity at this boundary.
+- Adversarial tests cover policy mismatch before evidence reads, source graph mismatch, projection tampering, and the rule that unimplemented obligations remain UNKNOWN.
 
 ## Required invariants
 
@@ -31,9 +33,9 @@ The universal projection is deliberately independent of language, framework, bac
 
 ## Known integration gap — do not certify
 
-The universal projector is not yet connected end-to-end to every live compiler entry point. In particular, the existing integrity gate receives caller-provided obligation records and uses `CompilationResult.isr_hash` as the expected source-graph hash. Those are different identities unless an explicit, verified graph-to-ISR binding proves otherwise. The TaskFlow snapshot adapter also remains a separate upstream path and must be reconciled with this shared contract rather than becoming a parallel obligation framework.
+The universal projector and source-bound certification bridge are not yet connected end-to-end to every live compiler entry point. In particular, the existing integrity gate receives caller-provided obligation records and uses `CompilationResult.isr_hash` as the expected source-graph hash. Those are different identities unless an explicit, verified graph-to-ISR binding proves otherwise. The TaskFlow snapshot adapter also remains a separate upstream path and must be reconciled with this shared contract rather than becoming a parallel obligation framework.
 
-The next step is to introduce a trusted source context that carries canonical snapshot identity, graph identity/hash, validated semantic-resolution evidence, and the recomputed obligation projection into both compiler pipelines. Certification must reject absent or mismatched context before looking at runner evidence. Every target adapter must declare how each required obligation is represented and enforced, and acceptance evidence must bind to the exact generated build and runtime consumer.
+The next step is to introduce a trusted source context that carries canonical snapshot identity, graph identity/hash, validated semantic-resolution evidence, and the recomputed obligation projection into both compiler pipelines. Then wire that context into the mandatory integrity gate so the legacy caller-supplied-record path cannot authorize a TaskFlow or other universal-profile compile. Certification must reject absent or mismatched context before looking at runner evidence. Every target adapter must declare how each required obligation is represented and enforced, and acceptance evidence must bind to the exact generated build and runtime consumer.
 
 ## Universal senior-developer readiness bar
 

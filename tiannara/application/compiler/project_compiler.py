@@ -43,7 +43,10 @@ from tiannara.domain.ports import IntentCompiler
 from tiannara.application.intent.prompts import derive_system_id
 from tiannara.application.intent.prompts import normalize
 from tiannara.application.compiler.source_projection import SourceProjectionContext
-from tiannara.application.compiler.source_coverage import SourceGraphCoverageReport
+from tiannara.application.compiler.source_coverage import (
+    SourceGraphCoverageReport,
+    verify_graph_system_model_traceability,
+)
 from tiannara.domain.models.requirement_graph import RequirementGraph
 
 
@@ -195,6 +198,20 @@ class ProjectCompiler:
             blockers = "; ".join(coverage.blockers) or "source/graph identity mismatch"
             raise ProjectCompilationError(
                 "generation blocked: source-unit-to-graph coverage is incomplete or stale: "
+                + blockers
+            )
+
+        # Source-to-graph identity and source-unit coverage do not establish
+        # that mandatory graph semantics survived SystemModel/ISR synthesis.
+        # Require explicit typed-ISR trace links before backend selection.
+        traceability = verify_graph_system_model_traceability(
+            graph=graph,
+            system_model=model,
+        )
+        if not traceability.complete:
+            blockers = "; ".join(traceability.blockers) or "mandatory requirement traceability is incomplete"
+            raise ProjectCompilationError(
+                "generation blocked: requirement graph to typed ISR traceability failed: "
                 + blockers
             )
 

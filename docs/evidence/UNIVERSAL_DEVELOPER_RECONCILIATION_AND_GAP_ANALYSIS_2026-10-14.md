@@ -211,3 +211,8 @@ The separate constitutional ISR compiler now has an explicit `ConstitutionalSour
 CI on earlier head `1db237c135ed95f7ef96dd333786b708071b33a7` had no failures observed at the latest poll (30 successful checks, 7 skipped, 3 still running). The source-binding changes are on a newer head and their CI was queued at checkpoint time; do not treat them as passed until the checks complete.
 
 Disposition remains: **trusted source-to-obligation-to-ISR chain BLOCKED**; **TaskFlow generation/certification BLOCKED / UNKNOWN**.
+
+
+### Additional preservation defect found during binding integration
+
+The constitutional `NormalizationPass` rebuilt the root `System` with only modules, deployment, metadata, and global policies. That silently discarded requirements, acceptance criteria, business capabilities, reliability/boundary semantics, deployment/testing/documentation intents, evolution policy, architectural decisions, and security threats before later passes could consume them. The normalizer now carries every non-module semantic field forward unchanged, with a regression test covering all fourteen field groups. This is a preservation fix, not proof that downstream code generation consumes each field; consumer-level traceability remains a separate required gate.

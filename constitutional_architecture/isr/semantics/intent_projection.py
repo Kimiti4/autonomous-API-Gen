@@ -23,6 +23,14 @@ from constitutional_architecture.isr.model.system import System, SystemMetadata
 from constitutional_architecture.isr.semantics.capability import BusinessCapability
 from constitutional_architecture.isr.semantics.intent_architecture import IntentArchitectureReference
 from constitutional_architecture.isr.semantics.security_posture import SecurityPosture
+from constitutional_architecture.isr.semantics.policy_postures import (
+    DeploymentPosture,
+    DocumentationPosture,
+    InfrastructurePosture,
+    OperationalPosture,
+    OperationalSLO,
+    TestingPosture,
+)
 from constitutional_architecture.isr.semantics.requirement import (
     Requirement,
     RequirementGraphReference,
@@ -363,16 +371,6 @@ def project_intent_to_constitutional_isr(
 
     # These sections need additional native semantic carriers before they can
     # be declared complete. They are intentionally not copied into extensions.
-    if system_model.infrastructure.model_dump(exclude_defaults=True):
-        blockers.append("typed SystemModel infrastructure is not yet lowered")
-    if system_model.deployment.model_dump(exclude_defaults=True):
-        blockers.append("typed SystemModel deployment policy is not yet lowered")
-    if system_model.testing.model_dump(exclude_defaults=True):
-        blockers.append("typed SystemModel testing policy is not yet lowered")
-    if system_model.documentation.model_dump(exclude_defaults=True):
-        blockers.append("typed SystemModel documentation policy is not yet lowered")
-    if system_model.operational_policies.model_dump(exclude_defaults=True):
-        blockers.append("typed SystemModel operational policies are not yet lowered")
     if system_model.extensions:
         blockers.append("typed SystemModel contains extensions with no declared lowering")
 
@@ -416,6 +414,41 @@ def project_intent_to_constitutional_isr(
             ),
             requirement_source_metadata=tuple(metadata),
             requirement_relations=relations,
+            infrastructure_posture=InfrastructurePosture(
+                topology=system_model.infrastructure.topology.value,
+                stateful=system_model.infrastructure.stateful,
+                scaling_unit=system_model.infrastructure.scaling_unit.value,
+                availability=system_model.infrastructure.availability.value,
+            ),
+            deployment_posture=DeploymentPosture(
+                rollout_strategy=system_model.deployment.rollout_strategy.value,
+                environment_names=tuple(system_model.deployment.environment_names),
+                scaling_policy=system_model.deployment.scaling_policy.value,
+                zero_downtime_required=system_model.deployment.zero_downtime_required,
+            ),
+            testing_posture=TestingPosture(
+                required_levels=tuple(level.value for level in system_model.testing.required_levels),
+                coverage_posture=system_model.testing.coverage_posture.value,
+                performance_required=system_model.testing.performance_required,
+                security_required=system_model.testing.security_required,
+            ),
+            documentation_posture=DocumentationPosture(
+                required_artifacts=tuple(system_model.documentation.required_artifacts),
+                adr_required=system_model.documentation.adr_required,
+            ),
+            operational_posture=OperationalPosture(
+                service_level_objectives=tuple(
+                    OperationalSLO(name=slo.name, metric=slo.metric, target=slo.target)
+                    for slo in system_model.operational_policies.service_level_objectives
+                ),
+                observability_requirements=tuple(
+                    requirement.value
+                    for requirement in system_model.operational_policies.observability_requirements
+                ),
+                backup_posture=system_model.operational_policies.backup_posture,
+                disaster_recovery_posture=system_model.operational_policies.disaster_recovery_posture,
+                incident_response_required=system_model.operational_policies.incident_response_required,
+            ),
             security_posture=SecurityPosture(
                 authentication=system_model.security.authentication.value,
                 authorization=system_model.security.authorization.value,

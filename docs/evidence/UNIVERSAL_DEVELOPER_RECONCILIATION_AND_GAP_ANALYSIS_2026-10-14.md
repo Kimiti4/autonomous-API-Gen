@@ -198,3 +198,16 @@ At the time this reconciliation was committed, the latest observed branch head w
 **Ledger and capstone: not yet demonstrated as plug-in projects on the same qualified pipeline.**
 
 The next work is integration and proof at shared boundaries—not another TaskFlow-only generator and not another parallel governance framework.
+
+
+## Follow-on checkpoint — constitutional source binding (2026-10-14)
+
+The typed `SystemModel` path now checks graph identity/hash and requires each MUST graph node to be traced by a typed capability before backend selection. This remains structural traceability, not semantic satisfaction.
+
+The separate constitutional ISR compiler now has an explicit `ConstitutionalSourceBinding` contract and verifier. When `CompilationConfig.require_source_binding=True`, compilation fails closed if no binding is supplied; a supplied binding is checked against the exact source bytes, the graph's source provenance, mandatory graph requirement IDs, and constitutional ISR requirement IDs. The binding report records source, graph, and ISR hashes separately. Cache reuse is disabled for source-bound/required-bound compilations so a prior ISR/config-only cache entry cannot bypass binding validation. Adversarial tests cover successful binding, missing/unknown links, stale bytes, and the required-but-absent pipeline gate.
+
+**Important remaining integration boundary:** the new constitutional gate is opt-in at the config level for compatibility with existing callers. A caller must provide the source binding and set `require_source_binding=True`; the live orchestration path has not yet been proven to construct and pass the envelope from trusted source ingestion. Therefore this is not yet universal enforcement, and the constitutional path must still be treated as potentially bypassable until the production entry points are wired and tested. The binding is structural; independent semantic obligation and runtime evidence remain necessary.
+
+CI on earlier head `1db237c135ed95f7ef96dd333786b708071b33a7` had no failures observed at the latest poll (30 successful checks, 7 skipped, 3 still running). The source-binding changes are on a newer head and their CI was queued at checkpoint time; do not treat them as passed until the checks complete.
+
+Disposition remains: **trusted source-to-obligation-to-ISR chain BLOCKED**; **TaskFlow generation/certification BLOCKED / UNKNOWN**.

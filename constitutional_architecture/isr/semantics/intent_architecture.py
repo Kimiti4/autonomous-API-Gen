@@ -35,7 +35,8 @@ def validate_system_architecture_projection(system: object) -> tuple[str, ...]:
         for posture_name in required_postures:
             if getattr(system, posture_name, None) is None:
                 errors.append(
-                    f"typed architecture projection is missing first-class {posture_name}"
+                    "typed architecture projection is missing first-class "
+                    + posture_name.replace("_", " ")
                 )
     capabilities = {
         item.capability_id for item in getattr(system, "business_capabilities", ())

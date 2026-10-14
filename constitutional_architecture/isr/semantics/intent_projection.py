@@ -20,6 +20,7 @@ from constitutional_architecture.isr.model.module import Module
 from constitutional_architecture.isr.model.service import Service
 from constitutional_architecture.isr.model.system import System, SystemMetadata
 from constitutional_architecture.isr.semantics.capability import BusinessCapability
+from constitutional_architecture.isr.semantics.intent_architecture import IntentArchitectureReference
 from constitutional_architecture.isr.semantics.requirement import (
     Requirement,
     RequirementGraphReference,
@@ -349,6 +350,11 @@ def project_intent_to_constitutional_isr(
             ),
             requirement_source_metadata=tuple(metadata),
             requirement_relations=relations,
+            intent_architecture_ref=IntentArchitectureReference(
+                system_model_sha256=model_hash,
+                projection_complete=not blockers,
+                projection_blockers=tuple(blockers),
+            ),
         )
     ) if not any(
         blocker in {

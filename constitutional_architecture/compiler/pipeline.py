@@ -84,7 +84,14 @@ class CompilerPipeline:
         self._event_bus = event_bus or CompilerEventBus()
         self._metrics = CompilerMetrics()
 
-    def compile(\n        self,\n        isr: ISR,\n        config: Optional[CompilationConfig] = None,\n        *,\n        source_binding: Optional[ConstitutionalSourceBinding] = None,\n    ) -> CompilationResult:\n        if config is None:
+    def compile(
+        self,
+        isr: ISR,
+        config: Optional[CompilationConfig] = None,
+        *,
+        source_binding: Optional[ConstitutionalSourceBinding] = None,
+    ) -> CompilationResult:
+        if config is None:
             config = CompilationConfig(project_name=isr.system.name)
 
         start_time = time.perf_counter()
@@ -111,14 +118,20 @@ class CompilerPipeline:
             )
 
         cache_key = self._cache.compute_key(isr.content_hash, config.config_hash, config.compiler_version)
-        # Source-bound compilations cannot reuse results keyed only by ISR/config.\n        cached = self._cache.get(cache_key) if source_binding is None and not config.require_source_binding else None\n        if cached is not None:
+        # Source-bound compilations cannot reuse results keyed only by ISR/config.
+        cached = self._cache.get(cache_key) if source_binding is None and not config.require_source_binding else None
+        if cached is not None:
             self._metrics.record_cache(hit=True)
             self._event_bus.publish(CompilerEvent(event_type=CompilerEventType.CACHE_HIT))
             return cached
 
         self._metrics.record_cache(hit=False)
 
-        ctx = CompilerContext(\n            _isr=isr, _config=config, backend_registry=self._backend_registry,\n            source_binding=source_binding,\n        )\n        pass_manager = PassManager(self._pass_registry)
+        ctx = CompilerContext(
+            _isr=isr, _config=config, backend_registry=self._backend_registry,
+            source_binding=source_binding,
+        )
+        pass_manager = PassManager(self._pass_registry)
         passes_success = pass_manager.execute_all(ctx)
 
         capability_report = CapabilityReport(
@@ -147,7 +160,9 @@ class CompilerPipeline:
             success=passes_success and not ctx.diagnostics.has_errors,
         )
 
-        if result.success and source_binding is None and not config.require_source_binding:\n            self._cache.put(cache_key, result)\n
+        if result.success and source_binding is None and not config.require_source_binding:
+            self._cache.put(cache_key, result)
+
         self._metrics.record_compilation(elapsed_ms, len(ctx.artifacts), len(ctx.diagnostics.errors), len(ctx.diagnostics.warnings))
         self._event_bus.publish(CompilerEvent(
             event_type=CompilerEventType.COMPILATION_COMPLETED,

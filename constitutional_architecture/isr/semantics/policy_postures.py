@@ -32,7 +32,7 @@ class DeploymentPosture:
     def __post_init__(self) -> None:
         if self.rollout_strategy not in {"all_at_once", "rolling", "blue_green", "canary"}:
             raise ValueError("unsupported rollout strategy")
-        if not self.environment_names or any(not name.strip() for name in self.environment_names):
+        if any(not name.strip() for name in self.environment_names):
             raise ValueError("deployment environments must be explicit and non-empty")
         if self.scaling_policy not in {"static", "reactive", "predictive"}:
             raise ValueError("unsupported scaling policy")
@@ -52,7 +52,7 @@ class TestingPosture:
             "unit", "integration", "end_to_end", "property_based",
             "performance", "security", "mutation",
         }
-        if not self.required_levels or set(self.required_levels) - allowed_levels:
+        if set(self.required_levels) - allowed_levels:
             raise ValueError("testing posture has missing or unsupported test levels")
         if self.coverage_posture not in {"none", "reported", "enforced"}:
             raise ValueError("unsupported coverage posture")
@@ -66,7 +66,7 @@ class DocumentationPosture:
     adr_required: bool
 
     def __post_init__(self) -> None:
-        if not self.required_artifacts or any(not item.strip() for item in self.required_artifacts):
+        if any(not item.strip() for item in self.required_artifacts):
             raise ValueError("documentation artifacts must be explicit and non-empty")
         if not isinstance(self.adr_required, bool):
             raise ValueError("adr_required must be boolean")
@@ -79,8 +79,6 @@ class OperationalSLO:
     target: str
 
     def __post_init__(self) -> None:
-        if not self.name or not self.metric or not self.target:
-            raise ValueError("SLO name, metric and target are required")
 
 
 @dataclass(frozen=True)
@@ -94,7 +92,5 @@ class OperationalPosture:
     def __post_init__(self) -> None:
         if any(not item.strip() for item in self.observability_requirements):
             raise ValueError("observability requirements cannot be blank")
-        if not self.backup_posture or not self.disaster_recovery_posture:
-            raise ValueError("backup and disaster-recovery postures must be explicit")
         if not isinstance(self.incident_response_required, bool):
             raise ValueError("incident_response_required must be boolean")

@@ -185,6 +185,93 @@ def test_unknown_backend_result_blocks_certification():
     assert "UNKNOWN" in str(exc.value)
 
 
+
+def _full_compilation_result(statement: str, *, include_context: bool = True):
+    from types import SimpleNamespace
+
+    from tiannara.application.compiler.source_projection import (
+        create_source_projection_context,
+    )
+    from tiannara.application.intent.prompts import normalize
+    from tiannara.domain.models.requirement_graph import (
+        GraphProvenance,
+        RequirementGraph,
+        RequirementKind,
+        RequirementNode,
+    )
+    from tiannara.domain.models.semantic_resolution import SemanticResolutionRecord
+
+    normalized = normalize(statement)
+    graph = RequirementGraph(
+        graph_id="phase16-source-bound-graph",
+        nodes=[
+            RequirementNode(
+                id="REQ-order-service",
+                kind=RequirementKind.FUNCTIONAL,
+                statement="Provide an order management service.",
+                acceptance_criteria=["Orders can be created and retrieved."],
+            )
+        ],
+        provenance=GraphProvenance(
+            origin="test-fixture",
+            source_statement_hash=normalized.source_statement_hash,
+        ),
+    )
+    resolution = SemanticResolutionRecord(
+        graph_id=graph.graph_id,
+        graph_hash=graph.content_hash(),
+        required_fields=(),
+        resolutions=(),
+    )
+    result = {
+        "system_id": "phase16-source-bound",
+        "isr": IntermediateSoftwareRepresentation.from_system_model(
+            "phase16-source-bound", _clean_model()
+        ),
+        "requirement_graph": graph,
+        "call_records": [],
+        "semantic_resolution_record": None,
+        "authorization_semantic_obligations": None,
+    }
+    if include_context:
+        result["source_projection_context"] = create_source_projection_context(
+            source_id="test:phase16-source-bound",
+            source_bytes=statement.encode("utf-8"),
+            graph=graph,
+            semantic_resolution=resolution,
+        )
+    return SimpleNamespace(**result)
+
+
+class _FullResultIntentCompiler:
+    def __init__(self, *, include_context: bool = True):
+        self.include_context = include_context
+
+    def compile_full(self, statement, system_id, *, taskflow_semantic_gate=False):
+        return _full_compilation_result(
+            statement, include_context=self.include_context
+        )
+
+
+def test_generic_generation_blocks_when_source_context_is_missing():
+    compiler = ProjectCompiler(
+        _FullResultIntentCompiler(include_context=False),
+        _registry_with_fastapi(),
+    )
+    with pytest.raises(ProjectCompilationError, match="no validated source projection context"):
+        compiler.compile_intent("Build an order management service", {})
+
+
+def test_generic_generation_accepts_matching_source_context_and_graph_identity():
+    statement = "Build an order management service"
+    compiler = ProjectCompiler(
+        _FullResultIntentCompiler(include_context=True),
+        _registry_with_fastapi(),
+    )
+    report = compiler.compile_intent(statement, {})
+    assert report.ok is True
+    assert report.generation_mode == "no_model_calls"
+
 def test_taskflow_mode_activates_pre_synthesis_gate_before_backend_planning():
     class _GateIntentCompiler:
         def compile_full(self, statement, system_id, *, taskflow_semantic_gate=False):

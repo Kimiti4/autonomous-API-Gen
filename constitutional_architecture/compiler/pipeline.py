@@ -100,7 +100,8 @@ class CompilerPipeline:
             data={"isr_hash": isr.content_hash, "targets": list(config.target_backends)},
         ))
 
-        if config.require_source_binding and source_binding is None:
+        carries_source_graph = getattr(isr.system, "requirement_graph_ref", None) is not None
+        if (config.require_source_binding or carries_source_graph) and source_binding is None:
             from constitutional_architecture.compiler.quality.diagnostics import Diagnostic, DiagnosticSeverity
             diagnostic = Diagnostic(
                 code="COMP-SOURCE-BINDING-001",

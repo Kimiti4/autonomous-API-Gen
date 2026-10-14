@@ -32,11 +32,25 @@ def _h(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 
+def _run_independent_verifier(verifier: Any, candidate_dir: str,
+                              plan_hash: str, plan_path: str) -> tuple[bool, str]:
+    """Run the mandatory independent verifier; absence/errors never pass."""
+    if verifier is None:
+        return False, "verification unavailable: no independent verifier configured"
+    try:
+        result = verifier.verify(candidate_dir, plan_hash, plan_path)
+    except Exception as exc:
+        return False, f"verification failed closed: {type(exc).__name__}: {exc}"
+    if result is not True:
+        return False, f"verification did not return explicit True (result={result!r})"
+    return True, "independent verification passed"
+
+
 class CampaignRunner:
     """Orchestrates a single CBC-1 trial: compile → stage pipeline → evidence → verdict.
 
     Stage implementations are injected; for unit tests, use stub stages.
-    For behavioral CI, use docker_stages.*
+    For behavioral CI, use docker_stages.*. Missing verification is a hard failure.
     """
 
     def __init__(
@@ -144,17 +158,16 @@ class CampaignRunner:
             else:
                 _record(TrialStage.DESTROY, True, "stub-destroy")
 
-            if self.verifier:
-                plan_hash = hashlib.sha256(
-                    json.dumps(sorted(backend.element_paths(plan).values())).encode("utf-8")
-                ).hexdigest()
-                plan_path = os.path.join(d, ".plan.json")
-                with open(plan_path, "w") as fp:
-                    json.dump({"expected_paths": list(backend.element_paths(plan).values())}, fp)
-                v_ok = self.verifier.verify(d, plan_hash, plan_path)
-                _record(TrialStage.VERIFY, v_ok, f"verify_ok={v_ok}")
-            else:
-                _record(TrialStage.VERIFY, True, "stub-verify")
+            plan_hash = hashlib.sha256(
+                json.dumps(sorted(backend.element_paths(plan).values())).encode("utf-8")
+            ).hexdigest()
+            plan_path = os.path.join(d, ".plan.json")
+            with open(plan_path, "w", encoding="utf-8") as fp:
+                json.dump({"expected_paths": list(backend.element_paths(plan).values())}, fp)
+            v_ok, v_detail = _run_independent_verifier(
+                self.verifier, d, plan_hash, plan_path
+            )
+            _record(TrialStage.VERIFY, v_ok, v_detail)
 
             verdict = compose_verdict(stage_results, evidence_present=True)
 

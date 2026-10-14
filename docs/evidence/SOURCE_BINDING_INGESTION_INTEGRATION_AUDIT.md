@@ -22,8 +22,8 @@ This audit is a blocker record, not a completion claim. No integration or test i
 ## Required implementation before closure
 
 - Run the new exact-source hash/context/binding-export regression tests, then define and test the trusted semantic source-unit inventory.
-- Implement and test an explicit adapter from the intent compiler's typed ISR/SystemModel to the constitutional ISR requirement identity model, or unify the boundary without silently losing requirements.
-- Construct the binding only from the trusted snapshot and the graph actually produced from that snapshot; map every mandatory graph node to a real, unique ISR requirement.
+- Implement and test an explicit, loss-aware adapter from the intent compiler's typed ISR/SystemModel to the constitutional ISR requirement identity model. The adapter must preserve requirement priority, acceptance criteria, graph relationships, and typed architecture or reject unsupported projections; storing missing semantics in opaque metadata is not sufficient.
+- Construct the binding only from the trusted snapshot and the graph actually produced from that snapshot; derive the graph→ISR mapping from a validated adapter rather than accepting arbitrary caller mappings; map every mandatory graph node to a real, unique ISR requirement.
 - Route all source-derived generation orchestration through the fail-closed compiler API and prevent alternate entry points from returning artifacts.
 - Add negative tests for source mutation, provenance mismatch, omitted/duplicated/unknown mappings, ISR projection mutations, direct-path bypass, and cache bypass.
 - Add consumer-level tests proving each mandatory obligation affects backend output and that independent verification rejects omitted or altered obligations.
@@ -44,3 +44,13 @@ This audit is a blocker record, not a completion claim. No integration or test i
 ## Integrity rule
 
 Do not report this milestone closed, authorize TaskFlow generation, or promote UNKNOWN/NOT RUN evidence to PASS until the required implementation and test runs are complete.
+
+
+## Follow-up boundary review (2026-10-14)
+
+- The intent compiler's typed ISR is a Pydantic envelope whose architectural content is `SystemModel`; the constitutional ISR is a frozen dataclass over `System` / `Module` and has first-class `Requirement` and `AcceptanceCriterion` types. They are not interchangeable serialization formats.
+- `SystemModel` carries graph identity/hash and capability-level `traced_requirement_ids`, which supports structural traceability. It does not by itself provide a lossless mapping into the constitutional ISR's requirement/capability/acceptance-criterion model.
+- Therefore the new binding-export helper is a boundary primitive, not a complete adapter or trusted mapping authority. Its `graph_to_isr_requirement_ids` argument remains caller supplied. The production path must not trust it until an adapter derives and verifies the mapping against both representations.
+- The constitutional requirement model requires each requirement to target a declared business capability. Acceptance criteria have typed obligation kinds and subject references. Requirement graph nodes additionally carry priorities, node kinds, provenance, and graph edges. A conversion that merely copies statements or puts unmatched semantics in free-form metadata would silently weaken the contract and is not acceptable.
+- The adapter must explicitly account for every graph node and edge, all acceptance criteria, priorities, graph provenance, typed SystemModel sections, and constitutional validation. If a semantic construct cannot be represented losslessly, it must emit a blocker rather than produce a partially faithful ISR.
+- Validation remains NOT RUN. The exact-source and adapter boundary tests are committed as code but have no passing test-run evidence yet.

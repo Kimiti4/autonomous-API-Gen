@@ -223,10 +223,18 @@ def _full_compilation_result(statement: str, *, include_context: bool = True):
         required_fields=(),
         resolutions=(),
     )
+    model = _clean_model().model_copy(
+        update={
+            "requirements_ref": RequirementsReference(
+                graph_id=graph.graph_id,
+                graph_hash=graph.content_hash(),
+            )
+        }
+    )
     result = {
         "system_id": "phase16-source-bound",
         "isr": IntermediateSoftwareRepresentation.from_system_model(
-            "phase16-source-bound", _clean_model()
+            "phase16-source-bound", model
         ),
         "requirement_graph": graph,
         "call_records": [],

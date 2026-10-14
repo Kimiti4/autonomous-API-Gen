@@ -34,6 +34,8 @@ The semantic core must not be coupled to one language or compiler. A language/ba
 
 A new language should require a backend adapter and conformance campaign, not a rewrite of source understanding, semantic resolution, obligation projection, governance, or evidence certification. “Any language/compiler” is a goal of an extensible adapter architecture, not a claim that every toolchain is already implemented or supported.
 
+The shared domain now defines `ToolchainCapabilityManifest` in `tiannara/domain/models/capability_manifest.py`. It records adapter identity, language, compiler/version constraint, optional runtime/version constraint, target platforms, bounded operations, per-semantic support levels, and required toolchain digests. Missing semantic entries resolve to `UNKNOWN`, not `SUPPORTED`. The manifest can be attached to a `BackendCapabilityDeclaration`; legacy declarations remain loadable during migration, but absence of a manifest is not evidence of portability. Manifest claims must still be checked against resolved toolchain identity and independent conformance evidence before they can satisfy a certification gate.
+
 ## Project reuse rule
 
 Before TaskFlow is declared ready, the shared pipeline and gates must be exercised against at least:

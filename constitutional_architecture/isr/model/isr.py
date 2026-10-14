@@ -141,4 +141,9 @@ class ISR:
             return False
         if validate_system_testing_anchor_constraints(self.system):
             return False
+        from constitutional_architecture.isr.semantics.intent_architecture import (
+            validate_system_architecture_projection,
+        )
+        if validate_system_architecture_projection(self.system):
+            return False
         return True

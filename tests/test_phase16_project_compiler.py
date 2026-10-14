@@ -186,7 +186,7 @@ def test_unknown_backend_result_blocks_certification():
 
 
 
-def _full_compilation_result(statement: str, *, include_context: bool = True):
+def _full_compilation_result(statement: str, *, include_context: bool = True, include_coverage: bool = False):
     from types import SimpleNamespace
 
     from tiannara.application.compiler.source_projection import (
@@ -248,6 +248,17 @@ def _full_compilation_result(statement: str, *, include_context: bool = True):
             graph=graph,
             semantic_resolution=resolution,
         )
+    if include_coverage:
+        import hashlib
+        from tiannara.application.compiler.source_coverage import SourceUnit, SourceUnitBinding, verify_source_graph_coverage
+        source_bytes = statement.encode("utf-8")
+        result["source_graph_coverage_report"] = verify_source_graph_coverage(
+            source_bytes=source_bytes,
+            expected_source_sha256=hashlib.sha256(source_bytes).hexdigest(),
+            graph=graph,
+            units=(SourceUnit(unit_id="U-order-service", start_byte=0, end_byte=len(source_bytes), unit_sha256=hashlib.sha256(source_bytes).hexdigest()),),
+            bindings=(SourceUnitBinding(unit_id="U-order-service", graph_node_ids=("REQ-order-service",)),),
+        )
     return SimpleNamespace(**result)
 
 
@@ -256,15 +267,18 @@ class _FullResultIntentCompiler:
         self,
         *,
         include_context: bool = True,
+        include_coverage: bool = False,
         context_statement: str | None = None,
     ):
         self.include_context = include_context
+        self.include_coverage = include_coverage
         self.context_statement = context_statement
 
     def compile_full(self, statement, system_id, *, taskflow_semantic_gate=False):
         return _full_compilation_result(
             self.context_statement if self.context_statement is not None else statement,
             include_context=self.include_context,
+            include_coverage=self.include_coverage,
         )
 
 
@@ -277,10 +291,20 @@ def test_generic_generation_blocks_when_source_context_is_missing():
         compiler.compile_intent("Build an order management service", {})
 
 
-def test_generic_generation_accepts_matching_source_context_and_graph_identity():
+def test_generic_generation_blocks_when_source_coverage_is_missing():
     statement = "Build an order management service"
     compiler = ProjectCompiler(
         _FullResultIntentCompiler(include_context=True),
+        _registry_with_fastapi(),
+    )
+    with pytest.raises(ProjectCompilationError, match="trusted source-unit-to-graph coverage report is missing"):
+        compiler.compile_intent(statement, {})
+
+
+def test_generic_generation_accepts_matching_context_and_explicit_complete_coverage():
+    statement = "Build an order management service"
+    compiler = ProjectCompiler(
+        _FullResultIntentCompiler(include_context=True, include_coverage=True),
         _registry_with_fastapi(),
     )
     report = compiler.compile_intent(statement, {})

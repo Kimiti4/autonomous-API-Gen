@@ -46,8 +46,17 @@ def validate_system_architecture_projection(system: object) -> tuple[str, ...]:
     entity_owner: dict[str, str] = {}
     event_owner: dict[str, str] = {}
     api_ids: set[str] = set()
+    allowed_communication_styles = {
+        "synchronous_request_response", "asynchronous_event", "batch", "streaming"
+    }
+    allowed_interaction_styles = {"request_response", "event_driven", "batch", "streaming"}
+    allowed_operation_semantics = {"command", "query"}
+    allowed_event_ordering = {"none", "partition_ordered", "totally_ordered"}
 
     for module in modules:
+        for term, definition in getattr(module, "ubiquitous_language", ()):
+            if not term.strip() or not definition.strip():
+                errors.append(f"module '{module.id}' has an empty ubiquitous-language term or definition")
         for capability_id in getattr(module, "capability_refs", ()):
             if capability_id not in capabilities:
                 errors.append(
@@ -67,6 +76,12 @@ def validate_system_architecture_projection(system: object) -> tuple[str, ...]:
                     errors.append(
                         f"service '{service.id}' exposes unknown capability '{capability_id}'"
                     )
+            unknown_styles = set(service.communication_styles) - allowed_communication_styles
+            if unknown_styles:
+                errors.append(
+                    f"service '{service.id}' has unsupported communication styles: "
+                    + ", ".join(sorted(unknown_styles))
+                )
         for component in getattr(module, "components", ()):
             if component.component_id in component_ids:
                 errors.append(f"duplicate component ID '{component.component_id}'")
@@ -109,10 +124,29 @@ def validate_system_architecture_projection(system: object) -> tuple[str, ...]:
             if event.id in event_owner:
                 errors.append(f"duplicate event ID '{event.id}'")
             event_owner[event.id] = module.id
+            if event.ordering_semantics not in allowed_event_ordering:
+                errors.append(
+                    f"event '{event.id}' has unsupported ordering semantics "
+                    f"'{event.ordering_semantics}'"
+                )
         for api in getattr(module, "api_contracts", ()):
             if api.api_id in api_ids:
                 errors.append(f"duplicate API contract ID '{api.api_id}'")
             api_ids.add(api.api_id)
+            if api.interaction_style not in allowed_interaction_styles:
+                errors.append(
+                    f"API '{api.api_id}' has unsupported interaction style '{api.interaction_style}'"
+                )
+            for operation in api.operations:
+                if operation.semantics not in allowed_operation_semantics:
+                    errors.append(
+                        f"API '{api.api_id}' operation '{operation.name}' has unsupported "
+                        f"semantics '{operation.semantics}'"
+                    )
+                if not isinstance(operation.idempotent, bool):
+                    errors.append(
+                        f"API '{api.api_id}' operation '{operation.name}' has non-boolean idempotency"
+                    )
 
     for module in modules:
         for component in getattr(module, "components", ()):

@@ -23,6 +23,7 @@ from constitutional_architecture.isr.semantics.requirement import (
 )
 from constitutional_architecture.isr.semantics.testing_anchor import TestingAnchor
 from constitutional_architecture.isr.semantics.intent_architecture import IntentArchitectureReference
+from constitutional_architecture.isr.semantics.security_posture import SecurityPosture
 from constitutional_architecture.isr.semantics.threat import SecurityThreat
 
 
@@ -60,6 +61,7 @@ class System:
     requirement_source_metadata: tuple[RequirementSourceMetadata, ...] = ()
     requirement_relations: tuple[RequirementRelation, ...] = ()
     intent_architecture_ref: Optional[IntentArchitectureReference] = None
+    security_posture: Optional[SecurityPosture] = None
     acceptance_criteria: tuple[AcceptanceCriterion, ...] = ()
     deployment_intents: tuple[DeploymentIntent, ...] = ()
     testing_anchors: tuple[TestingAnchor, ...] = ()

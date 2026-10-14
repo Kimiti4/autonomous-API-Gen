@@ -33,6 +33,9 @@ class Entity:
     is_aggregate_root: bool = False
     is_value_object: bool = False
     metadata: dict[str, str] = field(default_factory=dict)
+    owning_service_id: Optional[str] = None
+    invariants: tuple[str, ...] = ()
+    consistency_posture: str = "strong"
 
     @property
     def primary_key_fields(self) -> tuple[Field, ...]:

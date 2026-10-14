@@ -6,22 +6,28 @@ from certification.campaign.runner import _run_candidate_bound_full_stack_verifi
 @dataclass
 class Result:
     passed: bool
+    candidate_hash: str
     findings: tuple = ()
 
 
 class PassingVerifier:
-    def __call__(self, frontend, api, backend, effects, consequences):
-        return Result(True)
+    def verify_bound(self, inputs, candidate_hash):
+        return Result(True, candidate_hash)
 
 
 class FailingVerifier:
-    def __call__(self, frontend, api, backend, effects, consequences):
-        return Result(False, ("effect mismatch",))
+    def verify_bound(self, inputs, candidate_hash):
+        return Result(False, candidate_hash, ("effect mismatch",))
 
 
 class RaisingVerifier:
-    def __call__(self, frontend, api, backend, effects, consequences):
+    def verify_bound(self, inputs, candidate_hash):
         raise RuntimeError("verification unavailable")
+
+
+class UnboundVerifier:
+    def __call__(self, frontend, api, backend, effects, consequences):
+        return type("UnboundResult", (), {"passed": True, "findings": ()})()
 
 
 INPUTS = ("frontend-ir", "api-ir", "backend-ir", (), ())
@@ -71,3 +77,24 @@ def test_missing_candidate_hash_fails_closed():
     assert not _run_candidate_bound_full_stack_verifier(
         PassingVerifier(), INPUTS, ""
     )[0]
+
+
+
+def test_unbound_verifier_cannot_pass_by_echoing_success():
+    passed, detail = _run_candidate_bound_full_stack_verifier(
+        UnboundVerifier(), INPUTS, CANDIDATE_HASH
+    )
+    assert passed is False
+    assert "verify_bound" in detail
+
+
+def test_verifier_candidate_hash_mismatch_fails_closed():
+    class MismatchedVerifier:
+        def verify_bound(self, inputs, candidate_hash):
+            return Result(True, "b" * 64)
+
+    passed, detail = _run_candidate_bound_full_stack_verifier(
+        MismatchedVerifier(), INPUTS, CANDIDATE_HASH
+    )
+    assert passed is False
+    assert "binding mismatch" in detail

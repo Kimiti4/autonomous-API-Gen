@@ -435,6 +435,10 @@ def test_projection_lowers_domain_service_component_data_and_event_semantics():
                 "name": "Core domain",
                 "description": "Core domain",
                 "capability_ids": ["cap-workspace"],
+                "ubiquitous_language": {
+                    "workspace": "A boundary for tenant-owned work.",
+                    "member": "An identity scoped to one workspace.",
+                },
             }
         ],
         services=[
@@ -444,6 +448,10 @@ def test_projection_lowers_domain_service_component_data_and_event_semantics():
                 "domain_id": "domain-core",
                 "responsibilities": ["isolate workspace access"],
                 "exposed_capability_ids": ["cap-workspace"],
+                "communication_styles": [
+                    "synchronous_request_response",
+                    "asynchronous_event",
+                ],
             },
             {
                 "id": "audit-service",
@@ -536,6 +544,13 @@ def test_projection_lowers_domain_service_component_data_and_event_semantics():
     }
     assert module.services[0].domain_id == "domain-core"
     assert module.services[0].exposed_capability_refs == ("cap-workspace",)
+    assert module.services[0].communication_styles == (
+        "synchronous_request_response", "asynchronous_event"
+    )
+    assert module.ubiquitous_language == (
+        ("member", "An identity scoped to one workspace."),
+        ("workspace", "A boundary for tenant-owned work."),
+    )
     capability = next(
         item for item in result.candidate_isr.system.business_capabilities
         if item.capability_id == "cap-workspace"

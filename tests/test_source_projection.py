@@ -161,6 +161,17 @@ def test_projection_context_refuses_constitutional_binding_for_mismatched_graph_
         )
 
 
+def test_projection_context_rejects_source_bytes_hash_mismatch():
+    ctx = context()
+    with pytest.raises(ValidationError, match="source snapshot bytes do not match"):
+        SourceProjectionContext.model_validate(
+            {
+                **ctx.model_dump(mode="json"),
+                "source_bytes_b64": "YXR0YWNrZXItc3VwcGxpZWQtYnl0ZXM=",
+            }
+        )
+
+
 def test_projection_context_rejects_tampered_graph_hash():
     ctx = context()
     with pytest.raises(ValidationError, match="graph hash does not match"):

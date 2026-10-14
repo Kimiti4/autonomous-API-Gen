@@ -38,6 +38,7 @@ class Module:
     components: tuple[Component, ...] = ()
     capability_refs: tuple[str, ...] = ()
     api_contracts: tuple[ApiContract, ...] = ()
+    ubiquitous_language: tuple[tuple[str, str], ...] = ()
 
     def get_entity(self, entity_id: str) -> Optional[Entity]:
         for e in self.entities:

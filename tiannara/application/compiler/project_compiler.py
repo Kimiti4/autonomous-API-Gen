@@ -177,6 +177,19 @@ class ProjectCompiler:
                 "generation blocked: source-to-graph provenance binding is stale or substituted"
             )
 
+        # The typed SystemModel must identify the exact same requirement
+        # graph. Matching source and graph hashes alone do not prove that the
+        # model synthesis retained the graph's identity.
+        requirements_ref = getattr(model, "requirements_ref", None)
+        if (
+            requirements_ref is None
+            or requirements_ref.graph_id != graph.graph_id
+            or requirements_ref.graph_hash != graph.content_hash()
+        ):
+            raise ProjectCompilationError(
+                "generation blocked: SystemModel requirement reference does not bind to the active source graph"
+            )
+
         # 3. Derive requirements
         requirements = derive_compilation_requirements(model)
         # 4. Plan (select-all when calibrating, single-best otherwise)

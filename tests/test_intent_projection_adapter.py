@@ -101,6 +101,7 @@ def _inputs(*, with_architecture=False, priority=Priority.MUST):
             if with_architecture
             else []
         ),
+        extensions=({"unmapped": {"meaning": "must not be dropped"}} if with_architecture else {}),
     )
     return source, graph, model
 
@@ -418,8 +419,23 @@ def test_projection_lowers_domain_service_component_data_and_event_semantics():
         requirements_ref=RequirementsReference(
             graph_id=graph.graph_id, graph_hash=graph.content_hash()
         ),
+        capabilities=[
+            {
+                "id": "cap-workspace",
+                "name": "Workspace isolation",
+                "description": "Keep workspace data isolated.",
+                "criticality": "core",
+                "priority": "must",
+                "traced_requirement_ids": ["REQ-A"],
+            }
+        ],
         domains=[
-            {"id": "domain-core", "name": "Core domain", "description": "Core domain"}
+            {
+                "id": "domain-core",
+                "name": "Core domain",
+                "description": "Core domain",
+                "capability_ids": ["cap-workspace"],
+            }
         ],
         services=[
             {
@@ -427,6 +443,7 @@ def test_projection_lowers_domain_service_component_data_and_event_semantics():
                 "name": "Workspace service",
                 "domain_id": "domain-core",
                 "responsibilities": ["isolate workspace access"],
+                "exposed_capability_ids": ["cap-workspace"],
             },
             {
                 "id": "audit-service",
@@ -434,6 +451,23 @@ def test_projection_lowers_domain_service_component_data_and_event_semantics():
                 "domain_id": "domain-core",
                 "responsibilities": ["record access decisions"],
             },
+        ],
+        apis=[
+            {
+                "id": "workspace-api",
+                "name": "Workspace API",
+                "provider_service_id": "workspace-service",
+                "consumer_service_ids": ["audit-service"],
+                "interaction_style": "request_response",
+                "operations": [
+                    {
+                        "name": "create_workspace",
+                        "description": "Create a workspace.",
+                        "semantics": "command",
+                        "idempotent": True,
+                    }
+                ],
+            }
         ],
         components=[
             {
@@ -485,6 +519,21 @@ def test_projection_lowers_domain_service_component_data_and_event_semantics():
         "workspace-service", "audit-service"
     }
     assert module.services[0].domain_id == "domain-core"
+    assert module.services[0].exposed_capability_refs == ("cap-workspace",)
+    capability = next(
+        item for item in result.candidate_isr.system.business_capabilities
+        if item.capability_id == "cap-workspace"
+    )
+    assert capability.name == "Workspace isolation"
+    assert capability.priority == "must"
+    assert capability.requirement_refs == ("REQ-A",)
+    api = module.api_contracts[0]
+    assert api.api_id == "workspace-api"
+    assert api.provider_service_id == "workspace-service"
+    assert api.consumer_service_ids == ("audit-service",)
+    assert api.operations[0].name == "create_workspace"
+    assert api.operations[0].semantics == "command"
+    assert api.operations[0].idempotent is True
     assert module.components[0].component_id == "workspace-policy"
     entity = module.entities[0]
     assert entity.owning_service_id == "workspace-service"

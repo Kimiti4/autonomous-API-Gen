@@ -834,3 +834,28 @@ def test_architecture_validator_rejects_dangling_entity_relationships():
     errors = validate_system_architecture_projection(changed_system)
 
     assert any("references unknown entity 'missing-entity'" in error for error in errors)
+
+def test_architecture_validator_rejects_unknown_service_communication_style():
+    source, graph, model = _inputs(with_architecture=True)
+    result = project_intent_to_constitutional_isr(
+        source_bytes=source, graph=graph, system_model=model, system_id="workspace-system"
+    )
+    module = result.candidate_isr.system.modules[0]
+    service = module.services[0]
+    mutated_service = replace(service, communication_styles=("magical_rpc",))
+    mutated_module = replace(
+        module,
+        services=(mutated_service,) + module.services[1:],
+    )
+    mutated_isr = replace(
+        result.candidate_isr,
+        system=replace(result.candidate_isr.system, modules=(mutated_module,)),
+    )
+    from constitutional_architecture.isr.semantics.intent_architecture import (
+        validate_system_architecture_projection,
+    )
+
+    errors = validate_system_architecture_projection(mutated_isr.system)
+
+    assert any("unsupported communication styles" in error for error in errors)
+

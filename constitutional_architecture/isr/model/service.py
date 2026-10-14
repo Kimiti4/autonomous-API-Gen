@@ -54,6 +54,9 @@ class Service:
     consumed_events: tuple[str, ...] = ()
     is_stateless: bool = True
     metadata: dict[str, str] = field(default_factory=dict)
+    domain_id: Optional[str] = None
+    responsibility_refs: tuple[str, ...] = ()
+    exposed_capability_refs: tuple[str, ...] = ()
 
     def get_operation(self, name: str) -> Optional[Operation]:
         for op in self.operations:

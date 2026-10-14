@@ -61,6 +61,17 @@ def run_campaign_a(
     summary["corpus_hash"] = ch
     summary["corpus_size"] = len(corpus)
     summary["total_trials"] = len(trials)
+    # Campaign A currently has no trusted adapter that derives the five
+    # full-stack IR inputs from its source-bound PlanArtifacts. Make this
+    # limitation explicit in the report; do not synthesize IR merely to pass.
+    summary["full_stack_verification"] = {
+        "status": "blocked_not_configured",
+        "reason": (
+            "Campaign A does not yet derive candidate-bound frontend, API, "
+            "backend, effect, and consequence IR from the source-bound artifacts."
+        ),
+        "certification_authorized": False,
+    }
 
     assert EvidenceLedger.verify(ledger_path), "Evidence chain broken"
 

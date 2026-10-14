@@ -514,6 +514,8 @@ def test_projection_lowers_domain_service_component_data_and_event_semantics():
 
     assert result.ready_for_compilation
     assert result.candidate_isr.validate_structure()
+    from constitutional_architecture.isr.semantics.intent_architecture import validate_system_architecture_projection
+    assert validate_system_architecture_projection(result.candidate_isr.system) == ()
     assert result.candidate_isr.system.security_posture.authorization == "none"
     assert result.candidate_isr.system.security_posture.encryption_in_transit_required is True
     module = result.candidate_isr.system.modules[0]
@@ -639,3 +641,21 @@ def test_source_binding_rejects_mutated_security_posture():
 
     assert not report.complete
     assert any("security posture differs" in blocker for blocker in report.blockers)
+
+
+def test_architecture_validator_rejects_missing_security_posture():
+    source, graph, model = _inputs()
+    result = project_intent_to_constitutional_isr(
+        source_bytes=source, graph=graph, system_model=model, system_id="workspace-system"
+    )
+    changed_isr = replace(
+        result.candidate_isr,
+        system=replace(result.candidate_isr.system, security_posture=None),
+    )
+    from constitutional_architecture.isr.semantics.intent_architecture import (
+        validate_system_architecture_projection,
+    )
+
+    errors = validate_system_architecture_projection(changed_isr.system)
+
+    assert any("missing first-class security posture" in error for error in errors)

@@ -859,3 +859,18 @@ def test_architecture_validator_rejects_unknown_service_communication_style():
 
     assert any("unsupported communication styles" in error for error in errors)
 
+
+def test_architecture_validator_rejects_incomplete_projection_reference():
+    source, graph, model = _inputs(with_architecture=True)
+    result = project_intent_to_constitutional_isr(
+        source_bytes=source, graph=graph, system_model=model, system_id="workspace-system"
+    )
+    assert result.candidate_isr.system.intent_architecture_ref.projection_complete is False
+    from constitutional_architecture.isr.semantics.intent_architecture import (
+        validate_system_architecture_projection,
+    )
+
+    errors = validate_system_architecture_projection(result.candidate_isr.system)
+
+    assert any("typed architecture projection incomplete" in error for error in errors)
+

@@ -10,6 +10,7 @@ from constitutional_architecture.compiler.passes.code_generation_pass import Cod
 from constitutional_architecture.compiler.quality.diagnostics import DiagnosticSeverity
 from constitutional_architecture.isr.model.isr import ISR
 from constitutional_architecture.isr.model.system import System
+from constitutional_architecture.isr.semantics.requirement import RequirementGraphReference
 
 
 class _Backend(CompilerBackend):
@@ -35,11 +36,28 @@ class _Backend(CompilerBackend):
         return []
 
 
-def _context(backend, *, require_source_binding=True):
+def _context(
+    backend,
+    *,
+    require_source_binding=True,
+    source_graph=False,
+    source_binding=False,
+):
     registry = BackendRegistry()
     registry.register(backend)
+    system = System(id="strict-source-bound", name="Strict source-bound")
+    if source_graph:
+        system = System(
+            id=system.id,
+            name=system.name,
+            requirement_graph_ref=RequirementGraphReference(
+                graph_id="source-graph",
+                graph_sha256="a" * 64,
+                source_sha256="b" * 64,
+            ),
+        )
     return CompilerContext(
-        _isr=ISR(system=System(id="strict-source-bound", name="Strict source-bound")),
+        _isr=ISR(system=system),
         _config=CompilationConfig(
             project_name="strict-source-bound",
             target_backends=("test-backend",),
@@ -47,6 +65,7 @@ def _context(backend, *, require_source_binding=True):
         ),
         backend_registry=registry,
         bir=BIR(project_name="strict-source-bound"),
+        source_binding=object() if source_binding else None,
     )
 
 
@@ -88,3 +107,35 @@ def test_legacy_non_source_bound_compile_keeps_compatibility_behavior():
     assert result.success
     assert backend.calls == 1
     assert len(context.artifacts) == 1
+
+
+def test_source_graph_cannot_bypass_backend_certification_with_legacy_config():
+    backend = _Backend(certified=False)
+    context = _context(
+        backend,
+        require_source_binding=False,
+        source_graph=True,
+    )
+
+    result = CodeGenerationPass().execute(context)
+
+    assert not result.success
+    assert backend.calls == 0
+    assert context.artifacts == []
+    assert result.metrics["artifacts_generated"] == 0
+
+
+def test_explicit_binding_cannot_bypass_backend_certification_with_legacy_config():
+    backend = _Backend(certified=False)
+    context = _context(
+        backend,
+        require_source_binding=False,
+        source_binding=True,
+    )
+
+    result = CodeGenerationPass().execute(context)
+
+    assert not result.success
+    assert backend.calls == 0
+    assert context.artifacts == []
+    assert result.metrics["artifacts_generated"] == 0

@@ -692,8 +692,9 @@ def test_source_binding_rejects_mutated_deployment_posture():
 
 def test_source_binding_rejects_mutated_typed_capability_gene():
     source, graph, model = _inputs()
-    model = model.model_copy(
-        update={
+    model = SystemModel.model_validate(
+        model.model_dump()
+        | {
             "capabilities": [
                 {
                     "id": "cap-audit",

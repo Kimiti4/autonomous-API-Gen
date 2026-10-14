@@ -1,4 +1,5 @@
 """Tests for universal source-bound obligation projection."""
+import hashlib
 import pytest
 from pydantic import ValidationError
 
@@ -6,6 +7,7 @@ from tiannara.application.compiler.source_projection import (
     SourceProjectionContext,
     create_source_projection_context,
     project_obligations,
+    to_constitutional_source_binding,
     verify_exact_projection,
 )
 from tiannara.domain.models.compiler_obligation import Applicability, Disposition
@@ -114,6 +116,50 @@ def test_source_context_uses_domain_hash_contract_for_unicode_graphs():
     )
     assert ctx.graph_sha256 == g.content_hash()
     assert project_obligations(ctx).records
+
+def test_projection_context_retains_exact_bytes_for_constitutional_binding():
+    source_bytes = b"Exact source bytes: berth isolation."
+    g = RequirementGraph(
+        graph_id="bound-graph",
+        nodes=[
+            RequirementNode(
+                id="REQ-1",
+                kind=RequirementKind.CONSTRAINT,
+                statement="Workspace access is isolated.",
+                priority=Priority.MUST,
+            )
+        ],
+        provenance=GraphProvenance(
+            source_statement_hash=hashlib.sha256(source_bytes).hexdigest(),
+            origin="trusted_snapshot",
+        ),
+    )
+    ctx = create_source_projection_context(
+        source_id="repo://example/exact-source",
+        source_bytes=source_bytes,
+        graph=g,
+        semantic_resolution=resolution_for(g),
+    )
+
+    binding = to_constitutional_source_binding(
+        ctx,
+        graph_to_isr_requirement_ids={"REQ-1": "ISR-REQ-1"},
+    )
+
+    assert binding.source_bytes == source_bytes
+    assert binding.expected_source_sha256 == hashlib.sha256(source_bytes).hexdigest()
+    assert binding.graph.content_hash() == g.content_hash()
+    assert binding.graph_to_isr_requirement_ids == {"REQ-1": "ISR-REQ-1"}
+
+
+def test_projection_context_refuses_constitutional_binding_for_mismatched_graph_provenance():
+    ctx = context()
+    with pytest.raises(ValueError, match="does not bind the exact source snapshot"):
+        to_constitutional_source_binding(
+            ctx,
+            graph_to_isr_requirement_ids={"REQ-auth-scope": "ISR-REQ-auth-scope"},
+        )
+
 
 def test_projection_context_rejects_tampered_graph_hash():
     ctx = context()

@@ -167,7 +167,7 @@ def test_projection_blocks_unlowered_typed_architecture_instead_of_dropping_it()
 
     assert result.candidate_isr is not None
     assert not result.ready_for_compilation
-    assert any("services" in blocker for blocker in result.blockers)
+    assert any("unknown domain" in blocker for blocker in result.blockers)
 
 
 def test_priority_mutation_is_preserved_in_constitutional_projection():
@@ -219,6 +219,7 @@ def test_source_binding_accepts_only_complete_projection_metadata():
         source_bytes=source,
         expected_source_sha256=hashlib.sha256(source).hexdigest(),
         graph=graph,
+        system_model=model,
         graph_to_isr_requirement_ids={node.id: node.id for node in graph.nodes},
     )
 
@@ -312,3 +313,170 @@ def test_incomplete_projection_is_blocked_even_if_caller_uses_compatibility_comp
         "COMP-SOURCE-BINDING-001",
         "COMP-SOURCE-BINDING-004",
     }
+
+
+def test_source_binding_rejects_mutated_projected_architecture_gene():
+    source = b"Workspace members must be isolated."
+    graph = RequirementGraph(
+        graph_id="architecture-graph",
+        nodes=[
+            RequirementNode(
+                id="REQ-A",
+                kind=RequirementKind.CONSTRAINT,
+                statement="Workspace access is isolated.",
+                priority=Priority.MUST,
+            )
+        ],
+        provenance=GraphProvenance(
+            source_statement_hash=hashlib.sha256(source).hexdigest()
+        ),
+    )
+    model = SystemModel(
+        system_name="workspace-service",
+        problem_statement="Provide isolated workspaces.",
+        requirements_ref=RequirementsReference(
+            graph_id=graph.graph_id, graph_hash=graph.content_hash()
+        ),
+        domains=[
+            {"id": "domain-core", "name": "Core domain", "description": "Core domain"}
+        ],
+        services=[
+            {
+                "id": "workspace-service",
+                "name": "Workspace service",
+                "domain_id": "domain-core",
+                "responsibilities": ["isolate workspace access"],
+            }
+        ],
+    )
+    result = project_intent_to_constitutional_isr(
+        source_bytes=source, graph=graph, system_model=model, system_id="workspace-system"
+    )
+    assert result.ready_for_compilation
+    isr = result.candidate_isr
+    original_module = isr.system.modules[0]
+    mutated_service = replace(
+        original_module.services[0],
+        responsibility_refs=("ignore workspace isolation",),
+    )
+    mutated_module = replace(
+        original_module, services=(mutated_service,)
+    )
+    mutated_isr = replace(
+        isr,
+        system=replace(isr.system, modules=(mutated_module,)),
+    )
+    binding = ConstitutionalSourceBinding(
+        source_bytes=source,
+        expected_source_sha256=hashlib.sha256(source).hexdigest(),
+        graph=graph,
+        system_model=model,
+        graph_to_isr_requirement_ids={node.id: node.id for node in graph.nodes},
+    )
+
+    report = verify_constitutional_source_binding(binding=binding, isr=mutated_isr)
+
+    assert not report.complete
+    assert any("modules differ from deterministic" in blocker for blocker in report.blockers)
+
+
+def test_projection_lowers_domain_service_component_data_and_event_semantics():
+    source = b"Workspace members must be isolated."
+    graph = RequirementGraph(
+        graph_id="architecture-map-graph",
+        nodes=[
+            RequirementNode(
+                id="REQ-A",
+                kind=RequirementKind.CONSTRAINT,
+                statement="Workspace access is isolated.",
+                priority=Priority.MUST,
+            )
+        ],
+        provenance=GraphProvenance(
+            source_statement_hash=hashlib.sha256(source).hexdigest()
+        ),
+    )
+    model = SystemModel(
+        system_name="workspace-service",
+        problem_statement="Provide isolated workspaces.",
+        requirements_ref=RequirementsReference(
+            graph_id=graph.graph_id, graph_hash=graph.content_hash()
+        ),
+        domains=[
+            {"id": "domain-core", "name": "Core domain", "description": "Core domain"}
+        ],
+        services=[
+            {
+                "id": "workspace-service",
+                "name": "Workspace service",
+                "domain_id": "domain-core",
+                "responsibilities": ["isolate workspace access"],
+            },
+            {
+                "id": "audit-service",
+                "name": "Audit service",
+                "domain_id": "domain-core",
+                "responsibilities": ["record access decisions"],
+            },
+        ],
+        components=[
+            {
+                "id": "workspace-policy",
+                "service_id": "workspace-service",
+                "name": "Workspace policy",
+                "responsibility": "enforce workspace isolation",
+                "kind": "policy",
+            }
+        ],
+        data_models=[
+            {
+                "id": "workspace-record",
+                "name": "Workspace record",
+                "owning_service_id": "workspace-service",
+                "fields": [
+                    {"name": "name", "type": "text", "required": True},
+                    {
+                        "name": "status",
+                        "type": "enumeration",
+                        "required": True,
+                        "enumeration_values": ["active", "archived"],
+                    },
+                ],
+                "invariants": ["workspace identity is immutable"],
+                "consistency": "strong",
+            }
+        ],
+        events=[
+            {
+                "id": "workspace-audited",
+                "name": "Workspace audited",
+                "producer_service_id": "audit-service",
+                "consumer_service_ids": ["workspace-service"],
+                "payload_model_id": "workspace-record",
+                "delivery_semantics": "at_least_once",
+                "ordering": "partition_ordered",
+            }
+        ],
+    )
+    result = project_intent_to_constitutional_isr(
+        source_bytes=source, graph=graph, system_model=model, system_id="workspace-system"
+    )
+
+    assert result.ready_for_compilation
+    module = result.candidate_isr.system.modules[0]
+    assert module.id == "domain-core"
+    assert {service.id for service in module.services} == {
+        "workspace-service", "audit-service"
+    }
+    assert module.services[0].domain_id == "domain-core"
+    assert module.components[0].component_id == "workspace-policy"
+    entity = module.entities[0]
+    assert entity.owning_service_id == "workspace-service"
+    assert entity.invariants == ("workspace identity is immutable",)
+    assert [field.field_type.value for field in entity.fields] == ["text", "enum"]
+    event = module.events[0]
+    assert event.producer_service_id == "audit-service"
+    assert event.consumer_service_ids == ("workspace-service",)
+    assert event.payload_model_id == "workspace-record"
+    assert event.ordering_semantics == "partition_ordered"
+    assert event.ordering_required is True

@@ -43,6 +43,7 @@ from tiannara.domain.ports import IntentCompiler
 from tiannara.application.intent.prompts import derive_system_id
 from tiannara.application.intent.prompts import normalize
 from tiannara.application.compiler.source_projection import SourceProjectionContext
+from tiannara.application.compiler.source_coverage import SourceGraphCoverageReport
 from tiannara.domain.models.requirement_graph import RequirementGraph
 
 
@@ -175,6 +176,26 @@ class ProjectCompiler:
         ):
             raise ProjectCompilationError(
                 "generation blocked: source-to-graph provenance binding is stale or substituted"
+            )
+
+        # A graph hash binds identity but cannot prove that every requirement-
+        # bearing source unit survived extraction. Until the trusted intake path
+        # supplies a coverage report, generic generation is blocked. Never infer
+        # completeness from a matching source/context/graph hash.
+        coverage = getattr(compilation, "source_graph_coverage_report", None)
+        if not isinstance(coverage, SourceGraphCoverageReport):
+            raise ProjectCompilationError(
+                "generation blocked: trusted source-unit-to-graph coverage report is missing"
+            )
+        if (
+            not coverage.complete
+            or coverage.source_sha256 != source_context.snapshot_sha256
+            or coverage.graph_sha256 != source_context.graph_sha256
+        ):
+            blockers = "; ".join(coverage.blockers) or "source/graph identity mismatch"
+            raise ProjectCompilationError(
+                "generation blocked: source-unit-to-graph coverage is incomplete or stale: "
+                + blockers
             )
 
         # The typed SystemModel must identify the exact same requirement

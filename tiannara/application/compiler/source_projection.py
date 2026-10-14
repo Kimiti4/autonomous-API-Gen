@@ -20,7 +20,7 @@ from tiannara.domain.models.compiler_obligation import (
     Disposition,
     Strength,
 )
-from tiannara.domain.models.requirement_graph import RequirementGraph, RequirementKind
+from tiannara.domain.models.requirement_graph import RequirementGraph
 from tiannara.domain.models.semantic_resolution import (
     SemanticResolutionRecord,
     require_resolved_semantics,

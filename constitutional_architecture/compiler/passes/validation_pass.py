@@ -18,6 +18,49 @@ class ValidationPass(CompilerPass):
         return {"isr_validated"}
 
     def execute(self, ctx: CompilerContext) -> PassResult:
+        binding = ctx.source_binding
+        if ctx.config.require_source_binding and binding is None:
+            ctx.diagnostics.error(
+                "COMP-SOURCE-BINDING-001",
+                "Required source/graph/ISR binding is missing",
+            )
+            return PassResult(
+                success=False,
+                description="Source binding blocked: required binding is missing",
+                metrics={"source_binding_valid": False, "source_binding_missing": True},
+            )
+        if binding is not None:
+            try:
+                from constitutional_architecture.compiler.source_binding import (
+                    verify_constitutional_source_binding,
+                )
+                report = verify_constitutional_source_binding(binding=binding, isr=ctx.original_isr)
+            except Exception as exc:
+                ctx.diagnostics.error(
+                    "COMP-SOURCE-BINDING-002",
+                    f"Source binding verification unavailable: {type(exc).__name__}: {exc}",
+                )
+                return PassResult(
+                    success=False,
+                    description="Source binding blocked: verification unavailable",
+                    metrics={"source_binding_valid": False, "source_binding_error": type(exc).__name__},
+                )
+            if not report.complete:
+                ctx.diagnostics.error(
+                    "COMP-SOURCE-BINDING-003",
+                    "Source/graph/ISR binding failed: " + "; ".join(report.blockers),
+                )
+                return PassResult(
+                    success=False,
+                    description="Source binding failed",
+                    metrics={
+                        "source_binding_valid": False,
+                        "source_sha256": report.source_sha256,
+                        "graph_sha256": report.graph_sha256,
+                        "isr_sha256": report.isr_sha256,
+                        "blockers": list(report.blockers),
+                    },
+                )
         try:
             from constitutional_architecture.validation.checker import ArchitecturalTypeChecker
             from constitutional_architecture.engine.isr_adapter import isr_to_graph

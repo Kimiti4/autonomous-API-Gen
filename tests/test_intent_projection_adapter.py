@@ -1,6 +1,8 @@
 import hashlib
 from dataclasses import replace
 
+from constitutional_architecture.compiler.compilation_config import CompilationConfig
+from constitutional_architecture.compiler.pipeline import CompilerPipeline
 from constitutional_architecture.compiler.source_binding import (
     ConstitutionalSourceBinding,
     verify_constitutional_source_binding,
@@ -272,3 +274,41 @@ def test_source_binding_rejects_candidate_with_unlowered_architecture():
 
     assert not report.complete
     assert any("projection incomplete" in blocker for blocker in report.blockers)
+
+
+def test_projected_isr_cannot_bypass_source_binding_via_compatibility_compile():
+    source, graph, model = _inputs()
+    result = project_intent_to_constitutional_isr(
+        source_bytes=source, graph=graph, system_model=model, system_id="workspace-system"
+    )
+    assert result.ready_for_compilation
+
+    compiled = CompilerPipeline().compile(
+        result.candidate_isr,
+        CompilationConfig(project_name="workspace-system"),
+    )
+
+    assert not compiled.success
+    assert compiled.artifact_count == 0
+    assert compiled.diagnostics[0].code == "COMP-SOURCE-BINDING-001"
+
+
+def test_incomplete_projection_is_blocked_even_if_caller_uses_compatibility_compile():
+    source, graph, model = _inputs(with_architecture=True)
+    result = project_intent_to_constitutional_isr(
+        source_bytes=source, graph=graph, system_model=model, system_id="workspace-system"
+    )
+    assert result.candidate_isr is not None
+    assert not result.ready_for_compilation
+
+    compiled = CompilerPipeline().compile(
+        result.candidate_isr,
+        CompilationConfig(project_name="workspace-system"),
+    )
+
+    assert not compiled.success
+    assert compiled.artifact_count == 0
+    assert compiled.diagnostics[0].code in {
+        "COMP-SOURCE-BINDING-001",
+        "COMP-SOURCE-BINDING-004",
+    }

@@ -102,6 +102,19 @@ def test_exact_projection_rejects_omission_and_semantic_weakening():
     assert any("altered" in item for item in blockers)
 
 
+
+def test_source_context_uses_domain_hash_contract_for_unicode_graphs():
+    g = graph()
+    g.nodes[0].statement = "Les utilisateurs accèdent uniquement à leur espace."
+    ctx = create_source_projection_context(
+        source_id="repo://example/unicode-source",
+        source_bytes="Exigences: café ☕".encode("utf-8"),
+        graph=g,
+        semantic_resolution=resolution_for(g),
+    )
+    assert ctx.graph_sha256 == g.content_hash()
+    assert project_obligations(ctx).records
+
 def test_projection_context_rejects_tampered_graph_hash():
     ctx = context()
     with pytest.raises(ValidationError, match="graph hash does not match"):

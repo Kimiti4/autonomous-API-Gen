@@ -391,6 +391,24 @@ def test_compilation_dry_run_is_never_reported_as_success():
     assert all(any("Planned only:" in line for line in job.logs) for job in report.jobs)
 
 
+class _EmptyOutputGateway:
+    def compile_isr(self, isr, backend_id, environment):
+        return {"artifacts": [], "logs": []}
+
+
+def test_gateway_with_empty_output_cannot_claim_compilation_success():
+    report = CompilationExecutor(gateway=_EmptyOutputGateway()).execute(
+        product_id="product_1",
+        isr={"name": "Test Product"},
+    )
+
+    assert report.success is False
+    assert report.artifact_count == 0
+    assert len(report.missing_required_backends) == 5
+    assert all(job.status == "FAILED" for job in report.jobs)
+    assert all("no emitted artifacts" in job.logs[0] for job in report.jobs)
+
+
 def test_default_compiler_gateway_fails_closed_without_real_backend():
     report = CompilationExecutor().execute(
         product_id="product_1",

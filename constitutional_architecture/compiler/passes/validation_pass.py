@@ -19,7 +19,9 @@ class ValidationPass(CompilerPass):
 
     def execute(self, ctx: CompilerContext) -> PassResult:
         binding = getattr(ctx, "source_binding", None)
-        graph_ref = getattr(ctx.original_isr.system, "requirement_graph_ref", None)
+        original_isr = getattr(ctx, "original_isr", None)
+        original_system = getattr(original_isr, "system", None)
+        graph_ref = getattr(original_system, "requirement_graph_ref", None)
         require_source_binding = bool(
             getattr(getattr(ctx, "config", None), "require_source_binding", False)
             or graph_ref is not None

@@ -364,6 +364,22 @@ def project_intent_to_constitutional_isr(
             )
         )
 
+    # Preserve malformed/empty policy declarations as records, but do not
+    # authorize a complete projection when a required source declaration is blank.
+    if not system_model.deployment.environment_names:
+        blockers.append("deployment policy declares no environments")
+    if not system_model.testing.required_levels:
+        blockers.append("testing policy declares no required test levels")
+    if not system_model.documentation.required_artifacts:
+        blockers.append("documentation policy declares no required artifacts")
+    if not system_model.operational_policies.backup_posture.strip():
+        blockers.append("operational policy has an empty backup posture")
+    if not system_model.operational_policies.disaster_recovery_posture.strip():
+        blockers.append("operational policy has an empty disaster-recovery posture")
+    for slo in system_model.operational_policies.service_level_objectives:
+        if not slo.name.strip() or not slo.metric.strip() or not slo.target.strip():
+            blockers.append("operational policy contains an incomplete service-level objective")
+
     # These sections need additional native semantic carriers before they can
     # be declared complete. They are intentionally not copied into extensions.
     if system_model.extensions:

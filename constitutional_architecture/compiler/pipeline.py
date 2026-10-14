@@ -116,7 +116,9 @@ class CompilerPipeline:
             )
 
         cache_key = self._cache.compute_key(isr.content_hash, config.config_hash, config.compiler_version)
-        cached = self._cache.get(cache_key)
+        # Source-bound compilations cannot reuse a result keyed only by ISR/config
+        # hashes: the binding envelope is an independent input to validation.
+        cached = self._cache.get(cache_key) if source_binding is None and not config.require_source_binding else None
         if cached is not None:
             self._metrics.record_cache(hit=True)
             self._event_bus.publish(CompilerEvent(event_type=CompilerEventType.CACHE_HIT))
@@ -157,7 +159,7 @@ class CompilerPipeline:
             success=passes_success and not ctx.diagnostics.has_errors,
         )
 
-        if result.success:
+        if result.success and source_binding is None and not config.require_source_binding:
             self._cache.put(cache_key, result)
 
         self._metrics.record_compilation(elapsed_ms, len(ctx.artifacts), len(ctx.diagnostics.errors), len(ctx.diagnostics.warnings))

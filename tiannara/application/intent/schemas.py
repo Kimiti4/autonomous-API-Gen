@@ -16,6 +16,7 @@ from tiannara.domain.models.semantic_resolution import SemanticResolutionRecord
 from tiannara.domain.models.authorization_semantic_obligations import AuthorizationSemanticObligations
 from tiannara.domain.models.system_model import SystemModel
 from tiannara.application.compiler.source_projection import SourceProjectionContext
+from tiannara.application.compiler.source_coverage import SourceGraphCoverageReport
 
 
 class NormalizedIntent(BaseModel):
@@ -74,6 +75,8 @@ class IntentCompilationResult(BaseModel):
     authorization_semantic_obligations: AuthorizationSemanticObligations | None = None
     # Mandatory for certification/generation paths; optional only for legacy result construction.
     source_projection_context: SourceProjectionContext | None = None
+    # Supplied only by trusted intake/review; never inferred from graph hashes.
+    source_graph_coverage_report: SourceGraphCoverageReport | None = None
 
 class TaskFlowSemanticProjection(BaseModel):
     """SystemModel plus an explicit declaration of which TaskFlow semantics it consumed.

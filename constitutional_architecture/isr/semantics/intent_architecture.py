@@ -79,6 +79,11 @@ def validate_system_architecture_projection(system: object) -> tuple[str, ...]:
                     f"service '{service.id}' domain '{service.domain_id}' does not match "
                     f"owning module '{module.id}'"
                 )
+            if service.is_stateless is not None and not isinstance(service.is_stateless, bool):
+                errors.append(
+                    f"service '{service.id}' has invalid statefulness value "
+                    f"{service.is_stateless!r}; expected bool or unknown"
+                )
             for capability_id in service.exposed_capability_refs:
                 if capability_id not in capabilities:
                     errors.append(

@@ -68,15 +68,9 @@ class SourceProjectionContext(BaseModel):
             raise ValueError("graph_json is not canonical")
         if graph_payload.get("graph_id") != self.graph_id:
             raise ValueError("graph identity does not match frozen graph payload")
-        actual_graph_hash = sha256_bytes(
-            canonical_json_bytes({
-                key: value for key, value in graph_payload.items()
-                if key != "analysis"
-            })
-        )
-        # RequirementGraph.content_hash uses the project's canonical_hash,
-        # which is SHA-256 over canonical JSON. Recompute through that contract
-        # rather than accepting a caller-supplied graph hash.
+        # Recompute using the domain's canonical hash contract. Do not
+        # duplicate its JSON encoding rules here (notably Unicode handling).
+        actual_graph_hash = RequirementGraph.model_validate(graph_payload).content_hash()
         if actual_graph_hash != self.graph_sha256:
             raise ValueError("graph hash does not match frozen graph payload")
         if (

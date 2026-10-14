@@ -53,6 +53,14 @@ The current `IntentCompiler` does **not** yet produce this report: the extractio
 
 The coverage contract still proves structural accounting only. It cannot prove that the declared source-unit inventory is complete, that the mapped graph nodes preserve meaning, or that the constitutional ISR pipeline consumes the same source context. The next work is to define a trusted source-unit inventory/provenance contract and bind its graph obligations to the constitutional ISR requirements without treating hashes or metadata as semantic proof. TaskFlow generation and universal certification remain blocked.
 
+## Follow-on checkpoint — requirement graph to typed ISR traceability
+
+The generic compiler path now performs a second explicit check after source snapshot/graph identity and source-unit coverage: every mandatory RequirementGraph node must be referenced by a typed ISR `BusinessCapability.traced_requirement_ids` entry, and every such reference must resolve to an actual graph node. The check also verifies that the typed SystemModel's graph ID/hash matches the active graph. Missing mandatory links, unknown IDs, duplicate trace links, and stale graph references block before backend selection. Focused tests cover complete links and missing/unknown links.
+
+This is a deliberately narrow structural traceability contract. It does not prove that a capability's description semantically satisfies the requirement, nor that the requirement has been allocated to all relevant services, APIs, data models, events, policies, tests, or runtime controls. Those require authoritative obligation-to-consumer bindings and independent negative/runtime evidence.
+
+The constitutional compiler uses a separate immutable `constitutional_architecture.isr.model.isr.ISR` / `System` representation, not the typed `tiannara.domain.models.isr.IntermediateSoftwareRepresentation` / `SystemModel` envelope. The shared source context and the graph-to-ISR bindings are not yet wired and validated across that second path. It remains a bypass risk until it either consumes the same validated provenance and explicit requirement bindings or rejects source-bound compilation when they are absent. This checkpoint does not authorize TaskFlow generation or certify the universal-developer capability.
+
 ## Scope and source-of-truth rules
 
 1. The ten-domain machine-readable contract is `experiments/compiler-benchmarks/coherence_suite.v1.json`; its status is `SPECIFIED_NOT_EXECUTED`.

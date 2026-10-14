@@ -30,6 +30,19 @@ The first P0 implementation slice is now present on this branch:
 
 Latest implementation tip at this checkpoint: `cc1c569afeb16a7c4aec4ecd6d9f45eabb0e5da9`. CI checks for this SHA were queued when inspected; no passing result is claimed here.
 
+## Follow-on checkpoint — explicit source-unit coverage contract
+
+A new shared contract has been added at `tiannara/application/compiler/source_coverage.py`, with adversarial tests in `tests/test_source_coverage.py`. It binds requirement-bearing source byte spans to graph node IDs and checks:
+
+- exact active source snapshot hash and per-span hashes;
+- duplicate, empty, overlapping, or out-of-range source spans;
+- omitted source-unit mappings and references to unknown source units/nodes;
+- mandatory graph nodes that have no source-unit binding.
+
+This closes one structural part of the source-to-graph fidelity gap: omissions in a declared source-unit inventory are detectable rather than silently accepted. It does **not** prove that the source-unit inventory itself is semantically complete or that an assigned graph node faithfully preserves its source meaning. That requires trusted extraction/parser provenance and mutation tests.
+
+**Integration remains outstanding:** the live IntentCompiler does not yet emit trusted source-unit spans and bindings, and ProjectCompiler does not yet require this report. The new contract is therefore a tested component, not evidence that the live pipeline is source-complete. Generic generation remains unqualified until the source map is produced by the trusted intake path and enforced before backend selection. The constitutional ISR pipeline also remains a separate integration task.
+
 ## Scope and source-of-truth rules
 
 1. The ten-domain machine-readable contract is `experiments/compiler-benchmarks/coherence_suite.v1.json`; its status is `SPECIFIED_NOT_EXECUTED`.

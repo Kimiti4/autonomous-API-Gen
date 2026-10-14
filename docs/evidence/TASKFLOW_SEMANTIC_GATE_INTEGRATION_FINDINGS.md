@@ -84,3 +84,20 @@ The current downstream boundary is narrower than the semantic projection contrac
 6. Only after the above gates pass and a trusted reviewer envelope is available should the bounded TaskFlow generation trial run. Independently inspect generated source and execute API, frontend, authorization/tenancy, persistence, session-revocation, idempotency, and runtime checks. Keep all unexecuted claims `UNKNOWN`.
 
 This audit is a design/implementation boundary finding, not a claim that the projector or application has been implemented. The correct current status remains **generation blocked; certification UNKNOWN**.
+
+
+## Trusted-suite policy hardening (2026-10-14)
+
+The trusted obligation suite policy now rejects configuration drift at construction:
+- Consumer-binding keys must exactly equal the reviewed required-obligation ID set.
+- Scenario-policy keys must exactly equal that same set.
+- Required scenario IDs must be non-empty, non-blank, and unique per obligation.
+- Adversarial regression tests cover extra consumer bindings and duplicate required scenarios.
+
+This prevents stale or extra policy entries from silently coexisting with the authoritative required set. It does **not** make caller-provided obligation records authoritative, nor does it prove semantic-to-artifact consumption. CI for commit `47e965f3349e64a95ddd7fe79372639a25e36577` was queued at the time of this update; no pass is claimed until results complete.
+
+## Remaining source-authority blocker
+
+The live integrity gate currently receives a `TrustedObligationCertificationRequest` independently of the TaskFlow snapshot-derived `RequirementGraph` and `SemanticResolutionRecord`. Its configured suite defines required IDs, but it cannot independently prove that each record's statement, source graph identity, and semantic meaning are the canonical projection of the active TaskFlow snapshot. The current generic integrity gate also passes `CompilationResult.isr_hash` as the expected source-graph hash; that is only valid if an explicit, verified graph-to-ISR identity binding exists, which the TaskFlow path has not yet established.
+
+Therefore the next implementation must introduce a trusted, immutable projection context carrying the canonical snapshot identity/hash, graph identity/hash, and validated semantic-resolution record into obligation projection and certification. It must derive obligation content from that context (not accept it as caller-authored truth), and certification must compare the context to the compilation source before evidence is considered. No caller-supplied hash or boolean alone may establish that binding. Until this context is integrated and tested across the live compiler path, TaskFlow generation remains blocked and certification remains UNKNOWN.

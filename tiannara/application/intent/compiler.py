@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from tiannara.domain.models.isr import IntermediateSoftwareRepresentation
+from tiannara.application.compiler.source_projection import create_source_projection_context
 from tiannara.domain.models.requirement_graph import RequirementGraph, RequirementKind
 from tiannara.domain.models.semantic_resolution import (
     SemanticResolutionRecord,
@@ -180,6 +181,23 @@ class IntentCompiler:
                 semantic_resolution_record
             )
 
+        # Freeze exact caller source bytes and the canonical requirement graph
+        # before SystemModel synthesis. Generic projects receive an empty
+        # resolution ledger; this preserves UNKNOWN rather than inventing
+        # semantic decisions. TaskFlow carries its reviewed resolution ledger.
+        projection_resolution = semantic_resolution_record or SemanticResolutionRecord(
+            graph_id=graph.graph_id,
+            graph_hash=graph.content_hash(),
+            required_fields=(),
+            resolutions=(),
+        )
+        source_projection_context = create_source_projection_context(
+            source_id=f"intent:{normalized.source_statement_hash}",
+            source_bytes=statement.encode("utf-8"),
+            graph=graph,
+            semantic_resolution=projection_resolution,
+        )
+
         # 7. Synthesis + boundary enforcement. A resolved ledger is not enough:
         # the ordinary heuristic synthesizer does not consume TaskFlow's
         # mandatory semantic values. Require an explicit, auditable projection
@@ -247,4 +265,5 @@ class IntentCompiler:
             assumption_ids=assumption_ids,
             semantic_resolution_record=semantic_resolution_record,
             authorization_semantic_obligations=authorization_obligations,
+            source_projection_context=source_projection_context,
         )

@@ -1,0 +1,35 @@
+name: Dry-Run Artifact Integrity Tests
+
+on:
+  pull_request:
+    paths:
+      - "product_factory/hardening/compilation.py"
+      - "tests/test_product_factory_hardening.py"
+      - ".github/workflows/dry-run-artifacts-focused.yml"
+  push:
+    branches:
+      - "hardening/dry-run-not-production-success"
+    paths:
+      - "product_factory/hardening/compilation.py"
+      - "tests/test_product_factory_hardening.py"
+      - ".github/workflows/dry-run-artifacts-focused.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  dry-run-integrity-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install project test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: Run dry-run artifact integrity tests
+        run: |
+          python -m pytest -o addopts="" -q tests/test_product_factory_hardening.py

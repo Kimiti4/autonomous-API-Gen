@@ -200,6 +200,7 @@ def _full_compilation_result(statement: str, *, include_context: bool = True, in
         RequirementNode,
     )
     from tiannara.domain.models.semantic_resolution import SemanticResolutionRecord
+    from tiannara.domain.models.system_model import BusinessCapability
 
     normalized = normalize(statement)
     graph = RequirementGraph(
@@ -228,7 +229,14 @@ def _full_compilation_result(statement: str, *, include_context: bool = True, in
             "requirements_ref": RequirementsReference(
                 graph_id=graph.graph_id,
                 graph_hash=graph.content_hash(),
-            )
+            ),
+            "capabilities": [
+                BusinessCapability(
+                    id="CAP-order-management",
+                    name="Order management",
+                    traced_requirement_ids=["REQ-order-service"],
+                )
+            ],
         }
     )
     result = {

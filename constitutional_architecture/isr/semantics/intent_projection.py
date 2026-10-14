@@ -22,6 +22,7 @@ from constitutional_architecture.isr.model.service import Service
 from constitutional_architecture.isr.model.system import System, SystemMetadata
 from constitutional_architecture.isr.semantics.capability import BusinessCapability
 from constitutional_architecture.isr.semantics.intent_architecture import IntentArchitectureReference
+from constitutional_architecture.isr.semantics.security_posture import SecurityPosture
 from constitutional_architecture.isr.semantics.requirement import (
     Requirement,
     RequirementGraphReference,
@@ -362,8 +363,6 @@ def project_intent_to_constitutional_isr(
 
     # These sections need additional native semantic carriers before they can
     # be declared complete. They are intentionally not copied into extensions.
-    if system_model.security.model_dump(exclude_defaults=True):
-        blockers.append("typed SystemModel security posture is not yet lowered")
     if system_model.infrastructure.model_dump(exclude_defaults=True):
         blockers.append("typed SystemModel infrastructure is not yet lowered")
     if system_model.deployment.model_dump(exclude_defaults=True):
@@ -417,6 +416,15 @@ def project_intent_to_constitutional_isr(
             ),
             requirement_source_metadata=tuple(metadata),
             requirement_relations=relations,
+            security_posture=SecurityPosture(
+                authentication=system_model.security.authentication.value,
+                authorization=system_model.security.authorization.value,
+                data_classification=system_model.security.data_classification.value,
+                encryption_in_transit_required=system_model.security.encryption_in_transit_required,
+                encryption_at_rest_required=system_model.security.encryption_at_rest_required,
+                audit_logging_required=system_model.security.audit_logging_required,
+                secrets_management_required=system_model.security.secrets_management_required,
+            ),
             intent_architecture_ref=IntentArchitectureReference(
                 system_model_sha256=model_hash,
                 projection_complete=not blockers,

@@ -246,6 +246,7 @@ def test_source_binding_rejects_mutated_projected_priority():
         source_bytes=source,
         expected_source_sha256=hashlib.sha256(source).hexdigest(),
         graph=graph,
+        system_model=model,
         graph_to_isr_requirement_ids={node.id: node.id for node in graph.nodes},
     )
 
@@ -266,6 +267,7 @@ def test_source_binding_rejects_candidate_with_unlowered_architecture():
         source_bytes=source,
         expected_source_sha256=hashlib.sha256(source).hexdigest(),
         graph=graph,
+        system_model=model,
         graph_to_isr_requirement_ids={node.id: node.id for node in graph.nodes},
     )
 

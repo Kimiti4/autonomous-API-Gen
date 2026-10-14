@@ -145,6 +145,15 @@ class IntentCompiler:
         if issues or graph is None:
             raise RepairBudgetExceeded(issues, iterations)
 
+        # Mandatory source/graph identity check for every project, before any
+        # semantic synthesis or backend-facing SystemModel is created. This
+        # detects stale or substituted graph provenance; it does not by itself
+        # prove semantic extraction fidelity, which remains a separate gate.
+        if graph.provenance.source_statement_hash != normalized.source_statement_hash:
+            raise ValueError(
+                "requirement graph source provenance does not match the active normalized source snapshot"
+            )
+
         # 6. TaskFlow semantic gate must run before SystemModel synthesis.
         # Without a configured native resolver, every mandatory field remains
         # explicitly unresolved and this entry point fails closed.

@@ -405,8 +405,9 @@ def test_gateway_with_empty_output_cannot_claim_compilation_success():
     assert report.success is False
     assert report.artifact_count == 0
     assert len(report.missing_required_backends) == 5
-    assert all(job.status == "FAILED" for job in report.jobs)
-    assert all("no emitted artifacts" in job.logs[0] for job in report.jobs)
+    assert all(job.status == "UNKNOWN" for job in report.jobs)
+    assert all(job.evidence_status == "MISSING" for job in report.jobs)
+    assert all("Execution success was not accepted" in job.logs[-1] for job in report.jobs)
 
 
 def test_default_compiler_gateway_fails_closed_without_real_backend():

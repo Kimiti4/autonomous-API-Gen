@@ -8,6 +8,7 @@ on:
       - "tests/test_intent_entrypoint.py"
       - "tests/test_source_bound_backend_certification_gate.py"
       - "constitutional_architecture/compiler/intent_entrypoint.py"
+      - "constitutional_architecture/compiler/passes/code_generation_pass.py"
       - "constitutional_architecture/isr/model/system.py"
       - "constitutional_architecture/isr/semantics/intent_architecture.py"
       - "constitutional_architecture/isr/semantics/security_posture.py"
@@ -33,6 +34,7 @@ on:
       - "hardening/source-binding-mainline-integration"
     paths:
       - "constitutional_architecture/compiler/source_binding.py"
+      - "constitutional_architecture/compiler/passes/code_generation_pass.py"
       - "tests/test_intent_projection_adapter.py"
       - "constitutional_architecture/isr/model/system.py"
       - "constitutional_architecture/isr/semantics/requirement.py"

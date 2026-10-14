@@ -9,7 +9,6 @@ with blockers must never be passed to source-bound compilation.
 from __future__ import annotations
 
 import hashlib
-import re
 from dataclasses import dataclass
 
 from constitutional_architecture.isr.model.isr import ISR

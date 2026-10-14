@@ -68,6 +68,11 @@ def verify_constitutional_source_binding(
         blockers.append("constitutional ISR contains no requirements")
     graph_ref = getattr(isr.system, "requirement_graph_ref", None)
     if graph_ref is not None:
+        if not graph_ref.projection_complete:
+            blockers.extend(
+                f"intent-to-constitutional projection incomplete: {item}"
+                for item in graph_ref.projection_blockers
+            )
         if graph_ref.graph_id != graph.graph_id:
             blockers.append("constitutional ISR graph identity does not match the active graph")
         if graph_ref.graph_sha256 != graph_hash:

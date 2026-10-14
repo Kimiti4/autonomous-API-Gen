@@ -170,6 +170,29 @@ class CompilerPipeline:
 
         return result
 
+    def compile_source_bound(
+        self,
+        isr: ISR,
+        config: Optional[CompilationConfig] = None,
+        *,
+        source_binding: Optional[ConstitutionalSourceBinding] = None,
+    ) -> CompilationResult:
+        """Compile a source-derived ISR with binding enforcement always enabled.
+
+        This entry point prevents callers from inheriting the compatibility
+        default require_source_binding=False. The binding proves structural
+        identity/traceability only, not semantic satisfaction or runtime acceptance.
+        """
+        from dataclasses import replace
+
+        effective_config = config or CompilationConfig(project_name=isr.system.name)
+        effective_config = replace(effective_config, require_source_binding=True)
+        return self.compile(
+            isr,
+            config=effective_config,
+            source_binding=source_binding,
+        )
+
     def register_backend(self, backend) -> None:
         self._backend_registry.register(backend)
 

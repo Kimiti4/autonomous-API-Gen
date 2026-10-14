@@ -121,6 +121,14 @@ def verify_constitutional_source_binding(
                     isr.system.operational_posture,
                 ):
                     blockers.append("constitutional ISR policy postures differ from deterministic typed architecture projection")
+                elif expected_projection.candidate_isr.system != isr.system:
+                    # The specific comparisons above produce actionable diagnostics;
+                    # this final equality closes omissions in that list (including
+                    # requirement statements/targets, provenance records, graph refs,
+                    # metadata and any newly added first-class ISR fields).
+                    blockers.append(
+                        "constitutional ISR system differs from the deterministic full typed projection"
+                    )
             except Exception as exc:
                 blockers.append(
                     f"typed architecture projection verification unavailable: "

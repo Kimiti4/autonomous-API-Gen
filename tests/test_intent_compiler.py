@@ -100,6 +100,32 @@ def test_happy_path_records_and_provenance(tmp_path):
     assert result.isr.system_model() is not None
 
 
+def test_source_provenance_and_projection_context_use_exact_caller_bytes(tmp_path):
+    import hashlib
+
+    config = IntentCompilerConfig()
+    normalized = normalize(STATEMENT)
+    elicitation_payload = _elicitation_payload()
+    elicitation_out = ElicitationOutput.model_validate(elicitation_payload)
+    provider = _seed(
+        tmp_path,
+        [
+            (build_elicitation_request(normalized, config), elicitation_payload),
+            (build_extraction_request(normalized, elicitation_out, config), _valid_extraction_payload()),
+        ],
+    )
+
+    result = IntentCompiler(provider, config).compile_full(
+        STATEMENT, system_id="exact-source-snapshot"
+    )
+    expected = hashlib.sha256(STATEMENT.encode("utf-8")).hexdigest()
+
+    assert result.requirement_graph.provenance.source_statement_hash == expected
+    assert result.source_projection_context.snapshot_sha256 == expected
+    assert result.source_projection_context.source_bytes_b64
+    assert result.source_projection_context.source_id == f"intent:{expected}"
+
+
 
 def test_source_graph_provenance_mismatch_blocks_before_synthesis(tmp_path, monkeypatch):
     import tiannara.application.intent.compiler as compiler_module

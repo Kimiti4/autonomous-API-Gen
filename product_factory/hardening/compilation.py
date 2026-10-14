@@ -139,10 +139,13 @@ class CompilationExecutor:
                     evidence = output["execution_evidence"]
                     if (
                         isinstance(evidence, dict)
+                        and type(evidence.get("exit_code")) is int
                         and evidence.get("exit_code") == 0
                         and isinstance(evidence.get("artifact_manifest_sha256"), str)
                         and re.fullmatch(r"[0-9a-f]{64}", evidence["artifact_manifest_sha256"])
-                        and artifacts
+                        and isinstance(artifacts, list)
+                        and bool(artifacts)
+                        and all(isinstance(path, str) and path.strip() for path in artifacts)
                     ):
                         job.status = "SUCCEEDED"
                         job.evidence_status = "REPORTED"

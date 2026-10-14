@@ -46,6 +46,23 @@ def _run_independent_verifier(verifier: Any, candidate_dir: str,
     return True, "independent verification passed"
 
 
+def _run_candidate_bound_full_stack_verifier(verifier: Any, inputs: Any, candidate_hash: str) -> tuple[bool, str]:
+    """Require explicit full-stack IR inputs and a passing verifier result."""
+    if verifier is None:
+        return False, "full-stack verification unavailable: verifier not configured"
+    if not isinstance(inputs, tuple) or len(inputs) != 5:
+        return False, "full-stack verification unavailable: five explicit IR inputs required"
+    if not candidate_hash:
+        return False, "full-stack verification unavailable: candidate hash missing"
+    try:
+        result = verifier(*inputs)
+    except Exception as exc:
+        return False, f"full-stack verification failed closed: {type(exc).__name__}: {exc}"
+    if getattr(result, "passed", None) is not True:
+        return False, f"full-stack verification did not pass; candidate_hash={candidate_hash}; findings={getattr(result, 'findings', None)!r}"
+    return True, f"full-stack verification passed; candidate_hash={candidate_hash}"
+
+
 def _unconfigured_stage(stage: TrialStage) -> tuple[bool, str]:
     """A missing execution adapter is absence of evidence, never a pass."""
     return False, f"not_configured: no real {stage.value} stage adapter supplied"
@@ -66,6 +83,7 @@ class CampaignRunner:
         prober: Any = None,
         destroyer: Any = None,
         verifier: Any = None,
+        full_stack_verifier: Any = None,
     ) -> None:
         self.builder = builder
         self.tester = tester
@@ -73,6 +91,7 @@ class CampaignRunner:
         self.prober = prober
         self.destroyer = destroyer
         self.verifier = verifier
+        self.full_stack_verifier = full_stack_verifier
 
     def run_trial(
         self,
@@ -88,6 +107,7 @@ class CampaignRunner:
         genome_hash: str = "",
         workload: Any = None,
         artifacts: Any = None,
+        full_stack_inputs: tuple[Any, Any, Any, Any, Any] | None = None,
     ) -> Trial:
         trial_id = str(uuid.uuid4())
         ident: BackendIdentity = backend.identity()
@@ -114,6 +134,19 @@ class CampaignRunner:
             os.makedirs(os.path.dirname(full), exist_ok=True)
             with open(full, "w", encoding="utf-8") as f:
                 f.write(c)
+
+        repo_hash_for_gate = _h(json.dumps(sorted(repo.files.items()), separators=(",", ":"), ensure_ascii=False))
+        ir_snapshot = ""
+        if isinstance(full_stack_inputs, tuple) and len(full_stack_inputs) == 5:
+            try:
+                ir_snapshot = json.dumps(
+                    [item.to_dict() if hasattr(item, "to_dict") else repr(item)
+                     for item in full_stack_inputs],
+                    sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+                )
+            except Exception:
+                ir_snapshot = ""
+        candidate_hash = _h(repo_hash_for_gate + "\n" + ir_snapshot) if ir_snapshot else ""
 
         if not eligible_for_behavioral_certification(ident):
             _record(TrialStage.STRUCTURAL, False,
@@ -173,11 +206,19 @@ class CampaignRunner:
             ).hexdigest()
             plan_path = os.path.join(d, ".plan.json")
             with open(plan_path, "w", encoding="utf-8") as fp:
-                json.dump({"expected_paths": list(backend.element_paths(plan).values())}, fp)
-            v_ok, v_detail = _run_independent_verifier(
+                json.dump({"expected_paths": list(backend.element_paths(plan).values()),
+                           "candidate_hash": candidate_hash}, fp)
+            independent_ok, independent_detail = _run_independent_verifier(
                 self.verifier, d, plan_hash, plan_path
             )
-            _record(TrialStage.VERIFY, v_ok, v_detail)
+            full_stack_ok, full_stack_detail = _run_candidate_bound_full_stack_verifier(
+                self.full_stack_verifier, full_stack_inputs, candidate_hash
+            )
+            verify_ok = independent_ok and full_stack_ok
+            _record(
+                TrialStage.VERIFY, verify_ok,
+                f"independent=[{independent_detail}]; full_stack=[{full_stack_detail}]",
+            )
 
             verdict = compose_verdict(stage_results, evidence_present=True)
 

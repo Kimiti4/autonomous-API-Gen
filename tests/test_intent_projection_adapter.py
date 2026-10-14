@@ -513,6 +513,7 @@ def test_projection_lowers_domain_service_component_data_and_event_semantics():
     )
 
     assert result.ready_for_compilation
+    assert result.candidate_isr.validate_structure()
     module = result.candidate_isr.system.modules[0]
     assert module.id == "domain-core"
     assert {service.id for service in module.services} == {

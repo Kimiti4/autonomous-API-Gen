@@ -12,6 +12,7 @@ import hashlib
 from dataclasses import dataclass
 
 from constitutional_architecture.isr.model.component import Component
+from constitutional_architecture.isr.model.api_contract import ApiContract, ApiOperationContract
 from constitutional_architecture.isr.model.entity import Entity
 from constitutional_architecture.isr.model.event import Event, EventGuarantee
 from constitutional_architecture.isr.model.fields import Field, FieldCardinality, FieldType
@@ -130,6 +131,29 @@ def project_intent_to_constitutional_isr(
         for edge in graph.edges
     )
 
+    typed_capability_ids = {capability.id for capability in system_model.capabilities}
+    for capability in system_model.capabilities:
+        if capability.id in {item.capability_id for item in capabilities}:
+            blockers.append(f"typed capability ID '{capability.id}' collides with a requirement-derived capability")
+            continue
+        unknown_requirements = set(capability.traced_requirement_ids) - set(nodes)
+        if unknown_requirements:
+            blockers.append(
+                f"typed capability '{capability.id}' traces unknown requirements: "
+                + ", ".join(sorted(unknown_requirements))
+            )
+        capabilities.append(
+            BusinessCapability(
+                capability_id=capability.id,
+                intent=capability.description or capability.name,
+                requirement_refs=tuple(capability.traced_requirement_ids),
+                name=capability.name,
+                description=capability.description,
+                criticality=capability.criticality.value,
+                priority=capability.priority.value,
+            )
+        )
+
     # Lower the explicitly representable architecture sections into native ISR
     # genes. A source field is never assigned a guessed default to make it fit.
     domain_by_id = {domain.id: domain for domain in system_model.domains}
@@ -141,9 +165,10 @@ def project_intent_to_constitutional_isr(
     module_components: dict[str, list[Component]] = {domain_id: [] for domain_id in domain_by_id}
     module_entities: dict[str, list[Entity]] = {domain_id: [] for domain_id in domain_by_id}
     module_events: dict[str, list[Event]] = {domain_id: [] for domain_id in domain_by_id}
+    module_api_contracts: dict[str, list[ApiContract]] = {domain_id: [] for domain_id in domain_by_id}
     service_domain: dict[str, str] = {}
 
-    declared_capability_ids = {capability.id for capability in system_model.capabilities}
+    declared_capability_ids = typed_capability_ids
     for domain in system_model.domains:
         unknown_ids = set(domain.capability_ids) - declared_capability_ids
         if unknown_ids:
@@ -179,6 +204,39 @@ def project_intent_to_constitutional_isr(
                 f"service '{service.id}' exposes unknown capability IDs: "
                 + ", ".join(sorted(unknown_capabilities))
             )
+
+    for api in system_model.apis:
+        provider_domain = service_domain.get(api.provider_service_id)
+        if provider_domain is None:
+            blockers.append(
+                f"API '{api.id}' references unknown or unprojected provider service "
+                f"'{api.provider_service_id}'"
+            )
+            continue
+        unknown_consumers = set(api.consumer_service_ids) - set(service_by_id)
+        if unknown_consumers:
+            blockers.append(
+                f"API '{api.id}' references unknown consumer services: "
+                + ", ".join(sorted(unknown_consumers))
+            )
+        module_api_contracts[provider_domain].append(
+            ApiContract(
+                api_id=api.id,
+                name=api.name,
+                provider_service_id=api.provider_service_id,
+                consumer_service_ids=tuple(api.consumer_service_ids),
+                interaction_style=api.interaction_style.value,
+                operations=tuple(
+                    ApiOperationContract(
+                        name=operation.name,
+                        description=operation.description,
+                        semantics=operation.semantics.value,
+                        idempotent=operation.idempotent,
+                    )
+                    for operation in api.operations
+                ),
+            )
+        )
 
     for component in system_model.components:
         domain_id = service_domain.get(component.service_id)
@@ -304,10 +362,6 @@ def project_intent_to_constitutional_isr(
 
     # These sections need additional native semantic carriers before they can
     # be declared complete. They are intentionally not copied into extensions.
-    if system_model.capabilities:
-        blockers.append("typed business capabilities are not yet losslessly lowered")
-    if system_model.apis:
-        blockers.append("typed API contracts are not yet losslessly lowered")
     if system_model.security.model_dump(exclude_defaults=True):
         blockers.append("typed SystemModel security posture is not yet lowered")
     if system_model.infrastructure.model_dump(exclude_defaults=True):
@@ -333,6 +387,7 @@ def project_intent_to_constitutional_isr(
             entities=tuple(module_entities[domain.id]),
             events=tuple(module_events[domain.id]),
             capability_refs=tuple(domain.capability_ids),
+            api_contracts=tuple(module_api_contracts[domain.id]),
         )
         for domain in system_model.domains
     )

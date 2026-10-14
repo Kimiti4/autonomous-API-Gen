@@ -32,7 +32,7 @@ def publish_bundle(bundle: SystemDeploymentBundle, provider: RepositoryProvider,
             raise ValueError("bounded evidence -- publication blocked")
     # Ledger-addressable
     payload = {"bundle_hash": canonical_hash(bundle.artifact_hash), "isr": bundle.isr_hash}
-    ev = EvolutionEvent(event_id=f"publish-{bundle.artifact_hash[:8]}", evolution_id=bundle.artifact_hash, sequence=0, event_type=EventType.CERTIFICATION, subject_id=bundle.artifact_hash, payload=payload)
+    ev = EvolutionEvent(event_id=f"publish-{bundle.artifact_hash[:8]}", evolution_id=bundle.artifact_hash, sequence=0, event_type=EventType.PUBLICATION, subject_id=bundle.artifact_hash, payload=payload)
     ref = ledger.append_event(ev, evolution_id=bundle.artifact_hash)
     repo_url = provider.create_repository(f"tiannara-{bundle.artifact_hash[:8]}", bundle)
     return PublicationResult(repo_url, (ref,), ref, bundle.artifact_hash)

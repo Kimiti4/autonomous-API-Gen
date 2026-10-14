@@ -491,6 +491,12 @@ def test_projection_lowers_domain_service_component_data_and_event_semantics():
                         "required": True,
                         "enumeration_values": ["active", "archived"],
                     },
+                    {
+                        "name": "parent_workspace",
+                        "type": "reference",
+                        "required": False,
+                        "reference_target_model_id": "workspace-record",
+                    },
                 ],
                 "invariants": ["workspace identity is immutable"],
                 "consistency": "strong",
@@ -550,6 +556,9 @@ def test_projection_lowers_domain_service_component_data_and_event_semantics():
     assert entity.invariants == ("workspace identity is immutable",)
     assert [field.field_type.value for field in entity.fields] == ["text", "enum"]
     assert [field.abstract_source_type for field in entity.fields] == ["text", "enumeration"]
+    assert entity.fields[2].reference_target == "workspace-record"
+    assert entity.relationships[0].target_entity_id == "workspace-record"
+    assert entity.relationships[0].field_name == "parent_workspace"
     event = module.events[0]
     assert event.producer_service_id == "audit-service"
     assert event.consumer_service_ids == ("workspace-service",)
@@ -729,3 +738,40 @@ def test_source_binding_rejects_mutated_typed_capability_gene():
 
     assert not report.complete
     assert any("capabilities differ" in blocker for blocker in report.blockers)
+
+
+def test_projection_blocks_reference_fields_with_unknown_target_models():
+    source, graph, model = _inputs()
+    model = SystemModel.model_validate(
+        model.model_dump()
+        | {
+            "services": [
+                {
+                    "id": "workspace-service",
+                    "name": "Workspace service",
+                    "domain_id": "domain-core",
+                }
+            ],
+            "data_models": [
+                {
+                    "id": "workspace-record",
+                    "name": "Workspace record",
+                    "owning_service_id": "workspace-service",
+                    "fields": [
+                        {
+                            "name": "owner",
+                            "type": "reference",
+                            "reference_target_model_id": "missing-model",
+                        }
+                    ],
+                }
+            ],
+        }
+    )
+
+    result = project_intent_to_constitutional_isr(
+        source_bytes=source, graph=graph, system_model=model, system_id="workspace-system"
+    )
+
+    assert not result.ready_for_compilation
+    assert any("references unknown model 'missing-model'" in blocker for blocker in result.blockers)

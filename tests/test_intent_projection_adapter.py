@@ -182,7 +182,7 @@ def test_projection_blocks_unlowered_typed_architecture_instead_of_dropping_it()
 
     assert result.candidate_isr is not None
     assert not result.ready_for_compilation
-    assert any("API contracts" in blocker for blocker in result.blockers)
+    assert any("extensions" in blocker for blocker in result.blockers)
 
 
 def test_priority_mutation_is_preserved_in_constitutional_projection():
@@ -546,3 +546,47 @@ def test_projection_lowers_domain_service_component_data_and_event_semantics():
     assert event.payload_model_id == "workspace-record"
     assert event.ordering_semantics == "partition_ordered"
     assert event.ordering_required is True
+
+
+def test_source_binding_rejects_a_different_typed_system_model_hash():
+    source = b"Workspace members must be isolated."
+    graph = RequirementGraph(
+        graph_id="model-hash-graph",
+        nodes=[
+            RequirementNode(
+                id="REQ-A",
+                kind=RequirementKind.CONSTRAINT,
+                statement="Workspace access is isolated.",
+                priority=Priority.MUST,
+            )
+        ],
+        provenance=GraphProvenance(
+            source_statement_hash=hashlib.sha256(source).hexdigest()
+        ),
+    )
+    model = SystemModel(
+        system_name="workspace-service",
+        problem_statement="Provide isolated workspaces.",
+        requirements_ref=RequirementsReference(
+            graph_id=graph.graph_id, graph_hash=graph.content_hash()
+        ),
+        domains=[{"id": "domain-core", "name": "Core domain"}],
+    )
+    result = project_intent_to_constitutional_isr(
+        source_bytes=source, graph=graph, system_model=model, system_id="workspace-system"
+    )
+    changed_model = model.model_copy(update={"problem_statement": "Different system meaning."})
+    binding = ConstitutionalSourceBinding(
+        source_bytes=source,
+        expected_source_sha256=hashlib.sha256(source).hexdigest(),
+        graph=graph,
+        system_model=changed_model,
+        graph_to_isr_requirement_ids={node.id: node.id for node in graph.nodes},
+    )
+
+    report = verify_constitutional_source_binding(
+        binding=binding, isr=result.candidate_isr
+    )
+
+    assert not report.complete
+    assert any("SystemModel hash differs" in blocker for blocker in report.blockers)

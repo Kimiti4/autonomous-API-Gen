@@ -65,6 +65,8 @@ class CompilerObligationRecord(BaseModel):
     source_graph_hash: str
     domain: str = Field(min_length=1, max_length=128)
     statement: str = Field(min_length=1, max_length=4000)
+    acceptance_criteria: tuple[str, ...] = ()
+    rationale: str = Field(default="", max_length=4000)
     applicability: Applicability
     applicability_reason: str = Field(default="", max_length=2000)
     required_strength: Strength
@@ -83,6 +85,8 @@ class CompilerObligationRecord(BaseModel):
             "source_graph_hash": self.source_graph_hash,
             "domain": self.domain,
             "statement": self.statement,
+            "acceptance_criteria": list(self.acceptance_criteria),
+            "rationale": self.rationale,
             "applicability": self.applicability.value,
             "applicability_reason": self.applicability_reason,
             "required_strength": self.required_strength.value,
@@ -102,6 +106,10 @@ class CompilerObligationRecord(BaseModel):
     def validate_record(self):
         if not _SHA256.fullmatch(self.source_graph_hash):
             raise ValueError("source_graph_hash must be lowercase SHA-256 hex")
+        if any(not item.strip() for item in self.acceptance_criteria):
+            raise ValueError("acceptance criteria must not contain blank values")
+        if len(self.acceptance_criteria) != len(set(self.acceptance_criteria)):
+            raise ValueError("acceptance criteria must be unique")
         if self.applicability is Applicability.NOT_APPLICABLE:
             if not self.applicability_reason.strip() or self.disposition is not Disposition.NOT_APPLICABLE:
                 raise ValueError("NOT_APPLICABLE requires a reason and matching disposition")

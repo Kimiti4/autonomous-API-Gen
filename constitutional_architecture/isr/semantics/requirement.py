@@ -37,14 +37,20 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class RequirementGraphReference:
-    """Identity of the exact source requirement graph projected into the ISR."""
+    """Identity and gate status of the exact source graph projected into the ISR."""
     graph_id: str
     graph_sha256: str
     source_sha256: str
+    projection_complete: bool = True
+    projection_blockers: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.graph_id or not self.graph_sha256 or not self.source_sha256:
             raise RequirementValidationError("graph reference requires graph, graph hash, and source hash")
+        if self.projection_complete and self.projection_blockers:
+            raise RequirementValidationError("a complete projection cannot contain blockers")
+        if not self.projection_complete and not self.projection_blockers:
+            raise RequirementValidationError("an incomplete projection must record its blockers")
 
 
 @dataclass(frozen=True)

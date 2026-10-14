@@ -23,7 +23,15 @@ def validate_system_architecture_projection(system: object) -> tuple[str, ...]:
     """Validate first-class architecture references after lowering."""
     errors: list[str] = []
     modules = tuple(getattr(system, "modules", ()))
-    if getattr(system, "intent_architecture_ref", None) is not None:
+    architecture_ref = getattr(system, "intent_architecture_ref", None)
+    if architecture_ref is not None:
+        if not architecture_ref.projection_complete:
+            errors.extend(
+                f"typed architecture projection incomplete: {item}"
+                for item in architecture_ref.projection_blockers
+            )
+            if not architecture_ref.projection_blockers:
+                errors.append("typed architecture projection is marked incomplete without blockers")
         required_postures = (
             "security_posture",
             "infrastructure_posture",

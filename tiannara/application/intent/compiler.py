@@ -17,6 +17,7 @@ Evolution Engine's first stage.
 from __future__ import annotations
 
 from collections.abc import Callable
+import hashlib
 from tiannara.domain.models.isr import IntermediateSoftwareRepresentation
 from tiannara.application.compiler.source_projection import create_source_projection_context
 from tiannara.domain.models.requirement_graph import RequirementGraph, RequirementKind
@@ -97,6 +98,10 @@ class IntentCompiler:
             taskflow_semantic_gate or self._taskflow_semantic_gate_required
         )
         normalized = normalize(statement)
+        # The graph's source provenance uses the exact caller-byte snapshot
+        # hash, not the normalized semantic-text hash. Keep the latter for
+        # normalization/intent lineage; never conflate the two identities.
+        source_snapshot_sha256 = hashlib.sha256(statement.encode("utf-8")).hexdigest()
         records: list = []
 
         # 2. Elicitation
@@ -123,7 +128,7 @@ class IntentCompiler:
             extraction,
             elicitation_output.assumptions,
             tags,
-            normalized.source_statement_hash,
+            source_snapshot_sha256,
         )
         iterations = 0
         while issues and iterations < self._config.max_repair_iterations:
@@ -150,7 +155,7 @@ class IntentCompiler:
         # semantic synthesis or backend-facing SystemModel is created. This
         # detects stale or substituted graph provenance; it does not by itself
         # prove semantic extraction fidelity, which remains a separate gate.
-        if graph.provenance.source_statement_hash != normalized.source_statement_hash:
+        if graph.provenance.source_statement_hash != source_snapshot_sha256:
             raise ValueError(
                 "requirement graph source provenance does not match the active normalized source snapshot"
             )
@@ -192,7 +197,7 @@ class IntentCompiler:
             resolutions=(),
         )
         source_projection_context = create_source_projection_context(
-            source_id=f"intent:{normalized.source_statement_hash}",
+            source_id=f"intent:{source_snapshot_sha256}",
             source_bytes=statement.encode("utf-8"),
             graph=graph,
             semantic_resolution=projection_resolution,

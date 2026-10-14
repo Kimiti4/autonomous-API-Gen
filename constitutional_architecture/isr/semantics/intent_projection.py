@@ -11,7 +11,13 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 
+from constitutional_architecture.isr.model.component import Component
+from constitutional_architecture.isr.model.entity import Entity
+from constitutional_architecture.isr.model.event import Event, EventGuarantee, EventPattern
+from constitutional_architecture.isr.model.fields import Field, FieldCardinality, FieldType
 from constitutional_architecture.isr.model.isr import ISR
+from constitutional_architecture.isr.model.module import Module
+from constitutional_architecture.isr.model.service import Service
 from constitutional_architecture.isr.model.system import System, SystemMetadata
 from constitutional_architecture.isr.semantics.capability import BusinessCapability
 from constitutional_architecture.isr.semantics.requirement import (
@@ -52,11 +58,10 @@ def project_intent_to_constitutional_isr(
 ) -> IntentProjectionResult:
     """Create a traceable candidate ISR, refusing unverified/lossy projections.
 
-    All graph nodes, priorities, acceptance text, verification methods,
-    rationale, provenance, and edges are preserved in first-class records.
-    This initial adapter does not yet lower the typed SystemModel's service,
-    component, API, event, data, security, deployment, testing, or operations
-    sections to constitutional genes; any non-empty such section is a blocker.
+    Requirement graph semantics are preserved in first-class records.
+    Domains, services, components, events, and representable data models are
+    lowered into native ISR genes. APIs and policy sections whose contracts
+    are not faithfully representable remain explicit blockers.
     """
     source_hash = hashlib.sha256(source_bytes).hexdigest()
     graph_hash = graph.content_hash()
@@ -124,22 +129,172 @@ def project_intent_to_constitutional_isr(
         for edge in graph.edges
     )
 
-    # The typed SystemModel is an independent architecture projection. Do not
-    # imply that requirement preservation means its architecture was preserved.
-    architecture_sections = {
-        "domains": system_model.domains,
-        "services": system_model.services,
-        "components": system_model.components,
-        "apis": system_model.apis,
-        "events": system_model.events,
-        "data_models": system_model.data_models,
-    }
-    for section, values in architecture_sections.items():
-        if values:
+    # Lower the explicitly representable architecture sections into native ISR
+    # genes. A source field is never assigned a guessed default to make it fit.
+    domain_by_id = {domain.id: domain for domain in system_model.domains}
+    service_by_id = {service.id: service for service in system_model.services}
+    model_by_id = {model.id: model for model in system_model.data_models}
+    module_services: dict[str, list[Service]] = {domain_id: [] for domain_id in domain_by_id}
+    module_components: dict[str, list[Component]] = {domain_id: [] for domain_id in domain_by_id}
+    module_entities: dict[str, list[Entity]] = {domain_id: [] for domain_id in domain_by_id}
+    module_events: dict[str, list[Event]] = {domain_id: [] for domain_id in domain_by_id}
+    service_domain: dict[str, str] = {}
+
+    for service in system_model.services:
+        domain = domain_by_id.get(service.domain_id)
+        if domain is None:
             blockers.append(
-                f"typed SystemModel section '{section}' has {len(values)} item(s) "
-                "not yet lowered to constitutional architecture genes"
+                f"service '{service.id}' references unknown domain '{service.domain_id}'"
             )
+            continue
+        service_domain[service.id] = service.domain_id
+        module_services[service.domain_id].append(
+            Service(
+                id=service.id,
+                name=service.name,
+                description="; ".join(service.responsibilities),
+                domain_id=service.domain_id,
+                responsibility_refs=tuple(service.responsibilities),
+                exposed_capability_refs=tuple(service.exposed_capability_ids),
+                is_stateless=None,
+            )
+        )
+        unknown_capabilities = set(service.exposed_capability_ids) - {
+            capability.id for capability in system_model.capabilities
+        }
+        if unknown_capabilities:
+            blockers.append(
+                f"service '{service.id}' exposes unknown capability IDs: "
+                + ", ".join(sorted(unknown_capabilities))
+            )
+
+    for component in system_model.components:
+        domain_id = service_domain.get(component.service_id)
+        if domain_id is None:
+            blockers.append(
+                f"component '{component.id}' references unknown or unprojected service "
+                f"'{component.service_id}'"
+            )
+            continue
+        module_components[domain_id].append(
+            Component(
+                component_id=component.id,
+                service_id=component.service_id,
+                name=component.name,
+                responsibility=component.responsibility,
+                kind=component.kind.value,
+            )
+        )
+
+    field_type_map = {
+        "text": FieldType.TEXT,
+        "integer": FieldType.INTEGER,
+        "decimal": FieldType.DECIMAL,
+        "boolean": FieldType.BOOLEAN,
+        "timestamp": FieldType.DATETIME,
+        "enumeration": FieldType.ENUM,
+        "binary": FieldType.BINARY,
+        "document": FieldType.JSON,
+    }
+    for data_model in system_model.data_models:
+        domain_id = service_domain.get(data_model.owning_service_id)
+        if domain_id is None:
+            blockers.append(
+                f"data model '{data_model.id}' references unknown or unprojected owning service "
+                f"'{data_model.owning_service_id}'"
+            )
+            continue
+        projected_fields: list[Field] = []
+        for source_field in data_model.fields:
+            target_type = field_type_map.get(source_field.type.value)
+            if source_field.type.value == "identifier":
+                blockers.append(
+                    f"field '{data_model.id}.{source_field.name}' uses abstract identifier "
+                    "with no declared concrete identity representation"
+                )
+                continue
+            if source_field.type.value == "reference":
+                blockers.append(
+                    f"field '{data_model.id}.{source_field.name}' is a reference without "
+                    "a declared target model"
+                )
+                continue
+            if target_type is None:
+                blockers.append(
+                    f"field '{data_model.id}.{source_field.name}' has unsupported type "
+                    f"'{source_field.type.value}'"
+                )
+                continue
+            projected_fields.append(
+                Field(
+                    name=source_field.name,
+                    field_type=target_type,
+                    cardinality=(
+                        FieldCardinality.REQUIRED
+                        if source_field.required
+                        else FieldCardinality.OPTIONAL
+                    ),
+                    description=source_field.description,
+                    enum_values=tuple(source_field.enumeration_values),
+                )
+            )
+        module_entities[domain_id].append(
+            Entity(
+                id=data_model.id,
+                name=data_model.name,
+                description=f"Data model owned by service {data_model.owning_service_id}",
+                fields=tuple(projected_fields),
+                owning_service_id=data_model.owning_service_id,
+                invariants=tuple(data_model.invariants),
+                consistency_posture=data_model.consistency.value,
+            )
+        )
+
+    for event_spec in system_model.events:
+        producer_domain = service_domain.get(event_spec.producer_service_id)
+        if producer_domain is None:
+            blockers.append(
+                f"event '{event_spec.id}' references unknown or unprojected producer service "
+                f"'{event_spec.producer_service_id}'"
+            )
+            continue
+        unknown_consumers = set(event_spec.consumer_service_ids) - set(service_by_id)
+        if unknown_consumers:
+            blockers.append(
+                f"event '{event_spec.id}' references unknown consumer services: "
+                + ", ".join(sorted(unknown_consumers))
+            )
+        if event_spec.payload_model_id and event_spec.payload_model_id not in model_by_id:
+            blockers.append(
+                f"event '{event_spec.id}' references unknown payload model "
+                f"'{event_spec.payload_model_id}'"
+            )
+        guarantee = {
+            "at_most_once": EventGuarantee.AT_MOST_ONCE,
+            "at_least_once": EventGuarantee.AT_LEAST_ONCE,
+            "exactly_once": EventGuarantee.EXACTLY_ONCE,
+        }[event_spec.delivery_semantics.value]
+        module_events[producer_domain].append(
+            Event(
+                id=event_spec.id,
+                name=event_spec.name,
+                description="",
+                pattern=EventPattern.PUBLISH_SUBSCRIBE,
+                guarantee=guarantee,
+                ordering_required=event_spec.ordering.value != "none",
+                ordering_semantics=event_spec.ordering.value,
+                producer_service_id=event_spec.producer_service_id,
+                consumer_service_ids=tuple(event_spec.consumer_service_ids),
+                payload_model_id=event_spec.payload_model_id,
+            )
+        )
+
+    # These sections need additional native semantic carriers before they can
+    # be declared complete. They are intentionally not copied into extensions.
+    if system_model.capabilities:
+        blockers.append("typed business capabilities are not yet losslessly lowered")
+    if system_model.apis:
+        blockers.append("typed API contracts are not yet losslessly lowered")
     if system_model.security.model_dump(exclude_defaults=True):
         blockers.append("typed SystemModel security posture is not yet lowered")
     if system_model.infrastructure.model_dump(exclude_defaults=True):
@@ -155,6 +310,19 @@ def project_intent_to_constitutional_isr(
     if system_model.extensions:
         blockers.append("typed SystemModel contains extensions with no declared lowering")
 
+    modules = tuple(
+        Module(
+            id=domain.id,
+            name=domain.name,
+            description=domain.description,
+            services=tuple(module_services[domain.id]),
+            components=tuple(module_components[domain.id]),
+            entities=tuple(module_entities[domain.id]),
+            events=tuple(module_events[domain.id]),
+            capability_refs=tuple(domain.capability_ids),
+        )
+        for domain in system_model.domains
+    )
     # Detect accidental dangling relations even though RequirementGraph itself
     # validates this invariant at construction; retain the check at the boundary.
     for edge in graph.edges:
@@ -169,6 +337,7 @@ def project_intent_to_constitutional_isr(
             name=system_model.system_name,
             description=system_model.problem_statement,
             metadata=SystemMetadata(description=system_model.problem_statement),
+            modules=modules,
             business_capabilities=tuple(capabilities),
             requirements=tuple(requirements),
             requirement_graph_ref=RequirementGraphReference(

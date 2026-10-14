@@ -103,6 +103,29 @@ def test_happy_path_records_and_provenance(tmp_path):
     ).hexdigest()
 
 
+def test_graph_provenance_hashes_exact_bytes_not_normalized_text(tmp_path):
+    source_statement = f"  {STATEMENT}\n"
+    config = IntentCompilerConfig()
+    normalized = normalize(source_statement)
+    elicitation_payload = _elicitation_payload()
+    elicitation_out = ElicitationOutput.model_validate(elicitation_payload)
+    provider = _seed(
+        tmp_path,
+        [
+            (build_elicitation_request(normalized, config), elicitation_payload),
+            (build_extraction_request(normalized, elicitation_out, config), _valid_extraction_payload()),
+        ],
+    )
+
+    result = IntentCompiler(provider, config).compile_full(
+        source_statement, system_id="exact-source-bytes"
+    )
+    expected_exact_hash = hashlib.sha256(source_statement.encode("utf-8")).hexdigest()
+
+    assert result.requirement_graph.provenance.source_statement_hash == expected_exact_hash
+    assert result.requirement_graph.provenance.source_statement_hash != normalized.source_statement_hash
+
+
 def test_repair_converges_in_one_iteration(tmp_path):
     config = IntentCompilerConfig()
     normalized = normalize(STATEMENT)

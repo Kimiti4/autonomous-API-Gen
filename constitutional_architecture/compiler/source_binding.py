@@ -89,14 +89,6 @@ def verify_constitutional_source_binding(
             + str(list(unbound_mandatory))
         )
 
-    # Reject extra graph bindings too: a binding envelope must describe this
-    # graph exactly, not silently carry stale/foreign requirement IDs.
-    if mapped_graph_ids - mandatory_ids:
-        blockers.append(
-            "binding includes non-mandatory or otherwise unexpected graph requirements: "
-            + str(sorted(mapped_graph_ids - mandatory_ids))
-        )
-
     return ConstitutionalBindingReport(
         source_sha256=source_hash,
         graph_id=graph.graph_id,

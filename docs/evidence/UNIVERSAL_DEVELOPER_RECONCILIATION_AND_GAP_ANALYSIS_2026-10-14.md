@@ -28,7 +28,9 @@ The first P0 implementation slice is now present on this branch:
 
 **Boundary still open:** a matching source hash and graph hash prove identity/binding, not that extraction faithfully represents every source requirement. The separate constitutional ISR pipeline has not yet been proven to consume this same context, and source-to-graph fidelity still needs independent mapping/omission tests. These commits do not authorize TaskFlow generation, do not certify a backend, and do not qualify ESAP as universal.
 
-Latest implementation tip at this checkpoint: `cc1c569afeb16a7c4aec4ecd6d9f45eabb0e5da9`. CI checks for this SHA were queued when inspected; no passing result is claimed here.
+The generic `ProjectCompiler` boundary now also checks that the synthesized typed `SystemModel.requirements_ref` names the same graph ID and content hash as the validated source context. Regression tests cover missing context, matching context, and context substitution. The test fixture explicitly binds its model to the graph rather than relying on placeholder graph references.
+
+Latest implementation tip at this checkpoint: `1ff2f762c16eb8a31c4a0d651fc9a4ff3db36a50`. At inspection, only the GitHub Actions analysis check had appeared for this newest commit; the test/lint/matrix checks were not yet reported. No passing result is claimed for this tip.
 
 ## Follow-on checkpoint — explicit source-unit coverage contract
 

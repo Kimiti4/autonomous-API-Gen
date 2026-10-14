@@ -131,3 +131,31 @@ def test_pipeline_blocks_invalid_source_graph_isr_binding_before_generation():
         for diagnostic in result.diagnostics
     )
     assert result.artifact_count == 0
+
+
+def test_source_bound_entrypoint_cannot_inherit_compatibility_default():
+    isr = ISR(system=System(id="source-bound-entrypoint", name="Source bound entrypoint"))
+    result = CompilerPipeline().compile_source_bound(
+        isr,
+        CompilationConfig(project_name="source-bound-entrypoint"),
+    )
+    assert not result.success
+    assert result.error_count == 1
+    assert result.artifact_count == 0
+    assert result.diagnostics[0].code == "COMP-SOURCE-BINDING-001"
+
+
+def test_source_bound_entrypoint_validates_supplied_binding():
+    source = b"Workspace isolation is mandatory."
+    isr, binding = _binding(source)
+    result = CompilerPipeline().compile_source_bound(
+        isr,
+        CompilationConfig(project_name="source-bound-valid"),
+        source_binding=binding,
+    )
+    # This fixture is only a binding-contract test. Downstream architectural
+    # validation may independently reject its intentionally minimal ISR.
+    assert not any(
+        diagnostic.code in {"COMP-SOURCE-BINDING-001", "COMP-SOURCE-BINDING-002", "COMP-SOURCE-BINDING-003"}
+        for diagnostic in result.diagnostics
+    )

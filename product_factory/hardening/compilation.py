@@ -22,8 +22,12 @@ class CompilerGateway(Protocol):
         ...
 
 
-class DryRunCompilerGateway:
-    """Deterministic dry-run compiler gateway."""
+class CompilerGatewayNotConfigured(RuntimeError):
+    """Raised when no real compiler gateway has been configured."""
+
+
+class UnconfiguredCompilerGateway:
+    """Fail-closed default: no generation is claimed without a real gateway."""
 
     def compile_isr(
         self,
@@ -31,31 +35,49 @@ class DryRunCompilerGateway:
         backend_id: str,
         environment: str,
     ) -> Dict[str, Any]:
-        artifacts = [
+        raise CompilerGatewayNotConfigured(
+            "No real compiler gateway is configured. Supply a production "
+            "CompilerGateway or explicitly select DryRunCompilerGateway."
+        )
+
+
+class DryRunCompilerGateway:
+    """Planning-only gateway; it never reports planned paths as emitted artifacts."""
+
+    def compile_isr(
+        self,
+        isr: Dict[str, Any],
+        backend_id: str,
+        environment: str,
+    ) -> Dict[str, Any]:
+        planned_artifacts = [
             f"{backend_id}/README.md",
             f"{backend_id}/artifact-manifest.json",
         ]
 
         if "openapi" in backend_id:
-            artifacts.append(f"{backend_id}/openapi.json")
+            planned_artifacts.append(f"{backend_id}/openapi.json")
 
         if "fastapi" in backend_id:
-            artifacts.append(f"{backend_id}/app/main.py")
+            planned_artifacts.append(f"{backend_id}/app/main.py")
 
         if "postgres" in backend_id:
-            artifacts.append(f"{backend_id}/migrations/0001_initial.sql")
+            planned_artifacts.append(f"{backend_id}/migrations/0001_initial.sql")
 
         if "docker" in backend_id:
-            artifacts.append(f"{backend_id}/Dockerfile")
+            planned_artifacts.append(f"{backend_id}/Dockerfile")
 
         if "github_actions" in backend_id:
-            artifacts.append(f"{backend_id}/.github/workflows/ci.yml")
+            planned_artifacts.append(f"{backend_id}/.github/workflows/ci.yml")
 
         return {
-            "artifacts": artifacts,
+            "mode": "dry_run",
+            "artifacts": [],
+            "planned_artifacts": planned_artifacts,
             "logs": [
-                f"Dry-run compilation for backend {backend_id}.",
+                f"Dry-run plan only for backend {backend_id}; no files were emitted.",
                 f"Environment: {environment}.",
+                "Planned paths are not build artifacts and cannot satisfy a required backend.",
             ],
         }
 
@@ -77,7 +99,7 @@ class CompilationExecutor:
         self,
         gateway: CompilerGateway | None = None,
     ) -> None:
-        self.gateway = gateway or DryRunCompilerGateway()
+        self.gateway = gateway or UnconfiguredCompilerGateway()
 
     def execute(
         self,
@@ -125,11 +147,25 @@ class CompilationExecutor:
                 artifacts = output.get("artifacts", [])
                 logs = output.get("logs", [])
 
-                job.status = "SUCCEEDED"
-                job.artifacts = artifacts
-                job.logs = logs
-
-                artifact_count += len(artifacts)
+                if output.get("mode") == "dry_run":
+                    planned = output.get("planned_artifacts", [])
+                    job.status = "DRY_RUN"
+                    job.artifacts = []
+                    job.logs = list(logs) + [
+                        "Planned only: " + ", ".join(str(item) for item in planned)
+                    ]
+                    if target.required:
+                        missing_required_backends.append(target.backend_id)
+                else:
+                    if not artifacts:
+                        raise RuntimeError(
+                            "compiler gateway returned no emitted artifacts; "
+                            "empty output cannot count as compilation success"
+                        )
+                    job.status = "SUCCEEDED"
+                    job.artifacts = artifacts
+                    job.logs = logs
+                    artifact_count += len(artifacts)
 
             except Exception as exc:
                 job.status = "FAILED"

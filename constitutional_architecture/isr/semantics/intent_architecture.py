@@ -93,6 +93,17 @@ def validate_system_architecture_projection(system: object) -> tuple[str, ...]:
                     errors.append(
                         f"entity '{entity.id}' is not colocated with its owning service"
                     )
+        for entity in module.entities:
+            for relationship in entity.relationships:
+                if relationship.target_entity_id not in entity_owner and relationship.target_entity_id not in {
+                    candidate.id
+                    for candidate_module in modules
+                    for candidate in candidate_module.entities
+                }:
+                    errors.append(
+                        f"entity '{entity.id}' references unknown entity "
+                        f"'{relationship.target_entity_id}'"
+                    )
         for event in module.events:
             if event.id in event_owner:
                 errors.append(f"duplicate event ID '{event.id}'")

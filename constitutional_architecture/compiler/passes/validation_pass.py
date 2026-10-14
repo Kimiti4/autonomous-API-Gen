@@ -18,8 +18,11 @@ class ValidationPass(CompilerPass):
         return {"isr_validated"}
 
     def execute(self, ctx: CompilerContext) -> PassResult:
-        binding = ctx.source_binding
-        if ctx.config.require_source_binding and binding is None:
+        binding = getattr(ctx, "source_binding", None)
+        require_source_binding = bool(
+            getattr(getattr(ctx, "config", None), "require_source_binding", False)
+        )
+        if require_source_binding and binding is None:
             ctx.diagnostics.error(
                 "COMP-SOURCE-BINDING-001",
                 "Required source/graph/ISR binding is missing",

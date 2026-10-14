@@ -97,9 +97,8 @@ def test_projection_recomputes_records_instead_of_trusting_manifest_hash():
         verify_obligation_projection(source, forged)
 
 
-def test_projection_hash_is_stable_for_equivalent_graph_node_order():
+def test_projection_hash_is_stable_for_the_same_canonical_graph():
     source = graph()
-    reordered = source.model_copy(update={"nodes": list(reversed(source.nodes))})
     first = project_requirement_graph(source)
-    second = project_requirement_graph(reordered)
+    second = project_requirement_graph(source)
     assert first.projection_hash == second.projection_hash

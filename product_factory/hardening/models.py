@@ -178,6 +178,11 @@ class CompilationJob(BaseModel):
     status: str = "PENDING"
 
     artifacts: List[str] = Field(default_factory=list)
+    # Candidate paths from planning are not generated artifact paths.
+    planned_artifacts: List[str] = Field(default_factory=list)
+    execution_mode: str = "unknown"
+    # REPORTED is gateway-supplied evidence, not an independent build attestation.
+    evidence_status: str = "UNKNOWN"
 
     logs: List[str] = Field(default_factory=list)
 

@@ -85,6 +85,35 @@ class ValidationPass(CompilerPass):
                     },
                 )
         try:
+            from constitutional_architecture.isr.semantics.intent_architecture import (
+                validate_system_architecture_projection,
+            )
+            architecture_errors = validate_system_architecture_projection(ctx.isr.system)
+        except Exception as exc:
+            ctx.diagnostics.fatal(
+                "COMP-ARCH-PROJECTION-002",
+                f"Architecture projection validation unavailable: {type(exc).__name__}: {exc}",
+            )
+            return PassResult(
+                success=False,
+                description="Architecture projection blocked: validator unavailable",
+                metrics={"architecture_projection_valid": False, "validation_unavailable": True},
+            )
+        if architecture_errors:
+            ctx.diagnostics.fatal(
+                "COMP-ARCH-PROJECTION-001",
+                "Architecture projection integrity failed: " + "; ".join(architecture_errors),
+            )
+            return PassResult(
+                success=False,
+                description="Architecture projection integrity failed",
+                metrics={
+                    "architecture_projection_valid": False,
+                    "architecture_errors": list(architecture_errors),
+                },
+            )
+
+        try:
             from constitutional_architecture.validation.checker import ArchitecturalTypeChecker
             from constitutional_architecture.engine.isr_adapter import isr_to_graph
             graph = isr_to_graph(ctx.isr)

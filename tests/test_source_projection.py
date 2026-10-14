@@ -8,7 +8,8 @@ from tiannara.application.compiler.source_projection import (
     project_obligations,
     verify_exact_projection,
 )
-from tiannara.domain.models.compiler_obligation import Disposition
+from tiannara.domain.models.compiler_obligation import Applicability, Disposition
+from tiannara.application.compiler.obligation_projection import project_requirement_graph
 from tiannara.domain.models.requirement_graph import (
     GraphProvenance,
     RequirementGraph,
@@ -83,6 +84,12 @@ def test_projection_is_source_and_graph_bound_and_unknown_by_default():
     assert result.context_sha256
     assert not result.generation_allowed
     assert result.unresolved_semantics == ("security.authorization_model",)
+    # Source provenance must not create a second set of obligation semantics.
+    canonical = project_requirement_graph(graph())
+    assert tuple(item.model_dump(mode="json") for item in result.records) == tuple(
+        item.model_dump(mode="json") for item in canonical.records
+    )
+    assert result.records[1].applicability is Applicability.OPTIONAL
 
 
 def test_exact_projection_rejects_omission_and_semantic_weakening():

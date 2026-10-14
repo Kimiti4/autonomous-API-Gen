@@ -186,6 +186,12 @@ def project_intent_to_constitutional_isr(
                 + ", ".join(sorted(unknown_ids))
             )
 
+    for domain in system_model.domains:
+        for term, definition in domain.ubiquitous_language.items():
+            if not term.strip() or not definition.strip():
+                blockers.append(
+                    f"domain '{domain.id}' has an empty ubiquitous-language term or definition"
+                )
     for service in system_model.services:
         domain = domain_by_id.get(service.domain_id)
         if domain is None:
@@ -202,6 +208,7 @@ def project_intent_to_constitutional_isr(
                 domain_id=service.domain_id,
                 responsibility_refs=tuple(service.responsibilities),
                 exposed_capability_refs=tuple(service.exposed_capability_ids),
+                communication_styles=tuple(style.value for style in service.communication_styles),
                 is_stateless=None,
             )
         )
@@ -417,6 +424,7 @@ def project_intent_to_constitutional_isr(
             events=tuple(module_events[domain.id]),
             capability_refs=tuple(domain.capability_ids),
             api_contracts=tuple(module_api_contracts[domain.id]),
+            ubiquitous_language=tuple(sorted(domain.ubiquitous_language.items())),
         )
         for domain in system_model.domains
     )

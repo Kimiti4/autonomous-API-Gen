@@ -101,6 +101,20 @@ def verify_constitutional_source_binding(
                     blockers.append("constitutional ISR modules differ from deterministic typed architecture projection")
                 elif expected_projection.candidate_isr.system.security_posture != isr.system.security_posture:
                     blockers.append("constitutional ISR security posture differs from deterministic typed architecture projection")
+                elif (
+                    expected_projection.candidate_isr.system.infrastructure_posture,
+                    expected_projection.candidate_isr.system.deployment_posture,
+                    expected_projection.candidate_isr.system.testing_posture,
+                    expected_projection.candidate_isr.system.documentation_posture,
+                    expected_projection.candidate_isr.system.operational_posture,
+                ) != (
+                    isr.system.infrastructure_posture,
+                    isr.system.deployment_posture,
+                    isr.system.testing_posture,
+                    isr.system.documentation_posture,
+                    isr.system.operational_posture,
+                ):
+                    blockers.append("constitutional ISR policy postures differ from deterministic typed architecture projection")
             except Exception as exc:
                 blockers.append(
                     f"typed architecture projection verification unavailable: "

@@ -141,6 +141,15 @@ def project_intent_to_constitutional_isr(
     module_events: dict[str, list[Event]] = {domain_id: [] for domain_id in domain_by_id}
     service_domain: dict[str, str] = {}
 
+    declared_capability_ids = {capability.id for capability in system_model.capabilities}
+    for domain in system_model.domains:
+        unknown_ids = set(domain.capability_ids) - declared_capability_ids
+        if unknown_ids:
+            blockers.append(
+                f"domain '{domain.id}' references capability IDs that are not declared: "
+                + ", ".join(sorted(unknown_ids))
+            )
+
     for service in system_model.services:
         domain = domain_by_id.get(service.domain_id)
         if domain is None:
@@ -237,6 +246,7 @@ def project_intent_to_constitutional_isr(
                     ),
                     description=source_field.description,
                     enum_values=tuple(source_field.enumeration_values),
+                    abstract_source_type=source_field.type.value,
                 )
             )
         module_entities[domain_id].append(
@@ -280,7 +290,7 @@ def project_intent_to_constitutional_isr(
                 id=event_spec.id,
                 name=event_spec.name,
                 description="",
-                pattern=EventPattern.PUBLISH_SUBSCRIBE,
+                pattern=None,
                 guarantee=guarantee,
                 ordering_required=event_spec.ordering.value != "none",
                 ordering_semantics=event_spec.ordering.value,

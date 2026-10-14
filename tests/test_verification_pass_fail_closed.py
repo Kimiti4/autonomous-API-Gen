@@ -44,17 +44,16 @@ def test_verification_engine_exception_is_fatal_and_indeterminate(monkeypatch):
 def test_non_approving_or_failed_verification_report_blocks_success(
     monkeypatch, approved, failed_checks
 ):
-    class Report:
-        total_checks = 3
-        passed_checks = 3 - failed_checks
-        failed_checks = failed_checks
-        warning_checks = 0
-        approved_for_deployment = approved
-        blocking_failures = ()
-
     class ReportingEngine:
         def verify(self, **kwargs):
-            return Report()
+            return SimpleNamespace(
+                total_checks=3,
+                passed_checks=3 - failed_checks,
+                failed_checks=failed_checks,
+                warning_checks=0,
+                approved_for_deployment=approved,
+                blocking_failures=(),
+            )
 
     monkeypatch.setattr(verification_engine, "VerificationEngine", ReportingEngine)
     ctx = _context()

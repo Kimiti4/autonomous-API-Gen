@@ -1,3 +1,4 @@
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -187,7 +188,6 @@ def test_repair_converges_in_one_iteration(tmp_path):
     result = compiler.compile_full(STATEMENT, system_id="sys-2")
     assert result.repair_iterations == 1
     assert len(result.call_records) == 3
-    import hashlib
     exact_source_hash = hashlib.sha256(STATEMENT.encode("utf-8")).hexdigest()
     assert result.requirement_graph.provenance.source_statement_hash == exact_source_hash
     assert result.source_projection_context.snapshot_sha256 == exact_source_hash

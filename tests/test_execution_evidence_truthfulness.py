@@ -110,3 +110,27 @@ def test_deployment_handoff_does_not_manufacture_ci_deployment_or_health():
     assert result["telemetry"] == "unknown"
     assert not result["evidence"]
     assert len(result["blockers"]) == 3
+
+
+def test_boolean_exit_code_and_non_list_artifacts_are_not_execution_evidence():
+    report = CompilationExecutor(
+        gateway=_Gateway(
+            {
+                "mode": "executed",
+                "artifacts": "app/main.py",
+                "execution_evidence": {
+                    "exit_code": False,
+                    "artifact_manifest_sha256": "b" * 64,
+                },
+            }
+        )
+    ).execute(
+        product_id="demo",
+        isr={"system": "demo"},
+        targets=[CompilationTarget(backend_id="backend-a")],
+    )
+
+    assert report.success is False
+    assert report.artifact_count == 0
+    assert report.jobs[0].status == "UNKNOWN"
+    assert report.jobs[0].evidence_status == "INVALID"

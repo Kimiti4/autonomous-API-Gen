@@ -7,6 +7,7 @@ on:
       - "tests/test_intent_projection_adapter.py"
       - "constitutional_architecture/isr/model/system.py"
       - "constitutional_architecture/isr/semantics/intent_architecture.py"
+      - "constitutional_architecture/isr/semantics/security_posture.py"
       - "constitutional_architecture/isr/model/event.py"
       - "constitutional_architecture/isr/model/entity.py"
       - "constitutional_architecture/isr/model/service.py"

@@ -45,6 +45,14 @@ This closes one structural part of the source-to-graph fidelity gap: omissions i
 
 **Integration remains outstanding:** the live IntentCompiler does not yet emit trusted source-unit spans and bindings, and ProjectCompiler does not yet require this report. The new contract is therefore a tested component, not evidence that the live pipeline is source-complete. Generic generation remains unqualified until the source map is produced by the trusted intake path and enforced before backend selection. The constitutional ISR pipeline also remains a separate integration task.
 
+## Follow-on checkpoint — source coverage enforced before backend selection
+
+The generic `ProjectCompiler` now requires a typed `SourceGraphCoverageReport` before deriving/selecting a backend. It rejects a missing report and rejects reports that are incomplete or whose source/graph hashes do not match the active `SourceProjectionContext`. `IntentCompilationResult` exposes an optional report field for an explicitly trusted intake/review producer.
+
+The current `IntentCompiler` does **not** yet produce this report: the extraction schema has requirement statements but no trusted byte-span inventory. Therefore, ordinary generic generation through this path now stops before backend selection until the trusted intake path is implemented. This is intentional fail-closed behavior, not a regression to work around with inferred spans. The test fixture includes an explicit reviewer-style mapping only to exercise the positive structural gate; it is not evidence that live extraction is complete or semantically faithful.
+
+The coverage contract still proves structural accounting only. It cannot prove that the declared source-unit inventory is complete, that the mapped graph nodes preserve meaning, or that the constitutional ISR pipeline consumes the same source context. The next work is to define a trusted source-unit inventory/provenance contract and bind its graph obligations to the constitutional ISR requirements without treating hashes or metadata as semantic proof. TaskFlow generation and universal certification remain blocked.
+
 ## Scope and source-of-truth rules
 
 1. The ten-domain machine-readable contract is `experiments/compiler-benchmarks/coherence_suite.v1.json`; its status is `SPECIFIED_NOT_EXECUTED`.

@@ -16,8 +16,8 @@ Evolution Engine's first stage.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 import hashlib
+from collections.abc import Callable
 from tiannara.domain.models.isr import IntermediateSoftwareRepresentation
 from tiannara.domain.models.requirement_graph import RequirementGraph, RequirementKind
 from tiannara.domain.models.semantic_resolution import (

@@ -172,29 +172,17 @@ def project_obligations(
     if resolutions.graph_id != graph.graph_id or resolutions.graph_hash != graph.content_hash():
         raise ValueError("semantic resolution binding changed")
 
-    records: list[CompilerObligationRecord] = []
-    for node in graph.nodes:
-        strength = {
-            "must": Strength.MUST,
-            "should": Strength.SHOULD,
-            "could": Strength.MAY,
-        }.get(node.priority.value, Strength.MUST)
-        records.append(CompilerObligationRecord(
-            schema_version="1.0",
-            obligation_id=f"requirement.{node.id}",
-            source_graph_id=graph.graph_id,
-            source_graph_hash=graph.content_hash(),
-            domain=node.kind.value,
-            statement=node.statement,
-            acceptance_criteria=tuple(node.acceptance_criteria),
-            rationale=node.rationale,
-            applicability=Applicability.REQUIRED,
-            required_strength=strength,
-            disposition=Disposition.UNKNOWN,
-            limitations=(
-                "Projection establishes traceability only; implementation and runtime enforcement are unverified.",
-            ),
-        ))
+    # Canonical graph-to-obligation semantics live in one projector. The
+    # source context adds snapshot provenance; it must not redefine priority,
+    # applicability, obligation IDs, or payload semantics independently.
+    from tiannara.application.compiler.obligation_projection import (
+        project_requirement_graph,
+    )
+
+    canonical_projection = project_requirement_graph(graph)
+    records = list(canonical_projection.records)
+    if canonical_projection.source_graph_hash != context.graph_sha256:
+        raise ValueError("canonical obligation projection source hash mismatch")
 
     unresolved = resolutions.unresolved_fields()
     blockers: list[str] = []
@@ -204,6 +192,8 @@ def project_obligations(
         blockers.append(
             "mandatory semantic decisions remain unresolved: " + ", ".join(unresolved)
         )
+    if not canonical_projection.projection_hash:
+        blockers.append("canonical obligation projection hash is missing")
     if any(record.source_graph_hash != context.graph_sha256 for record in records):
         blockers.append("projected obligation source hash mismatch")
     return ObligationProjectionResult(

@@ -19,9 +19,22 @@ class ValidationPass(CompilerPass):
 
     def execute(self, ctx: CompilerContext) -> PassResult:
         binding = getattr(ctx, "source_binding", None)
+        graph_ref = getattr(ctx.original_isr.system, "requirement_graph_ref", None)
         require_source_binding = bool(
             getattr(getattr(ctx, "config", None), "require_source_binding", False)
+            or graph_ref is not None
         )
+        if graph_ref is not None and not graph_ref.projection_complete:
+            ctx.diagnostics.fatal(
+                "COMP-SOURCE-BINDING-004",
+                "Projected ISR is marked incomplete: "
+                + "; ".join(graph_ref.projection_blockers),
+            )
+            return PassResult(
+                success=False,
+                description="Incomplete intent projection blocked",
+                metrics={"source_binding_valid": False, "projection_complete": False},
+            )
         if require_source_binding and binding is None:
             ctx.diagnostics.fatal(
                 "COMP-SOURCE-BINDING-001",

@@ -874,3 +874,33 @@ def test_architecture_validator_rejects_incomplete_projection_reference():
 
     assert any("typed architecture projection incomplete" in error for error in errors)
 
+
+
+def test_source_binding_rejects_mutated_requirement_statement():
+    source, graph, model = _inputs()
+    result = project_intent_to_constitutional_isr(
+        source_bytes=source, graph=graph, system_model=model, system_id="workspace-system"
+    )
+    isr = result.candidate_isr
+    requirements = list(isr.system.requirements)
+    requirements[0] = replace(
+        requirements[0], statement="A mutated statement unrelated to the source."
+    )
+    changed_isr = replace(
+        isr, system=replace(isr.system, requirements=tuple(requirements))
+    )
+    binding = ConstitutionalSourceBinding(
+        source_bytes=source,
+        expected_source_sha256=hashlib.sha256(source).hexdigest(),
+        graph=graph,
+        system_model=model,
+        graph_to_isr_requirement_ids={node.id: node.id for node in graph.nodes},
+    )
+
+    report = verify_constitutional_source_binding(binding=binding, isr=changed_isr)
+
+    assert not report.complete
+    assert any(
+        "deterministic full typed projection" in blocker
+        for blocker in report.blockers
+    )

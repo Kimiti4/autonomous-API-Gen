@@ -206,7 +206,7 @@ def project_intent_to_constitutional_isr(
             Service(
                 id=service.id,
                 name=service.name,
-                description="; ".join(service.responsibilities),
+                description="",
                 domain_id=service.domain_id,
                 responsibility_refs=tuple(service.responsibilities),
                 exposed_capability_refs=tuple(service.exposed_capability_ids),
@@ -336,7 +336,7 @@ def project_intent_to_constitutional_isr(
             Entity(
                 id=data_model.id,
                 name=data_model.name,
-                description=f"Data model owned by service {data_model.owning_service_id}",
+                description="",
                 fields=tuple(projected_fields),
                 relationships=tuple(
                     Relationship(

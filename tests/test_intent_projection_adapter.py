@@ -518,6 +518,11 @@ def test_projection_lowers_domain_service_component_data_and_event_semantics():
     assert validate_system_architecture_projection(result.candidate_isr.system) == ()
     assert result.candidate_isr.system.security_posture.authorization == "none"
     assert result.candidate_isr.system.security_posture.encryption_in_transit_required is True
+    assert result.candidate_isr.system.infrastructure_posture.topology == "modular_monolith"
+    assert result.candidate_isr.system.deployment_posture.rollout_strategy == "rolling"
+    assert result.candidate_isr.system.testing_posture.coverage_posture == "enforced"
+    assert result.candidate_isr.system.documentation_posture.adr_required is True
+    assert result.candidate_isr.system.operational_posture.incident_response_required is True
     module = result.candidate_isr.system.modules[0]
     assert module.id == "domain-core"
     assert {service.id for service in module.services} == {
@@ -659,3 +664,27 @@ def test_architecture_validator_rejects_missing_security_posture():
     errors = validate_system_architecture_projection(changed_isr.system)
 
     assert any("missing first-class security posture" in error for error in errors)
+
+
+def test_source_binding_rejects_mutated_deployment_posture():
+    source, graph, model = _inputs()
+    result = project_intent_to_constitutional_isr(
+        source_bytes=source, graph=graph, system_model=model, system_id="workspace-system"
+    )
+    isr = result.candidate_isr
+    changed_deployment = replace(isr.system.deployment_posture, rollout_strategy="canary")
+    changed_isr = replace(
+        isr, system=replace(isr.system, deployment_posture=changed_deployment)
+    )
+    binding = ConstitutionalSourceBinding(
+        source_bytes=source,
+        expected_source_sha256=hashlib.sha256(source).hexdigest(),
+        graph=graph,
+        system_model=model,
+        graph_to_isr_requirement_ids={node.id: node.id for node in graph.nodes},
+    )
+
+    report = verify_constitutional_source_binding(binding=binding, isr=changed_isr)
+
+    assert not report.complete
+    assert any("policy postures differ" in blocker for blocker in report.blockers)

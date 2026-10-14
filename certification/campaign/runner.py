@@ -54,13 +54,28 @@ def _run_candidate_bound_full_stack_verifier(verifier: Any, inputs: Any, candida
         return False, "full-stack verification unavailable: five explicit IR inputs required"
     if not candidate_hash:
         return False, "full-stack verification unavailable: candidate hash missing"
+    # A digest in the log is not binding. The verifier must receive the
+    # candidate digest as an input and echo it in its structured result.
+    # Do not fall back to verify_full_stack(*inputs): that API checks IR
+    # coherence but cannot attest which generated candidate the IR describes.
+    verify_bound = getattr(verifier, "verify_bound", None)
+    if not callable(verify_bound):
+        return False, (
+            "full-stack verification unavailable: verifier must implement "
+            "verify_bound(inputs, candidate_hash)"
+        )
     try:
-        result = verifier(*inputs)
+        result = verify_bound(inputs, candidate_hash)
     except Exception as exc:
         return False, f"full-stack verification failed closed: {type(exc).__name__}: {exc}"
     if getattr(result, "passed", None) is not True:
         return False, f"full-stack verification did not pass; candidate_hash={candidate_hash}; findings={getattr(result, 'findings', None)!r}"
-    return True, f"full-stack verification passed; candidate_hash={candidate_hash}"
+    if getattr(result, "candidate_hash", None) != candidate_hash:
+        return False, (
+            "full-stack verification candidate binding mismatch; "
+            f"expected={candidate_hash}; received={getattr(result, 'candidate_hash', None)!r}"
+        )
+    return True, f"full-stack verification passed with matching candidate binding; candidate_hash={candidate_hash}"
 
 
 def _unconfigured_stage(stage: TrialStage) -> tuple[bool, str]:

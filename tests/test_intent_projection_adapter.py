@@ -76,6 +76,9 @@ def _inputs(*, with_architecture=False, priority=Priority.MUST):
             graph_id=graph.graph_id,
             graph_hash=graph.content_hash(),
         ),
+        domains=[
+            {"id": "domain-core", "name": "Core domain", "description": "Core domain"}
+        ],
         services=(
             [
                 ServiceSpec(
@@ -83,6 +86,17 @@ def _inputs(*, with_architecture=False, priority=Priority.MUST):
                     name="workspace-service",
                     domain_id="domain-core",
                 )
+            ]
+            if with_architecture
+            else []
+        ),
+        apis=(
+            [
+                {
+                    "id": "workspace-api",
+                    "name": "Workspace API",
+                    "provider_service_id": "workspace-service",
+                }
             ]
             if with_architecture
             else []
@@ -167,7 +181,7 @@ def test_projection_blocks_unlowered_typed_architecture_instead_of_dropping_it()
 
     assert result.candidate_isr is not None
     assert not result.ready_for_compilation
-    assert any("unknown domain" in blocker for blocker in result.blockers)
+    assert any("API contracts" in blocker for blocker in result.blockers)
 
 
 def test_priority_mutation_is_preserved_in_constitutional_projection():
@@ -476,6 +490,7 @@ def test_projection_lowers_domain_service_component_data_and_event_semantics():
     assert entity.owning_service_id == "workspace-service"
     assert entity.invariants == ("workspace identity is immutable",)
     assert [field.field_type.value for field in entity.fields] == ["text", "enum"]
+    assert [field.abstract_source_type for field in entity.fields] == ["text", "enumeration"]
     event = module.events[0]
     assert event.producer_service_id == "audit-service"
     assert event.consumer_service_ids == ("workspace-service",)

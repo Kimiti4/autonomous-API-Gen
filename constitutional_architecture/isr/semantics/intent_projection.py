@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 from constitutional_architecture.isr.model.component import Component
 from constitutional_architecture.isr.model.entity import Entity
-from constitutional_architecture.isr.model.event import Event, EventGuarantee, EventPattern
+from constitutional_architecture.isr.model.event import Event, EventGuarantee
 from constitutional_architecture.isr.model.fields import Field, FieldCardinality, FieldType
 from constitutional_architecture.isr.model.isr import ISR
 from constitutional_architecture.isr.model.module import Module
@@ -133,6 +133,8 @@ def project_intent_to_constitutional_isr(
     # Lower the explicitly representable architecture sections into native ISR
     # genes. A source field is never assigned a guessed default to make it fit.
     domain_by_id = {domain.id: domain for domain in system_model.domains}
+    if not system_model.domains:
+        blockers.append("typed SystemModel has no domains to lower into constitutional modules")
     service_by_id = {service.id: service for service in system_model.services}
     model_by_id = {model.id: model for model in system_model.data_models}
     module_services: dict[str, list[Service]] = {domain_id: [] for domain_id in domain_by_id}

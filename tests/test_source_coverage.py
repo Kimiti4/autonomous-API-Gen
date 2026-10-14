@@ -137,3 +137,60 @@ def test_source_unit_hash_mismatch_is_rejected():
     )
     assert not result.complete
     assert any("unit hash mismatch" in blocker for blocker in result.blockers)
+
+
+
+def test_typed_isr_must_trace_every_mandatory_graph_requirement():
+    from tiannara.application.compiler.source_coverage import (
+        verify_graph_system_model_traceability,
+    )
+    from tiannara.domain.models.system_model import (
+        BusinessCapability, RequirementsReference, SystemModel,
+    )
+
+    graph = _graph()
+    model = SystemModel(
+        system_name="Workspace Service",
+        requirements_ref=RequirementsReference(
+            graph_id=graph.graph_id, graph_hash=graph.content_hash()
+        ),
+        capabilities=[
+            BusinessCapability(
+                id="CAP-workspace-isolation",
+                name="Workspace isolation",
+                traced_requirement_ids=["REQ-A"],
+            )
+        ],
+    )
+    report = verify_graph_system_model_traceability(graph=graph, system_model=model)
+    assert report.complete
+    assert report.mapped_required_node_ids == ("REQ-A",)
+    assert report.unmapped_required_node_ids == ()
+
+
+def test_typed_isr_traceability_blocks_missing_or_unknown_requirement_links():
+    from tiannara.application.compiler.source_coverage import (
+        verify_graph_system_model_traceability,
+    )
+    from tiannara.domain.models.system_model import (
+        BusinessCapability, RequirementsReference, SystemModel,
+    )
+
+    graph = _graph()
+    model = SystemModel(
+        system_name="Workspace Service",
+        requirements_ref=RequirementsReference(
+            graph_id=graph.graph_id, graph_hash=graph.content_hash()
+        ),
+        capabilities=[
+            BusinessCapability(
+                id="CAP-readiness",
+                name="Readiness",
+                traced_requirement_ids=["REQ-NOT-REAL"],
+            )
+        ],
+    )
+    report = verify_graph_system_model_traceability(graph=graph, system_model=model)
+    assert not report.complete
+    assert report.unmapped_required_node_ids == ("REQ-A",)
+    assert report.unknown_requirement_ids == ("REQ-NOT-REAL",)

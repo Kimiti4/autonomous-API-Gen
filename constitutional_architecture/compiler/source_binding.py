@@ -97,6 +97,12 @@ def verify_constitutional_source_binding(
                     )
                 if expected_projection.candidate_isr is None:
                     blockers.append("bound typed SystemModel did not produce a candidate ISR")
+                elif expected_projection.candidate_isr.system.name != isr.system.name:
+                    blockers.append("constitutional ISR system name differs from typed SystemModel")
+                elif expected_projection.candidate_isr.system.description != isr.system.description:
+                    blockers.append("constitutional ISR system description differs from typed SystemModel")
+                elif expected_projection.candidate_isr.system.business_capabilities != isr.system.business_capabilities:
+                    blockers.append("constitutional ISR capabilities differ from deterministic typed architecture projection")
                 elif expected_projection.candidate_isr.system.modules != isr.system.modules:
                     blockers.append("constitutional ISR modules differ from deterministic typed architecture projection")
                 elif expected_projection.candidate_isr.system.security_posture != isr.system.security_posture:

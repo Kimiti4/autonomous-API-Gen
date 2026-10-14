@@ -175,6 +175,8 @@ def project_intent_to_constitutional_isr(
                 graph_id=graph.graph_id,
                 graph_sha256=graph_hash,
                 source_sha256=source_hash,
+                projection_complete=not blockers,
+                projection_blockers=tuple(blockers),
             ),
             requirement_source_metadata=tuple(metadata),
             requirement_relations=relations,

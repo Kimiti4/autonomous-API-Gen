@@ -79,6 +79,8 @@ class OperationalSLO:
     target: str
 
     def __post_init__(self) -> None:
+        if not self.name.strip() or not self.metric.strip() or not self.target.strip():
+            raise ValueError("SLO name, metric, and target must be explicit and non-empty")
 
 
 @dataclass(frozen=True)

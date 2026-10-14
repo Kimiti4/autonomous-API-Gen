@@ -15,6 +15,7 @@ from constitutional_architecture.isr.model.policy import Policy
 from constitutional_architecture.isr.model.service import Service
 from constitutional_architecture.isr.model.workflow import Workflow
 from constitutional_architecture.isr.model.component import Component
+from constitutional_architecture.isr.model.api_contract import ApiContract
 from constitutional_architecture.isr.semantics.migration import DataMigrationIntent
 from constitutional_architecture.isr.semantics.temporal import TemporalConstraint
 
@@ -36,6 +37,7 @@ class Module:
     data_migrations: tuple[DataMigrationIntent, ...] = ()
     components: tuple[Component, ...] = ()
     capability_refs: tuple[str, ...] = ()
+    api_contracts: tuple[ApiContract, ...] = ()
 
     def get_entity(self, entity_id: str) -> Optional[Entity]:
         for e in self.entities:

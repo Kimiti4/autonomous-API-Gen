@@ -37,6 +37,7 @@ from constitutional_architecture.compiler.observability.compiler_events import (
 from constitutional_architecture.compiler.observability.compiler_metrics import CompilerMetrics
 from constitutional_architecture.compiler.pass_manager import PassManager
 from constitutional_architecture.compiler.pass_registry import PassRegistry
+from constitutional_architecture.compiler.source_binding import ConstitutionalSourceBinding
 from constitutional_architecture.isr.model.isr import ISR
 
 
@@ -83,7 +84,13 @@ class CompilerPipeline:
         self._event_bus = event_bus or CompilerEventBus()
         self._metrics = CompilerMetrics()
 
-    def compile(self, isr: ISR, config: Optional[CompilationConfig] = None) -> CompilationResult:
+    def compile(
+        self,
+        isr: ISR,
+        config: Optional[CompilationConfig] = None,
+        *,
+        source_binding: Optional[ConstitutionalSourceBinding] = None,
+    ) -> CompilationResult:
         if config is None:
             config = CompilationConfig(project_name=isr.system.name)
 
@@ -92,6 +99,21 @@ class CompilerPipeline:
             event_type=CompilerEventType.COMPILATION_STARTED,
             data={"isr_hash": isr.content_hash, "targets": list(config.target_backends)},
         ))
+
+        if config.require_source_binding and source_binding is None:
+            # Do not allow a cached result to bypass the source-binding gate.
+            from constitutional_architecture.compiler.compiler_result import CompilationResult
+            from constitutional_architecture.compiler.quality.diagnostics import Diagnostic, DiagnosticSeverity
+            diagnostic = Diagnostic(
+                code="COMP-SOURCE-BINDING-001",
+                message="Compilation blocked: required source/graph/ISR binding is missing",
+                severity=DiagnosticSeverity.ERROR,
+            )
+            return CompilationResult(
+                isr_hash=isr.content_hash, config_hash=config.config_hash,
+                compiler_version=config.compiler_version, diagnostics=(diagnostic,),
+                error_count=1, targets_compiled=tuple(config.target_backends), success=False,
+            )
 
         cache_key = self._cache.compute_key(isr.content_hash, config.config_hash, config.compiler_version)
         cached = self._cache.get(cache_key)
@@ -102,7 +124,10 @@ class CompilerPipeline:
 
         self._metrics.record_cache(hit=False)
 
-        ctx = CompilerContext(_isr=isr, _config=config, backend_registry=self._backend_registry)
+        ctx = CompilerContext(
+            _isr=isr, _config=config, backend_registry=self._backend_registry,
+            source_binding=source_binding,
+        )
         pass_manager = PassManager(self._pass_registry)
         passes_success = pass_manager.execute_all(ctx)
 

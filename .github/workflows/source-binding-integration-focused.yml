@@ -1,0 +1,45 @@
+name: Source Binding Integration Tests
+
+on:
+  pull_request:
+    paths:
+      - "constitutional_architecture/compiler/source_binding.py"
+      - "constitutional_architecture/compiler/compilation_config.py"
+      - "constitutional_architecture/compiler/compiler_context.py"
+      - "constitutional_architecture/compiler/pipeline.py"
+      - "constitutional_architecture/compiler/pass_manager.py"
+      - "constitutional_architecture/compiler/passes/validation_pass.py"
+      - "tests/test_constitutional_source_binding_mainline.py"
+      - ".github/workflows/source-binding-integration-focused.yml"
+  push:
+    branches:
+      - "hardening/source-binding-mainline-integration"
+    paths:
+      - "constitutional_architecture/compiler/source_binding.py"
+      - "constitutional_architecture/compiler/compilation_config.py"
+      - "constitutional_architecture/compiler/compiler_context.py"
+      - "constitutional_architecture/compiler/pipeline.py"
+      - "constitutional_architecture/compiler/pass_manager.py"
+      - "constitutional_architecture/compiler/passes/validation_pass.py"
+      - "tests/test_constitutional_source_binding_mainline.py"
+      - ".github/workflows/source-binding-integration-focused.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  source-binding-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install project test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: Run source-binding regression tests
+        run: |
+          python -m pytest -o addopts="" -q tests/test_constitutional_source_binding_mainline.py

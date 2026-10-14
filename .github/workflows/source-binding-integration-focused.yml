@@ -5,6 +5,8 @@ on:
     paths:
       - "constitutional_architecture/compiler/source_binding.py"
       - "tests/test_intent_projection_adapter.py"
+      - "tests/test_intent_entrypoint.py"
+      - "constitutional_architecture/compiler/intent_entrypoint.py"
       - "constitutional_architecture/isr/model/system.py"
       - "constitutional_architecture/isr/semantics/intent_architecture.py"
       - "constitutional_architecture/isr/semantics/security_posture.py"
@@ -60,4 +62,4 @@ jobs:
           python -m pip install -e ".[dev]"
       - name: Run source-binding regression tests
         run: |
-          python -m pytest -o addopts="" -q tests/test_constitutional_source_binding_mainline.py tests/test_intent_compiler.py tests/test_intent_projection_adapter.py
+          python -m pytest -o addopts="" -q tests/test_constitutional_source_binding_mainline.py tests/test_intent_compiler.py tests/test_intent_projection_adapter.py tests/test_intent_entrypoint.py

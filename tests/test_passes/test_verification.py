@@ -151,4 +151,4 @@ class TestVerificationPass:
         assert result.metrics["verification_status"] == "INDETERMINATE"
         assert result.metrics["approved_for_deployment"] is False
         assert "verifier unavailable" in result.metrics["verification_error"]
-        assert any(d.code == "COMP-VERIFY-001" for d in ctx.diagnostics.items)
+        assert any(d.code == "COMP-VERIFY-001" for d in ctx.diagnostics.diagnostics)

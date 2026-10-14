@@ -1,4 +1,10 @@
 import hashlib
+from dataclasses import replace
+
+from constitutional_architecture.compiler.source_binding import (
+    ConstitutionalSourceBinding,
+    verify_constitutional_source_binding,
+)
 
 from constitutional_architecture.isr.semantics.intent_projection import (
     project_intent_to_constitutional_isr,
@@ -198,3 +204,71 @@ def test_priority_mutation_is_preserved_in_constitutional_projection():
         if item.requirement_id == "REQ-WORKSPACE-ISOLATION"
     ) == "could"
     assert must.candidate_isr.content_hash != could.candidate_isr.content_hash
+
+
+def test_source_binding_accepts_only_complete_projection_metadata():
+    source, graph, model = _inputs()
+    result = project_intent_to_constitutional_isr(
+        source_bytes=source, graph=graph, system_model=model, system_id="workspace-system"
+    )
+    assert result.ready_for_compilation
+    isr = result.candidate_isr
+    binding = ConstitutionalSourceBinding(
+        source_bytes=source,
+        expected_source_sha256=hashlib.sha256(source).hexdigest(),
+        graph=graph,
+        graph_to_isr_requirement_ids={node.id: node.id for node in graph.nodes},
+    )
+
+    report = verify_constitutional_source_binding(binding=binding, isr=isr)
+
+    assert report.complete
+
+
+def test_source_binding_rejects_mutated_projected_priority():
+    source, graph, model = _inputs()
+    result = project_intent_to_constitutional_isr(
+        source_bytes=source, graph=graph, system_model=model, system_id="workspace-system"
+    )
+    isr = result.candidate_isr
+    metadata = list(isr.system.requirement_source_metadata)
+    index = next(
+        i for i, item in enumerate(metadata)
+        if item.requirement_id == "REQ-WORKSPACE-ISOLATION"
+    )
+    metadata[index] = replace(metadata[index], priority="could")
+    changed_system = replace(isr.system, requirement_source_metadata=tuple(metadata))
+    changed_isr = replace(isr, system=changed_system)
+    binding = ConstitutionalSourceBinding(
+        source_bytes=source,
+        expected_source_sha256=hashlib.sha256(source).hexdigest(),
+        graph=graph,
+        graph_to_isr_requirement_ids={node.id: node.id for node in graph.nodes},
+    )
+
+    report = verify_constitutional_source_binding(binding=binding, isr=changed_isr)
+
+    assert not report.complete
+    assert any("metadata differs" in blocker for blocker in report.blockers)
+
+
+def test_source_binding_rejects_candidate_with_unlowered_architecture():
+    source, graph, model = _inputs(with_architecture=True)
+    result = project_intent_to_constitutional_isr(
+        source_bytes=source, graph=graph, system_model=model, system_id="workspace-system"
+    )
+    assert result.candidate_isr is not None
+    assert not result.ready_for_compilation
+    binding = ConstitutionalSourceBinding(
+        source_bytes=source,
+        expected_source_sha256=hashlib.sha256(source).hexdigest(),
+        graph=graph,
+        graph_to_isr_requirement_ids={node.id: node.id for node in graph.nodes},
+    )
+
+    report = verify_constitutional_source_binding(
+        binding=binding, isr=result.candidate_isr
+    )
+
+    assert not report.complete
+    assert any("projection incomplete" in blocker for blocker in report.blockers)

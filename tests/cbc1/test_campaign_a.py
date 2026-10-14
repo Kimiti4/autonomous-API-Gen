@@ -289,8 +289,11 @@ def test_campaign_a_runs_all_categories():
     assert summary["total"] == 78
     assert summary["corpus_size"] == 39
     assert summary["total_trials"] == 78
-    assert summary["certified"] == 78
-    assert summary["success_rate"] == 1.0
+    # The campaign has no real execution adapters configured; it must not
+    # certify trials from placeholder stage results.
+    assert summary["certified"] == 0
+    assert summary["not_certified"] == 78
+    assert summary["success_rate"] == 0.0
     assert EvidenceLedger.verify(ledger_path)
     assert EvidenceLedger.count(ledger_path) == 78
 
@@ -301,12 +304,9 @@ def test_campaign_a_success_matrix():
         os.path.join(d, "ledger.jsonl"),
         os.path.join(d, "agg.json"),
     )
-    matrix = summary["success_matrix"]
-    assert "crud_saas" in matrix
-    assert "banking" in matrix
-    assert "streaming" in matrix
-    for cat in matrix:
-        assert "novel_intent" in matrix[cat]
+    # The success matrix counts certified trials only. With no configured
+    # execution adapters, it must remain empty.
+    assert summary["success_matrix"] == {}
 
 
 def test_campaign_a_failure_taxonomy_empty():
@@ -315,7 +315,9 @@ def test_campaign_a_failure_taxonomy_empty():
         os.path.join(d, "ledger.jsonl"),
         os.path.join(d, "agg.json"),
     )
-    assert summary["failure_taxonomy"] == {}
+    taxonomy = summary["failure_taxonomy"]
+    for stage in ("build", "test", "deploy", "runtime", "destroy", "verify"):
+        assert taxonomy.get(stage) == 78
 
 
 def test_campaign_a_corpus_hash_recorded():

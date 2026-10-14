@@ -74,9 +74,38 @@ class VerificationPass(CompilerPass):
             for failure in report.blocking_failures:
                 ctx.diagnostics.error(f"COMP-VERIFY-BLOCK-{failure.check_id}", f"Blocking failure: {failure.message}")
 
+            if not report.approved_for_deployment:
+                ctx.diagnostics.fatal(
+                    "COMP-VERIFY-002",
+                    "Independent verification did not approve the generated artifacts for deployment",
+                )
+                metrics["verification_approved"] = False
+                metrics["verification_blocked"] = True
+                duration = (time.perf_counter() - start) * 1000
+                metrics["duration_ms"] = duration
+                return PassResult(
+                    success=False,
+                    description="Verification did not approve generated artifacts",
+                    metrics=metrics,
+                )
+
         except Exception as e:
-            ctx.diagnostics.warning("COMP-VERIFY-001", f"Verification Engine failed: {e}")
-            metrics["verification_error"] = str(e)
+            # Verification is a promotion boundary. An unavailable verifier is
+            # absence of evidence, never a warning that permits compilation.
+            ctx.diagnostics.fatal(
+                "COMP-VERIFY-001",
+                f"Verification Engine failed: {type(e).__name__}: {e}",
+            )
+            metrics["verification_error"] = f"{type(e).__name__}: {e}"
+            metrics["verification_approved"] = False
+            metrics["verification_blocked"] = True
+            duration = (time.perf_counter() - start) * 1000
+            metrics["duration_ms"] = duration
+            return PassResult(
+                success=False,
+                description="Verification blocked: verifier failed or unavailable",
+                metrics=metrics,
+            )
 
         duration = (time.perf_counter() - start) * 1000
         metrics["duration_ms"] = duration

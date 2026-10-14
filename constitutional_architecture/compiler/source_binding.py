@@ -66,6 +66,57 @@ def verify_constitutional_source_binding(
         blockers.append("requirement graph contains no nodes")
     if not isr.system.requirements:
         blockers.append("constitutional ISR contains no requirements")
+    graph_ref = getattr(isr.system, "requirement_graph_ref", None)
+    if graph_ref is not None:
+        if graph_ref.graph_id != graph.graph_id:
+            blockers.append("constitutional ISR graph identity does not match the active graph")
+        if graph_ref.graph_sha256 != graph_hash:
+            blockers.append("constitutional ISR graph hash does not match the active graph")
+        if graph_ref.source_sha256 != binding.expected_source_sha256:
+            blockers.append("constitutional ISR source hash does not match the active source")
+        from constitutional_architecture.isr.semantics.requirement import (
+            validate_requirement_graph_projection,
+        )
+        projection_errors = validate_requirement_graph_projection(isr.system)
+        blockers.extend(f"invalid ISR graph projection: {error}" for error in projection_errors)
+        metadata_by_id = {
+            item.requirement_id: item
+            for item in getattr(isr.system, "requirement_source_metadata", ())
+        }
+        for node in graph.nodes:
+            mapped_id = binding.graph_to_isr_requirement_ids.get(node.id)
+            metadata = metadata_by_id.get(mapped_id) if mapped_id else None
+            if metadata is None:
+                blockers.append(f"graph requirement '{node.id}' has no first-class ISR source metadata")
+                continue
+            if (
+                metadata.source_kind != node.kind.value
+                or metadata.priority != node.priority.value
+                or metadata.acceptance_criteria != tuple(node.acceptance_criteria)
+                or metadata.verification_method != node.verification_method.value
+                or metadata.rationale != node.rationale
+                or metadata.provenance_source != node.provenance.source
+                or metadata.taxonomy_version != node.provenance.taxonomy_version
+                or metadata.stratum != node.provenance.stratum
+                or metadata.seed != node.provenance.seed
+                or metadata.created_by != node.provenance.created_by
+            ):
+                blockers.append(f"constitutional ISR metadata differs from graph requirement '{node.id}'")
+        expected_relations = {
+            (edge.source_id, edge.target_id, edge.kind.value, edge.rationale)
+            for edge in graph.edges
+        }
+        actual_relations = {
+            (
+                relation.source_requirement_id,
+                relation.target_requirement_id,
+                relation.kind,
+                relation.rationale,
+            )
+            for relation in getattr(isr.system, "requirement_relations", ())
+        }
+        if expected_relations != actual_relations:
+            blockers.append("constitutional ISR requirement relations differ from active graph")
 
     graph_ids = {node.id for node in graph.nodes}
     mandatory_ids = {node.id for node in graph.nodes if node.priority.value == "must"}

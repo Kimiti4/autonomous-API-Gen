@@ -50,7 +50,7 @@ def test_source_bound_bridge_rejects_policy_omission_before_evidence_reads():
         certify_source_bound_projection(
             graph,
             projection,
-            policy=policy(()),
+            policy=policy(("unreviewed.obligation",)),
             evidence_store=store,
             trusted_hmac_keys={},
             allowed_runner_ids=frozenset(),

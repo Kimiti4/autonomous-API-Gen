@@ -460,10 +460,13 @@ def test_compilation_tracks_jobs_and_artifacts():
     )
 
     assert len(report.jobs) == 5
+    assert report.success is False
+    assert report.artifact_count == 0
     for job in report.jobs:
-        assert job.status == "SUCCEEDED"
-        assert job.artifacts
+        assert job.status == "DRY_RUN"
+        assert job.artifacts == []
         assert job.created_at
+        assert any("not created" in line for line in job.logs)
 
 
 def test_customer_learning_generates_recommendations():

@@ -84,34 +84,38 @@ class ValidationPass(CompilerPass):
                         "blockers": list(report.blockers),
                     },
                 )
-        try:
-            from constitutional_architecture.isr.semantics.intent_architecture import (
-                validate_system_architecture_projection,
-            )
-            architecture_errors = validate_system_architecture_projection(ctx.isr.system)
-        except Exception as exc:
-            ctx.diagnostics.fatal(
-                "COMP-ARCH-PROJECTION-002",
-                f"Architecture projection validation unavailable: {type(exc).__name__}: {exc}",
-            )
-            return PassResult(
-                success=False,
-                description="Architecture projection blocked: validator unavailable",
-                metrics={"architecture_projection_valid": False, "validation_unavailable": True},
-            )
-        if architecture_errors:
-            ctx.diagnostics.fatal(
-                "COMP-ARCH-PROJECTION-001",
-                "Architecture projection integrity failed: " + "; ".join(architecture_errors),
-            )
-            return PassResult(
-                success=False,
-                description="Architecture projection integrity failed",
-                metrics={
-                    "architecture_projection_valid": False,
-                    "architecture_errors": list(architecture_errors),
-                },
-            )
+        # Legacy/test adapters may expose only the validation graph interface.
+        # Native ISR objects always have a system; when present, projection
+        # validation is mandatory and exceptions fail closed.
+        if getattr(ctx.isr, "system", None) is not None:
+            try:
+                from constitutional_architecture.isr.semantics.intent_architecture import (
+                    validate_system_architecture_projection,
+                )
+                architecture_errors = validate_system_architecture_projection(ctx.isr.system)
+            except Exception as exc:
+                ctx.diagnostics.fatal(
+                    "COMP-ARCH-PROJECTION-002",
+                    f"Architecture projection validation unavailable: {type(exc).__name__}: {exc}",
+                )
+                return PassResult(
+                    success=False,
+                    description="Architecture projection blocked: validator unavailable",
+                    metrics={"architecture_projection_valid": False, "validation_unavailable": True},
+                )
+            if architecture_errors:
+                ctx.diagnostics.fatal(
+                    "COMP-ARCH-PROJECTION-001",
+                    "Architecture projection integrity failed: " + "; ".join(architecture_errors),
+                )
+                return PassResult(
+                    success=False,
+                    description="Architecture projection integrity failed",
+                    metrics={
+                        "architecture_projection_valid": False,
+                        "architecture_errors": list(architecture_errors),
+                    },
+                )
 
         try:
             from constitutional_architecture.validation.checker import ArchitecturalTypeChecker

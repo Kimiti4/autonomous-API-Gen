@@ -5,6 +5,7 @@ Phase 24.3 — Product Compilation Execution with Phase 25 Backends.
 from __future__ import annotations
 
 from typing import Any, Dict, List, Protocol
+import re
 
 from ..utils import deterministic_id, utcnow
 from .models import CompilationJob, CompilationReport, CompilationTarget
@@ -82,6 +83,21 @@ class DryRunCompilerGateway:
         }
 
 
+def _has_valid_execution_evidence(output: Dict[str, Any], artifacts: Any) -> bool:
+    """Validate the gateway's execution report shape; do not call it independent attestation."""
+    if not isinstance(artifacts, list) or not artifacts:
+        return False
+    if not all(isinstance(path, str) and path.strip() for path in artifacts):
+        return False
+    evidence = output.get("execution_evidence")
+    if not isinstance(evidence, dict):
+        return False
+    if type(evidence.get("exit_code")) is not int or evidence["exit_code"] != 0:
+        return False
+    digest = evidence.get("artifact_manifest_sha256")
+    return isinstance(digest, str) and re.fullmatch(r"[0-9a-f]{64}", digest) is not None
+
+
 def default_compilation_targets() -> List[CompilationTarget]:
     return [
         CompilationTarget(backend_id="openapi.spec"),
@@ -144,28 +160,45 @@ class CompilationExecutor:
                     environment=environment,
                 )
 
+                mode = output.get("mode", "unknown")
                 artifacts = output.get("artifacts", [])
+                planned = output.get("planned_artifacts", [])
                 logs = output.get("logs", [])
+                job.execution_mode = mode
+                job.planned_artifacts = list(planned) if isinstance(planned, list) else []
+                job.logs = list(logs) if isinstance(logs, list) else []
 
-                if output.get("mode") == "dry_run":
-                    planned = output.get("planned_artifacts", [])
+                if mode == "dry_run":
                     job.status = "DRY_RUN"
+                    job.evidence_status = "NOT_EXECUTED"
                     job.artifacts = []
-                    job.logs = list(logs) + [
-                        "Planned only: " + ", ".join(str(item) for item in planned)
-                    ]
+                    job.logs.append(
+                        "Dry-run plan only; planned paths are not generated artifacts."
+                    )
+                    job.logs.append(
+                        "Planned only: " + ", ".join(str(item) for item in job.planned_artifacts)
+                    )
                     if target.required:
                         missing_required_backends.append(target.backend_id)
-                else:
-                    if not artifacts:
-                        raise RuntimeError(
-                            "compiler gateway returned no emitted artifacts; "
-                            "empty output cannot count as compilation success"
-                        )
+                elif mode == "executed" and _has_valid_execution_evidence(output, artifacts):
+                    # This records a gateway report, not an independent ESAP build attestation.
                     job.status = "SUCCEEDED"
-                    job.artifacts = artifacts
-                    job.logs = logs
+                    job.evidence_status = "REPORTED"
+                    job.artifacts = list(artifacts)
                     artifact_count += len(artifacts)
+                else:
+                    evidence = output.get("execution_evidence")
+                    job.status = "UNKNOWN"
+                    job.evidence_status = (
+                        "INVALID" if evidence is not None or mode == "executed" else "MISSING"
+                    )
+                    job.artifacts = []
+                    job.logs.append(
+                        "Execution success was not accepted: expected mode='executed', "
+                        "exit_code=0, a SHA-256 artifact-manifest digest, and non-empty artifact paths."
+                    )
+                    if target.required:
+                        missing_required_backends.append(target.backend_id)
 
             except Exception as exc:
                 job.status = "FAILED"

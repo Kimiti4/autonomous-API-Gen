@@ -137,3 +137,15 @@ Relevant existing tests include:
 These suites must be read and mapped to the benchmark obligations before reusing them as evidence. Their existence alone is not evidence that they passed on this branch or that they exercise live generated applications.
 
 A concrete mismatch was found between the active derivation implementation and `tests/test_cap_c_derivation.py`: the test previously asserted that service-bearing systems produced only a backend-service requirement and that a named system without services produced no requirements. The implementation also derives frontend, infrastructure, deployment, and documentation requirements for the former, and a documentation requirement for the latter. The test was updated to reflect the current rule set and to check that a backend which only satisfies backend-service cannot satisfy the complete artifact plan. This source edit is awaiting CI; it has not been executed locally in this audit.
+
+## Follow-up reconciliation — 2026-10-14
+
+The repository-level reconciliation is consolidated in [Universal Developer System Reconciliation and Gap Analysis](../evidence/UNIVERSAL_DEVELOPER_RECONCILIATION_AND_GAP_ANALYSIS_2026-10-14.md). It expands this initial bounded inventory into the ten-domain disposition and shared P0/P1/P2 dependency order.
+
+New shared toolchain declaration:
+- `tiannara/domain/models/capability_manifest.py` now defines `ToolchainCapabilityManifest`, `ToolOperation`, and `SemanticSupportLevel`.
+- `BackendCapabilityDeclaration` accepts the optional manifest to preserve compatibility while adapters migrate.
+- Missing semantic entries are UNKNOWN, not supported. The declaration remains a claim; resolved executable identity and conformance evidence are still required.
+- Focused manifest tests were added in `tests/test_toolchain_capability_manifest.py`; their status must be taken from CI for the latest commit, not inferred from their presence.
+
+Important reconciliation finding: `source_projection.py`, `obligation_projection.py`, and `source_bound_certification.py` overlap. They must be reconciled into one authoritative contract and integrated into the live compiler before TaskFlow or any other application is authorized for certified generation. Do not grow a third independent projection/certification path.

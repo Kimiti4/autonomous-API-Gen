@@ -266,6 +266,7 @@ def project_intent_to_constitutional_isr(
         )
 
     field_type_map = {
+        "identifier": FieldType.IDENTIFIER,
         "text": FieldType.TEXT,
         "integer": FieldType.INTEGER,
         "decimal": FieldType.DECIMAL,
@@ -286,12 +287,6 @@ def project_intent_to_constitutional_isr(
         projected_fields: list[Field] = []
         for source_field in data_model.fields:
             target_type = field_type_map.get(source_field.type.value)
-            if source_field.type.value == "identifier":
-                blockers.append(
-                    f"field '{data_model.id}.{source_field.name}' uses abstract identifier "
-                    "with no declared concrete identity representation"
-                )
-                continue
             if source_field.type.value == "reference":
                 blockers.append(
                     f"field '{data_model.id}.{source_field.name}' is a reference without "

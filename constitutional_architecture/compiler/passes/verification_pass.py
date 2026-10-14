@@ -75,8 +75,12 @@ class VerificationPass(CompilerPass):
                 ctx.diagnostics.error(f"COMP-VERIFY-BLOCK-{failure.check_id}", f"Blocking failure: {failure.message}")
 
         except Exception as e:
-            ctx.diagnostics.warning("COMP-VERIFY-001", f"Verification Engine failed: {e}")
+            # A verifier failure is not evidence of a successful verification.
+            # Record a blocking diagnostic so downstream gates cannot promote artifacts.
+            ctx.diagnostics.error("COMP-VERIFY-001", f"Verification Engine failed; verification is indeterminate: {e}")
             metrics["verification_error"] = str(e)
+            metrics["verification_status"] = "INDETERMINATE"
+            metrics["approved_for_deployment"] = False
 
         duration = (time.perf_counter() - start) * 1000
         metrics["duration_ms"] = duration

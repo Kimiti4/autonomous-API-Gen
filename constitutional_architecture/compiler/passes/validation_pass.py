@@ -23,7 +23,7 @@ class ValidationPass(CompilerPass):
             getattr(getattr(ctx, "config", None), "require_source_binding", False)
         )
         if require_source_binding and binding is None:
-            ctx.diagnostics.error(
+            ctx.diagnostics.fatal(
                 "COMP-SOURCE-BINDING-001",
                 "Required source/graph/ISR binding is missing",
             )
@@ -41,7 +41,7 @@ class ValidationPass(CompilerPass):
                     binding=binding, isr=ctx.original_isr
                 )
             except Exception as exc:
-                ctx.diagnostics.error(
+                ctx.diagnostics.fatal(
                     "COMP-SOURCE-BINDING-002",
                     f"Source binding verification unavailable: {type(exc).__name__}: {exc}",
                 )
@@ -54,7 +54,7 @@ class ValidationPass(CompilerPass):
                     },
                 )
             if not report.complete:
-                ctx.diagnostics.error(
+                ctx.diagnostics.fatal(
                     "COMP-SOURCE-BINDING-003",
                     "Source/graph/ISR binding failed: " + "; ".join(report.blockers),
                 )

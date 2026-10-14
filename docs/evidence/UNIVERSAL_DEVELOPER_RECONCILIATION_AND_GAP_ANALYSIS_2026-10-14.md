@@ -15,6 +15,21 @@ The primary problem is **not absence of all architecture**. It is that these pie
 
 **Decision:** reconcile and integrate the existing components before adding a parallel framework or expanding application-specific templates. Keep generation and certification blocked when required semantics are unresolved or lack verified consumers.
 
+## Implementation checkpoint — P0 source/projection hardening
+
+The first P0 implementation slice is now present on this branch:
+
+- `IntentCompiler` rejects a graph whose recorded source-statement hash differs from the active normalized source snapshot, before SystemModel synthesis.
+- It freezes the exact caller statement bytes, canonical RequirementGraph identity/hash, and graph-bound semantic-resolution record in `SourceProjectionContext`; generic projects receive an empty resolution ledger rather than invented decisions.
+- `ProjectCompiler` requires this validated context and a typed RequirementGraph before backend selection, then rechecks exact statement-byte identity, graph identity/hash, and normalized source provenance.
+- `source_projection.project_obligations` delegates obligation meaning to the existing canonical `obligation_projection.project_requirement_graph`, preventing priority/applicability semantics from diverging between projectors.
+- Graph integrity revalidation now uses `RequirementGraph.content_hash()` rather than duplicating its JSON-encoding rules; a Unicode regression test was added.
+- Focused regressions cover source-provenance substitution, canonical projection parity, and Unicode hashing.
+
+**Boundary still open:** a matching source hash and graph hash prove identity/binding, not that extraction faithfully represents every source requirement. The separate constitutional ISR pipeline has not yet been proven to consume this same context, and source-to-graph fidelity still needs independent mapping/omission tests. These commits do not authorize TaskFlow generation, do not certify a backend, and do not qualify ESAP as universal.
+
+Latest implementation tip at this checkpoint: `cc1c569afeb16a7c4aec4ecd6d9f45eabb0e5da9`. CI checks for this SHA were queued when inspected; no passing result is claimed here.
+
 ## Scope and source-of-truth rules
 
 1. The ten-domain machine-readable contract is `experiments/compiler-benchmarks/coherence_suite.v1.json`; its status is `SPECIFIED_NOT_EXECUTED`.

@@ -22,6 +22,7 @@ class FieldType(str, Enum):
     DATETIME = "datetime"
     TIME = "time"
     UUID = "uuid"
+    IDENTIFIER = "identifier"
     EMAIL = "email"
     URL = "url"
     ENUM = "enum"

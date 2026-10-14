@@ -35,6 +35,57 @@ if TYPE_CHECKING:
     from constitutional_architecture.isr.model.isr import ISR
 
 
+@dataclass(frozen=True)
+class RequirementGraphReference:
+    """Identity of the exact source requirement graph projected into the ISR."""
+    graph_id: str
+    graph_sha256: str
+    source_sha256: str
+
+    def __post_init__(self) -> None:
+        if not self.graph_id or not self.graph_sha256 or not self.source_sha256:
+            raise RequirementValidationError("graph reference requires graph, graph hash, and source hash")
+
+
+@dataclass(frozen=True)
+class RequirementSourceMetadata:
+    """First-class preservation of graph semantics not carried by Requirement itself.
+
+    This is not opaque extension metadata: each record is keyed to a constitutional
+    requirement ID and is consumed by traceability/certification.
+    """
+    requirement_id: str
+    source_kind: str
+    priority: str
+    acceptance_criteria: tuple[str, ...] = ()
+    verification_method: str = "test"
+    rationale: str = ""
+    provenance_source: str = "unknown"
+    taxonomy_version: str | None = None
+    stratum: str | None = None
+    seed: int | None = None
+    created_by: str = "unknown"
+
+    def __post_init__(self) -> None:
+        if not self.requirement_id or not self.source_kind or not self.priority:
+            raise RequirementValidationError("source metadata requires requirement id, kind, and priority")
+        if any(not criterion.strip() for criterion in self.acceptance_criteria):
+            raise RequirementValidationError("acceptance criteria cannot be blank")
+
+
+@dataclass(frozen=True)
+class RequirementRelation:
+    """A directed or symmetric relation preserved from the source requirement graph."""
+    source_requirement_id: str
+    target_requirement_id: str
+    kind: str
+    rationale: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.source_requirement_id or not self.target_requirement_id or not self.kind:
+            raise RequirementValidationError("requirement relation endpoints and kind are required")
+
+
 class RequirementValidationError(ValueError):
     """A requirement or criterion violates its construction or structural contract."""
 

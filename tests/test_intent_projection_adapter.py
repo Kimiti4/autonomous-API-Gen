@@ -688,3 +688,43 @@ def test_source_binding_rejects_mutated_deployment_posture():
 
     assert not report.complete
     assert any("policy postures differ" in blocker for blocker in report.blockers)
+
+
+def test_source_binding_rejects_mutated_typed_capability_gene():
+    source, graph, model = _inputs()
+    model = model.model_copy(
+        update={
+            "capabilities": [
+                {
+                    "id": "cap-audit",
+                    "name": "Audit access",
+                    "description": "Access decisions are auditable.",
+                    "criticality": "core",
+                    "priority": "must",
+                    "traced_requirement_ids": ["REQ-AUDIT"],
+                }
+            ]
+        }
+    )
+    result = project_intent_to_constitutional_isr(
+        source_bytes=source, graph=graph, system_model=model, system_id="workspace-system"
+    )
+    isr = result.candidate_isr
+    capabilities = list(isr.system.business_capabilities)
+    index = next(i for i, item in enumerate(capabilities) if item.capability_id == "cap-audit")
+    capabilities[index] = replace(capabilities[index], name="Unrelated capability")
+    changed_isr = replace(
+        isr, system=replace(isr.system, business_capabilities=tuple(capabilities))
+    )
+    binding = ConstitutionalSourceBinding(
+        source_bytes=source,
+        expected_source_sha256=hashlib.sha256(source).hexdigest(),
+        graph=graph,
+        system_model=model,
+        graph_to_isr_requirement_ids={node.id: node.id for node in graph.nodes},
+    )
+
+    report = verify_constitutional_source_binding(binding=binding, isr=changed_isr)
+
+    assert not report.complete
+    assert any("capabilities differ" in blocker for blocker in report.blockers)

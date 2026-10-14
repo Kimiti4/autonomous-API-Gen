@@ -20,7 +20,7 @@ from tiannara.application.compiler.trusted_obligation_evidence import (
     TrustedObligationCertificationRequest,
     certify_trusted_obligation_suite,
 )
-from tiannara.domain.models.compiler_obligation import Disposition
+from collections.abc import Mapping
 from tiannara.domain.models.requirement_graph import RequirementGraph
 
 
@@ -30,7 +30,7 @@ def certify_source_bound_projection(
     *,
     policy: TrustedObligationSuitePolicy,
     evidence_store: TrustedEvidenceStore,
-    trusted_hmac_keys: dict[str, bytes] | object,
+    trusted_hmac_keys: Mapping[str, bytes],
     allowed_runner_ids: frozenset[str],
     previously_used_attestation_ids: frozenset[str] = frozenset(),
 ) -> ObligationCertificationVerdict:
@@ -59,6 +59,6 @@ def certify_source_bound_projection(
         policy=policy,
         expected_source_graph_hash=projection.source_graph_hash,
         evidence_store=evidence_store,
-        trusted_hmac_keys=trusted_hmac_keys,  # type: ignore[arg-type]
+        trusted_hmac_keys=trusted_hmac_keys,
         allowed_runner_ids=allowed_runner_ids,
     )

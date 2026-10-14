@@ -775,3 +775,47 @@ def test_projection_blocks_reference_fields_with_unknown_target_models():
 
     assert not result.ready_for_compilation
     assert any("references unknown model 'missing-model'" in blocker for blocker in result.blockers)
+
+
+def test_architecture_validator_rejects_dangling_entity_relationships():
+    from constitutional_architecture.isr.model.entity import Relationship
+    from constitutional_architecture.isr.semantics.intent_architecture import (
+        validate_system_architecture_projection,
+    )
+
+    source, graph, model = _inputs()
+    model = SystemModel.model_validate(
+        model.model_dump()
+        | {
+            "services": [
+                {
+                    "id": "workspace-service",
+                    "name": "Workspace service",
+                    "domain_id": "domain-core",
+                }
+            ],
+            "data_models": [
+                {
+                    "id": "workspace-record",
+                    "name": "Workspace record",
+                    "owning_service_id": "workspace-service",
+                }
+            ],
+        }
+    )
+    result = project_intent_to_constitutional_isr(
+        source_bytes=source, graph=graph, system_model=model, system_id="workspace-system"
+    )
+    module = result.candidate_isr.system.modules[0]
+    entity = replace(
+        module.entities[0],
+        relationships=(
+            Relationship(target_entity_id="missing-entity", relationship_type="reference"),
+        ),
+    )
+    changed_module = replace(module, entities=(entity,))
+    changed_system = replace(result.candidate_isr.system, modules=(changed_module,))
+
+    errors = validate_system_architecture_projection(changed_system)
+
+    assert any("references unknown entity 'missing-entity'" in error for error in errors)

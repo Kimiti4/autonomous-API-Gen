@@ -2,6 +2,7 @@
 import hashlib
 import hmac
 import json
+import pytest
 from types import SimpleNamespace
 
 from tiannara.application.compilation.integrity_gate import (
@@ -281,3 +282,34 @@ def test_evidence_without_store_audit_receipt_cannot_pass():
     assert result.disposition is Disposition.UNKNOWN
     assert not result.ok
     assert any("omitted its access-audit receipt" in blocker for blocker in result.blockers)
+
+
+
+def test_policy_rejects_extra_consumer_binding_not_in_required_suite():
+    with pytest.raises(ValueError, match="consumer-binding keys must exactly match"):
+        TrustedObligationSuitePolicy(
+            suite_id="taskflow-auth-v1",
+            required_obligation_ids=("auth.workspace_scope",),
+            expected_consumer_bindings={
+                "auth.workspace_scope": CONSUMER,
+                "auth.unreviewed_extra": "unreviewed-runtime@1",
+            },
+            required_scenario_ids={
+                "auth.workspace_scope": ("cross-workspace-read-denied",)
+            },
+        )
+
+
+def test_policy_rejects_duplicate_required_scenarios():
+    with pytest.raises(ValueError, match="required scenarios contain duplicates"):
+        TrustedObligationSuitePolicy(
+            suite_id="taskflow-auth-v1",
+            required_obligation_ids=("auth.workspace_scope",),
+            expected_consumer_bindings={"auth.workspace_scope": CONSUMER},
+            required_scenario_ids={
+                "auth.workspace_scope": (
+                    "cross-workspace-read-denied",
+                    "cross-workspace-read-denied",
+                )
+            },
+        )

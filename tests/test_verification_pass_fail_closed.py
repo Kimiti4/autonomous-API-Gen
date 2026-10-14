@@ -17,6 +17,57 @@ def _context():
     )
 
 
+
+def test_pass_manager_stops_after_fatal_verification_gate():
+    from constitutional_architecture.compiler.pass_interface import CompilerPass, PassResult
+    from constitutional_architecture.compiler.pass_manager import PassManager
+    from constitutional_architecture.compiler.pass_registry import PassRegistry
+
+    executed = []
+
+    class FatalGate(CompilerPass):
+        @property
+        def identifier(self):
+            return "fatal_gate"
+
+        @property
+        def description(self):
+            return "test fatal gate"
+
+        def execute(self, ctx):
+            executed.append(self.identifier)
+            ctx.diagnostics.fatal("TEST-FATAL", "verification is indeterminate")
+            return PassResult(success=False, description="indeterminate")
+
+    class Downstream(CompilerPass):
+        @property
+        def identifier(self):
+            return "downstream"
+
+        @property
+        def description(self):
+            return "must not execute after fatal gate"
+
+        @property
+        def dependencies(self):
+            return ["fatal_gate"]
+
+        def execute(self, ctx):
+            executed.append(self.identifier)
+            return PassResult(success=True)
+
+    registry = PassRegistry()
+    registry.register(FatalGate())
+    registry.register(Downstream())
+    ctx = SimpleNamespace(
+        diagnostics=DiagnosticsCollector(),
+        record_pass_timing=lambda *args: None,
+        record_pass_metrics=lambda *args: None,
+    )
+
+    assert PassManager(registry).execute_all(ctx) is False
+    assert executed == ["fatal_gate"]
+
 def test_verification_engine_exception_is_fatal_and_indeterminate(monkeypatch):
     class BrokenEngine:
         def verify(self, **kwargs):

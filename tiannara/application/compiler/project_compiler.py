@@ -41,6 +41,9 @@ from tiannara.domain.models.semantic_resolution import (
 )
 from tiannara.domain.ports import IntentCompiler
 from tiannara.application.intent.prompts import derive_system_id
+from tiannara.application.intent.prompts import normalize
+from tiannara.application.compiler.source_projection import SourceProjectionContext
+from tiannara.domain.models.requirement_graph import RequirementGraph
 
 
 class ProjectCompilationError(ValueError):
@@ -146,6 +149,34 @@ class ProjectCompiler:
                 "compiler, but no registered backend/runtime consumer currently "
                 "proves enforcement; generation remains blocked"
             )
+        # Mandatory provenance contract for every non-TaskFlow generation path.
+        # A compiler adapter that does not return the frozen source context is
+        # exploratory only; it cannot proceed to backend selection.
+        source_context = getattr(compilation, "source_projection_context", None)
+        graph = getattr(compilation, "requirement_graph", None)
+        if not isinstance(source_context, SourceProjectionContext):
+            raise ProjectCompilationError(
+                "generation blocked: intent compiler returned no validated source projection context"
+            )
+        if not isinstance(graph, RequirementGraph):
+            raise ProjectCompilationError(
+                "generation blocked: intent compiler returned no typed requirement graph"
+            )
+        expected_snapshot_hash = hashlib.sha256(statement.encode("utf-8")).hexdigest()
+        if source_context.snapshot_sha256 != expected_snapshot_hash:
+            raise ProjectCompilationError(
+                "generation blocked: source projection context does not match the exact caller statement bytes"
+            )
+        if (
+            source_context.graph_id != graph.graph_id
+            or source_context.graph_sha256 != graph.content_hash()
+            or graph.provenance.source_statement_hash
+            != normalize(statement).source_statement_hash
+        ):
+            raise ProjectCompilationError(
+                "generation blocked: source-to-graph provenance binding is stale or substituted"
+            )
+
         # 3. Derive requirements
         requirements = derive_compilation_requirements(model)
         # 4. Plan (select-all when calibrating, single-best otherwise)

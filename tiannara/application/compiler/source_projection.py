@@ -8,6 +8,7 @@ or runtime enforcement merely because a requirement was parsed.
 from __future__ import annotations
 
 import base64
+import binascii
 import hashlib
 import json
 from dataclasses import dataclass
@@ -74,7 +75,7 @@ class SourceProjectionContext(BaseModel):
             raise ValueError("graph identity does not match frozen graph payload")
         try:
             source_bytes = base64.b64decode(self.source_bytes_b64, validate=True)
-        except (ValueError, base64.binascii.Error) as exc:
+        except (ValueError, binascii.Error) as exc:
             raise ValueError("source_bytes_b64 must be valid base64") from exc
         if not source_bytes:
             raise ValueError("source snapshot bytes must not be empty")

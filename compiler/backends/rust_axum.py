@@ -71,7 +71,7 @@ class RustAxumBackend:
     def _emit(self, pid: str, plan: CompilationPlan) -> str:
         if pid == "infra:docker":
             return (
-                "FROM rust:1.78-slim AS build\n"
+                "FROM rust:1.85-slim AS build\n"
                 "WORKDIR /app\n"
                 "COPY . .\n"
                 "RUN cargo test\n"

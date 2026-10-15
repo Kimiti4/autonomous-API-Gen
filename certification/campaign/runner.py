@@ -290,7 +290,7 @@ class CampaignRunner:
             # returned by this backend; never infer the missing architecture map.
             if semantic_correspondence_inputs is None and artifacts is not None:
                 try:
-                    from autonomous_api.app.engine.source_bound_full_stack import (
+                    from app.engine.source_bound_full_stack import (
                         source_snapshot_from_plan_artifacts,
                         produce_architecture_mapping,
                     )

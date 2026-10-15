@@ -117,11 +117,15 @@ tower = { version = "0.5", features = ["util"] }
 
     def _main(self, model):
         return """use axum::{routing::get, Router};
+
+pub fn app() -> Router {
+    Router::new().route("/health", get(|| async { "ok" }))
+}
+
 #[tokio::main]
 async fn main() {
-    let app = Router::new().route("/health", get(|| async { "ok" }));
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await.expect("bind HTTP listener");
+    axum::serve(listener, app()).await.expect("serve HTTP application");
 }
 """
 

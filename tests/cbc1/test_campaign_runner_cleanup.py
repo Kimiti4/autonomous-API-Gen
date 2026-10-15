@@ -113,3 +113,40 @@ def test_container_is_destroyed_when_deploy_health_gate_fails():
     assert stages[TrialStage.DESTROY] is True
     assert destroyer.destroyed == ["container-created-before-health-failure"]
     assert trial.verdict == "NOT_CERTIFIED"
+
+
+def test_unsafe_generated_path_is_rejected_and_workspace_is_cleaned(monkeypatch, tmp_path):
+    from compiler.core.repository import build_repository
+
+    workload = default_corpus()[0]
+    artifacts = build_artifacts_for(workload)
+    backend = build_backend_registry().get("python-fastapi")
+    created = []
+    real_mkdtemp = runner_module.tempfile.mkdtemp
+
+    def tracked_mkdtemp(*args, **kwargs):
+        path = real_mkdtemp(*args, dir=str(tmp_path), **kwargs)
+        created.append(path)
+        return path
+
+    monkeypatch.setattr(runner_module.tempfile, "mkdtemp", tracked_mkdtemp)
+    monkeypatch.setattr(
+        backend, "compile",
+        lambda plan: build_repository({"../outside.txt": "must not be written"}),
+    )
+
+    with pytest.raises(ValueError, match="unsafe generated candidate path"):
+        CampaignRunner().run_trial(
+            intent=workload.intent,
+            category=workload.category.value,
+            novelty_class="template",
+            plan=artifacts.plan,
+            revision_id=artifacts.revision.revision_id,
+            backend=backend,
+            requirement_graph_hash=artifacts.requirement_graph_hash,
+            genome_hash=artifacts.genome_hash,
+        )
+
+    assert len(created) == 1
+    assert not os.path.exists(created[0])
+    assert not (tmp_path / "outside.txt").exists()

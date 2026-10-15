@@ -26,3 +26,5 @@ def test_vue_generation_has_real_build_config_and_behavioral_test():
     assert "expect(true).toBe(true)" not in generated.files["src/App.test.ts"]
     assert "const title = \"Vue \\\"unsafe\\\" <title>\"" in generated.files["src/App.vue"]
     assert "<h1>{{ title }}</h1>" in generated.files["src/App.vue"]
+    profile = build_compiler_registry().backend("vue_ts").build_profile(model.system_name)
+    assert profile.test_command == ["npm", "test"]

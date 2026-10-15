@@ -977,7 +977,7 @@ def _validate_semantic_obligations(source: Mapping[str, Any], mapping: Mapping[s
             if not (is_contract or is_operation):
                 blockers.append(ProjectionBlocker("SBFS-027", "API requirement must bind to an explicit API contract or operation", (rid, target_id)))
             if is_operation:
-                required_method = next((m for verb, m in (("delete", "DELETE"), ("remove", "DELETE"), ("create", "POST"), ("register", "POST"), ("update", "PATCH"), ("edit", "PATCH"), ("list", "GET"), ("read", "GET"), ("retrieve", "GET")) if re.search(r"\\b" + verb + r"\\b", statement)), None)
+                required_method = next((m for verb, m in (("delete", "DELETE"), ("remove", "DELETE"), ("create", "POST"), ("register", "POST"), ("update", "PATCH"), ("edit", "PATCH"), ("list", "GET"), ("read", "GET"), ("retrieve", "GET")) if re.search(r"\b" + verb + r"\b", statement)), None)
                 actual_method = str(target.get("method", "")).upper()
                 if required_method and actual_method and actual_method != required_method:
                     blockers.append(ProjectionBlocker("SBFS-031", f"API method {actual_method} contradicts inferred requirement operation {required_method}", (rid, target_id)))

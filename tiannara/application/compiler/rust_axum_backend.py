@@ -38,7 +38,7 @@ class RustAxumBackend:
             verifier_kind="rust",
             build_command=["cargo", "build"],
             test_command=["cargo", "test"],
-            runtime_image="rust:1.78-slim",
+            runtime_image="rust:1.85-slim",
             requires_build_phase=True,
         )
 
@@ -133,7 +133,7 @@ fn generated_health_contract_is_present() {
 """
 
     def _dockerfile(self):
-        return """FROM rust:1.78-slim AS build
+        return """FROM rust:1.85-slim AS build
 WORKDIR /app
 COPY . .
 RUN cargo test

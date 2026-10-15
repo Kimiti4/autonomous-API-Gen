@@ -4,6 +4,7 @@ import shutil
 import hashlib
 import json
 import os
+import subprocess
 import tempfile
 import uuid
 from dataclasses import dataclass
@@ -37,6 +38,37 @@ from app.engine.source_bound_full_stack import (
     SourceBoundSemanticCorrespondenceVerifier,
 )
 
+
+
+class _IndependentProcessVerifier:
+    """Re-check generated files and compiler conformance in a fresh process."""
+
+    def verify(self, candidate_dir: str, plan_hash: str, plan_path: str) -> bool:
+        root = Path(__file__).resolve().parents[2]
+        script = root / "certification" / "stages" / "independent_verify.py"
+        env = os.environ.copy()
+        existing_pythonpath = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = os.pathsep.join(
+            value for value in (str(root), existing_pythonpath) if value
+        )
+        completed = subprocess.run(
+            [sys.executable, str(script), candidate_dir, plan_hash, plan_path],
+            cwd=str(root), env=env, capture_output=True, text=True,
+            timeout=60, check=False,
+        )
+        if completed.returncode != 0 or not completed.stdout.strip():
+            return False
+        try:
+            result = json.loads(completed.stdout.strip().splitlines()[-1])
+        except (json.JSONDecodeError, IndexError):
+            return False
+        return (
+            result.get("independent") is True
+            and result.get("plan_match") is True
+            and result.get("files_complete") is True
+            and result.get("candidate_match") is True
+            and result.get("conformance_passed") is True
+        )
 
 
 @dataclass(frozen=True)
@@ -185,7 +217,7 @@ class CampaignRunner:
         self.deployer = deployer
         self.prober = prober
         self.destroyer = destroyer
-        self.verifier = verifier
+        self.verifier = verifier if verifier is not None else _IndependentProcessVerifier()
         self.full_stack_verifier = (
             full_stack_verifier if full_stack_verifier is not None
             else _CanonicalFullStackVerifier()
@@ -376,13 +408,18 @@ class CampaignRunner:
                     ok, detail = _unconfigured_stage(TrialStage.DESTROY)
                     _record(TrialStage.DESTROY, ok, detail)
     
+                expected_paths = sorted(set(backend.element_paths(plan).values()))
                 plan_hash = hashlib.sha256(
-                    json.dumps(sorted(backend.element_paths(plan).values())).encode("utf-8")
+                    json.dumps(expected_paths).encode("utf-8")
                 ).hexdigest()
                 plan_path = os.path.join(d, ".plan.json")
                 with open(plan_path, "w", encoding="utf-8") as fp:
-                    json.dump({"expected_paths": list(backend.element_paths(plan).values()),
-                               "candidate_hash": candidate_hash}, fp)
+                    json.dump({
+                        "expected_paths": expected_paths,
+                        "candidate_hash": candidate_hash,
+                        "backend_name": ident.name,
+                        "plan": plan.model_dump(mode="json"),
+                    }, fp)
                 independent_ok, independent_detail = _run_independent_verifier(
                     self.verifier, d, plan_hash, plan_path
                 )

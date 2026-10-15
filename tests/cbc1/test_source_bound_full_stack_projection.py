@@ -77,3 +77,39 @@ def test_empty_candidate_manifest_fails_closed():
     assert result.status == "blocked"
     assert result.candidate_hash == ""
     assert any(b.code == "SBFS-002" for b in result.blockers)
+
+
+
+def test_mapping_blocks_when_source_inventory_is_absent():
+    result = project_source_bound_full_stack(
+        source_artifacts={"requirements": ["read item"]},
+        candidate_files={"app.py": "pass"},
+        explicit_mapping={
+            "frontend": {},
+            "api": {},
+            "backend": {},
+            "effects": [],
+            "consequences": [],
+            "provenance": {"source_refs": ["req:1"]},
+        },
+    )
+    assert result.status == "blocked"
+    assert any(b.code == "SBFS-010" for b in result.blockers)
+
+
+def test_complete_shape_is_still_not_claimed_as_semantically_ready():
+    result = project_source_bound_full_stack(
+        source_artifacts={"source_refs": ["req:1"]},
+        candidate_files={"app.py": "pass"},
+        explicit_mapping={
+            "frontend": {"routes": ["/items"]},
+            "api": {"operations": [{"operation_id": "list_items"}]},
+            "backend": {"modules": ["items"]},
+            "effects": [],
+            "consequences": [],
+            "provenance": {"source_refs": ["req:1"]},
+        },
+    )
+    assert result.status == "mapping_present_unverified"
+    assert result.inputs is None
+    assert result.ready is False

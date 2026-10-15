@@ -183,3 +183,102 @@ def test_snapshot_rejects_plan_artifacts_without_source_identifiers():
         assert "no canonical requirement/ISR identifiers" in str(exc)
     else:
         raise AssertionError("missing source identifiers must fail closed")
+
+
+
+def _complete_explicit_mapping():
+    return {
+        "frontend": {
+            "schema_version": "1", "contract_id": "frontend:items",
+            "routes": ["/items"], "api_contract_id": "items",
+            "quality_obligation_ids": [], "state_domains": ["items"],
+            "interaction_flows": ["list-items"], "accessibility_requirements": [],
+            "observability_requirements": [], "modules": [{
+                "module_id": "items-page", "responsibility": "Render items",
+                "dependencies": [], "invariants": [],
+            }],
+            "data_flows": [{
+                "flow_id": "list-items", "source": "items-page",
+                "destination": "GET /items", "contract": "items-list",
+                "failure_policy": "show-error",
+            }],
+            "security_boundaries": ["authenticated-user"],
+            "failure_states": ["load-failed"], "design_constraints": [],
+        },
+        "api": {
+            "schema_version": "1", "contract_id": "items",
+            "operations": [{
+                "operation_id": "list_items", "method": "GET", "path": "/items",
+                "request_schema": None, "response_schema": None,
+                "authorization_policy": "authenticated-user", "errors": [],
+                "idempotency_required": False, "paginated": False, "version": "v1",
+            }],
+            "global_error_contract": "problem-json", "auth_scheme": "bearer",
+            "schemas": [],
+        },
+        "backend": {
+            "schema_version": "1", "contract_id": "backend:items",
+            "domain_modules": ["items"], "api_contract_id": "items",
+            "quality_obligation_ids": [], "persistence_targets": ["items-store"],
+            "event_targets": [], "observability_requirements": [],
+            "modules": [{
+                "module_id": "items", "responsibility": "Read items",
+                "dependencies": [], "invariants": ["read-only"],
+            }],
+            "data_flows": [{
+                "flow_id": "items-read", "source": "items-api",
+                "destination": "items-store", "contract": "item-record",
+                "failure_policy": "fail-closed",
+            }],
+            "security_boundaries": ["authenticated-user"], "failure_modes": ["store-unavailable"],
+        },
+        "effects": [],
+        "consequences": [],
+        "provenance": {"source_refs": ["req:item", "isr:domain:item"]},
+    }
+
+
+def test_explicit_mapping_lowers_to_canonical_ir_without_inferred_defaults():
+    from autonomous_api.app.engine.source_bound_full_stack import (
+        lower_explicit_mapping_to_full_stack_ir,
+    )
+
+    lowered = lower_explicit_mapping_to_full_stack_ir(_complete_explicit_mapping())
+    assert lowered.frontend is not None
+    assert lowered.api is not None
+    assert lowered.backend is not None
+    assert lowered.api.operations[0].authorization_policy == "authenticated-user"
+    assert lowered.frontend.routes == ("/items",)
+    assert lowered.backend.persistence_targets == ("items-store",)
+    assert lowered.source_refs == ("isr:domain:item", "req:item")
+    assert lowered.structurally_valid
+
+
+def test_explicit_mapping_rejects_unknown_fields_instead_of_dropping_them():
+    from autonomous_api.app.engine.source_bound_full_stack import (
+        lower_explicit_mapping_to_full_stack_ir,
+    )
+
+    mapping = _complete_explicit_mapping()
+    mapping["api"]["transport_guess"] = "http"
+    lowered = lower_explicit_mapping_to_full_stack_ir(mapping)
+    assert not lowered.structurally_valid
+    assert any("unsupported keys" in finding for finding in lowered.findings)
+
+
+def test_state_changing_api_without_explicit_effect_is_represented_for_gate_failure():
+    from autonomous_api.app.engine.source_bound_full_stack import (
+        lower_explicit_mapping_to_full_stack_ir,
+    )
+    from autonomous_api.app.engine.full_stack_verification import verify_full_stack
+
+    mapping = _complete_explicit_mapping()
+    mapping["api"]["operations"][0]["method"] = "POST"
+    lowered = lower_explicit_mapping_to_full_stack_ir(mapping)
+    assert lowered.structurally_valid
+    report = verify_full_stack(
+        lowered.frontend, lowered.api, lowered.backend,
+        lowered.effects, lowered.consequences,
+    )
+    assert not report.passed
+    assert any(f.code == "FS-EFFECT-002" for f in report.effects)

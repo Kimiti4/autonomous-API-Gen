@@ -431,3 +431,72 @@ def test_source_bound_lowering_accepts_matching_source_candidate_and_ir_binding(
     assert result.lowered is not None
     assert result.source_hash == _canonical_hash(source)
     assert result.candidate_hash == _canonical_hash(candidate)
+
+
+
+def test_source_bound_lowering_blocks_unmapped_authoritative_requirement():
+    from autonomous_api.app.engine.source_bound_full_stack import (
+        _canonical_hash,
+        lower_source_bound_candidate,
+    )
+
+    source = {
+        "source_refs": ["req:item", "req:security", "isr:domain:item"],
+        "requirement_graph": {
+            "nodes": {
+                "req:item": {"id": "req:item", "statement": "List items"},
+                "req:security": {"id": "req:security", "statement": "Require authentication"},
+            },
+            "edges": {},
+        },
+        "revision": "rev-1",
+    }
+    candidate = {"app.py": "print('candidate')"}
+    mapping = _complete_explicit_mapping()
+    # Deliberately omit req:security from provenance even though it exists in
+    # source_refs and its security intent is not otherwise traceably mapped.
+    mapping["provenance"]["source_refs"] = ["req:item", "isr:domain:item"]
+    mapping["provenance"]["source_hash"] = _canonical_hash(source)
+    mapping["provenance"]["candidate_hash"] = _canonical_hash(candidate)
+
+    result = lower_source_bound_candidate(
+        source_artifacts=source,
+        candidate_files=candidate,
+        explicit_mapping=mapping,
+    )
+    assert not result.ready_for_verification
+    assert any(
+        blocker.code == "SBFS-017" and blocker.source_refs == ("req:security",)
+        for blocker in result.blockers
+    )
+
+
+def test_source_bound_lowering_accepts_complete_requirement_reference_coverage():
+    from autonomous_api.app.engine.source_bound_full_stack import (
+        _canonical_hash,
+        lower_source_bound_candidate,
+    )
+
+    source = {
+        "source_refs": ["req:item", "req:security", "isr:domain:item"],
+        "requirement_graph": {
+            "nodes": {
+                "req:item": {"id": "req:item", "statement": "List items"},
+                "req:security": {"id": "req:security", "statement": "Require authentication"},
+            },
+            "edges": {},
+        },
+        "revision": "rev-1",
+    }
+    candidate = {"app.py": "print('candidate')"}
+    mapping = _complete_explicit_mapping()
+    mapping["provenance"]["source_refs"] = ["req:item", "req:security", "isr:domain:item"]
+    mapping["provenance"]["source_hash"] = _canonical_hash(source)
+    mapping["provenance"]["candidate_hash"] = _canonical_hash(candidate)
+
+    result = lower_source_bound_candidate(
+        source_artifacts=source,
+        candidate_files=candidate,
+        explicit_mapping=mapping,
+    )
+    assert result.ready_for_verification

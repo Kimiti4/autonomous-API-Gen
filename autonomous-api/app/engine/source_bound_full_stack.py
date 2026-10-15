@@ -1493,6 +1493,7 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
         "effects": effects,
         "consequences": {"invariants": invariants, "consequences": consequences},
         "requirement_bindings": sorted(requirement_bindings, key=lambda item: (item["requirement_id"], item["target_id"])),
+        "requirement_obligations": sorted(requirement_obligations, key=lambda item: item["requirement_id"]),
         "provenance": {"source_refs": source_refs, "source_hash": source_hash, "isr_content_hash": revision.get("content_hash", "")},
         "inventory": inventory,
     }

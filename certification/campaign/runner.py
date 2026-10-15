@@ -103,6 +103,7 @@ def _run_semantic_correspondence_verifier(
         "source_hash": getattr(result, "source_hash", ""),
         "mapping_hash": getattr(result, "mapping_hash", ""),
         "candidate_hash": getattr(result, "candidate_hash", ""),
+        "findings": list(getattr(result, "findings", ()) or ()),
     }
     if evidence["passed"] is not True:
         return evidence, f"semantic correspondence did not pass: {getattr(result, 'findings', None)!r}"

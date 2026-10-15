@@ -14,3 +14,20 @@ def test_express_is_distinct_from_nestjs():
     result=b.generate(model)
     assert "src/index.ts" in result.files
     assert "@nestjs" not in "\n".join(result.files.values())
+
+
+def test_express_generated_health_test_exercises_live_http_endpoint():
+    from tiannara.domain.models.system_model import SystemModel, RequirementsReference
+
+    model = SystemModel(
+        system_name="Express Health Contract",
+        problem_statement="Exercise the generated health endpoint",
+        requirements_ref=RequirementsReference(graph_id="g", graph_hash="h"),
+    )
+    backend = build_compiler_registry().backend("express")
+    generated = backend.generate(model)
+    test_source = generated.files["test/health.test.js"]
+    assert "assert.ok(true)" not in test_source
+    assert "app.listen(0, '127.0.0.1')" in test_source
+    assert "await fetch('http://127.0.0.1:' + address.port + '/health')" in test_source
+    assert "assert.equal(response.status, 200)" in test_source

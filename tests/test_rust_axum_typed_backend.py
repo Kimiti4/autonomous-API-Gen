@@ -58,3 +58,22 @@ def test_rust_dockerfile_uses_toolchain_supporting_generated_edition():
     dockerfile = generated.files["Dockerfile"]
     assert "FROM rust:1.85-slim AS build" in dockerfile
     assert "FROM rust:1.78-slim AS build" not in dockerfile
+
+
+def test_rust_generated_health_test_exercises_router_behavior():
+    from tiannara.application.compiler.rust_axum_backend import RustAxumBackend
+    from tiannara.domain.models.system_model import SystemModel, RequirementsReference
+
+    model = SystemModel(
+        system_name="taskflow-rust-check",
+        problem_statement="Exercise generated HTTP health behavior",
+        requirements_ref=RequirementsReference(graph_id="g", graph_hash="h"),
+    )
+    result = RustAxumBackend().generate(model)
+    test_source = result.files["tests/health.rs"]
+    dockerfile = result.files["Dockerfile"]
+    assert 'uri("/health")' in test_source
+    assert 'assert_eq!(response.status(), 200)' in test_source
+    assert 'uri("/not-a-route")' in test_source
+    assert 'assert_eq!("/health", "/health")' not in test_source
+    assert "COPY --from=build /app/target/release/taskflow-rust-check /usr/local/bin/app" in dockerfile

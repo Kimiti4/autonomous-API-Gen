@@ -1216,6 +1216,11 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
     invariants = typed("invariant")
     consequences = typed("consequence")
 
+    if not requirements:
+        blockers.append(ProjectionBlocker(
+            "MAP-REQ-000", "ISR contains no authoritative requirement references to bind architecture against",
+        ))
+
     # The ISR graph currently carries API node identity but not necessarily
     # operation-level method/path/schema/error/idempotency contracts.
     for api in apis:
@@ -1226,6 +1231,31 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
                 f"API {api['id']!r} lacks explicit operations/error/auth contract fields",
                 (api["id"],),
             ))
+    for api in apis:
+        operations = api["properties"].get("operations")
+        if not isinstance(operations, list) or not operations:
+            blockers.append(ProjectionBlocker(
+                "MAP-API-002", f"API {api['id']!r} must declare at least one operation",
+                (api["id"],),
+            ))
+            continue
+        seen_operation_ids: set[str] = set()
+        for operation in operations:
+            if not isinstance(operation, Mapping):
+                blockers.append(ProjectionBlocker("MAP-API-003", f"API {api['id']!r} contains a malformed operation", (api["id"],)))
+                continue
+            operation_id, method, path = operation.get("operation_id"), operation.get("method"), operation.get("path")
+            if not all(isinstance(value, str) and value.strip() for value in (operation_id, method, path)):
+                blockers.append(ProjectionBlocker("MAP-API-004", f"API {api['id']!r} operation lacks operation_id, method or path", (api["id"],)))
+                continue
+            if operation_id in seen_operation_ids:
+                blockers.append(ProjectionBlocker("MAP-API-005", f"API {api['id']!r} repeats operation_id {operation_id!r}", (api["id"],)))
+            seen_operation_ids.add(operation_id)
+            if method.upper() not in {"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"}:
+                blockers.append(ProjectionBlocker("MAP-API-006", f"API operation {operation_id!r} has unsupported HTTP method {method!r}", (api["id"], operation_id)))
+            if not path.startswith("/"):
+                blockers.append(ProjectionBlocker("MAP-API-007", f"API operation {operation_id!r} path must be absolute", (api["id"], operation_id)))
+
     for service in services:
         props = service["properties"]
         if not isinstance(props.get("responsibility", props.get("description")), str):

@@ -98,6 +98,23 @@ class _CanonicalFullStackVerifier:
         return _CandidateBoundFullStackResult(report.passed is True, candidate_hash, findings)
 
 
+
+def _safe_candidate_path(root: str, relative_path: str) -> str:
+    """Resolve a generated path without permitting workspace escape."""
+    if (
+        not isinstance(relative_path, str) or not relative_path
+        or "\x00" in relative_path or "\\" in relative_path
+        or os.path.isabs(relative_path)
+        or any(part == ".." for part in relative_path.split("/"))
+    ):
+        raise ValueError(f"unsafe generated candidate path: {relative_path!r}")
+    root_real = os.path.realpath(root)
+    full_path = os.path.realpath(os.path.join(root_real, relative_path))
+    if os.path.commonpath((root_real, full_path)) != root_real:
+        raise ValueError(f"generated candidate path escapes workspace: {relative_path!r}")
+    return full_path
+
+
 def _now() -> str:
     from datetime import datetime, timezone
     return datetime.now(timezone.utc).isoformat()
@@ -267,7 +284,7 @@ class CampaignRunner:
         d = tempfile.mkdtemp(prefix="cbc1-")
         try:
             for p, c in repo.files.items():
-                full = os.path.join(d, p)
+                full = _safe_candidate_path(d, p)
                 os.makedirs(os.path.dirname(full), exist_ok=True)
                 with open(full, "w", encoding="utf-8") as f:
                     f.write(c)
@@ -547,7 +564,7 @@ class CampaignRunner:
                 bhash = ProvenanceBundle.bundle_hash(bundle)
                 trial = trial.model_copy(update={"bundle_hash": bhash})
                 for p, c in {**repo.files, **bundle}.items():
-                    full = os.path.join(d, p)
+                    full = _safe_candidate_path(d, p)
                     os.makedirs(os.path.dirname(full), exist_ok=True)
                     with open(full, "w", encoding="utf-8") as fp:
                         fp.write(c)

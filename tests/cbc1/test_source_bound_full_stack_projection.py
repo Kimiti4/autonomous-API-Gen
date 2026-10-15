@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from autonomous_api.app.engine.source_bound_full_stack import (
+from app.engine.source_bound_full_stack import (
     project_source_bound_full_stack,
     source_snapshot_from_plan_artifacts,
 )
@@ -239,7 +239,7 @@ def _complete_explicit_mapping():
 
 
 def test_explicit_mapping_lowers_to_canonical_ir_without_inferred_defaults():
-    from autonomous_api.app.engine.source_bound_full_stack import (
+    from app.engine.source_bound_full_stack import (
         lower_explicit_mapping_to_full_stack_ir,
     )
 
@@ -255,7 +255,7 @@ def test_explicit_mapping_lowers_to_canonical_ir_without_inferred_defaults():
 
 
 def test_explicit_mapping_rejects_unknown_fields_instead_of_dropping_them():
-    from autonomous_api.app.engine.source_bound_full_stack import (
+    from app.engine.source_bound_full_stack import (
         lower_explicit_mapping_to_full_stack_ir,
     )
 
@@ -267,7 +267,7 @@ def test_explicit_mapping_rejects_unknown_fields_instead_of_dropping_them():
 
 
 def test_state_changing_api_without_explicit_effect_is_represented_for_gate_failure():
-    from autonomous_api.app.engine.source_bound_full_stack import (
+    from app.engine.source_bound_full_stack import (
         lower_explicit_mapping_to_full_stack_ir,
     )
     from autonomous_api.app.engine.full_stack_verification import verify_full_stack
@@ -286,7 +286,7 @@ def test_state_changing_api_without_explicit_effect_is_represented_for_gate_fail
 
 
 def test_architecture_fact_extraction_preserves_plan_and_isr_relationships():
-    from autonomous_api.app.engine.source_bound_full_stack import (
+    from app.engine.source_bound_full_stack import (
         extract_architecture_facts,
     )
 
@@ -325,7 +325,7 @@ def test_architecture_fact_extraction_preserves_plan_and_isr_relationships():
 
 
 def test_architecture_fact_mutation_changes_source_hash_and_fact_value():
-    from autonomous_api.app.engine.source_bound_full_stack import (
+    from app.engine.source_bound_full_stack import (
         extract_architecture_facts,
     )
 
@@ -348,7 +348,7 @@ def test_architecture_fact_mutation_changes_source_hash_and_fact_value():
 
 
 def test_missing_plan_semantics_are_blockers_not_inferred_defaults():
-    from autonomous_api.app.engine.source_bound_full_stack import (
+    from app.engine.source_bound_full_stack import (
         extract_architecture_facts,
     )
 
@@ -367,7 +367,7 @@ def test_missing_plan_semantics_are_blockers_not_inferred_defaults():
 
 
 def test_source_bound_lowering_rejects_unbound_mapping_digests():
-    from autonomous_api.app.engine.source_bound_full_stack import (
+    from app.engine.source_bound_full_stack import (
         lower_source_bound_candidate,
     )
 
@@ -389,7 +389,7 @@ def test_source_bound_lowering_rejects_unbound_mapping_digests():
 
 
 def test_source_bound_lowering_rejects_provenance_outside_source_snapshot():
-    from autonomous_api.app.engine.source_bound_full_stack import (
+    from app.engine.source_bound_full_stack import (
         _canonical_hash,
         lower_source_bound_candidate,
     )
@@ -411,7 +411,7 @@ def test_source_bound_lowering_rejects_provenance_outside_source_snapshot():
 
 
 def test_source_bound_lowering_accepts_matching_source_candidate_and_ir_binding():
-    from autonomous_api.app.engine.source_bound_full_stack import (
+    from app.engine.source_bound_full_stack import (
         _canonical_hash,
         lower_source_bound_candidate,
     )
@@ -435,7 +435,7 @@ def test_source_bound_lowering_accepts_matching_source_candidate_and_ir_binding(
 
 
 def test_source_bound_lowering_blocks_unmapped_authoritative_requirement():
-    from autonomous_api.app.engine.source_bound_full_stack import (
+    from app.engine.source_bound_full_stack import (
         _canonical_hash,
         lower_source_bound_candidate,
     )
@@ -476,7 +476,7 @@ def test_source_bound_lowering_blocks_unmapped_authoritative_requirement():
 
 
 def test_source_bound_lowering_accepts_complete_requirement_reference_coverage():
-    from autonomous_api.app.engine.source_bound_full_stack import (
+    from app.engine.source_bound_full_stack import (
         _canonical_hash,
         lower_source_bound_candidate,
     )
@@ -513,7 +513,7 @@ def test_source_bound_lowering_accepts_complete_requirement_reference_coverage()
 
 
 def test_typed_requirement_binding_rejects_stale_requirement_content():
-    from autonomous_api.app.engine.source_bound_full_stack import (
+    from app.engine.source_bound_full_stack import (
         _canonical_hash,
         lower_source_bound_candidate,
     )
@@ -543,7 +543,7 @@ def test_typed_requirement_binding_rejects_stale_requirement_content():
 
 
 def test_typed_requirement_binding_rejects_nonexistent_architecture_target():
-    from autonomous_api.app.engine.source_bound_full_stack import (
+    from app.engine.source_bound_full_stack import (
         _canonical_hash,
         lower_source_bound_candidate,
     )
@@ -768,7 +768,7 @@ def test_stale_source_hash_in_mapping_provenance_blocks_projection():
 
 
 def test_production_semantic_verifier_recomputes_source_mapping_and_candidate_hashes():
-    from autonomous_api.app.engine.source_bound_full_stack import (
+    from app.engine.source_bound_full_stack import (
         SourceBoundSemanticCorrespondenceVerifier, _canonical_hash,
     )
     from compiler.core.repository import build_repository
@@ -793,7 +793,7 @@ def test_production_semantic_verifier_recomputes_source_mapping_and_candidate_ha
 
 
 def test_production_semantic_verifier_rejects_changed_requirement_with_stale_mapping():
-    from autonomous_api.app.engine.source_bound_full_stack import (
+    from app.engine.source_bound_full_stack import (
         SourceBoundSemanticCorrespondenceVerifier, _canonical_hash,
     )
     from compiler.core.repository import build_repository
@@ -816,7 +816,7 @@ def test_production_semantic_verifier_rejects_changed_requirement_with_stale_map
 
 
 def test_production_semantic_verifier_rejects_candidate_mutation_and_wrong_expected_hash():
-    from autonomous_api.app.engine.source_bound_full_stack import (
+    from app.engine.source_bound_full_stack import (
         SourceBoundSemanticCorrespondenceVerifier, _canonical_hash,
     )
     from compiler.core.repository import build_repository
@@ -839,7 +839,7 @@ def test_production_semantic_verifier_rejects_candidate_mutation_and_wrong_expec
 
 
 def test_production_semantic_verifier_rejects_unknown_source_reference():
-    from autonomous_api.app.engine.source_bound_full_stack import (
+    from app.engine.source_bound_full_stack import (
         SourceBoundSemanticCorrespondenceVerifier, _canonical_hash,
     )
     from compiler.core.repository import build_repository

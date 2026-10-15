@@ -70,7 +70,8 @@ class RustAxumBackend:
         slug = slugify(system_model.system_name)
         files = {
             "Cargo.toml": self._cargo(slug),
-            "src/main.rs": self._main(system_model),
+            "src/main.rs": self._main(slug),
+            "src/lib.rs": self._lib(),
             "src/domain/models.rs": self._models(system_model),
             "src/domain/mod.rs": "pub mod models;\n",
             "src/application/mod.rs": "pub fn service_ready() -> bool { true }\n",
@@ -115,12 +116,17 @@ tower = {{ version = "0.5", features = ["util"] }}
             out += ["}", ""]
         return "\n".join(out)
 
-    def _main(self, model):
+    def _lib(self):
         return """use axum::{routing::get, Router};
 
 pub fn app() -> Router {
     Router::new().route("/health", get(|| async { "ok" }))
 }
+"""
+
+    def _main(self, slug):
+        crate_name = slug.replace("-", "_")
+        return f"""use {crate_name}::app;
 
 #[tokio::main]
 async fn main() {
@@ -130,9 +136,8 @@ async fn main() {
 """
 
     def _test(self):
-        return """#[cfg(test)]
-mod tests {
-    use super::app;
+        crate_name = "taskflow_rust_check"
+        return f"""use {crate_name}::app;
     use axum::{body::{to_bytes, Body}, http::Request};
     use tower::ServiceExt;
 

@@ -207,3 +207,266 @@ def project_source_bound_full_stack(
         blockers=tuple(blockers),
         mapping_hash=mapping_hash,
     )
+
+
+
+@dataclass(frozen=True)
+class LoweredFullStackIR:
+    """Canonical IR built only from explicit, loss-checked mapping data."""
+    frontend: Any | None
+    api: Any | None
+    backend: Any | None
+    effects: tuple[Any, ...]
+    consequences: tuple[Any, ...]
+    mapping_hash: str
+    source_refs: tuple[str, ...]
+    findings: tuple[str, ...]
+
+    @property
+    def structurally_valid(self) -> bool:
+        return not self.findings and all(
+            value is not None for value in (self.frontend, self.api, self.backend)
+        )
+
+
+def lower_explicit_mapping_to_full_stack_ir(
+    explicit_mapping: Mapping[str, Any],
+) -> LoweredFullStackIR:
+    """Lower a complete explicit mapping into canonical IR without defaults.
+
+    Unknown keys are rejected to prevent silent semantic loss. This is not a
+    natural-language parser and does not infer omitted architecture. All
+    security/effect/replay policies must be explicitly supplied by upstream
+    source-bound analysis.
+    """
+    from .api_ir import ApiContractIR, ApiError, ApiOperation, validate_api_contract
+    from .implementation_ir import BackendIR, DataFlowIR, FrontendIR, ModuleIR
+    from .schema_ir import SchemaField, SchemaIR, validate_schema
+    from .effect_coherence import EffectPath
+    from .effect_consequences import EffectConsequence
+
+    findings: list[str] = []
+    if not isinstance(explicit_mapping, Mapping):
+        raise TypeError("explicit_mapping must be a mapping")
+
+    allowed_top = set(REQUIRED_LAYERS) | {"provenance"}
+    extra_top = set(explicit_mapping) - allowed_top
+    if extra_top:
+        findings.append(f"unsupported top-level mapping keys: {sorted(extra_top)}")
+    missing = set(REQUIRED_LAYERS) | {"provenance"} - set(explicit_mapping)
+    # Parentheses matter: required layers and provenance must all be present.
+    missing = (set(REQUIRED_LAYERS) | {"provenance"}) - set(explicit_mapping)
+    if missing:
+        findings.append(f"missing mapping sections: {sorted(missing)}")
+
+    provenance = explicit_mapping.get("provenance")
+    source_refs = provenance.get("source_refs") if isinstance(provenance, Mapping) else None
+    if not isinstance(source_refs, (list, tuple)) or not source_refs or any(
+        not isinstance(ref, str) or not ref for ref in source_refs
+    ):
+        findings.append("provenance.source_refs must be a non-empty list of non-empty strings")
+        normalized_refs: tuple[str, ...] = ()
+    else:
+        normalized_refs = tuple(sorted(set(source_refs)))
+        if len(normalized_refs) != len(source_refs):
+            findings.append("provenance.source_refs contains duplicate identifiers")
+
+    def section(name: str, required: set[str]) -> Mapping[str, Any] | None:
+        value = explicit_mapping.get(name)
+        if not isinstance(value, Mapping):
+            findings.append(f"{name} must be an object")
+            return None
+        missing_keys = required - set(value)
+        extra_keys = set(value) - required
+        if missing_keys:
+            findings.append(f"{name} missing keys: {sorted(missing_keys)}")
+        if extra_keys:
+            findings.append(f"{name} has unsupported keys: {sorted(extra_keys)}")
+        return value
+
+    frontend_data = section("frontend", {
+        "schema_version", "contract_id", "routes", "api_contract_id",
+        "quality_obligation_ids", "state_domains", "interaction_flows",
+        "accessibility_requirements", "observability_requirements", "modules",
+        "data_flows", "security_boundaries", "failure_states", "design_constraints",
+    })
+    api_data = section("api", {
+        "schema_version", "contract_id", "operations", "global_error_contract",
+        "auth_scheme", "schemas",
+    })
+    backend_data = section("backend", {
+        "schema_version", "contract_id", "domain_modules", "api_contract_id",
+        "quality_obligation_ids", "persistence_targets", "event_targets",
+        "observability_requirements", "modules", "data_flows",
+        "security_boundaries", "failure_modes",
+    })
+
+    def strings(value: Any, label: str) -> tuple[str, ...]:
+        if not isinstance(value, (list, tuple)) or any(
+            not isinstance(item, str) or not item for item in value
+        ):
+            findings.append(f"{label} must be a list of non-empty strings")
+            return ()
+        return tuple(value)
+
+    def modules(value: Any, label: str) -> tuple[Any, ...]:
+        if not isinstance(value, (list, tuple)):
+            findings.append(f"{label} must be a list")
+            return ()
+        result = []
+        for index, item in enumerate(value):
+            if not isinstance(item, Mapping) or set(item) != {
+                "module_id", "responsibility", "dependencies", "invariants"
+            }:
+                findings.append(f"{label}[{index}] has missing/unsupported fields")
+                continue
+            if not isinstance(item["module_id"], str) or not item["module_id"] or not isinstance(item["responsibility"], str) or not item["responsibility"]:
+                findings.append(f"{label}[{index}] lacks module identity/responsibility")
+                continue
+            result.append(ModuleIR(
+                item["module_id"], item["responsibility"],
+                strings(item["dependencies"], f"{label}[{index}].dependencies"),
+                strings(item["invariants"], f"{label}[{index}].invariants"),
+            ))
+        return tuple(result)
+
+    def flows(value: Any, label: str) -> tuple[Any, ...]:
+        if not isinstance(value, (list, tuple)):
+            findings.append(f"{label} must be a list")
+            return ()
+        result = []
+        for index, item in enumerate(value):
+            keys = {"flow_id", "source", "destination", "contract", "failure_policy"}
+            if not isinstance(item, Mapping) or set(item) != keys or any(
+                not isinstance(item[k], str) or not item[k] for k in keys
+            ):
+                findings.append(f"{label}[{index}] requires explicit flow_id/source/destination/contract/failure_policy")
+                continue
+            result.append(DataFlowIR(**item))
+        return tuple(result)
+
+    api = frontend = backend = None
+    if api_data is not None:
+        try:
+            schema_values = []
+            if not isinstance(api_data.get("schemas"), (list, tuple)):
+                raise ValueError("api.schemas must be a list")
+            for schema in api_data["schemas"]:
+                if not isinstance(schema, Mapping) or set(schema) != {"name", "kind", "fields"}:
+                    raise ValueError("each schema requires exactly name/kind/fields")
+                fields = []
+                for field in schema["fields"]:
+                    if not isinstance(field, Mapping) or set(field) != {
+                        "name", "type", "required", "nullable", "format", "items_type"
+                    }:
+                        raise ValueError(f"schema {schema['name']} has malformed field")
+                    fields.append(SchemaField(**field))
+                item = SchemaIR(schema["name"], schema["kind"], tuple(fields))
+                findings.extend(validate_schema(item))
+                schema_values.append(item)
+            operations = []
+            if not isinstance(api_data.get("operations"), (list, tuple)):
+                raise ValueError("api.operations must be a list")
+            for operation in api_data["operations"]:
+                if not isinstance(operation, Mapping) or set(operation) != {
+                    "operation_id", "method", "path", "request_schema", "response_schema",
+                    "authorization_policy", "errors", "idempotency_required", "paginated", "version"
+                }:
+                    raise ValueError("each API operation must provide every canonical field")
+                errors = []
+                for error in operation["errors"]:
+                    if not isinstance(error, Mapping) or set(error) != {"code", "status", "retryable"}:
+                        raise ValueError(f"operation {operation['operation_id']} has malformed error contract")
+                    errors.append(ApiError(**error))
+                operations.append(ApiOperation(
+                    operation_id=operation["operation_id"], method=operation["method"],
+                    path=operation["path"], request_schema=operation["request_schema"],
+                    response_schema=operation["response_schema"],
+                    authorization_policy=operation["authorization_policy"],
+                    errors=tuple(errors), idempotency_required=operation["idempotency_required"],
+                    paginated=operation["paginated"], version=operation["version"],
+                ))
+            api = ApiContractIR(
+                schema_version=api_data["schema_version"], contract_id=api_data["contract_id"],
+                operations=tuple(operations), global_error_contract=api_data["global_error_contract"],
+                auth_scheme=api_data["auth_scheme"], schemas=tuple(schema_values),
+            )
+            findings.extend(validate_api_contract(api))
+        except (KeyError, TypeError, ValueError) as exc:
+            findings.append(f"API lowering blocked: {exc}")
+
+    if frontend_data is not None:
+        try:
+            frontend = FrontendIR(
+                schema_version=frontend_data["schema_version"],
+                contract_id=frontend_data["contract_id"],
+                routes=strings(frontend_data["routes"], "frontend.routes"),
+                api_contract_id=frontend_data["api_contract_id"],
+                quality_obligation_ids=strings(frontend_data["quality_obligation_ids"], "frontend.quality_obligation_ids"),
+                state_domains=strings(frontend_data["state_domains"], "frontend.state_domains"),
+                interaction_flows=strings(frontend_data["interaction_flows"], "frontend.interaction_flows"),
+                accessibility_requirements=strings(frontend_data["accessibility_requirements"], "frontend.accessibility_requirements"),
+                observability_requirements=strings(frontend_data["observability_requirements"], "frontend.observability_requirements"),
+                modules=modules(frontend_data["modules"], "frontend.modules"),
+                data_flows=flows(frontend_data["data_flows"], "frontend.data_flows"),
+                security_boundaries=strings(frontend_data["security_boundaries"], "frontend.security_boundaries"),
+                failure_states=strings(frontend_data["failure_states"], "frontend.failure_states"),
+                design_constraints=strings(frontend_data["design_constraints"], "frontend.design_constraints"),
+            )
+        except (KeyError, TypeError) as exc:
+            findings.append(f"frontend lowering blocked: {exc}")
+
+    if backend_data is not None:
+        try:
+            backend = BackendIR(
+                schema_version=backend_data["schema_version"],
+                contract_id=backend_data["contract_id"],
+                domain_modules=strings(backend_data["domain_modules"], "backend.domain_modules"),
+                api_contract_id=backend_data["api_contract_id"],
+                quality_obligation_ids=strings(backend_data["quality_obligation_ids"], "backend.quality_obligation_ids"),
+                persistence_targets=strings(backend_data["persistence_targets"], "backend.persistence_targets"),
+                event_targets=strings(backend_data["event_targets"], "backend.event_targets"),
+                observability_requirements=strings(backend_data["observability_requirements"], "backend.observability_requirements"),
+                modules=modules(backend_data["modules"], "backend.modules"),
+                data_flows=flows(backend_data["data_flows"], "backend.data_flows"),
+                security_boundaries=strings(backend_data["security_boundaries"], "backend.security_boundaries"),
+                failure_modes=strings(backend_data["failure_modes"], "backend.failure_modes"),
+            )
+        except (KeyError, TypeError) as exc:
+            findings.append(f"backend lowering blocked: {exc}")
+
+    effect_values: list[Any] = []
+    raw_effects = explicit_mapping.get("effects")
+    if not isinstance(raw_effects, (list, tuple)):
+        findings.append("effects must be a list")
+    else:
+        for index, item in enumerate(raw_effects):
+            keys = {"operation_id", "frontend_flow_id", "domain_module", "effect_id", "authorization_boundary", "consequence"}
+            if not isinstance(item, Mapping) or set(item) != keys or any(
+                not isinstance(item[k], str) or not item[k] for k in keys
+            ):
+                findings.append(f"effects[{index}] requires all six explicit EffectPath fields")
+                continue
+            effect_values.append(EffectPath(**item))
+
+    consequence_values: list[Any] = []
+    raw_consequences = explicit_mapping.get("consequences")
+    if not isinstance(raw_consequences, (list, tuple)):
+        findings.append("consequences must be a list")
+    else:
+        for index, item in enumerate(raw_consequences):
+            keys = {"effect_id", "persistence", "event", "idempotency_key", "uniqueness_constraint", "retry_policy", "concurrency_policy", "recovery_policy"}
+            if not isinstance(item, Mapping) or set(item) != keys or any(
+                not isinstance(item[k], str) for k in keys
+            ):
+                findings.append(f"consequences[{index}] requires all eight explicit EffectConsequence fields")
+                continue
+            consequence_values.append(EffectConsequence(**item))
+
+    return LoweredFullStackIR(
+        frontend=frontend, api=api, backend=backend,
+        effects=tuple(effect_values), consequences=tuple(consequence_values),
+        mapping_hash=_canonical_hash(dict(explicit_mapping)),
+        source_refs=normalized_refs,
+        findings=tuple(findings),
+    )

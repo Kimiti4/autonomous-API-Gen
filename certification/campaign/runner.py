@@ -186,7 +186,10 @@ class CampaignRunner:
         self.prober = prober
         self.destroyer = destroyer
         self.verifier = verifier
-        self.full_stack_verifier = (\n            full_stack_verifier if full_stack_verifier is not None\n            else _CanonicalFullStackVerifier()\n        )
+        self.full_stack_verifier = (
+            full_stack_verifier if full_stack_verifier is not None
+            else _CanonicalFullStackVerifier()
+        )
         # Use the production verifier by default. Missing source/mapping inputs
         # still fail closed in the verifier; no evidence is synthesized.
         self.semantic_correspondence_verifier = (

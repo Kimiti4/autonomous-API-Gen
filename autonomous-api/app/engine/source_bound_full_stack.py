@@ -1276,6 +1276,111 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
     if not policies:
         blockers.append(ProjectionBlocker("MAP-SEC-001", "ISR contains no explicit security-policy nodes"))
 
+    # Typed requirement obligations: a reference is not traceability by itself.
+    # Each requirement must carry semantic content and resolve through explicit
+    # satisfies -> capability -> implemented_by -> service edges. The target
+    # must expose a typed enforcement/verification construct appropriate to the
+    # requirement class; otherwise the complete mapping is blocked.
+    requirement_obligations: list[dict[str, Any]] = []
+    requirement_edges = [
+        edge for edge in edge_records
+        if edge["type"] == "satisfies" and edge["target_id"] in {item["id"] for item in requirements}
+    ]
+    capabilities_by_id = {item["id"]: item for item in capabilities}
+    services_by_id = {item["id"]: item for item in services}
+    policy_by_id = {item["id"]: item for item in policies}
+    invariants_by_id = {item["id"]: item for item in invariants}
+    api_by_id = {item["id"]: item for item in apis}
+
+    for requirement in requirements:
+        props = requirement["properties"]
+        requirement_id = props.get("requirement_id", requirement["id"])
+        semantic_content = props.get("semantic_content", props.get("statement", props.get("text")))
+        if not isinstance(requirement_id, str) or not requirement_id.strip():
+            blockers.append(ProjectionBlocker("MAP-REQ-001", f"requirement reference {requirement['id']!r} lacks a stable requirement_id", (requirement["id"],)))
+            continue
+        if not isinstance(semantic_content, str) or not semantic_content.strip():
+            blockers.append(ProjectionBlocker("MAP-REQ-002", f"requirement {requirement_id!r} lacks authoritative semantic content", (requirement["id"],)))
+            continue
+        if not isinstance(props.get("source_ref"), str) or not props.get("source_ref"):
+            blockers.append(ProjectionBlocker("MAP-REQ-003", f"requirement {requirement_id!r} lacks source_ref provenance", (requirement["id"],)))
+        if not isinstance(props.get("revision"), (str, int)) or str(props.get("revision")).strip() == "":
+            blockers.append(ProjectionBlocker("MAP-REQ-004", f"requirement {requirement_id!r} lacks an authoritative revision", (requirement["id"],)))
+
+        matches = [edge for edge in requirement_edges if edge["target_id"] == requirement["id"]]
+        if len(matches) != 1:
+            blockers.append(ProjectionBlocker("MAP-REQ-005", f"requirement {requirement_id!r} must have exactly one explicit satisfies edge; found {len(matches)}", (requirement["id"],)))
+            continue
+        satisfies_edge = matches[0]
+        capability = capabilities_by_id.get(satisfies_edge["source_id"])
+        if capability is None:
+            blockers.append(ProjectionBlocker("MAP-REQ-006", f"requirement {requirement_id!r} must be satisfied by a typed capability", (requirement["id"], satisfies_edge["id"])))
+            continue
+        implementation_edges = [
+            edge for edge in edge_records
+            if edge["type"] == "implemented_by" and edge["source_id"] == capability["id"]
+        ]
+        if len(implementation_edges) != 1:
+            blockers.append(ProjectionBlocker("MAP-REQ-007", f"capability {capability['id']!r} for requirement {requirement_id!r} must map to exactly one service", (requirement["id"], capability["id"])))
+            continue
+        service = services_by_id.get(implementation_edges[0]["target_id"])
+        if service is None:
+            blockers.append(ProjectionBlocker("MAP-REQ-008", f"requirement {requirement_id!r} maps to a non-service implementation target", (requirement["id"], implementation_edges[0]["id"])))
+            continue
+
+        requirement_kind = str(props.get("requirement_kind", props.get("kind", "functional"))).lower()
+        enforcement_targets: list[dict[str, str]] = []
+        if requirement_kind in {"authorization", "security", "rbac", "abac"}:
+            linked_policy_edges = [
+                edge for edge in edge_records
+                if edge["type"] in {"enforced_by", "governed_by"}
+                and edge["source_id"] == service["id"]
+                and edge["target_id"] in policy_by_id
+            ]
+            if not linked_policy_edges:
+                blockers.append(ProjectionBlocker("MAP-REQ-SEC-001", f"authorization requirement {requirement_id!r} has no explicit service-to-security-policy enforcement edge", (requirement["id"], service["id"])))
+            enforcement_targets.extend({"kind": "security_policy", "id": edge["target_id"]} for edge in linked_policy_edges)
+        elif requirement_kind in {"data_integrity", "integrity", "consistency"}:
+            linked_invariants = [
+                edge for edge in edge_records
+                if edge["type"] in {"requires_invariant", "enforces_invariant"}
+                and edge["source_id"] in {service["id"], capability["id"]}
+                and edge["target_id"] in invariants_by_id
+            ]
+            if not linked_invariants:
+                blockers.append(ProjectionBlocker("MAP-REQ-DATA-001", f"data-integrity requirement {requirement_id!r} has no explicit applicable invariant edge", (requirement["id"], service["id"])))
+            enforcement_targets.extend({"kind": "invariant", "id": edge["target_id"]} for edge in linked_invariants)
+        elif requirement_kind in {"api", "api_contract", "interface"}:
+            linked_api_edges = [
+                edge for edge in edge_records
+                if edge["type"] in {"exposes", "implements_contract", "serves"}
+                and edge["source_id"] == service["id"]
+                and edge["target_id"] in api_by_id
+            ]
+            if not linked_api_edges:
+                blockers.append(ProjectionBlocker("MAP-REQ-API-001", f"API requirement {requirement_id!r} has no explicit service-to-API contract edge", (requirement["id"], service["id"])))
+            enforcement_targets.extend({"kind": "api_contract", "id": edge["target_id"]} for edge in linked_api_edges)
+        else:
+            enforcement_targets.append({"kind": "service", "id": service["id"]})
+
+        verification_method = props.get("verification_method")
+        if not isinstance(verification_method, str) or not verification_method.strip():
+            blockers.append(ProjectionBlocker("MAP-REQ-009", f"requirement {requirement_id!r} lacks a verification method", (requirement["id"],)))
+        requirement_obligations.append({
+            "requirement_id": requirement_id,
+            "requirement_node_id": requirement["id"],
+            "semantic_content": semantic_content,
+            "requirement_kind": requirement_kind,
+            "source_ref": props.get("source_ref"),
+            "revision": str(props.get("revision", "")),
+            "capability_id": capability["id"],
+            "service_id": service["id"],
+            "enforcement_targets": enforcement_targets,
+            "verification_method": verification_method,
+            "satisfies_edge_id": satisfies_edge["id"],
+            "implementation_edge_id": implementation_edges[0]["id"],
+        })
+
     source_refs = sorted(set(str(value) for value in source_snapshot.get("source_refs", ())))
     source_hash = _canonical_hash(dict(source_snapshot))
     inventory = {

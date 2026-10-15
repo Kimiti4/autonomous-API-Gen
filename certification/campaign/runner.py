@@ -21,6 +21,9 @@ from certification.core.trial import (
 )
 from certification.core import metrics as M
 from certification.provenance.bundle import ProvenanceBundle
+from autonomous_api.app.engine.source_bound_full_stack import (
+    SourceBoundSemanticCorrespondenceVerifier,
+)
 
 
 def _now() -> str:
@@ -143,7 +146,11 @@ class CampaignRunner:
         self.destroyer = destroyer
         self.verifier = verifier
         self.full_stack_verifier = full_stack_verifier
-        self.semantic_correspondence_verifier = semantic_correspondence_verifier
+        # Use the production verifier by default. Missing source/mapping inputs
+        # still fail closed in the verifier; no evidence is synthesized.
+        self.semantic_correspondence_verifier = (
+            semantic_correspondence_verifier or SourceBoundSemanticCorrespondenceVerifier()
+        )
 
     def run_trial(
         self,

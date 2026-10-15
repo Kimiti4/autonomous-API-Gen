@@ -117,7 +117,7 @@ tower = {{ version = "0.5", features = ["util"] }}
             out += ["#[derive(Clone, Debug, Serialize, Deserialize)]", f"pub struct {pascal_case(dm.name)} {{"]
             seen_fields: set[str] = set()
             for field in dm.fields:
-                base_name = snake_case(re.sub(r"([a-z0-9])([A-Z])", r"\\1_\\2", field.name))
+                base_name = snake_case(re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", field.name))
                 if base_name in {"self", "super", "crate"}:
                     base_name += "_"
                 rust_name = f"r#{base_name}" if base_name in rust_keywords else base_name

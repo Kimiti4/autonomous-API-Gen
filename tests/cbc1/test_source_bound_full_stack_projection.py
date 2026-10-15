@@ -858,3 +858,26 @@ def test_production_semantic_verifier_rejects_unknown_source_reference():
 
     assert not result.passed
     assert any("unknown source identifiers" in finding for finding in result.findings)
+
+
+def test_default_candidate_bound_full_stack_verifier_checks_lowered_ir():
+    from certification.campaign.runner import _CanonicalFullStackVerifier
+    from app.engine.source_bound_full_stack import lower_explicit_mapping_to_full_stack_ir
+
+    lowered = lower_explicit_mapping_to_full_stack_ir(_complete_explicit_mapping())
+    assert lowered.structurally_valid
+    inputs = (
+        lowered.frontend, lowered.api, lowered.backend,
+        lowered.effects, lowered.consequences,
+    )
+    result = _CanonicalFullStackVerifier().verify_bound(inputs, "candidate-digest-1")
+    assert result.candidate_hash == "candidate-digest-1"
+    assert result.passed is True, result.findings
+
+
+def test_default_candidate_bound_full_stack_verifier_rejects_missing_ir_inputs():
+    from certification.campaign.runner import _CanonicalFullStackVerifier
+
+    result = _CanonicalFullStackVerifier().verify_bound((None, None), "candidate-digest-1")
+    assert result.passed is False
+    assert "five canonical IR inputs are required" in result.findings

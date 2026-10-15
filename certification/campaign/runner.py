@@ -6,6 +6,7 @@ import json
 import os
 import tempfile
 import uuid
+from dataclasses import dataclass
 from typing import Any
 
 from compiler.core.plan import CompilationPlan
@@ -35,6 +36,34 @@ if _AUTONOMOUS_API_ROOT.is_dir() and str(_AUTONOMOUS_API_ROOT) not in sys.path:
 from app.engine.source_bound_full_stack import (
     SourceBoundSemanticCorrespondenceVerifier,
 )
+
+
+
+@dataclass(frozen=True)
+class _CandidateBoundFullStackResult:
+    passed: bool
+    candidate_hash: str
+    findings: tuple[str, ...]
+
+
+class _CanonicalFullStackVerifier:
+    """Run the canonical IR coherence checks; source binding is checked separately.
+
+    The semantic-correspondence gate recomputes the candidate digest from the
+    actual generated files and binds the mapping to that digest. This verifier
+    independently evaluates the five lowered IR inputs and returns the digest
+    it was invoked for so the runner can enforce a consistent evidence record.
+    """
+
+    def verify_bound(self, inputs: Any, candidate_hash: str) -> _CandidateBoundFullStackResult:
+        if not isinstance(inputs, tuple) or len(inputs) != 5:
+            return _CandidateBoundFullStackResult(False, candidate_hash, ("five canonical IR inputs are required",))
+        if not isinstance(candidate_hash, str) or not candidate_hash:
+            return _CandidateBoundFullStackResult(False, "", ("candidate hash is required",))
+        from app.engine.full_stack_verification import verify_full_stack
+        report = verify_full_stack(*inputs)
+        findings = tuple(f"{item!r}" for item in report.findings)
+        return _CandidateBoundFullStackResult(report.passed is True, candidate_hash, findings)
 
 
 def _now() -> str:
@@ -157,7 +186,7 @@ class CampaignRunner:
         self.prober = prober
         self.destroyer = destroyer
         self.verifier = verifier
-        self.full_stack_verifier = full_stack_verifier
+        self.full_stack_verifier = (\n            full_stack_verifier if full_stack_verifier is not None\n            else _CanonicalFullStackVerifier()\n        )
         # Use the production verifier by default. Missing source/mapping inputs
         # still fail closed in the verifier; no evidence is synthesized.
         self.semantic_correspondence_verifier = (
@@ -354,9 +383,6 @@ class CampaignRunner:
                 independent_ok, independent_detail = _run_independent_verifier(
                     self.verifier, d, plan_hash, plan_path
                 )
-                full_stack_ok, full_stack_detail = _run_candidate_bound_full_stack_verifier(
-                    self.full_stack_verifier, full_stack_inputs, candidate_hash
-                )
                 # Campaign A supplies authoritative PlanArtifacts. Build the
                 # verifier input from those real artifacts and the exact repository
                 # returned by this backend; never infer the missing architecture map.
@@ -402,6 +428,35 @@ class CampaignRunner:
                 if semantic_input_error:
                     semantic_evidence = {}
                     semantic_detail = semantic_input_error
+
+                # Derive the five canonical IR inputs only after source-to-mapping
+                # correspondence has passed. Never fabricate IR or apply defaults.
+                full_stack_input_error = ""
+                if full_stack_inputs is None and semantic_evidence.get("passed") is True:
+                    try:
+                        from app.engine.source_bound_full_stack import lower_explicit_mapping_to_full_stack_ir
+                        mapping = semantic_correspondence_inputs.get("explicit_mapping")
+                        lowered = lower_explicit_mapping_to_full_stack_ir(mapping)
+                        if not lowered.structurally_valid:
+                            full_stack_input_error = (
+                                "authoritative mapping did not lower to complete canonical IR: "
+                                + "; ".join(lowered.findings)
+                            )
+                        else:
+                            full_stack_inputs = (
+                                lowered.frontend, lowered.api, lowered.backend,
+                                lowered.effects, lowered.consequences,
+                            )
+                    except Exception as exc:
+                        full_stack_input_error = (
+                            f"full-stack IR derivation failed closed: {type(exc).__name__}: {exc}"
+                        )
+                if full_stack_input_error:
+                    full_stack_ok, full_stack_detail = False, full_stack_input_error
+                else:
+                    full_stack_ok, full_stack_detail = _run_candidate_bound_full_stack_verifier(
+                        self.full_stack_verifier, full_stack_inputs, candidate_hash
+                    )
                 verify_ok = independent_ok and full_stack_ok and semantic_evidence.get("passed") is True
                 _record(
                     TrialStage.VERIFY, verify_ok,

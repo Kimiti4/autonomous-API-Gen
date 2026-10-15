@@ -50,10 +50,10 @@ class ReactFrontend:
     def _app(self,model):
         # Treat the system name as data, never as interpolated JSX source.
         title = json.dumps(model.system_name, ensure_ascii=True)
-        return f'import React from "react";\\nconst title = {title};\\nexport default function App() {{ return <main><h1>{{title}}</h1><p>Generated application</p></main>; }}\\n'
+        return f'import React from "react";\nconst title = {title};\nexport default function App() {{ return <main><h1>{{title}}</h1><p>Generated application</p></main>; }}\n'
     def _domain(self,model):
         return "\n".join([f"export interface {pascal_case(dm.name)} {{\n" + "".join(f"  {f.name}{'' if f.required else '?'}: unknown;\n" for f in dm.fields) + "}\n" for dm in model.data_models])
     def _test(self):
-        return 'import { describe, it, expect } from "vitest";\\nimport { renderToStaticMarkup } from "react-dom/server";\\nimport App from "./App";\\ndescribe("generated React application",()=>{it("renders application content",()=>{const markup=renderToStaticMarkup(<App />);expect(markup).toContain("<h1>");expect(markup).toContain("Generated application");});});\\n'
+        return 'import { describe, it, expect } from "vitest";\nimport { renderToStaticMarkup } from "react-dom/server";\nimport App from "./App";\ndescribe("generated React application",()=>{it("renders application content",()=>{const markup=renderToStaticMarkup(<App />);expect(markup).toContain("<h1>");expect(markup).toContain("Generated application");});});\n'
     def _manifest(self):
         return CapabilityManifest(backend_id=self.backend_id,capabilities=[BundleCapability.BUILD,BundleCapability.LINT,BundleCapability.STATIC_ANALYSIS,BundleCapability.TEST,BundleCapability.SECURITY_SCAN,BundleCapability.DOCUMENTATION,BundleCapability.RELEASE],metadata={"language":"typescript","framework":"react","style":"component-based"})

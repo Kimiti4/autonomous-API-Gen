@@ -144,3 +144,48 @@ def test_typed_effect_missing_replay_policy_blocks_full_mapping():
     assert not result.complete
     assert result.mapping is None
     assert any(item.code == "MAP-EFFECT-002" for item in result.blockers)
+
+
+def test_missing_cross_layer_relationship_blocks_mapping_even_when_nodes_are_complete():
+    artifacts = build_artifacts_for(default_corpus()[0])
+    snapshot = _complete_semantic_snapshot(source_snapshot_from_plan_artifacts(artifacts))
+    revision = dict(snapshot["revision"])
+    graph = dict(revision["graph"])
+    edges = dict(graph["edges"])
+    del edges["edge:route-api"]
+    graph["edges"] = edges
+    revision["graph"] = graph
+    snapshot["revision"] = revision
+
+    result = produce_architecture_mapping(snapshot)
+
+    assert not result.complete
+    assert result.mapping is None
+    assert any(item.code == "MAP-REL-001" for item in result.blockers)
+
+
+def test_semantic_source_mutation_changes_source_binding_hash():
+    artifacts = build_artifacts_for(default_corpus()[0])
+    original = _complete_semantic_snapshot(source_snapshot_from_plan_artifacts(artifacts))
+    changed = _complete_semantic_snapshot(source_snapshot_from_plan_artifacts(artifacts))
+
+    revision = dict(changed["revision"])
+    graph = dict(revision["graph"])
+    nodes = dict(graph["nodes"])
+    api = dict(nodes["api:projects"])
+    props = dict(api["properties"])
+    props["operations"] = [
+        {"operation_id": "create_project", "method": "PUT", "path": "/projects/{project_id}"}
+    ]
+    api["properties"] = props
+    nodes["api:projects"] = api
+    graph["nodes"] = nodes
+    revision["graph"] = graph
+    changed["revision"] = revision
+
+    original_result = produce_architecture_mapping(original)
+    changed_result = produce_architecture_mapping(changed)
+
+    assert original_result.complete and changed_result.complete
+    assert original_result.mapping["provenance"]["source_hash"] != changed_result.mapping["provenance"]["source_hash"]
+    assert original_result.mapping["api"] != changed_result.mapping["api"]

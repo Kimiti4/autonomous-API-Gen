@@ -270,7 +270,7 @@ class CampaignRunner:
             semantic_evidence, semantic_detail = _run_semantic_correspondence_verifier(
                 self.semantic_correspondence_verifier,
                 semantic_correspondence_inputs,
-                candidate_hash,
+                repo.content_hash,
             )
             verify_ok = independent_ok and full_stack_ok and semantic_evidence.get("passed") is True
             _record(

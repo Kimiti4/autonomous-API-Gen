@@ -470,3 +470,186 @@ def lower_explicit_mapping_to_full_stack_ir(
         source_refs=normalized_refs,
         findings=tuple(findings),
     )
+
+
+
+@dataclass(frozen=True)
+class ArchitectureFacts:
+    """Loss-aware facts extracted from authoritative plan/ISR snapshots.
+
+    These facts are not full-stack IR and never imply that omitted frontend,
+    API-operation, authorization-enforcement, or effect semantics are known.
+    """
+    services: tuple[dict[str, Any], ...]
+    data_models: tuple[dict[str, Any], ...]
+    published_events: tuple[dict[str, Any], ...]
+    consumed_events: tuple[dict[str, Any], ...]
+    security_policy_ids: tuple[str, ...]
+    isr_nodes: tuple[dict[str, Any], ...]
+    isr_edges: tuple[dict[str, Any], ...]
+    source_refs: tuple[str, ...]
+    source_hash: str
+    blockers: tuple[str, ...]
+
+    @property
+    def complete_for_full_stack(self) -> bool:
+        # The current PlanArtifacts schema does not encode all required layers.
+        return False
+
+
+def extract_architecture_facts(snapshot: Mapping[str, Any]) -> ArchitectureFacts:
+    """Extract only explicit service/data/event/security/ISR facts.
+
+    No route, HTTP operation, auth policy, event delivery guarantee, or effect
+    policy is synthesized from identifiers or names.
+    """
+    if not isinstance(snapshot, Mapping):
+        raise TypeError("snapshot must be a mapping")
+
+    blockers: list[str] = []
+    plan = snapshot.get("plan")
+    revision = snapshot.get("revision")
+    if not isinstance(plan, Mapping):
+        plan = {}
+        blockers.append("compilation plan is missing")
+    if not isinstance(revision, Mapping):
+        revision = {}
+        blockers.append("ISR revision is missing")
+
+    raw_services = plan.get("services")
+    if not isinstance(raw_services, (list, tuple)):
+        raw_services = []
+        blockers.append("plan services are not explicitly represented as a list")
+
+    services: list[dict[str, Any]] = []
+    data_models: list[dict[str, Any]] = []
+    published: list[dict[str, Any]] = []
+    consumed: list[dict[str, Any]] = []
+    security_ids: set[str] = set()
+    seen_service_ids: set[str] = set()
+    seen_model_ids: set[str] = set()
+    seen_event_ids: set[str] = set()
+
+    def collect_events(value: Any, *, service_id: str, direction: str) -> None:
+        if not isinstance(value, (list, tuple)):
+            blockers.append(f"service {service_id} {direction} events are malformed")
+            return
+        for event in value:
+            if not isinstance(event, Mapping) or not isinstance(event.get("id"), str) or not event.get("id") or not isinstance(event.get("name"), str) or not event.get("name"):
+                blockers.append(f"service {service_id} has event without explicit id/name")
+                continue
+            event_id = event["id"]
+            identity = f"{direction}:{service_id}:{event_id}"
+            if identity in seen_event_ids:
+                blockers.append(f"duplicate event declaration: {identity}")
+                continue
+            seen_event_ids.add(identity)
+            item = {"id": event_id, "name": event["name"], "service_id": service_id}
+            (published if direction == "published" else consumed).append(item)
+
+    for index, service in enumerate(raw_services):
+        if not isinstance(service, Mapping) or not all(
+            isinstance(service.get(key), str) and service.get(key)
+            for key in ("id", "name")
+        ):
+            blockers.append(f"service[{index}] lacks explicit id/name")
+            continue
+        service_id = service["id"]
+        if service_id in seen_service_ids:
+            blockers.append(f"duplicate service id: {service_id}")
+            continue
+        seen_service_ids.add(service_id)
+        services.append({"id": service_id, "name": service["name"]})
+
+        raw_models = service.get("data_models")
+        if not isinstance(raw_models, (list, tuple)):
+            blockers.append(f"service {service_id} data_models are malformed")
+        else:
+            for model in raw_models:
+                if not isinstance(model, Mapping) or not all(
+                    isinstance(model.get(key), str) and model.get(key)
+                    for key in ("id", "entity_name")
+                ):
+                    blockers.append(f"service {service_id} has data model without explicit id/entity_name")
+                    continue
+                if model["id"] in seen_model_ids:
+                    blockers.append(f"duplicate data model id: {model['id']}")
+                    continue
+                seen_model_ids.add(model["id"])
+                data_models.append({
+                    "id": model["id"], "entity_name": model["entity_name"],
+                    "service_id": service_id,
+                })
+
+        collect_events(service.get("published_events", []), service_id=service_id, direction="published")
+        collect_events(service.get("consumed_events", []), service_id=service_id, direction="consumed")
+
+    raw_security = plan.get("security")
+    if not isinstance(raw_security, (list, tuple)):
+        blockers.append("plan security policies are not explicitly represented as a list")
+    else:
+        for policy in raw_security:
+            if not isinstance(policy, Mapping) or not isinstance(policy.get("policy_id"), str) or not policy.get("policy_id"):
+                blockers.append("security policy lacks explicit policy_id")
+                continue
+            security_ids.add(policy["policy_id"])
+
+    graph = revision.get("graph")
+    if not isinstance(graph, Mapping):
+        graph = {}
+        blockers.append("ISR graph is missing")
+    def normalize_graph_items(raw: Any, label: str) -> tuple[dict[str, Any], ...]:
+        if isinstance(raw, Mapping):
+            items = []
+            for key, value in raw.items():
+                if not isinstance(value, Mapping):
+                    blockers.append(f"ISR {label} {key} is not an object")
+                    continue
+                item = dict(value)
+                item.setdefault("id", str(key))
+                items.append(item)
+            return tuple(sorted(items, key=lambda item: str(item.get("id", ""))))
+        if isinstance(raw, (list, tuple)):
+            items = []
+            for index, value in enumerate(raw):
+                if not isinstance(value, Mapping) or not isinstance(value.get("id"), str) or not value.get("id"):
+                    blockers.append(f"ISR {label}[{index}] lacks explicit id")
+                    continue
+                items.append(dict(value))
+            return tuple(sorted(items, key=lambda item: str(item.get("id", ""))))
+        blockers.append(f"ISR {label} are not explicitly represented")
+        return ()
+
+    isr_nodes = normalize_graph_items(graph.get("nodes"), "nodes")
+    isr_edges = normalize_graph_items(graph.get("edges"), "edges")
+    refs = snapshot.get("source_refs")
+    if not isinstance(refs, (list, tuple)) or not refs or any(not isinstance(ref, str) or not ref for ref in refs):
+        blockers.append("canonical source_refs inventory is missing")
+        normalized_refs: tuple[str, ...] = ()
+    else:
+        normalized_refs = tuple(sorted(set(refs)))
+        if len(normalized_refs) != len(refs):
+            blockers.append("canonical source_refs inventory contains duplicates")
+
+    source_hash = _canonical_hash(dict(snapshot))
+    if not services:
+        blockers.append("no explicit services are available for architectural lowering")
+    if not data_models:
+        blockers.append("no explicit data models are available for architectural lowering")
+    if not published and not consumed:
+        blockers.append("no explicit event declarations are available for event lowering")
+    if not security_ids:
+        blockers.append("no explicit security policy identifiers are available for security lowering")
+
+    return ArchitectureFacts(
+        services=tuple(services),
+        data_models=tuple(data_models),
+        published_events=tuple(sorted(published, key=lambda item: (item["service_id"], item["id"]))),
+        consumed_events=tuple(sorted(consumed, key=lambda item: (item["service_id"], item["id"]))),
+        security_policy_ids=tuple(sorted(security_ids)),
+        isr_nodes=isr_nodes,
+        isr_edges=isr_edges,
+        source_refs=normalized_refs,
+        source_hash=source_hash,
+        blockers=tuple(blockers),
+    )

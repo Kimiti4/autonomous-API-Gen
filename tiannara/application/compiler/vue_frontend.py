@@ -46,7 +46,7 @@ class VueFrontend:
     def _package(self):
         return '{"name":"esap-vue-app","private":true,"version":"0.1.0","scripts":{"build":"vue-tsc --noEmit && vite build","test":"vitest run"},"dependencies":{"vue":"^3.5.0","vite":"^7.0.0","typescript":"^5.9.0","vue-tsc":"^2.2.0","vitest":"^3.0.0","@vitejs/plugin-vue":"^6.0.0","@vue/test-utils":"^2.4.6","jsdom":"^26.1.0"}}'
     def _vite_config(self):
-        return 'import { defineConfig } from "vite";\\nimport vue from "@vitejs/plugin-vue";\\nexport default defineConfig({ plugins: [vue()] });\\n'
+        return 'import { defineConfig } from "vite";\nimport vue from "@vitejs/plugin-vue";\nexport default defineConfig({ plugins: [vue()] });\n'
     def _tsconfig(self):
         return '{"compilerOptions":{"target":"ES2022","module":"ESNext","moduleResolution":"Bundler","strict":true,"noEmit":true}}'
     def _main(self):
@@ -54,11 +54,11 @@ class VueFrontend:
     def _app(self,model):
         # Vue interpolation renders the title as text rather than executable markup.
         title = json.dumps(model.system_name, ensure_ascii=True)
-        return f'<script setup lang="ts">\\nconst title = {title};\\n</script>\\n\\n<template><main><h1>{{{{ title }}}}</h1><p>Generated application</p></main></template>\\n'
+        return f'<script setup lang="ts">\nconst title = {title};\n</script>\n\n<template><main><h1>{{{{ title }}}}</h1><p>Generated application</p></main></template>\n'
     def _domain(self,model):
         return "\n".join(f"export interface {pascal_case(dm.name)} {{\n"+"".join(f"  {f.name}{'' if f.required else '?'}: unknown;\n" for f in dm.fields)+"}\n" for dm in model.data_models)
     def _test(self):
-        return '// @vitest-environment jsdom\\nimport { describe, it, expect } from "vitest";\\nimport { mount } from "@vue/test-utils";\\nimport App from "./App.vue";\\ndescribe("generated Vue application",()=>{it("renders the title and application content",()=>{const wrapper=mount(App);expect(wrapper.find("h1").exists()).toBe(true);expect(wrapper.text()).toContain("Generated application");});});\\n'
+        return '// @vitest-environment jsdom\nimport { describe, it, expect } from "vitest";\nimport { mount } from "@vue/test-utils";\nimport App from "./App.vue";\ndescribe("generated Vue application",()=>{it("renders the title and application content",()=>{const wrapper=mount(App);expect(wrapper.find("h1").exists()).toBe(true);expect(wrapper.text()).toContain("Generated application");});});\n'
     def _manifest(self):
         return CapabilityManifest(backend_id=self.backend_id,capabilities=[
           BundleCapability.BUILD,BundleCapability.LINT,BundleCapability.STATIC_ANALYSIS,

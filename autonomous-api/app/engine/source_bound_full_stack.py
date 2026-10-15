@@ -197,6 +197,13 @@ def project_source_bound_full_stack(
                 blockers.append(ProjectionBlocker(
                     "SBFS-009", f"architectural layer is explicitly null: {layer}"
                 ))
+        if source_dict is not None and isinstance(provenance, Mapping):
+            bound_source_hash = provenance.get("source_hash")
+            if bound_source_hash is not None and bound_source_hash != source_hash:
+                blockers.append(ProjectionBlocker(
+                    "SBFS-032",
+                    "mapping provenance is bound to a stale source hash; semantic bindings must be rebuilt",
+                ))
 
     if source_dict is not None and isinstance(explicit_mapping, Mapping):
         blockers.extend(_validate_semantic_obligations(source_dict, explicit_mapping))
@@ -962,13 +969,16 @@ def _validate_semantic_obligations(source: Mapping[str, Any], mapping: Mapping[s
             if layer != "backend" or not enforceable_policies:
                 blockers.append(ProjectionBlocker("SBFS-026", "authorization requirement must bind to a backend object with an explicit enforceable security policy", (rid, target_id)))
             owner_only = any(term in statement for term in ("only the owner", "owner only", "workspace owner"))
+            admin_only = any(term in statement for term in ("only administrators", "administrators only", "admin-only"))
             for policy in enforceable_policies:
                 roles = policy.get("allowed_roles", policy.get("roles"))
-                if owner_only and isinstance(roles, (list, tuple, set)) and any(
-                    isinstance(role, str) and role.casefold() in {"member", "all", "everyone", "authenticated"}
-                    for role in roles
-                ):
-                    blockers.append(ProjectionBlocker("SBFS-029", "architecture policy contradicts an owner-only authorization requirement", (rid, target_id, str(policy.get("policy_id", policy.get("id"))))))
+                if isinstance(roles, (list, tuple, set)):
+                    normalized_roles = {role.casefold() for role in roles if isinstance(role, str)}
+                    broad_roles = {"member", "all", "everyone", "authenticated", "owner"}
+                    if owner_only and normalized_roles.intersection(broad_roles - {"owner"}):
+                        blockers.append(ProjectionBlocker("SBFS-029", "architecture policy contradicts an owner-only authorization requirement", (rid, target_id, str(policy.get("policy_id", policy.get("id"))))))
+                    if admin_only and normalized_roles.intersection(broad_roles):
+                        blockers.append(ProjectionBlocker("SBFS-029", "architecture policy contradicts an administrator-only authorization requirement", (rid, target_id, str(policy.get("policy_id", policy.get("id"))))))
             tenant_isolation = any(term in statement for term in ("tenant isolation", "cross-tenant", "other workspaces", "own workspace only", "strict isolation"))
             if tenant_isolation:
                 scope = str(target.get("access_scope", target.get("tenant_scope", ""))).casefold()

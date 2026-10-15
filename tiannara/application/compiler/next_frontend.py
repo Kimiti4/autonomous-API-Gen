@@ -19,7 +19,7 @@ class NextFrontend:
     def name(self): return self.backend_id
     def build_profile(self,system_name):
         return BackendBuildProfile(language="typescript",required_files=("package.json","tsconfig.json","vite.config.ts","app/page.tsx","app/page.test.tsx"),
-          verifier_kind="next",build_command=["npm","run","build"],test_command=["npm","test","--","--runInBand"],runtime_image="node:22-alpine",requires_build_phase=True)
+          verifier_kind="next",build_command=["npm","run","build"],test_command=["npm","test"],runtime_image="node:22-alpine",requires_build_phase=True)
     def build_profile_declaration(self):
         return BackendCapabilityDeclaration(backend_id=self.backend_id,artifact_kinds=[ArtifactKind.FRONTEND_APPLICATION],capabilities=list(self._manifest().capabilities),quality_profile=0.80,metadata={"language":"typescript","framework":"next"})
     def _model(self,isr):
@@ -36,11 +36,11 @@ class NextFrontend:
           "vite.config.ts":self._vite_config(),
           "app/page.test.tsx":self._test(),
           "app/page.tsx":f'const title = {json.dumps(model.system_name, ensure_ascii=True)};\nexport default function Page() {{ return <main><h1>{{title}}</h1><p>Generated application</p></main>; }}',
-          "app/layout.tsx":'export default function RootLayout({children}:{children:React.ReactNode}){return <html><body>{children}</body></html>}',
+          "app/layout.tsx":'import type { ReactNode } from "react"; export default function RootLayout({children}:{children:ReactNode}){return <html><body>{children}</body></html}',
           "README.md":f"# {model.system_name}\n\nGenerated from the technology-neutral ISR.\n"
         },capability_manifest=self._manifest())
     def _package(self):
-        return '{"name":"esap-next-app","private":true,"version":"0.1.0","scripts":{"build":"next build","test":"vitest run"},"dependencies":{"next":"^15.5.0","react":"^19.1.0","react-dom":"^19.1.0"},"devDependencies":{"@types/react":"^19.1.0","@types/react-dom":"^19.1.0","@vitejs/plugin-react":"^5.0.0","typescript":"^5.9.0","vitest":"^3.2.4"}}'
+        return '{"name":"esap-next-app","private":true,"version":"0.1.0","scripts":{"build":"next build","test":"vitest run"},"dependencies":{"next":"^15.5.0","react":"^19.1.0","react-dom":"^19.1.0"},"devDependencies":{"@types/react":"^19.1.0","@types/react-dom":"^19.1.0","@types/node":"^22.0.0","@vitejs/plugin-react":"^5.0.0","typescript":"^5.9.0","vitest":"^3.2.4"}}'
     def _vite_config(self):
         return 'import { defineConfig } from "vite";\nimport react from "@vitejs/plugin-react";\nexport default defineConfig({ plugins: [react()] });\n'
     def _test(self):

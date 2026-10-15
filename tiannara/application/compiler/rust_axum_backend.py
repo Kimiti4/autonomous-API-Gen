@@ -98,7 +98,7 @@ serde = {{ version = "1", features = ["derive"] }}
 serde_json = "1"
 
 [dev-dependencies]
-tower = { version = "0.5", features = ["util"] }
+tower = {{ version = "0.5", features = ["util"] }}
 """
 
     def _models(self, model):

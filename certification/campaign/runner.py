@@ -282,10 +282,23 @@ class CampaignRunner:
                 try:
                     from autonomous_api.app.engine.source_bound_full_stack import (
                         source_snapshot_from_plan_artifacts,
+                        produce_architecture_mapping,
                     )
+                    source_snapshot = source_snapshot_from_plan_artifacts(artifacts)
+                    mapping_result = produce_architecture_mapping(source_snapshot)
                     semantic_correspondence_inputs = {
-                        "source_artifacts": source_snapshot_from_plan_artifacts(artifacts),
-                        "explicit_mapping": getattr(artifacts, "explicit_mapping", None),
+                        "source_artifacts": source_snapshot,
+                        # Only a complete typed mapping may enter the verifier.
+                        # Partial structural inventories remain diagnostic data.
+                        "explicit_mapping": (
+                            mapping_result.mapping
+                            if mapping_result.complete
+                            else getattr(artifacts, "explicit_mapping", None)
+                        ),
+                        "mapping_producer_findings": [
+                            f"{item.code}: {item.message}"
+                            for item in mapping_result.blockers
+                        ],
                         "candidate_files": dict(repo.files),
                     }
                 except Exception as exc:

@@ -198,6 +198,9 @@ def project_source_bound_full_stack(
                     "SBFS-009", f"architectural layer is explicitly null: {layer}"
                 ))
 
+    if source_dict is not None and isinstance(explicit_mapping, Mapping):
+        blockers.extend(_validate_semantic_obligations(source_dict, explicit_mapping))
+
     # Do not construct IR objects here. A mapping contract is not proof that
     # it has been lowered into canonical IR classes or independently validated.
     return SourceBoundProjection(

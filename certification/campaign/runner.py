@@ -207,7 +207,7 @@ class CampaignRunner:
                 os.makedirs(os.path.dirname(full), exist_ok=True)
                 with open(full, "w", encoding="utf-8") as f:
                     f.write(c)
-    
+
             # Bind every verifier to the canonical generated repository digest.
             # Source/IR hashes remain separate provenance evidence, not candidate identity.
             candidate_hash = repo.content_hash

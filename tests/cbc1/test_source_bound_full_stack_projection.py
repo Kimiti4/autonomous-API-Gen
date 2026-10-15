@@ -667,3 +667,73 @@ def test_api_delete_requirement_rejects_get_operation():
     }
     blockers = _validate_semantic_obligations(source, mapping)
     assert any(b.code == "SBFS-031" for b in blockers)
+
+
+
+def test_projection_rejects_semantic_contradiction_on_actual_projection_path():
+    source = {
+        "source_refs": ["req:owner"],
+        "requirement_graph": {"nodes": {
+            "req:owner": {"id": "req:owner", "statement": "Only the owner can delete a workspace"}
+        }},
+    }
+    mapping = {
+        "frontend": {}, "api": {}, "backend": {"modules": [{
+            "module_id": "workspace_service", "security_boundaries": [{
+                "policy_id": "workspace-delete", "enforcement": "middleware",
+                "allowed_roles": ["owner", "member"]
+            }]
+        }]}, "effects": [], "consequences": [],
+        "provenance": {"source_refs": ["req:owner"]},
+        "requirement_bindings": [{
+            "requirement_id": "req:owner", "layer": "backend", "target_id": "workspace_service"
+        }],
+    }
+    result = project_source_bound_full_stack(
+        source_artifacts=source, candidate_files={"app.py": "def delete_workspace(): pass"},
+        explicit_mapping=mapping,
+    )
+    assert result.status == "blocked"
+    assert any(blocker.code == "SBFS-029" for blocker in result.blockers)
+
+
+def test_meaning_change_invalidates_source_binding_hash_and_rechecks_semantics():
+    base_source = {
+        "source_refs": ["req:owner"],
+        "requirement_graph": {"nodes": {
+            "req:owner": {"id": "req:owner", "statement": "Only the owner can delete a workspace"}
+        }},
+    }
+    changed_source = {
+        "source_refs": ["req:owner"],
+        "requirement_graph": {"nodes": {
+            "req:owner": {"id": "req:owner", "statement": "Only administrators can delete a workspace"}
+        }},
+    }
+    mapping = {
+        "frontend": {}, "api": {}, "backend": {"modules": [{
+            "module_id": "workspace_service", "security_boundaries": [{
+                "policy_id": "workspace-delete", "enforcement": "middleware",
+                "allowed_roles": ["owner", "member"]
+            }]
+        }]}, "effects": [], "consequences": [],
+        "provenance": {"source_refs": ["req:owner"]},
+        "requirement_bindings": [{
+            "requirement_id": "req:owner", "layer": "backend", "target_id": "workspace_service"
+        }],
+    }
+    first = project_source_bound_full_stack(
+        source_artifacts=base_source, candidate_files={"app.py": "def delete_workspace(): pass"},
+        explicit_mapping=mapping,
+    )
+    changed = project_source_bound_full_stack(
+        source_artifacts=changed_source, candidate_files={"app.py": "def delete_workspace(): pass"},
+        explicit_mapping=mapping,
+    )
+    assert first.source_hash != changed.source_hash
+    assert first.mapping_hash == changed.mapping_hash
+    assert any(b.code == "SBFS-029" for b in first.blockers)
+    # The meaning changed while the binding and candidate remained identical.
+    # Since no proven mapping exists for the new administrator-only semantics,
+    # the result must remain blocked rather than inherit the old decision.
+    assert changed.status == "blocked"

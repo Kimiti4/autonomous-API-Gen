@@ -1108,3 +1108,168 @@ class SourceBoundSemanticCorrespondenceVerifier:
             candidate_hash=computed_candidate_hash,
             findings=tuple(findings),
         )
+
+
+@dataclass(frozen=True)
+class ArchitectureMappingProduction:
+    """Deterministic ISR-to-architecture mapping attempt with explicit gaps."""
+    mapping: Mapping[str, Any] | None
+    blockers: tuple[ProjectionBlocker, ...]
+
+    @property
+    def complete(self) -> bool:
+        return self.mapping is not None and not self.blockers
+
+
+def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> ArchitectureMappingProduction:
+    """Derive only architecture semantics explicitly represented in the ISR.
+
+    This producer preserves identifiers and typed relationships. It refuses to
+    invent frontend routes, API operation details, effect/replay semantics, or
+    consequence policies where the ISR does not carry the required fields.
+    A partial structural inventory is returned for diagnostics, but mapping is
+    publishable only when all required layers can be represented faithfully.
+    """
+    blockers: list[ProjectionBlocker] = []
+    if not isinstance(source_snapshot, Mapping):
+        return ArchitectureMappingProduction(None, (
+            ProjectionBlocker("MAP-001", "source snapshot must be a mapping"),
+        ))
+
+    revision = source_snapshot.get("revision")
+    revision = revision if isinstance(revision, Mapping) else {}
+    graph = revision.get("graph")
+    graph = graph if isinstance(graph, Mapping) else {}
+    nodes = graph.get("nodes")
+    edges = graph.get("edges")
+    if not isinstance(nodes, Mapping) or not isinstance(edges, Mapping):
+        return ArchitectureMappingProduction(None, (
+            ProjectionBlocker("MAP-002", "ISR revision lacks canonical graph nodes/edges"),
+        ))
+
+    node_records: dict[str, dict[str, Any]] = {}
+    for key, raw in nodes.items():
+        if not isinstance(raw, Mapping):
+            blockers.append(ProjectionBlocker("MAP-003", f"ISR node {key!r} is not an object"))
+            continue
+        node_id = raw.get("id", key)
+        node_type = raw.get("type")
+        if not isinstance(node_id, str) or not node_id or not isinstance(node_type, str):
+            blockers.append(ProjectionBlocker("MAP-004", f"ISR node {key!r} lacks a stable id/type"))
+            continue
+        properties = raw.get("properties", {})
+        if not isinstance(properties, Mapping):
+            blockers.append(ProjectionBlocker("MAP-005", f"ISR node {node_id!r} properties are malformed"))
+            continue
+        node_records[node_id] = {
+            "id": node_id, "type": node_type,
+            "properties": dict(properties),
+        }
+
+    edge_records: list[dict[str, Any]] = []
+    for key, raw in edges.items():
+        if not isinstance(raw, Mapping):
+            blockers.append(ProjectionBlocker("MAP-006", f"ISR edge {key!r} is not an object"))
+            continue
+        edge_id, edge_type = raw.get("id", key), raw.get("type")
+        source_id, target_id = raw.get("source_id"), raw.get("target_id")
+        if not all(isinstance(value, str) and value for value in (edge_id, edge_type, source_id, target_id)):
+            blockers.append(ProjectionBlocker("MAP-007", f"ISR edge {key!r} lacks stable identity/type/endpoints"))
+            continue
+        if source_id not in node_records or target_id not in node_records:
+            blockers.append(ProjectionBlocker("MAP-008", f"ISR edge {edge_id!r} references an unknown endpoint", (source_id, target_id)))
+            continue
+        edge_records.append({
+            "id": edge_id, "type": edge_type,
+            "source_id": source_id, "target_id": target_id,
+            "properties": dict(raw.get("properties", {}))
+            if isinstance(raw.get("properties", {}), Mapping) else {},
+        })
+
+    def typed(*types: str) -> list[dict[str, Any]]:
+        return [dict(node) for node in node_records.values() if node["type"] in types]
+
+    domains = typed("domain")
+    capabilities = typed("capability")
+    services = typed("service")
+    apis = typed("api")
+    data_models = typed("data_model")
+    events = typed("event")
+    policies = typed("security_policy")
+    infra = typed("infrastructure_target")
+    requirements = typed("requirement_ref")
+
+    # The ISR graph currently carries API node identity but not necessarily
+    # operation-level method/path/schema/error/idempotency contracts.
+    for api in apis:
+        props = api["properties"]
+        if not all(key in props for key in ("operations", "global_error_contract", "auth_scheme")):
+            blockers.append(ProjectionBlocker(
+                "MAP-API-001",
+                f"API {api['id']!r} lacks explicit operations/error/auth contract fields",
+                (api["id"],),
+            ))
+    for service in services:
+        props = service["properties"]
+        if not isinstance(props.get("responsibility", props.get("description")), str):
+            blockers.append(ProjectionBlocker(
+                "MAP-SVC-001", f"service {service['id']!r} lacks an explicit responsibility",
+                (service["id"],),
+            ))
+    for event in events:
+        props = event["properties"]
+        if not all(key in props for key in ("delivery_guarantee", "ordering", "payload_schema")):
+            blockers.append(ProjectionBlocker(
+                "MAP-EVT-001", f"event {event['id']!r} lacks delivery, ordering, or payload semantics",
+                (event["id"],),
+            ))
+    for model in data_models:
+        props = model["properties"]
+        if not all(key in props for key in ("fields", "invariants")):
+            blockers.append(ProjectionBlocker(
+                "MAP-DATA-001", f"data model {model['id']!r} lacks explicit fields or invariants",
+                (model["id"],),
+            ))
+
+    # These layers are not first-class nodes in the current ISR taxonomy.
+    if not any(node["type"] in {"frontend", "ui_route", "interaction"} for node in node_records.values()):
+        blockers.append(ProjectionBlocker(
+            "MAP-FE-001", "ISR contains no first-class frontend routes/interactions; frontend semantics cannot be inferred",
+        ))
+    if not any(edge["type"] in {"effect", "causes_effect", "replays"} for edge in edge_records):
+        blockers.append(ProjectionBlocker(
+            "MAP-EFFECT-001", "ISR contains no explicit effect/replay graph semantics",
+        ))
+    if not any("consequence" in node["type"] or "invariant" in node["type"] for node in node_records.values()):
+        blockers.append(ProjectionBlocker(
+            "MAP-CONSEQ-001", "ISR contains no first-class consequence/invariant nodes",
+        ))
+    if not policies:
+        blockers.append(ProjectionBlocker(
+            "MAP-SEC-001", "ISR contains no explicit security-policy nodes",
+        ))
+
+    # Structural inventory is diagnostic and deterministic; it is not a
+    # complete explicit_mapping and must never be passed as certification proof.
+    inventory = {
+        "schema": "isr-architecture-inventory/1",
+        "domains": domains,
+        "capabilities": capabilities,
+        "services": services,
+        "apis": apis,
+        "data_models": data_models,
+        "events": events,
+        "security_policies": policies,
+        "infrastructure_targets": infra,
+        "requirement_refs": requirements,
+        "edges": sorted(edge_records, key=lambda item: item["id"]),
+        "source_refs": list(source_snapshot.get("source_refs", ())),
+        "source_hash": _canonical_hash(dict(source_snapshot)),
+    }
+    # A complete contract requires dedicated typed lowering for every layer.
+    # Until the ISR contains all required semantics, return inventory only as
+    # diagnostics and no publishable mapping.
+    return ArchitectureMappingProduction(
+        mapping=inventory if not blockers else None,
+        blockers=tuple(blockers),
+    )

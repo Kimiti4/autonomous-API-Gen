@@ -24,6 +24,11 @@ class NodeType(str, Enum):
     SECURITY_POLICY = "security_policy"
     INFRASTRUCTURE_TARGET = "infrastructure_target"
     REQUIREMENT_REF = "requirement_ref"
+    FRONTEND_ROUTE = "frontend_route"
+    FRONTEND_INTERACTION = "frontend_interaction"
+    EFFECT = "effect"
+    INVARIANT = "invariant"
+    CONSEQUENCE = "consequence"
 
 
 class EdgeType(str, Enum):
@@ -38,6 +43,12 @@ class EdgeType(str, Enum):
     # security obligation — source (SERVICE or API) is secured by target
     # (SECURITY_POLICY). The edge is the security spine of the ISR.
     SECURED_BY = "secured_by"  # service|api -> security_policy
+    CONTAINS = "contains"  # domain|service|frontend route -> owned component
+    ROUTES_TO = "routes_to"  # frontend_route -> api
+    INVOKES = "invokes"  # frontend_interaction -> api|service
+    CAUSES_EFFECT = "causes_effect"  # api|service|event -> effect
+    REQUIRES_INVARIANT = "requires_invariant"  # data_model|service|effect -> invariant
+    CONSEQUENCE_OF = "consequence_of"  # consequence -> effect|invariant
 
 
 class Node(BaseModel):
@@ -99,5 +110,29 @@ EDGE_TYPE_COMPATIBILITY: dict[EdgeType, tuple[frozenset[NodeType], frozenset[Nod
     EdgeType.SECURED_BY: (
         frozenset({NodeType.SERVICE, NodeType.API}),
         frozenset({NodeType.SECURITY_POLICY}),
+    ),
+    EdgeType.CONTAINS: (
+        frozenset({NodeType.DOMAIN, NodeType.SERVICE, NodeType.FRONTEND_ROUTE}),
+        frozenset({NodeType.CAPABILITY, NodeType.SERVICE, NodeType.API, NodeType.DATA_MODEL, NodeType.EVENT, NodeType.FRONTEND_ROUTE, NodeType.FRONTEND_INTERACTION}),
+    ),
+    EdgeType.ROUTES_TO: (
+        frozenset({NodeType.FRONTEND_ROUTE}),
+        frozenset({NodeType.API}),
+    ),
+    EdgeType.INVOKES: (
+        frozenset({NodeType.FRONTEND_INTERACTION}),
+        frozenset({NodeType.API, NodeType.SERVICE}),
+    ),
+    EdgeType.CAUSES_EFFECT: (
+        frozenset({NodeType.API, NodeType.SERVICE, NodeType.EVENT}),
+        frozenset({NodeType.EFFECT}),
+    ),
+    EdgeType.REQUIRES_INVARIANT: (
+        frozenset({NodeType.DATA_MODEL, NodeType.SERVICE, NodeType.EFFECT}),
+        frozenset({NodeType.INVARIANT}),
+    ),
+    EdgeType.CONSEQUENCE_OF: (
+        frozenset({NodeType.CONSEQUENCE}),
+        frozenset({NodeType.EFFECT, NodeType.INVARIANT}),
     ),
 }

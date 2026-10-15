@@ -157,7 +157,7 @@ mod tests {
 """
 
     def _dockerfile(self, slug):
-        return """FROM rust:1.85-slim AS build
+        return f"""FROM rust:1.85-slim AS build
 WORKDIR /app
 COPY . .
 RUN cargo test

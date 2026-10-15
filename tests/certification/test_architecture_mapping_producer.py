@@ -253,3 +253,47 @@ def test_authorization_requirement_without_enforcement_policy_edge_is_blocked():
 
     assert result.mapping is None
     assert any(item.code == "MAP-REQ-SEC-001" for item in result.blockers)
+
+
+def test_api_operation_without_absolute_path_is_rejected():
+    artifacts = build_artifacts_for(default_corpus()[0])
+    snapshot = _complete_semantic_snapshot(source_snapshot_from_plan_artifacts(artifacts))
+    revision = dict(snapshot["revision"])
+    graph = dict(revision["graph"])
+    nodes = dict(graph["nodes"])
+    api = dict(nodes["api:projects"])
+    props = dict(api["properties"])
+    props["operations"] = [{
+        "operation_id": "create_project", "method": "POST", "path": "projects"
+    }]
+    api["properties"] = props
+    nodes["api:projects"] = api
+    graph["nodes"] = nodes
+    revision["graph"] = graph
+    snapshot["revision"] = revision
+
+    result = produce_architecture_mapping(snapshot)
+
+    assert result.mapping is None
+    assert any(item.code == "MAP-API-007" for item in result.blockers)
+
+
+def test_architecture_without_requirement_references_is_not_publishable():
+    artifacts = build_artifacts_for(default_corpus()[0])
+    snapshot = _complete_semantic_snapshot(source_snapshot_from_plan_artifacts(artifacts))
+    revision = dict(snapshot["revision"])
+    graph = dict(revision["graph"])
+    nodes = dict(graph["nodes"])
+    edges = dict(graph["edges"])
+    nodes.pop("requirement:project-create")
+    nodes.pop("capability:project-create")
+    edges.pop("edge:capability-requirement")
+    edges.pop("edge:capability-service")
+    graph["nodes"], graph["edges"] = nodes, edges
+    revision["graph"] = graph
+    snapshot["revision"] = revision
+
+    result = produce_architecture_mapping(snapshot)
+
+    assert result.mapping is None
+    assert any(item.code == "MAP-REQ-000" for item in result.blockers)

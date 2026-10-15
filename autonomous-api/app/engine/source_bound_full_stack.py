@@ -653,3 +653,98 @@ def extract_architecture_facts(snapshot: Mapping[str, Any]) -> ArchitectureFacts
         source_hash=source_hash,
         blockers=tuple(blockers),
     )
+
+
+
+@dataclass(frozen=True)
+class SourceBoundLowering:
+    """Result of binding explicit canonical IR to one immutable source snapshot."""
+    source_hash: str
+    candidate_hash: str
+    mapping_hash: str | None
+    lowered: LoweredFullStackIR | None
+    blockers: tuple[ProjectionBlocker, ...]
+
+    @property
+    def ready_for_verification(self) -> bool:
+        return (
+            not self.blockers
+            and self.lowered is not None
+            and self.lowered.structurally_valid
+            and bool(self.source_hash)
+            and bool(self.candidate_hash)
+            and bool(self.mapping_hash)
+        )
+
+
+def lower_source_bound_candidate(
+    *,
+    source_artifacts: Any,
+    candidate_files: Mapping[str, str],
+    explicit_mapping: Mapping[str, Any] | None,
+) -> SourceBoundLowering:
+    """Bind explicit semantic lowering to the exact source and candidate.
+
+    This closes the adapter boundary: source refs must exist in the canonical
+    snapshot; every required layer must lower without findings; the mapping
+    must declare the exact source and candidate digests it was produced for.
+    It does not itself authorize certification or prove runtime enforcement.
+    """
+    blockers: list[ProjectionBlocker] = []
+    source = _as_dict(source_artifacts)
+    source_hash = _canonical_hash(source) if source is not None else ""
+    if source is None:
+        blockers.append(ProjectionBlocker("SBFS-001", "source artifacts are not canonically serializable"))
+
+    candidate_hash = ""
+    if not isinstance(candidate_files, Mapping) or not candidate_files:
+        blockers.append(ProjectionBlocker("SBFS-002", "candidate file manifest is missing or empty"))
+    elif any(not isinstance(path, str) or not path or not isinstance(body, str)
+             for path, body in candidate_files.items()):
+        blockers.append(ProjectionBlocker("SBFS-003", "candidate manifest must map non-empty paths to text contents"))
+    else:
+        candidate_hash = _canonical_hash(dict(candidate_files))
+
+    if not isinstance(explicit_mapping, Mapping):
+        blockers.append(ProjectionBlocker("SBFS-004", "explicit source-to-architecture mapping is absent"))
+        return SourceBoundLowering(source_hash, candidate_hash, None, None, tuple(blockers))
+
+    mapping_hash = _canonical_hash(dict(explicit_mapping))
+    provenance = explicit_mapping.get("provenance")
+    refs = provenance.get("source_refs") if isinstance(provenance, Mapping) else None
+    if not isinstance(refs, (list, tuple)) or not refs or any(not isinstance(ref, str) or not ref for ref in refs):
+        blockers.append(ProjectionBlocker("SBFS-007", "mapping provenance must contain explicit source_refs"))
+    elif source is not None:
+        known = source.get("source_refs")
+        if not isinstance(known, (list, tuple, set)) or not set(refs).issubset(set(known)):
+            blockers.append(ProjectionBlocker(
+                "SBFS-008", "mapping references source identifiers absent from source snapshot",
+                tuple(str(ref) for ref in refs),
+            ))
+
+    if not isinstance(provenance, Mapping) or provenance.get("source_hash") != source_hash:
+        blockers.append(ProjectionBlocker("SBFS-011", "mapping source_hash does not match the canonical source snapshot"))
+    if not isinstance(provenance, Mapping) or provenance.get("candidate_hash") != candidate_hash:
+        blockers.append(ProjectionBlocker("SBFS-012", "mapping candidate_hash does not match the candidate file manifest"))
+
+    lowered: LoweredFullStackIR | None = None
+    try:
+        lowered = lower_explicit_mapping_to_full_stack_ir(explicit_mapping)
+    except (TypeError, ValueError, KeyError) as exc:
+        blockers.append(ProjectionBlocker("SBFS-013", f"explicit mapping could not be lowered: {type(exc).__name__}: {exc}"))
+    if lowered is not None:
+        if not lowered.structurally_valid:
+            blockers.extend(
+                ProjectionBlocker("SBFS-014", finding, lowered.source_refs)
+                for finding in lowered.findings
+            )
+        if source is not None:
+            known = set(source.get("source_refs", ()))
+            if not set(lowered.source_refs).issubset(known):
+                blockers.append(ProjectionBlocker(
+                    "SBFS-008", "lowered IR provenance contains unknown source identifiers",
+                    lowered.source_refs,
+                ))
+    return SourceBoundLowering(
+        source_hash, candidate_hash, mapping_hash, lowered, tuple(blockers)
+    )

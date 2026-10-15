@@ -282,3 +282,84 @@ def test_state_changing_api_without_explicit_effect_is_represented_for_gate_fail
     )
     assert not report.passed
     assert any(f.code == "FS-EFFECT-002" for f in report.effects)
+
+
+
+def test_architecture_fact_extraction_preserves_plan_and_isr_relationships():
+    from autonomous_api.app.engine.source_bound_full_stack import (
+        extract_architecture_facts,
+    )
+
+    artifacts = _plan_artifacts()
+    artifacts.plan = _Dumpable({
+        "plan_id": "plan-1", "isr_id": "isr-1",
+        "services": [{
+            "id": "svc:catalog", "name": "Catalog",
+            "data_models": [{"id": "model:item", "entity_name": "Item"}],
+            "published_events": [{"id": "event:item-created", "name": "ItemCreated"}],
+            "consumed_events": [{"id": "event:price-updated", "name": "PriceUpdated"}],
+        }],
+        "security": [{"policy_id": "policy:catalog-read"}],
+    })
+    artifacts.revision = _Dumpable({
+        "system_id": "system-1", "revision_id": "rev-1",
+        "content_hash": "a" * 64,
+        "graph": {
+            "nodes": {"isr:domain:item": {"kind": "domain", "name": "Item"}},
+            "edges": {"edge:owns": {"source": "isr:domain:item", "target": "isr:service:catalog"}},
+        },
+    })
+    snapshot = source_snapshot_from_plan_artifacts(artifacts)
+    facts = extract_architecture_facts(snapshot)
+
+    assert facts.services == ({"id": "svc:catalog", "name": "Catalog"},)
+    assert facts.data_models[0] == {
+        "id": "model:item", "entity_name": "Item", "service_id": "svc:catalog"
+    }
+    assert facts.published_events[0]["id"] == "event:item-created"
+    assert facts.consumed_events[0]["id"] == "event:price-updated"
+    assert facts.security_policy_ids == ("policy:catalog-read",)
+    assert facts.isr_nodes[0]["id"] == "isr:domain:item"
+    assert facts.isr_edges[0]["source"] == "isr:domain:item"
+    assert not facts.complete_for_full_stack
+
+
+def test_architecture_fact_mutation_changes_source_hash_and_fact_value():
+    from autonomous_api.app.engine.source_bound_full_stack import (
+        extract_architecture_facts,
+    )
+
+    first_artifacts = _plan_artifacts()
+    changed_artifacts = _plan_artifacts()
+    for artifacts, name in ((first_artifacts, "Catalog"), (changed_artifacts, "Inventory")):
+        artifacts.plan = _Dumpable({
+            "plan_id": "plan-1", "isr_id": "isr-1",
+            "services": [{
+                "id": "svc:catalog", "name": name,
+                "data_models": [{"id": "model:item", "entity_name": "Item"}],
+                "published_events": [], "consumed_events": [],
+            }],
+            "security": [{"policy_id": "policy:read"}],
+        })
+    first = extract_architecture_facts(source_snapshot_from_plan_artifacts(first_artifacts))
+    changed = extract_architecture_facts(source_snapshot_from_plan_artifacts(changed_artifacts))
+    assert first.services[0]["name"] != changed.services[0]["name"]
+    assert first.source_hash != changed.source_hash
+
+
+def test_missing_plan_semantics_are_blockers_not_inferred_defaults():
+    from autonomous_api.app.engine.source_bound_full_stack import (
+        extract_architecture_facts,
+    )
+
+    artifacts = _plan_artifacts()
+    artifacts.plan = _Dumpable({
+        "plan_id": "plan-1", "isr_id": "isr-1",
+        "services": [{"id": "svc:empty", "name": "Empty"}],
+        "security": [],
+    })
+    facts = extract_architecture_facts(source_snapshot_from_plan_artifacts(artifacts))
+    assert not facts.complete_for_full_stack
+    assert any("no explicit data models" in blocker for blocker in facts.blockers)
+    assert any("no explicit event declarations" in blocker for blocker in facts.blockers)
+    assert any("no explicit security policy identifiers" in blocker for blocker in facts.blockers)

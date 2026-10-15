@@ -737,3 +737,31 @@ def test_meaning_change_invalidates_source_binding_hash_and_rechecks_semantics()
     # Since no proven mapping exists for the new administrator-only semantics,
     # the result must remain blocked rather than inherit the old decision.
     assert changed.status == "blocked"
+
+
+
+def test_stale_source_hash_in_mapping_provenance_blocks_projection():
+    from autonomous_api.app.engine.source_bound_full_stack import _canonical_hash
+
+    source = {
+        "source_refs": ["req:1"],
+        "requirement_graph": {"nodes": {
+            "req:1": {"id": "req:1", "statement": "Read item details"}
+        }},
+    }
+    changed_source = {
+        "source_refs": ["req:1"],
+        "requirement_graph": {"nodes": {
+            "req:1": {"id": "req:1", "statement": "Delete item details"}
+        }},
+    }
+    mapping = {
+        "frontend": {}, "api": {}, "backend": {}, "effects": [], "consequences": [],
+        "provenance": {"source_refs": ["req:1"], "source_hash": _canonical_hash(source)},
+    }
+    result = project_source_bound_full_stack(
+        source_artifacts=changed_source, candidate_files={"app.py": "pass"},
+        explicit_mapping=mapping,
+    )
+    assert result.status == "blocked"
+    assert any(blocker.code == "SBFS-032" for blocker in result.blockers)

@@ -126,19 +126,19 @@ pub fn app() -> Router {
 
     def _main(self, slug):
         crate_name = slug.replace("-", "_")
-        return f"""use {crate_name}::app;
+        return """use __CRATE_NAME__::app;
 
 #[tokio::main]
 async fn main() {
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await.expect("bind HTTP listener");
     axum::serve(listener, app()).await.expect("serve HTTP application");
 }
-"""
+""".replace("__CRATE_NAME__", crate_name)
 
     def _test(self, slug):
         crate_name = slug.replace("-", "_")
-        return f"""use {crate_name}::app;
-use axum::{{body::{{to_bytes, Body}}, http::Request}};
+        return """use __CRATE_NAME__::app;
+use axum::{body::{to_bytes, Body}, http::Request};
 use tower::ServiceExt;
 
 #[tokio::test]
@@ -158,9 +158,9 @@ async fn unknown_route_returns_not_found() {
         .await.expect("response");
     assert_eq!(response.status(), 404);
 }
-"""
+""".replace("__CRATE_NAME__", crate_name)
 
-    def _dockerfile(self, slug):(self, slug):
+    def _dockerfile(self, slug):(self, slug):(self, slug):
         return f"""FROM rust:1.85-slim AS build
 WORKDIR /app
 COPY . .

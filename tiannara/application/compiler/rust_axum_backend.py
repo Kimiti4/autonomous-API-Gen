@@ -77,7 +77,7 @@ class RustAxumBackend:
             "src/application/mod.rs": "pub fn service_ready() -> bool { true }\n",
             "src/infrastructure/mod.rs": "pub fn repository_ready() -> bool { true }\n",
             "src/api/mod.rs": "pub fn route_count() -> usize { 1 }\n",
-            "tests/health.rs": self._test(),
+            "tests/health.rs": self._test(slug),
             "Dockerfile": self._dockerfile(slug),
             "README.md": f"# {system_model.system_name}\\n\\nGenerated from the technology-neutral ISR.\\n",
         }
@@ -135,8 +135,8 @@ async fn main() {
 }
 """
 
-    def _test(self):
-        crate_name = "taskflow_rust_check"
+    def _test(self, slug):
+        crate_name = slug.replace("-", "_")
         return f"""use {crate_name}::app;
     use axum::{body::{to_bytes, Body}, http::Request};
     use tower::ServiceExt;

@@ -456,6 +456,10 @@ def test_source_bound_lowering_blocks_unmapped_authoritative_requirement():
     # Deliberately omit req:security from provenance even though it exists in
     # source_refs and its security intent is not otherwise traceably mapped.
     mapping["provenance"]["source_refs"] = ["req:item", "isr:domain:item"]
+    mapping["requirement_bindings"] = [{
+        "requirement_id": "req:item", "layer": "api", "target_id": "list_items",
+        "requirement_hash": _canonical_hash(source["requirement_graph"]["nodes"]["req:item"]),
+    }]
     mapping["provenance"]["source_hash"] = _canonical_hash(source)
     mapping["provenance"]["candidate_hash"] = _canonical_hash(candidate)
 
@@ -491,6 +495,11 @@ def test_source_bound_lowering_accepts_complete_requirement_reference_coverage()
     candidate = {"app.py": "print('candidate')"}
     mapping = _complete_explicit_mapping()
     mapping["provenance"]["source_refs"] = ["req:item", "req:security", "isr:domain:item"]
+    mapping["requirement_bindings"] = [
+        {"requirement_id": rid, "layer": "api", "target_id": "list_items",
+         "requirement_hash": _canonical_hash(node)}
+        for rid, node in source["requirement_graph"]["nodes"].items()
+    ]
     mapping["provenance"]["source_hash"] = _canonical_hash(source)
     mapping["provenance"]["candidate_hash"] = _canonical_hash(candidate)
 
@@ -500,3 +509,64 @@ def test_source_bound_lowering_accepts_complete_requirement_reference_coverage()
         explicit_mapping=mapping,
     )
     assert result.ready_for_verification
+
+
+
+def test_typed_requirement_binding_rejects_stale_requirement_content():
+    from autonomous_api.app.engine.source_bound_full_stack import (
+        _canonical_hash,
+        lower_source_bound_candidate,
+    )
+
+    source = {
+        "source_refs": ["req:item", "isr:domain:item"],
+        "requirement_graph": {
+            "nodes": {"req:item": {"id": "req:item", "statement": "Read item"}},
+            "edges": {},
+        },
+    }
+    candidate = {"app.py": "print('candidate')"}
+    mapping = _complete_explicit_mapping()
+    mapping["provenance"]["source_refs"] = ["req:item", "isr:domain:item"]
+    mapping["requirement_bindings"] = [{
+        "requirement_id": "req:item", "layer": "api", "target_id": "list_items",
+        "requirement_hash": _canonical_hash({"id": "req:item", "statement": "Old requirement"}),
+    }]
+    mapping["provenance"]["source_hash"] = _canonical_hash(source)
+    mapping["provenance"]["candidate_hash"] = _canonical_hash(candidate)
+
+    result = lower_source_bound_candidate(
+        source_artifacts=source, candidate_files=candidate, explicit_mapping=mapping
+    )
+    assert not result.ready_for_verification
+    assert any(blocker.code == "SBFS-023" for blocker in result.blockers)
+
+
+def test_typed_requirement_binding_rejects_nonexistent_architecture_target():
+    from autonomous_api.app.engine.source_bound_full_stack import (
+        _canonical_hash,
+        lower_source_bound_candidate,
+    )
+
+    source = {
+        "source_refs": ["req:item", "isr:domain:item"],
+        "requirement_graph": {
+            "nodes": {"req:item": {"id": "req:item", "statement": "Read item"}},
+            "edges": {},
+        },
+    }
+    candidate = {"app.py": "print('candidate')"}
+    mapping = _complete_explicit_mapping()
+    mapping["provenance"]["source_refs"] = ["req:item", "isr:domain:item"]
+    mapping["requirement_bindings"] = [{
+        "requirement_id": "req:item", "layer": "api", "target_id": "api:invented",
+        "requirement_hash": _canonical_hash(source["requirement_graph"]["nodes"]["req:item"]),
+    }]
+    mapping["provenance"]["source_hash"] = _canonical_hash(source)
+    mapping["provenance"]["candidate_hash"] = _canonical_hash(candidate)
+
+    result = lower_source_bound_candidate(
+        source_artifacts=source, candidate_files=candidate, explicit_mapping=mapping
+    )
+    assert not result.ready_for_verification
+    assert any(blocker.code == "SBFS-024" for blocker in result.blockers)

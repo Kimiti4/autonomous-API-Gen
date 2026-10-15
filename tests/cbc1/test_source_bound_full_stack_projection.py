@@ -765,3 +765,96 @@ def test_stale_source_hash_in_mapping_provenance_blocks_projection():
     )
     assert result.status == "blocked"
     assert any(blocker.code == "SBFS-032" for blocker in result.blockers)
+
+
+def test_production_semantic_verifier_recomputes_source_mapping_and_candidate_hashes():
+    from autonomous_api.app.engine.source_bound_full_stack import (
+        SourceBoundSemanticCorrespondenceVerifier, _canonical_hash,
+    )
+    from compiler.core.repository import build_repository
+
+    source = {"source_refs": ["req:item"], "requirements": [{"id": "req:item", "statement": "List items"}]}
+    mapping = _complete_explicit_mapping()
+    mapping["provenance"]["source_refs"] = ["req:item"]
+    mapping["provenance"]["source_hash"] = _canonical_hash(source)
+    files = {"app.py": "def list_items():\n    return []\n"}
+    candidate_hash = build_repository(files).content_hash
+
+    result = SourceBoundSemanticCorrespondenceVerifier().verify_bound({
+        "source_artifacts": source,
+        "explicit_mapping": mapping,
+        "candidate_files": files,
+    }, candidate_hash)
+
+    assert result.passed, result.findings
+    assert result.source_hash == _canonical_hash(source)
+    assert result.mapping_hash == _canonical_hash(mapping)
+    assert result.candidate_hash == candidate_hash
+
+
+def test_production_semantic_verifier_rejects_changed_requirement_with_stale_mapping():
+    from autonomous_api.app.engine.source_bound_full_stack import (
+        SourceBoundSemanticCorrespondenceVerifier, _canonical_hash,
+    )
+    from compiler.core.repository import build_repository
+
+    original = {"source_refs": ["req:item"], "requirements": [{"id": "req:item", "statement": "List items"}]}
+    mapping = _complete_explicit_mapping()
+    mapping["provenance"]["source_refs"] = ["req:item"]
+    mapping["provenance"]["source_hash"] = _canonical_hash(original)
+    changed = {"source_refs": ["req:item"], "requirements": [{"id": "req:item", "statement": "Delete items"}]}
+    files = {"app.py": "def list_items():\n    return []\n"}
+
+    result = SourceBoundSemanticCorrespondenceVerifier().verify_bound({
+        "source_artifacts": changed,
+        "explicit_mapping": mapping,
+        "candidate_files": files,
+    }, build_repository(files).content_hash)
+
+    assert not result.passed
+    assert any("source_hash" in finding for finding in result.findings)
+
+
+def test_production_semantic_verifier_rejects_candidate_mutation_and_wrong_expected_hash():
+    from autonomous_api.app.engine.source_bound_full_stack import (
+        SourceBoundSemanticCorrespondenceVerifier, _canonical_hash,
+    )
+    from compiler.core.repository import build_repository
+
+    source = {"source_refs": ["req:item"], "requirements": [{"id": "req:item", "statement": "List items"}]}
+    mapping = _complete_explicit_mapping()
+    mapping["provenance"]["source_refs"] = ["req:item"]
+    mapping["provenance"]["source_hash"] = _canonical_hash(source)
+    files = {"app.py": "def list_items():\n    return []\n"}
+    wrong_hash = build_repository({"app.py": "def list_items():\n    return None\n"}).content_hash
+
+    result = SourceBoundSemanticCorrespondenceVerifier().verify_bound({
+        "source_artifacts": source,
+        "explicit_mapping": mapping,
+        "candidate_files": files,
+    }, wrong_hash)
+
+    assert not result.passed
+    assert any("candidate hash" in finding for finding in result.findings)
+
+
+def test_production_semantic_verifier_rejects_unknown_source_reference():
+    from autonomous_api.app.engine.source_bound_full_stack import (
+        SourceBoundSemanticCorrespondenceVerifier, _canonical_hash,
+    )
+    from compiler.core.repository import build_repository
+
+    source = {"source_refs": ["req:item"], "requirements": [{"id": "req:item", "statement": "List items"}]}
+    mapping = _complete_explicit_mapping()
+    mapping["provenance"]["source_refs"] = ["req:invented"]
+    mapping["provenance"]["source_hash"] = _canonical_hash(source)
+    files = {"app.py": "def list_items():\n    return []\n"}
+
+    result = SourceBoundSemanticCorrespondenceVerifier().verify_bound({
+        "source_artifacts": source,
+        "explicit_mapping": mapping,
+        "candidate_files": files,
+    }, build_repository(files).content_hash)
+
+    assert not result.passed
+    assert any("unknown source identifiers" in finding for finding in result.findings)

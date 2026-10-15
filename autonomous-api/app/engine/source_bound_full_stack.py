@@ -55,6 +55,70 @@ def _as_dict(value: Any) -> dict[str, Any] | None:
     return result if isinstance(result, dict) else None
 
 
+def source_snapshot_from_plan_artifacts(plan_artifacts: Any) -> dict[str, Any]:
+    """Create a deterministic snapshot from the real Campaign A PlanArtifacts.
+
+    The snapshot inventories identifiers from the requirement graph and ISR
+    graph and preserves the plan/revision/genome payloads. It does not claim
+    that these identifiers are equivalent or that semantic lowering occurred.
+    """
+    if plan_artifacts is None:
+        raise ValueError("PlanArtifacts are required")
+
+    def dump(value: Any, label: str) -> dict[str, Any]:
+        payload = _as_dict(value)
+        if payload is None:
+            raise ValueError(f"{label} is not canonically serializable")
+        return payload
+
+    plan = dump(getattr(plan_artifacts, "plan", None), "compilation plan")
+    revision = dump(getattr(plan_artifacts, "revision", None), "ISR revision")
+    genome = dump(getattr(plan_artifacts, "genome", None), "genome")
+    req_graph = dump(getattr(plan_artifacts, "requirement_graph", None), "requirement graph")
+
+    refs: set[str] = set()
+    req_nodes = req_graph.get("nodes")
+    if isinstance(req_nodes, Mapping):
+        refs.update(str(key) for key in req_nodes)
+        for node in req_nodes.values():
+            if isinstance(node, Mapping):
+                node_id = node.get("id")
+                if isinstance(node_id, str) and node_id:
+                    refs.add(node_id)
+    elif isinstance(req_nodes, (list, tuple)):
+        for node in req_nodes:
+            if isinstance(node, Mapping) and isinstance(node.get("id"), str):
+                refs.add(node["id"])
+
+    revision_graph = revision.get("graph")
+    if isinstance(revision_graph, Mapping):
+        isr_nodes = revision_graph.get("nodes")
+        if isinstance(isr_nodes, Mapping):
+            refs.update(str(key) for key in isr_nodes)
+        elif isinstance(isr_nodes, (list, tuple)):
+            for node in isr_nodes:
+                if isinstance(node, Mapping) and isinstance(node.get("id"), str):
+                    refs.add(node["id"])
+
+    if not refs:
+        raise ValueError("source artifacts expose no canonical requirement/ISR identifiers")
+
+    return {
+        "schema": "source-bound-plan-snapshot/1",
+        "source_refs": sorted(refs),
+        "plan": plan,
+        "revision": revision,
+        "genome": genome,
+        "requirement_graph": req_graph,
+        "declared_hashes": {
+            "requirement_graph_hash": getattr(plan_artifacts, "requirement_graph_hash", ""),
+            "genome_hash": getattr(plan_artifacts, "genome_hash", ""),
+            "plan_hash": getattr(plan_artifacts, "plan_hash", ""),
+            "isr_content_hash": revision.get("content_hash", ""),
+        },
+    }
+
+
 def project_source_bound_full_stack(
     *,
     source_artifacts: Any,

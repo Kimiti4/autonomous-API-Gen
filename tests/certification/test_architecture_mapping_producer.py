@@ -59,8 +59,10 @@ def _complete_semantic_snapshot(snapshot):
     snapshot = dict(snapshot)
     revision = dict(snapshot["revision"])
     graph = dict(revision["graph"])
-    nodes = dict(graph["nodes"])
-    edges = dict(graph["edges"])
+    # Use a deliberately small, fully specified graph so this test proves
+    # the producer contract rather than inheriting unrelated corpus gaps.
+    nodes = {}
+    edges = {}
 
     def node(node_id, node_type, properties):
         nodes[node_id] = {"id": node_id, "type": node_type, "properties": properties}

@@ -77,7 +77,7 @@ def test_rust_generated_health_test_exercises_router_behavior():
     assert 'assert_eq!(response.status(), 200)' in test_source
     assert 'uri("/not-a-route")' in test_source
     assert 'assert_eq!("/health", "/health")' not in test_source
-    assert "COPY --from=build /app/target/release/taskflow-rust-check /usr/local/bin/app" in dockerfile
+    assert "COPY --from=build /app/target/release/taskflow_rust_check /usr/local/bin/app" in dockerfile
 
 
 def test_rust_integration_tests_import_the_generated_library_crate():
@@ -96,3 +96,32 @@ def test_rust_integration_tests_import_the_generated_library_crate():
     assert f"use {crate_name}::app;" in generated.files["src/main.rs"]
     assert "pub fn app() -> Router" in generated.files["src/lib.rs"]
     assert "use super::app;" not in generated.files["tests/health.rs"]
+
+
+def test_rust_domain_models_are_compiled_and_placeholder_modules_are_not_emitted():
+    from tiannara.application.compiler.rust_axum_backend import RustAxumBackend
+    from tiannara.domain.models.system_model import (
+        SystemModel, RequirementsReference, DataModelSpec, FieldSpec, AbstractFieldType,
+    )
+    model = SystemModel(
+        system_name="Inventory Service",
+        problem_statement="Compile typed model declarations",
+        requirements_ref=RequirementsReference(graph_id="g", graph_hash="h"),
+        data_models=[DataModelSpec(
+            id="item", name="Item", owning_service_id="inventory",
+            fields=[
+                FieldSpec(name="itemId", type=AbstractFieldType.IDENTIFIER),
+                FieldSpec(name="type", type=AbstractFieldType.TEXT),
+            ],
+        )],
+    )
+    generated = RustAxumBackend().generate(model)
+    library = generated.files["src/lib.rs"]
+    models = generated.files["src/domain/models.rs"]
+    assert "pub mod domain;" in library
+    assert 'pub itemid: String' in models
+    assert '#[serde(rename = "itemId")]' in models
+    assert 'pub r#type: String' in models
+    assert "src/application/mod.rs" not in generated.files
+    assert "src/infrastructure/mod.rs" not in generated.files
+    assert "src/api/mod.rs" not in generated.files

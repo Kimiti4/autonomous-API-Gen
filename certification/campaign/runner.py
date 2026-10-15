@@ -78,6 +78,41 @@ def _run_candidate_bound_full_stack_verifier(verifier: Any, inputs: Any, candida
     return True, f"full-stack verification passed with matching candidate binding; candidate_hash={candidate_hash}"
 
 
+def _run_semantic_correspondence_verifier(
+    verifier: Any, inputs: Any, candidate_hash: str,
+) -> tuple[dict[str, Any], str]:
+    """Run a source-to-mapping-to-candidate verifier; never infer semantic proof."""
+    if verifier is None:
+        return {}, "semantic correspondence unavailable: verifier not configured"
+    if inputs is None:
+        return {}, "semantic correspondence unavailable: source and mapping inputs missing"
+    if not candidate_hash:
+        return {}, "semantic correspondence unavailable: candidate hash missing"
+    verify = getattr(verifier, "verify_bound", None)
+    if not callable(verify):
+        return {}, "semantic correspondence unavailable: verifier must implement verify_bound(inputs, candidate_hash)"
+    try:
+        result = verify(inputs, candidate_hash)
+    except Exception as exc:
+        return {}, f"semantic correspondence failed closed: {type(exc).__name__}: {exc}"
+    evidence = {
+        "passed": getattr(result, "passed", None) is True,
+        "source_hash": getattr(result, "source_hash", ""),
+        "mapping_hash": getattr(result, "mapping_hash", ""),
+        "candidate_hash": getattr(result, "candidate_hash", ""),
+    }
+    if evidence["passed"] is not True:
+        return evidence, f"semantic correspondence did not pass: {getattr(result, 'findings', None)!r}"
+    for key in ("source_hash", "mapping_hash", "candidate_hash"):
+        if not isinstance(evidence[key], str) or not evidence[key].strip():
+            evidence["passed"] = False
+            return evidence, f"semantic correspondence missing {key}"
+    if evidence["candidate_hash"] != candidate_hash:
+        evidence["passed"] = False
+        return evidence, "semantic correspondence candidate binding mismatch"
+    return evidence, "semantic correspondence passed with matching candidate binding"
+
+
 def _unconfigured_stage(stage: TrialStage) -> tuple[bool, str]:
     """A missing execution adapter is absence of evidence, never a pass."""
     return False, f"not_configured: no real {stage.value} stage adapter supplied"
@@ -99,6 +134,7 @@ class CampaignRunner:
         destroyer: Any = None,
         verifier: Any = None,
         full_stack_verifier: Any = None,
+        semantic_correspondence_verifier: Any = None,
     ) -> None:
         self.builder = builder
         self.tester = tester
@@ -107,6 +143,7 @@ class CampaignRunner:
         self.destroyer = destroyer
         self.verifier = verifier
         self.full_stack_verifier = full_stack_verifier
+        self.semantic_correspondence_verifier = semantic_correspondence_verifier
 
     def run_trial(
         self,
@@ -123,6 +160,7 @@ class CampaignRunner:
         workload: Any = None,
         artifacts: Any = None,
         full_stack_inputs: tuple[Any, Any, Any, Any, Any] | None = None,
+        semantic_correspondence_inputs: Any = None,
     ) -> Trial:
         trial_id = str(uuid.uuid4())
         ident: BackendIdentity = backend.identity()
@@ -229,10 +267,16 @@ class CampaignRunner:
             full_stack_ok, full_stack_detail = _run_candidate_bound_full_stack_verifier(
                 self.full_stack_verifier, full_stack_inputs, candidate_hash
             )
-            verify_ok = independent_ok and full_stack_ok
+            semantic_evidence, semantic_detail = _run_semantic_correspondence_verifier(
+                self.semantic_correspondence_verifier,
+                semantic_correspondence_inputs,
+                candidate_hash,
+            )
+            verify_ok = independent_ok and full_stack_ok and semantic_evidence.get("passed") is True
             _record(
                 TrialStage.VERIFY, verify_ok,
-                f"independent=[{independent_detail}]; full_stack=[{full_stack_detail}]",
+                f"independent=[{independent_detail}]; full_stack=[{full_stack_detail}]; "
+                f"semantic_correspondence=[{semantic_detail}]",
             )
 
             verdict = compose_verdict(stage_results, evidence_present=True)
@@ -265,6 +309,7 @@ class CampaignRunner:
             stages=evidence,
             metrics=metrics,
             verdict=verdict,
+            semantic_correspondence=semantic_evidence if 'semantic_evidence' in locals() else {},
         )
 
         if artifacts and workload is not None:

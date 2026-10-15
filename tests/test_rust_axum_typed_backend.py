@@ -119,7 +119,7 @@ def test_rust_domain_models_are_compiled_and_placeholder_modules_are_not_emitted
     library = generated.files["src/lib.rs"]
     models = generated.files["src/domain/models.rs"]
     assert "pub mod domain;" in library
-    assert 'pub itemid: String' in models
+    assert 'pub item_id: String' in models
     assert '#[serde(rename = "itemId")]' in models
     assert 'pub r#type: String' in models
     assert "src/application/mod.rs" not in generated.files

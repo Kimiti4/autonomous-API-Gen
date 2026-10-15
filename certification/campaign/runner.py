@@ -291,8 +291,12 @@ class CampaignRunner:
                 try:
                     deploy_result = self.deployer.deploy(tag, port)
                     if hasattr(deploy_result, "stage") and deploy_result.stage == TrialStage.DEPLOY:
-                        d_ok = deploy_result.passed is True and deploy_result.mode.value == "real_docker" and bool(deploy_result.container_id)
-                        cid = deploy_result.container_id if d_ok else ""
+                        real_docker_result = deploy_result.mode.value == "real_docker"
+                        # Preserve any real container identity even when the
+                        # stage failed its health/acceptance condition, so the
+                        # cleanup stage can still remove the resource.
+                        cid = deploy_result.container_id if real_docker_result else ""
+                        d_ok = deploy_result.passed is True and real_docker_result and bool(cid)
                         d_detail = (
                             f"mode={deploy_result.mode.value}; cid={cid}; logs_hash={deploy_result.logs_hash}; "
                             f"detail={deploy_result.detail}"

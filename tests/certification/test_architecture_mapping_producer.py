@@ -73,6 +73,17 @@ def _complete_semantic_snapshot(snapshot):
             "source_id": source_id, "target_id": target_id, "properties": {},
         }
 
+    node("requirement:project-create", "requirement_ref", {
+        "requirement_id": "REQ-PROJECT-001",
+        "semantic_content": "An authorized workspace member can create a project.",
+        "requirement_kind": "functional",
+        "source_ref": "taskflow-requirements.md#REQ-PROJECT-001",
+        "revision": "1",
+        "verification_method": "integration_test",
+    })
+    node("capability:project-create", "capability", {
+        "name": "Create project", "description": "Create a project in a workspace",
+    })
     node("ui:route:projects", "frontend_route", {"path": "/projects"})
     node("ui:interaction:create-project", "frontend_interaction", {"action": "create_project", "flow_id": "flow:create-project"})
     node("api:projects", "api", {
@@ -97,6 +108,8 @@ def _complete_semantic_snapshot(snapshot):
         "trigger": "duplicate request", "outcome": "return prior result",
         "failure_policy": "no duplicate side effect",
     })
+    edge("edge:capability-requirement", "satisfies", "capability:project-create", "requirement:project-create")
+    edge("edge:capability-service", "implemented_by", "capability:project-create", "service:projects")
     edge("edge:route-api", "routes_to", "ui:route:projects", "api:projects")
     edge("edge:interaction-api", "invokes", "ui:interaction:create-project", "api:projects")
     edge("edge:api-effect", "causes_effect", "api:projects", "effect:create-project")
@@ -120,6 +133,9 @@ def test_typed_isr_semantics_lower_to_all_five_mapping_layers():
     assert set(("frontend", "api", "backend", "effects", "consequences")).issubset(result.mapping)
     assert result.mapping["frontend"]["routes"][0]["id"] == "ui:route:projects"
     assert result.mapping["effects"][0]["id"] == "effect:create-project"
+    assert result.mapping["requirement_obligations"][0]["requirement_id"] == "REQ-PROJECT-001"
+    assert result.mapping["requirement_obligations"][0]["service_id"] == "service:projects"
+    assert result.mapping["requirement_obligations"][0]["verification_method"] == "integration_test"
     assert result.mapping["consequences"]["invariants"][0]["id"] == "invariant:project-name"
     assert result.mapping["provenance"]["source_hash"]
 
@@ -189,3 +205,51 @@ def test_semantic_source_mutation_changes_source_binding_hash():
     assert original_result.complete and changed_result.complete
     assert original_result.mapping["provenance"]["source_hash"] != changed_result.mapping["provenance"]["source_hash"]
     assert original_result.mapping["api"] != changed_result.mapping["api"]
+
+
+def test_requirement_without_authoritative_semantics_cannot_be_mapped():
+    artifacts = build_artifacts_for(default_corpus()[0])
+    snapshot = _complete_semantic_snapshot(source_snapshot_from_plan_artifacts(artifacts))
+    revision = dict(snapshot["revision"])
+    graph = dict(revision["graph"])
+    nodes = dict(graph["nodes"])
+    requirement = dict(nodes["requirement:project-create"])
+    props = dict(requirement["properties"])
+    del props["semantic_content"]
+    requirement["properties"] = props
+    nodes["requirement:project-create"] = requirement
+    graph["nodes"] = nodes
+    revision["graph"] = graph
+    snapshot["revision"] = revision
+
+    result = produce_architecture_mapping(snapshot)
+
+    assert result.mapping is None
+    assert any(item.code == "MAP-REQ-002" for item in result.blockers)
+
+
+def test_authorization_requirement_without_enforcement_policy_edge_is_blocked():
+    artifacts = build_artifacts_for(default_corpus()[0])
+    snapshot = _complete_semantic_snapshot(source_snapshot_from_plan_artifacts(artifacts))
+    revision = dict(snapshot["revision"])
+    graph = dict(revision["graph"])
+    nodes = dict(graph["nodes"])
+    requirement = dict(nodes["requirement:project-create"])
+    props = dict(requirement["properties"])
+    props["requirement_kind"] = "authorization"
+    requirement["properties"] = props
+    nodes["requirement:project-create"] = requirement
+    edges = dict(graph["edges"])
+    edges["edge:capability-requirement"] = {
+        "id": "edge:capability-requirement", "type": "satisfies",
+        "source_id": "capability:project-create", "target_id": "requirement:project-create",
+        "properties": {},
+    }
+    graph["nodes"], graph["edges"] = nodes, edges
+    revision["graph"] = graph
+    snapshot["revision"] = revision
+
+    result = produce_architecture_mapping(snapshot)
+
+    assert result.mapping is None
+    assert any(item.code == "MAP-REQ-SEC-001" for item in result.blockers)

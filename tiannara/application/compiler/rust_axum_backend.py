@@ -182,7 +182,7 @@ async fn unknown_route_returns_not_found() {
 }
 """.replace("__CRATE_NAME__", crate_name)
 
-    def _dockerfile(self, slug):(self, slug):(self, slug):
+    def _dockerfile(self, slug):
         return f"""FROM rust:1.85-slim AS build
 WORKDIR /app
 COPY . .

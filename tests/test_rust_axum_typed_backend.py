@@ -41,6 +41,7 @@ def test_rust_generation_uses_only_system_model():
     result = backend.generate(model)
     assert "src/domain/models.rs" in result.files
     assert "src/main.rs" in result.files
+    assert "src/lib.rs" in result.files
     assert "fastapi" not in "\n".join(result.files.values()).lower()
     assert "net/http" not in "\n".join(result.files.values()).lower()
 
@@ -77,3 +78,21 @@ def test_rust_generated_health_test_exercises_router_behavior():
     assert 'uri("/not-a-route")' in test_source
     assert 'assert_eq!("/health", "/health")' not in test_source
     assert "COPY --from=build /app/target/release/taskflow-rust-check /usr/local/bin/app" in dockerfile
+
+
+def test_rust_integration_tests_import_the_generated_library_crate():
+    from tiannara.application.compiler.rust_axum_backend import RustAxumBackend
+    from tiannara.domain.models.system_model import SystemModel, RequirementsReference
+
+    model = SystemModel(
+        system_name="Inventory Service",
+        problem_statement="Verify crate naming in generated integration tests",
+        requirements_ref=RequirementsReference(graph_id="g", graph_hash="h"),
+    )
+    generated = RustAxumBackend().generate(model)
+    package_name = generated.files["Cargo.toml"].split('name = "', 1)[1].split('"', 1)[0]
+    crate_name = package_name.replace("-", "_")
+    assert f"use {crate_name}::app;" in generated.files["tests/health.rs"]
+    assert f"use {crate_name}::app;" in generated.files["src/main.rs"]
+    assert "pub fn app() -> Router" in generated.files["src/lib.rs"]
+    assert "use super::app;" not in generated.files["tests/health.rs"]

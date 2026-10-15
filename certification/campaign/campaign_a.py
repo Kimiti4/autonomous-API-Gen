@@ -71,16 +71,27 @@ def run_campaign_a(
     summary["corpus_hash"] = ch
     summary["corpus_size"] = len(corpus)
     summary["total_trials"] = len(trials)
-    # Campaign A currently has no trusted adapter that derives the five
-    # full-stack IR inputs from its source-bound PlanArtifacts. Make this
-    # limitation explicit in the report; do not synthesize IR merely to pass.
+    # The runner attempts source-bound mapping and canonical IR lowering.
+    # Report the actual trial evidence rather than a stale "not configured" flag.
+    semantic_records = [trial.semantic_correspondence for trial in trials]
+    semantic_passed = sum(record.get("passed") is True for record in semantic_records)
+    semantic_blockers = sorted({
+        str(finding)
+        for record in semantic_records
+        for finding in (record.get("findings", ()) or ())
+        if isinstance(finding, str) and finding
+    })
+    all_verify_stages_passed = all(
+        any(stage.stage.value == "verify" and stage.passed is True for stage in trial.stages)
+        for trial in trials
+    )
+    all_trials_certified = bool(trials) and all(trial.verdict == "CERTIFIED" for trial in trials)
     summary["full_stack_verification"] = {
-        "status": "blocked_not_configured",
-        "reason": (
-            "Campaign A does not yet derive candidate-bound frontend, API, "
-            "backend, effect, and consequence IR from the source-bound artifacts."
-        ),
-        "certification_authorized": False,
+        "status": "passed" if semantic_passed == len(trials) and all_verify_stages_passed else "blocked",
+        "source_bound_trials_passed": semantic_passed,
+        "required_trials": len(trials),
+        "blockers": semantic_blockers[:50],
+        "certification_authorized": all_trials_certified,
     }
 
     assert EvidenceLedger.verify(ledger_path), "Evidence chain broken"

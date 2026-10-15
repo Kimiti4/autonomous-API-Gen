@@ -1039,6 +1039,15 @@ class SourceBoundSemanticCorrespondenceVerifier:
         source = inputs.get("source_artifacts")
         mapping = inputs.get("explicit_mapping")
         files = inputs.get("candidate_files")
+        producer_findings = inputs.get("mapping_producer_findings", ())
+        if not isinstance(producer_findings, (list, tuple)):
+            findings.append("mapping_producer_findings must be a list")
+        else:
+            findings.extend(
+                f"architecture mapping producer: {item}"
+                for item in producer_findings
+                if isinstance(item, str) and item
+            )
 
         source_dict = _as_dict(source)
         if source_dict is None:

@@ -138,30 +138,29 @@ async fn main() {
     def _test(self, slug):
         crate_name = slug.replace("-", "_")
         return f"""use {crate_name}::app;
-    use axum::{body::{to_bytes, Body}, http::Request};
-    use tower::ServiceExt;
+use axum::{{body::{{to_bytes, Body}}, http::Request}};
+use tower::ServiceExt;
 
-    #[tokio::test]
-    async fn health_endpoint_returns_ok() {
-        let response = app()
-            .oneshot(Request::builder().uri("/health").body(Body::empty()).expect("request"))
-            .await.expect("response");
-        assert_eq!(response.status(), 200);
-        let body = to_bytes(response.into_body(), usize::MAX).await.expect("body");
-        assert_eq!(&body[..], b"ok");
-    }
+#[tokio::test]
+async fn health_endpoint_returns_ok() {
+    let response = app()
+        .oneshot(Request::builder().uri("/health").body(Body::empty()).expect("request"))
+        .await.expect("response");
+    assert_eq!(response.status(), 200);
+    let body = to_bytes(response.into_body(), usize::MAX).await.expect("body");
+    assert_eq!(&body[..], b"ok");
+}
 
-    #[tokio::test]
-    async fn unknown_route_returns_not_found() {
-        let response = app()
-            .oneshot(Request::builder().uri("/not-a-route").body(Body::empty()).expect("request"))
-            .await.expect("response");
-        assert_eq!(response.status(), 404);
-    }
+#[tokio::test]
+async fn unknown_route_returns_not_found() {
+    let response = app()
+        .oneshot(Request::builder().uri("/not-a-route").body(Body::empty()).expect("request"))
+        .await.expect("response");
+    assert_eq!(response.status(), 404);
 }
 """
 
-    def _dockerfile(self, slug):
+    def _dockerfile(self, slug):(self, slug):
         return f"""FROM rust:1.85-slim AS build
 WORKDIR /app
 COPY . .

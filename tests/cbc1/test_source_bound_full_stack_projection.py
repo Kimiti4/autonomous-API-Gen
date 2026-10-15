@@ -363,3 +363,71 @@ def test_missing_plan_semantics_are_blockers_not_inferred_defaults():
     assert any("no explicit data models" in blocker for blocker in facts.blockers)
     assert any("no explicit event declarations" in blocker for blocker in facts.blockers)
     assert any("no explicit security policy identifiers" in blocker for blocker in facts.blockers)
+
+
+
+def test_source_bound_lowering_rejects_unbound_mapping_digests():
+    from autonomous_api.app.engine.source_bound_full_stack import (
+        lower_source_bound_candidate,
+    )
+
+    source = {"source_refs": ["req:item", "isr:domain:item"], "revision": "rev-1"}
+    candidate = {"app.py": "print('candidate')"}
+    mapping = _complete_explicit_mapping()
+    mapping["provenance"]["source_hash"] = "0" * 64
+    mapping["provenance"]["candidate_hash"] = "1" * 64
+
+    result = lower_source_bound_candidate(
+        source_artifacts=source,
+        candidate_files=candidate,
+        explicit_mapping=mapping,
+    )
+    assert not result.ready_for_verification
+    assert result.lowered is not None
+    assert any(blocker.code == "SBFS-011" for blocker in result.blockers)
+    assert any(blocker.code == "SBFS-012" for blocker in result.blockers)
+
+
+def test_source_bound_lowering_rejects_provenance_outside_source_snapshot():
+    from autonomous_api.app.engine.source_bound_full_stack import (
+        _canonical_hash,
+        lower_source_bound_candidate,
+    )
+
+    source = {"source_refs": ["req:item"], "revision": "rev-1"}
+    candidate = {"app.py": "print('candidate')"}
+    mapping = _complete_explicit_mapping()
+    mapping["provenance"]["source_refs"] = ["req:invented"]
+    mapping["provenance"]["source_hash"] = _canonical_hash(source)
+    mapping["provenance"]["candidate_hash"] = _canonical_hash(candidate)
+
+    result = lower_source_bound_candidate(
+        source_artifacts=source,
+        candidate_files=candidate,
+        explicit_mapping=mapping,
+    )
+    assert not result.ready_for_verification
+    assert any(blocker.code == "SBFS-008" for blocker in result.blockers)
+
+
+def test_source_bound_lowering_accepts_matching_source_candidate_and_ir_binding():
+    from autonomous_api.app.engine.source_bound_full_stack import (
+        _canonical_hash,
+        lower_source_bound_candidate,
+    )
+
+    source = {"source_refs": ["req:item", "isr:domain:item"], "revision": "rev-1"}
+    candidate = {"app.py": "print('candidate')"}
+    mapping = _complete_explicit_mapping()
+    mapping["provenance"]["source_hash"] = _canonical_hash(source)
+    mapping["provenance"]["candidate_hash"] = _canonical_hash(candidate)
+
+    result = lower_source_bound_candidate(
+        source_artifacts=source,
+        candidate_files=candidate,
+        explicit_mapping=mapping,
+    )
+    assert result.ready_for_verification
+    assert result.lowered is not None
+    assert result.source_hash == _canonical_hash(source)
+    assert result.candidate_hash == _canonical_hash(candidate)

@@ -46,7 +46,10 @@ def _canonical_hash(value: Any) -> str:
 
 def _as_dict(value: Any) -> dict[str, Any] | None:
     if hasattr(value, "model_dump"):
-        result = value.model_dump()
+        try:
+            result = value.model_dump(mode="json")
+        except TypeError:
+            result = value.model_dump()
     elif hasattr(value, "to_dict"):
         result = value.to_dict()
     elif isinstance(value, Mapping):

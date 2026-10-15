@@ -570,3 +570,64 @@ def test_typed_requirement_binding_rejects_nonexistent_architecture_target():
     )
     assert not result.ready_for_verification
     assert any(blocker.code == "SBFS-024" for blocker in result.blockers)
+
+
+
+def test_authorization_requirement_rejects_target_without_enforceable_policy():
+    from autonomous_api.app.engine.source_bound_full_stack import _validate_semantic_obligations
+
+    source = {"requirement_graph": {"nodes": {
+        "req:auth": {"id": "req:auth", "statement": "Only the owner can delete a workspace"}
+    }}}
+    mapping = {
+        "frontend": {}, "api": {}, "backend": {"modules": [{
+            "module_id": "workspace_service", "responsibility": "workspace operations",
+            "dependencies": [], "invariants": [], "security_boundaries": []
+        }]}, "effects": [], "consequences": [],
+        "requirement_bindings": [{
+            "requirement_id": "req:auth", "layer": "backend",
+            "target_id": "workspace_service"
+        }]
+    }
+    blockers = _validate_semantic_obligations(source, mapping)
+    assert any(b.code == "SBFS-026" for b in blockers)
+
+
+def test_authorization_requirement_accepts_explicit_enforcement_contract_only():
+    from autonomous_api.app.engine.source_bound_full_stack import _validate_semantic_obligations
+
+    source = {"requirement_graph": {"nodes": {
+        "req:auth": {"id": "req:auth", "statement": "Only the owner can delete a workspace"}
+    }}}
+    mapping = {
+        "frontend": {}, "api": {}, "backend": {"modules": [{
+            "module_id": "workspace_service", "responsibility": "workspace operations",
+            "dependencies": [], "invariants": [],
+            "security_boundaries": [{
+                "policy_id": "workspace-owner-policy", "enforcement": "middleware"
+            }]
+        }]}, "effects": [], "consequences": [],
+        "requirement_bindings": [{
+            "requirement_id": "req:auth", "layer": "backend",
+            "target_id": "workspace_service"
+        }]
+    }
+    blockers = _validate_semantic_obligations(source, mapping)
+    assert not any(b.code == "SBFS-026" for b in blockers)
+
+
+def test_api_requirement_must_bind_to_explicit_contract_or_operation():
+    from autonomous_api.app.engine.source_bound_full_stack import _validate_semantic_obligations
+
+    source = {"requirement_graph": {"nodes": {
+        "req:api": {"id": "req:api", "statement": "The API endpoint returns item details"}
+    }}}
+    mapping = {
+        "frontend": {}, "api": {"operations": [{"operation_id": "get_item"}]},
+        "backend": {}, "effects": [], "consequences": [],
+        "requirement_bindings": [{
+            "requirement_id": "req:api", "layer": "api", "target_id": "get_item"
+        }]
+    }
+    blockers = _validate_semantic_obligations(source, mapping)
+    assert any(b.code == "SBFS-027" for b in blockers)

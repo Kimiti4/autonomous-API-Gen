@@ -270,7 +270,7 @@ def test_state_changing_api_without_explicit_effect_is_represented_for_gate_fail
     from app.engine.source_bound_full_stack import (
         lower_explicit_mapping_to_full_stack_ir,
     )
-    from autonomous_api.app.engine.full_stack_verification import verify_full_stack
+    from app.engine.full_stack_verification import verify_full_stack
 
     mapping = _complete_explicit_mapping()
     mapping["api"]["operations"][0]["method"] = "POST"
@@ -574,7 +574,7 @@ def test_typed_requirement_binding_rejects_nonexistent_architecture_target():
 
 
 def test_authorization_requirement_rejects_target_without_enforceable_policy():
-    from autonomous_api.app.engine.source_bound_full_stack import _validate_semantic_obligations
+    from app.engine.source_bound_full_stack import _validate_semantic_obligations
 
     source = {"requirement_graph": {"nodes": {
         "req:auth": {"id": "req:auth", "statement": "Only the owner can delete a workspace"}
@@ -594,7 +594,7 @@ def test_authorization_requirement_rejects_target_without_enforceable_policy():
 
 
 def test_authorization_requirement_accepts_explicit_enforcement_contract_only():
-    from autonomous_api.app.engine.source_bound_full_stack import _validate_semantic_obligations
+    from app.engine.source_bound_full_stack import _validate_semantic_obligations
 
     source = {"requirement_graph": {"nodes": {
         "req:auth": {"id": "req:auth", "statement": "Only the owner can delete a workspace"}
@@ -617,7 +617,7 @@ def test_authorization_requirement_accepts_explicit_enforcement_contract_only():
 
 
 def test_api_requirement_must_bind_to_explicit_contract_or_operation():
-    from autonomous_api.app.engine.source_bound_full_stack import _validate_semantic_obligations
+    from app.engine.source_bound_full_stack import _validate_semantic_obligations
 
     source = {"requirement_graph": {"nodes": {
         "req:api": {"id": "req:api", "statement": "The API endpoint returns item details"}
@@ -635,7 +635,7 @@ def test_api_requirement_must_bind_to_explicit_contract_or_operation():
 
 
 def test_owner_only_requirement_rejects_policy_that_allows_members():
-    from autonomous_api.app.engine.source_bound_full_stack import _validate_semantic_obligations
+    from app.engine.source_bound_full_stack import _validate_semantic_obligations
 
     source = {"requirement_graph": {"nodes": {
         "req:owner": {"id": "req:owner", "statement": "Only the owner can delete a workspace"}
@@ -654,7 +654,7 @@ def test_owner_only_requirement_rejects_policy_that_allows_members():
 
 
 def test_api_delete_requirement_rejects_get_operation():
-    from autonomous_api.app.engine.source_bound_full_stack import _validate_semantic_obligations
+    from app.engine.source_bound_full_stack import _validate_semantic_obligations
 
     source = {"requirement_graph": {"nodes": {
         "req:delete": {"id": "req:delete", "statement": "Delete the workspace through the API endpoint"}
@@ -741,7 +741,7 @@ def test_meaning_change_invalidates_source_binding_hash_and_rechecks_semantics()
 
 
 def test_stale_source_hash_in_mapping_provenance_blocks_projection():
-    from autonomous_api.app.engine.source_bound_full_stack import _canonical_hash
+    from app.engine.source_bound_full_stack import _canonical_hash
 
     source = {
         "source_refs": ["req:1"],

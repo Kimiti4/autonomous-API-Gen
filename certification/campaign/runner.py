@@ -235,18 +235,31 @@ class CampaignRunner:
 
             tag = f"cbc1-{trial_id[:8]}"
             if self.builder:
-                build_result = self.builder.build(d, tag)
-                if hasattr(build_result, "stage") and build_result.stage == TrialStage.BUILD:
-                    b_ok = build_result.passed is True and bool(build_result.image_digest)
-                    b_detail = (
-                        f"mode={build_result.mode.value}; image_digest={build_result.image_digest}; "
-                        f"logs_hash={build_result.logs_hash}; detail={build_result.detail}"
+                try:
+                    build_result = self.builder.build(d, tag)
+                    if (
+                        getattr(build_result, "stage", None) == TrialStage.BUILD
+                        and getattr(build_result, "mode", None) is not None
+                    ):
+                        mode_value = getattr(build_result.mode, "value", None)
+                        b_ok = (
+                            build_result.passed is True
+                            and mode_value == "real_docker"
+                            and bool(build_result.image_digest)
+                        )
+                        b_detail = (
+                            f"mode={mode_value}; image_digest={build_result.image_digest}; "
+                            f"logs_hash={build_result.logs_hash}; failure_class={build_result.failure_class}; "
+                            f"detail={build_result.detail}"
+                        )
+                    else:
+                        b_ok, b_detail = False, (
+                            "invalid build adapter result; real-Docker stage evidence required"
+                        )
+                except Exception as exc:
+                    b_ok, b_detail = False, (
+                        f"build adapter failed closed: {type(exc).__name__}: {exc}"
                     )
-                elif isinstance(build_result, tuple) and len(build_result) == 2:
-                    b_ok, b_hash = build_result
-                    b_detail = f"build_hash={b_hash}"
-                else:
-                    b_ok, b_detail = False, "invalid build adapter result; explicit stage evidence required"
                 _record(TrialStage.BUILD, b_ok, b_detail)
             else:
                 ok, detail = _unconfigured_stage(TrialStage.BUILD)

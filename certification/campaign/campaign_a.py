@@ -11,6 +11,7 @@ from certification.campaign.plan_builder import build_artifacts_for
 from certification.campaign.verify_campaign import verify_campaign
 from certification.campaign.verdict import compose_campaign_verdict, CampaignVerdict
 from compiler.composition import build_backend_registry
+from certification.stages.docker_stages import RealDockerStages
 
 
 BACKENDS = ["python-fastapi", "rust-axum"]
@@ -25,7 +26,16 @@ def run_campaign_a(
     os.makedirs(os.path.dirname(ledger_path) or ".", exist_ok=True)
     reg = build_backend_registry()
     ledger = EvidenceLedger(ledger_path)
-    runner = CampaignRunner()
+    # Campaign A uses the real Docker-backed stages. If Docker is unavailable,
+    # each stage records an explicit failure; no stub or synthetic pass is used.
+    docker_stages = RealDockerStages()
+    runner = CampaignRunner(
+        builder=docker_stages,
+        tester=docker_stages,
+        deployer=docker_stages,
+        prober=docker_stages,
+        destroyer=docker_stages,
+    )
     aggregator = CampaignAggregator()
 
     corpus = default_corpus()

@@ -115,8 +115,13 @@ def project_source_bound_full_stack(
                     "SBFS-007", "mapping must reference source requirement/ISR identifiers"
                 ))
             elif source_dict is not None:
-                known_refs = set(source_dict.get("source_refs", ()))
-                if known_refs and not set(source_refs).issubset(known_refs):
+                known_refs = source_dict.get("source_refs")
+                if not isinstance(known_refs, (list, tuple, set)) or not known_refs:
+                    blockers.append(ProjectionBlocker(
+                        "SBFS-010",
+                        "source artifacts do not expose a canonical source_refs inventory",
+                    ))
+                elif not set(source_refs).issubset(set(known_refs)):
                     blockers.append(ProjectionBlocker(
                         "SBFS-008", "mapping references source identifiers absent from source artifacts",
                         tuple(str(x) for x in source_refs),

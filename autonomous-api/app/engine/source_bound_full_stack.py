@@ -820,3 +820,83 @@ def _validate_requirement_coverage(
             tuple(missing),
         ),)
     return ()
+
+
+
+def _walk_ids(value: Any) -> set[str]:
+    found: set[str] = set()
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            if key in {"id", "module_id", "operation_id", "contract_id", "flow_id", "policy_id", "requirement_id", "schema_id", "event_id", "route_id", "decision_id"} and isinstance(item, str) and item:
+                found.add(item)
+            found.update(_walk_ids(item))
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            found.update(_walk_ids(item))
+    return found
+
+
+def _validate_typed_requirement_bindings(
+    source: Mapping[str, Any],
+    mapping: Mapping[str, Any],
+) -> tuple[ProjectionBlocker, ...]:
+    """Require each requirement to target a real typed architecture object.
+
+    The requirement digest binds the decision record to the exact source
+    statement. It is not a semantic proof; domain-specific validators must
+    still verify that the selected target satisfies the statement.
+    """
+    graph = source.get("requirement_graph")
+    if not isinstance(graph, Mapping):
+        return ()
+    nodes = graph.get("nodes")
+    if isinstance(nodes, Mapping):
+        requirements = {}
+        for key, node in nodes.items():
+            if not isinstance(key, str) or not key or not isinstance(node, Mapping):
+                return (ProjectionBlocker("SBFS-018", "cannot validate typed bindings against malformed requirement nodes"),)
+            rid = node.get("id", key)
+            if rid != key or not isinstance(rid, str) or not rid:
+                return (ProjectionBlocker("SBFS-018", "requirement graph key/id mismatch prevents typed binding"),)
+            requirements[rid] = node
+    elif isinstance(nodes, (list, tuple)):
+        requirements = {}
+        for node in nodes:
+            if not isinstance(node, Mapping) or not isinstance(node.get("id"), str) or not node["id"] or node["id"] in requirements:
+                return (ProjectionBlocker("SBFS-018", "requirement list has missing or duplicate IDs"),)
+            requirements[node["id"]] = node
+    else:
+        return (ProjectionBlocker("SBFS-018", "requirement graph has no canonical nodes"),)
+
+    bindings = mapping.get("requirement_bindings")
+    if not isinstance(bindings, (list, tuple)):
+        return (ProjectionBlocker("SBFS-019", "typed requirement_bindings are required when a requirement graph is present"),)
+
+    layers = {name: mapping.get(name) for name in REQUIRED_LAYERS}
+    targets = {name: _walk_ids(value) for name, value in layers.items()}
+    seen: set[str] = set()
+    blockers: list[ProjectionBlocker] = []
+    for binding in bindings:
+        if not isinstance(binding, Mapping):
+            blockers.append(ProjectionBlocker("SBFS-020", "requirement binding must be an object"))
+            continue
+        rid = binding.get("requirement_id")
+        layer = binding.get("layer")
+        target_id = binding.get("target_id")
+        if not isinstance(rid, str) or rid not in requirements:
+            blockers.append(ProjectionBlocker("SBFS-021", "binding references an unknown requirement", (str(rid),)))
+            continue
+        if rid in seen:
+            blockers.append(ProjectionBlocker("SBFS-022", "requirement has duplicate typed bindings", (rid,)))
+            continue
+        seen.add(rid)
+        node = requirements[rid]
+        expected_hash = _canonical_hash(node)
+        if binding.get("requirement_hash") != expected_hash:
+            blockers.append(ProjectionBlocker("SBFS-023", "binding does not match the current requirement content", (rid,)))
+        if layer not in targets or not isinstance(target_id, str) or not target_id or target_id not in targets.get(layer, set()):
+            blockers.append(ProjectionBlocker("SBFS-024", "binding target is absent from the declared architecture layer", (rid, str(target_id))))
+    missing = sorted(set(requirements) - seen)
+    if missing:
+        blockers.append(ProjectionBlocker("SBFS-025", "requirements lack typed architecture bindings", tuple(missing)))
+    return tuple(blockers)

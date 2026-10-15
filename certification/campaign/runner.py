@@ -265,7 +265,10 @@ class CampaignRunner:
                 ok, detail = _unconfigured_stage(TrialStage.BUILD)
                 _record(TrialStage.BUILD, ok, detail)
 
-            if self.tester:
+            if not b_ok:
+                t_ok, t_detail = False, "skipped: build did not produce a verified image"
+                _record(TrialStage.TEST, t_ok, t_detail)
+            elif self.tester:
                 image = tag
                 try:
                     test_spec = backend.test_spec()
@@ -287,7 +290,10 @@ class CampaignRunner:
 
             port = 18000 + int(trial_id.replace("-", "")[:6], 16) % 1000
             cid = ""
-            if self.deployer:
+            if not (b_ok and t_ok):
+                d_ok, d_detail = False, "skipped: build or test stage failed; deployment not attempted"
+                _record(TrialStage.DEPLOY, d_ok, d_detail)
+            elif self.deployer:
                 try:
                     deploy_result = self.deployer.deploy(tag, port)
                     if hasattr(deploy_result, "stage") and deploy_result.stage == TrialStage.DEPLOY:
@@ -310,7 +316,10 @@ class CampaignRunner:
                 ok, detail = _unconfigured_stage(TrialStage.DEPLOY)
                 _record(TrialStage.DEPLOY, ok, detail)
 
-            if self.prober:
+            if not cid:
+                r_ok, r_detail = False, "skipped: deployment produced no container to probe"
+                _record(TrialStage.RUNTIME, r_ok, r_detail)
+            elif self.prober:
                 try:
                     probe_result = self.prober.probe(port, cid)
                     r_ok = probe_result.passed is True and probe_result.mode.value == "real_docker"
@@ -325,7 +334,10 @@ class CampaignRunner:
                 ok, detail = _unconfigured_stage(TrialStage.RUNTIME)
                 _record(TrialStage.RUNTIME, ok, detail)
 
-            if self.destroyer and cid:
+            if not cid:
+                x_ok, x_detail = False, "not_applicable: no container was created; no cleanup target exists"
+                _record(TrialStage.DESTROY, x_ok, x_detail)
+            elif self.destroyer:
                 try:
                     destroy_result = self.destroyer.destroy(cid)
                     x_ok = destroy_result.passed is True and destroy_result.mode.value == "real_docker"

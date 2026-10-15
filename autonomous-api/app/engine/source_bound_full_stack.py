@@ -950,17 +950,36 @@ def _validate_semantic_obligations(source: Mapping[str, Any], mapping: Mapping[s
         integrity = any(x in statement for x in ("must not", "unique", "invariant", "consistency", "integrity", "cannot be empty", "cannot exceed", "foreign key", "atomic"))
         if auth:
             policies = target.get("security_boundaries", target.get("policies", target.get("security_policies")))
-            enforceable = isinstance(policies, (list, tuple)) and any(
-                isinstance(p, Mapping) and p.get("enforcement") in {"runtime", "middleware", "policy_engine", "database"}
-                and isinstance(p.get("policy_id", p.get("id")), str) for p in policies
-            )
-            if layer != "backend" or not enforceable:
+            enforceable_policies = [
+                p for p in policies if isinstance(p, Mapping)
+                and p.get("enforcement") in {"runtime", "middleware", "policy_engine", "database"}
+                and isinstance(p.get("policy_id", p.get("id")), str)
+            ] if isinstance(policies, (list, tuple)) else []
+            if layer != "backend" or not enforceable_policies:
                 blockers.append(ProjectionBlocker("SBFS-026", "authorization requirement must bind to a backend object with an explicit enforceable security policy", (rid, target_id)))
+            owner_only = any(term in statement for term in ("only the owner", "owner only", "workspace owner"))
+            for policy in enforceable_policies:
+                roles = policy.get("allowed_roles", policy.get("roles"))
+                if owner_only and isinstance(roles, (list, tuple, set)) and any(
+                    isinstance(role, str) and role.casefold() in {"member", "all", "everyone", "authenticated"}
+                    for role in roles
+                ):
+                    blockers.append(ProjectionBlocker("SBFS-029", "architecture policy contradicts an owner-only authorization requirement", (rid, target_id, str(policy.get("policy_id", policy.get("id"))))))
+            tenant_isolation = any(term in statement for term in ("tenant isolation", "cross-tenant", "other workspaces", "own workspace only", "strict isolation"))
+            if tenant_isolation:
+                scope = str(target.get("access_scope", target.get("tenant_scope", ""))).casefold()
+                if target.get("cross_tenant_access") is True or scope in {"global", "all_tenants", "cross_tenant", "unrestricted"}:
+                    blockers.append(ProjectionBlocker("SBFS-030", "architecture data-access scope contradicts tenant-isolation requirements", (rid, target_id)))
         if api:
             is_contract = layer == "api" and bool(target.get("contract_id")) and (isinstance(target.get("operations"), (list, tuple)) or isinstance(target.get("operation_id"), str))
             is_operation = layer == "api" and bool(target.get("operation_id")) and bool(target.get("method")) and bool(target.get("path"))
             if not (is_contract or is_operation):
                 blockers.append(ProjectionBlocker("SBFS-027", "API requirement must bind to an explicit API contract or operation", (rid, target_id)))
+            if is_operation:
+                required_method = next((m for verb, m in (("delete", "DELETE"), ("remove", "DELETE"), ("create", "POST"), ("register", "POST"), ("update", "PATCH"), ("edit", "PATCH"), ("list", "GET"), ("read", "GET"), ("retrieve", "GET")) if re.search(r"\\b" + verb + r"\\b", statement)), None)
+                actual_method = str(target.get("method", "")).upper()
+                if required_method and actual_method and actual_method != required_method:
+                    blockers.append(ProjectionBlocker("SBFS-031", f"API method {actual_method} contradicts inferred requirement operation {required_method}", (rid, target_id)))
         if integrity:
             invariants = target.get("invariants")
             fields = target.get("fields")

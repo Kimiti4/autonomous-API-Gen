@@ -17,3 +17,8 @@ def test_react_generation_uses_data_binding_and_behavioral_test():
     assert "<h1>{title}</h1>" in app
     assert "renderToStaticMarkup(<App />)" in test
     assert "expect(true).toBe(true)" not in test
+    assert "vite.config.ts" in generated.files
+    assert "@vitejs/plugin-react" in generated.files["package.json"]
+    assert "\"latest\"" not in generated.files["package.json"]
+    profile = build_compiler_registry().backend("react_ts").build_profile(model.system_name)
+    assert profile.test_command == ["npm", "test"]

@@ -90,7 +90,7 @@ def main() -> None:
             "files_complete": files_complete,
             "backend_name": backend_name,
             "conformance_passed": conformance_passed,
-            "conformance_findings": list(getattr(conformance, "findings", ()) or ()),
+            "conformance_findings": [repr(item) for item in (getattr(conformance, "findings", ()) or ())],
         }
         print(json.dumps(result, sort_keys=True))
         sys.exit(0 if plan_match and files_complete and candidate_match and conformance_passed else 1)

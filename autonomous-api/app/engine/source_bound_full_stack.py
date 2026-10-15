@@ -1299,6 +1299,59 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
         "source_hash": source_hash,
     }
 
+    # A structurally populated mapping is still incomplete if the ISR
+    # does not connect its layers. Validate relationships explicitly; never
+    # infer a missing route/API/service/effect/invariant link from names.
+    def has_edge(edge_type: str, source_types: set[str], target_types: set[str]) -> bool:
+        return any(
+            edge["type"] == edge_type
+            and node_records[edge["source_id"]]["type"] in source_types
+            and node_records[edge["target_id"]]["type"] in target_types
+            for edge in edge_records
+        )
+
+    if frontend_routes and apis and not has_edge("routes_to", {"frontend_route"}, {"api"}):
+        blockers.append(ProjectionBlocker(
+            "MAP-REL-001", "frontend routes and APIs exist but no explicit routes_to relationship connects them",
+        ))
+    if frontend_interactions and apis and not has_edge("invokes", {"frontend_interaction"}, {"api"}):
+        blockers.append(ProjectionBlocker(
+            "MAP-REL-002", "frontend interactions and APIs exist but no explicit invokes relationship connects them",
+        ))
+    if capabilities and services and not has_edge("implemented_by", {"capability"}, {"service"}):
+        blockers.append(ProjectionBlocker(
+            "MAP-REL-003", "capabilities and services exist but no explicit implemented_by relationship connects them",
+        ))
+    if effects and invariants and not has_edge("requires_invariant", {"effect"}, {"invariant"}):
+        blockers.append(ProjectionBlocker(
+            "MAP-REL-004", "effects and invariants exist but no explicit requires_invariant relationship connects them",
+        ))
+    if effects and consequences and not has_edge("consequence_of", {"consequence"}, {"effect"}):
+        blockers.append(ProjectionBlocker(
+            "MAP-REL-005", "consequences and effects exist but no explicit consequence_of relationship connects them",
+        ))
+    for edge in edge_records:
+        if edge["type"] in {"routes_to", "invokes", "implemented_by", "requires_invariant", "consequence_of", "emits", "consumes"}:
+            expected = {
+                "routes_to": ({"frontend_route"}, {"api"}),
+                "invokes": ({"frontend_interaction"}, {"api"}),
+                "implemented_by": ({"capability"}, {"service"}),
+                "requires_invariant": ({"effect"}, {"invariant"}),
+                "consequence_of": ({"consequence"}, {"effect"}),
+                "emits": ({"service"}, {"event"}),
+                "consumes": ({"service"}, {"event"}),
+            }[edge["type"]]
+            actual = (
+                node_records[edge["source_id"]]["type"],
+                node_records[edge["target_id"]]["type"],
+            )
+            if actual[0] not in expected[0] or actual[1] not in expected[1]:
+                blockers.append(ProjectionBlocker(
+                    "MAP-REL-006",
+                    f"relationship {edge['id']!r} has incompatible endpoint types for {edge['type']!r}",
+                    (edge["id"], edge["source_id"], edge["target_id"]),
+                ))
+
     # Derive traceability only through explicit ISR edges. A capability must
     # satisfy a requirement reference and be implemented by a service; no
     # lexical guess is used to connect requirements to implementation targets.

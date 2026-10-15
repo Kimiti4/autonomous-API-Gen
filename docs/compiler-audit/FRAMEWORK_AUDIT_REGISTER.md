@@ -44,4 +44,4 @@ A target can be marked passed only when the exact generated candidate has eviden
 
 ## CI snapshot
 
-Latest known PR branch head at register creation: `a70ca62f767ac8b603a461d2be81dfc42c14af91`. Workflows for that head were queued or in progress when checked. Earlier compiler-matrix and source-quality runs passed on prior heads; those results do not validate the latest runner/frontend edits.
+Latest known PR branch head: `8eb2a0cdf5b7ba8f0cdc7af73d836058dc43a979`. The compiler matrix, including the new generated Rust/Axum `cargo test` and release-build step, is queued. Earlier compiler-matrix and source-quality runs passed on prior heads; those results do not validate the latest runner/frontend edits.

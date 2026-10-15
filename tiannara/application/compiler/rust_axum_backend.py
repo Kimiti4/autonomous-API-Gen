@@ -77,7 +77,7 @@ class RustAxumBackend:
             "src/infrastructure/mod.rs": "pub fn repository_ready() -> bool { true }\n",
             "src/api/mod.rs": "pub fn route_count() -> usize { 1 }\n",
             "tests/health.rs": self._test(),
-            "Dockerfile": self._dockerfile(),
+            "Dockerfile": self._dockerfile(slug),
             "README.md": f"# {system_model.system_name}\\n\\nGenerated from the technology-neutral ISR.\\n",
         }
         return CompilationResult(
@@ -156,14 +156,14 @@ mod tests {
 }
 """
 
-    def _dockerfile(self):
+    def _dockerfile(self, slug):
         return """FROM rust:1.85-slim AS build
 WORKDIR /app
 COPY . .
 RUN cargo test
 RUN cargo build --release
 FROM debian:bookworm-slim
-COPY --from=build /app/target/release/* /usr/local/bin/app
+COPY --from=build /app/target/release/{slug} /usr/local/bin/app
 EXPOSE 8000
 CMD ["/usr/local/bin/app"]
 """

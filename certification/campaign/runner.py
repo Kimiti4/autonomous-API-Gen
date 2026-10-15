@@ -274,11 +274,38 @@ class CampaignRunner:
             full_stack_ok, full_stack_detail = _run_candidate_bound_full_stack_verifier(
                 self.full_stack_verifier, full_stack_inputs, candidate_hash
             )
+            # Campaign A supplies authoritative PlanArtifacts. Build the
+            # verifier input from those real artifacts and the exact repository
+            # returned by this backend; never infer the missing architecture map.
+            if semantic_correspondence_inputs is None and artifacts is not None:
+                try:
+                    from autonomous_api.app.engine.source_bound_full_stack import (
+                        source_snapshot_from_plan_artifacts,
+                    )
+                    semantic_correspondence_inputs = {
+                        "source_artifacts": source_snapshot_from_plan_artifacts(artifacts),
+                        "explicit_mapping": getattr(artifacts, "explicit_mapping", None),
+                        "candidate_files": dict(repo.files),
+                    }
+                except Exception as exc:
+                    semantic_correspondence_inputs = None
+                    semantic_input_error = (
+                        f"Campaign A source snapshot construction failed closed: "
+                        f"{type(exc).__name__}: {exc}"
+                    )
+                else:
+                    semantic_input_error = ""
+            else:
+                semantic_input_error = ""
+
             semantic_evidence, semantic_detail = _run_semantic_correspondence_verifier(
                 self.semantic_correspondence_verifier,
                 semantic_correspondence_inputs,
                 repo.content_hash,
             )
+            if semantic_input_error:
+                semantic_evidence = {}
+                semantic_detail = semantic_input_error
             verify_ok = independent_ok and full_stack_ok and semantic_evidence.get("passed") is True
             _record(
                 TrialStage.VERIFY, verify_ok,

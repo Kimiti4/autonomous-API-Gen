@@ -631,3 +631,39 @@ def test_api_requirement_must_bind_to_explicit_contract_or_operation():
     }
     blockers = _validate_semantic_obligations(source, mapping)
     assert any(b.code == "SBFS-027" for b in blockers)
+
+
+
+def test_owner_only_requirement_rejects_policy_that_allows_members():
+    from autonomous_api.app.engine.source_bound_full_stack import _validate_semantic_obligations
+
+    source = {"requirement_graph": {"nodes": {
+        "req:owner": {"id": "req:owner", "statement": "Only the owner can delete a workspace"}
+    }}}
+    mapping = {
+        "frontend": {}, "api": {}, "backend": {"modules": [{
+            "module_id": "workspace_service", "security_boundaries": [{
+                "policy_id": "workspace-delete", "enforcement": "middleware",
+                "allowed_roles": ["owner", "member"]
+            }]
+        }]}, "effects": [], "consequences": [],
+        "requirement_bindings": [{"requirement_id": "req:owner", "layer": "backend", "target_id": "workspace_service"}]
+    }
+    blockers = _validate_semantic_obligations(source, mapping)
+    assert any(b.code == "SBFS-029" for b in blockers)
+
+
+def test_api_delete_requirement_rejects_get_operation():
+    from autonomous_api.app.engine.source_bound_full_stack import _validate_semantic_obligations
+
+    source = {"requirement_graph": {"nodes": {
+        "req:delete": {"id": "req:delete", "statement": "Delete the workspace through the API endpoint"}
+    }}}
+    mapping = {
+        "frontend": {}, "api": {"operations": [{
+            "operation_id": "delete_workspace", "method": "GET", "path": "/workspaces/{id}"
+        }]}, "backend": {}, "effects": [], "consequences": [],
+        "requirement_bindings": [{"requirement_id": "req:delete", "layer": "api", "target_id": "delete_workspace"}]
+    }
+    blockers = _validate_semantic_obligations(source, mapping)
+    assert any(b.code == "SBFS-031" for b in blockers)

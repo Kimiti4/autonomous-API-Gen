@@ -21,7 +21,17 @@ from certification.core.trial import (
 )
 from certification.core import metrics as M
 from certification.provenance.bundle import ProvenanceBundle
-from autonomous_api.app.engine.source_bound_full_stack import (
+# The source tree is named autonomous-api (hyphenated), while Python imports
+# use the app package beneath it. Add that source root explicitly so Campaign A
+# behaves the same from its CLI and from test runners.
+import sys
+from pathlib import Path
+
+_AUTONOMOUS_API_ROOT = Path(__file__).resolve().parents[2] / "autonomous-api"
+if _AUTONOMOUS_API_ROOT.is_dir() and str(_AUTONOMOUS_API_ROOT) not in sys.path:
+    sys.path.insert(0, str(_AUTONOMOUS_API_ROOT))
+
+from app.engine.source_bound_full_stack import (
     SourceBoundSemanticCorrespondenceVerifier,
 )
 

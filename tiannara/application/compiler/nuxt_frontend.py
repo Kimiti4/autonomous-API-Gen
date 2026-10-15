@@ -31,7 +31,7 @@ class NuxtFrontend:
     def generate(self,model:SystemModel):
         return CompilationResult(backend_id=self.backend_id,system_name=slugify(model.system_name),files={
           "package.json":self._package(),
-          "nuxt.config.ts":'export default defineNuxtConfig({ compatibilityDate: "2025-01-01", compatibilityVersion: 4, devtools: { enabled: false } })',
+          "nuxt.config.ts":'export default defineNuxtConfig({ compatibilityDate: "2025-01-01", devtools: { enabled: false } })',
           "vitest.config.ts":self._vitest_config(),
           "app/app.vue":f'<template><main><h1>{{{{ title }}}}</h1><p>Generated application</p></main></template>\n<script setup lang="ts">const title = {json.dumps(model.system_name, ensure_ascii=True)}</script>\n',
           "tests/app.test.ts":self._test(),

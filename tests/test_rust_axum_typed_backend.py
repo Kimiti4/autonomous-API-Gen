@@ -43,3 +43,18 @@ def test_rust_generation_uses_only_system_model():
     assert "src/main.rs" in result.files
     assert "fastapi" not in "\n".join(result.files.values()).lower()
     assert "net/http" not in "\n".join(result.files.values()).lower()
+
+
+def test_rust_dockerfile_uses_toolchain_supporting_generated_edition():
+    from tiannara.application.compiler.rust_axum_backend import RustAxumBackend
+    from tiannara.domain.models.system_model import SystemModel, RequirementsReference
+
+    model = SystemModel(
+        system_name="Rust Toolchain Check",
+        problem_statement="Check generated toolchain compatibility",
+        requirements_ref=RequirementsReference(graph_id="g", graph_hash="h"),
+    )
+    generated = RustAxumBackend().generate(model)
+    dockerfile = generated.files["Dockerfile"]
+    assert "FROM rust:1.85-slim AS build" in dockerfile
+    assert "FROM rust:1.78-slim AS build" not in dockerfile

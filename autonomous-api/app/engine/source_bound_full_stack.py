@@ -1002,3 +1002,109 @@ def _validate_semantic_obligations(source: Mapping[str, Any], mapping: Mapping[s
             if layer != "backend" or not (has_invariants or has_constraints):
                 blockers.append(ProjectionBlocker("SBFS-028", "data-integrity requirement must bind to a backend invariant or constrained data schema", (rid, target_id)))
     return tuple(blockers)
+
+
+@dataclass(frozen=True)
+class SemanticCorrespondenceResult:
+    """Recomputed evidence for source → explicit mapping → exact candidate."""
+    passed: bool
+    source_hash: str
+    mapping_hash: str
+    candidate_hash: str
+    findings: tuple[str, ...]
+
+
+class SourceBoundSemanticCorrespondenceVerifier:
+    """Production verifier for structural semantic correspondence.
+
+    Inputs must contain source_artifacts, explicit_mapping, and candidate_files.
+    Hashes are recomputed from those payloads; caller-supplied hashes are never
+    accepted as proof. This verifies source provenance and cross-layer IR
+    coherence, not runtime behavior; build/test/runtime gates remain separate.
+    """
+
+    def verify_bound(
+        self, inputs: Mapping[str, Any], candidate_hash: str,
+    ) -> SemanticCorrespondenceResult:
+        findings: list[str] = []
+        source_hash = ""
+        mapping_hash = ""
+        computed_candidate_hash = ""
+
+        if not isinstance(inputs, Mapping):
+            return SemanticCorrespondenceResult(
+                False, "", "", "", ("semantic verifier inputs must be a mapping",)
+            )
+
+        source = inputs.get("source_artifacts")
+        mapping = inputs.get("explicit_mapping")
+        files = inputs.get("candidate_files")
+
+        source_dict = _as_dict(source)
+        if source_dict is None:
+            findings.append("source_artifacts are missing or not canonically serializable")
+        else:
+            source_hash = _canonical_hash(source_dict)
+
+        if not isinstance(mapping, Mapping):
+            findings.append("explicit_mapping is missing")
+        else:
+            mapping_hash = _canonical_hash(dict(mapping))
+            provenance = mapping.get("provenance")
+            if not isinstance(provenance, Mapping):
+                findings.append("mapping provenance is missing")
+            else:
+                if provenance.get("source_hash") != source_hash or not source_hash:
+                    findings.append("mapping source_hash does not match recomputed source artifacts")
+                refs = provenance.get("source_refs")
+                known = source_dict.get("source_refs") if source_dict else None
+                if not isinstance(refs, (list, tuple)) or not refs:
+                    findings.append("mapping source_refs are missing")
+                elif not isinstance(known, (list, tuple, set)) or not set(refs).issubset(set(known)):
+                    findings.append("mapping references unknown source identifiers")
+
+        if not isinstance(files, Mapping) or not files:
+            findings.append("candidate_files manifest is missing or empty")
+        elif any(
+            not isinstance(path, str) or not path
+            or not isinstance(body, str)
+            for path, body in files.items()
+        ):
+            findings.append("candidate_files must map non-empty paths to text contents")
+        else:
+            # Exactly matches compiler.core.repository.build_repository.
+            canonical_files = json.dumps(
+                {key: value for key, value in sorted(files.items())},
+                sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+            )
+            computed_candidate_hash = hashlib.sha256(
+                canonical_files.encode("utf-8")
+            ).hexdigest()
+            if not candidate_hash or computed_candidate_hash != candidate_hash:
+                findings.append("candidate hash does not match recomputed repository contents")
+
+        if isinstance(mapping, Mapping):
+            try:
+                lowered = lower_explicit_mapping_to_full_stack_ir(mapping)
+                findings.extend(lowered.findings)
+                if lowered.structurally_valid:
+                    from .full_stack_verification import verify_full_stack
+                    report = verify_full_stack(
+                        lowered.frontend, lowered.api, lowered.backend,
+                        lowered.effects, lowered.consequences,
+                    )
+                    findings.extend(
+                        f"full-stack coherence: {item!r}" for item in report.findings
+                    )
+            except Exception as exc:
+                findings.append(
+                    f"mapping lowering/verification failed closed: {type(exc).__name__}: {exc}"
+                )
+
+        return SemanticCorrespondenceResult(
+            passed=not findings and bool(source_hash and mapping_hash and computed_candidate_hash),
+            source_hash=source_hash,
+            mapping_hash=mapping_hash,
+            candidate_hash=computed_candidate_hash,
+            findings=tuple(findings),
+        )

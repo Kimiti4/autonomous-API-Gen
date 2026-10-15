@@ -710,7 +710,9 @@ def lower_source_bound_candidate(
         return SourceBoundLowering(source_hash, candidate_hash, None, None, tuple(blockers))
 
     mapping_hash = _canonical_hash(dict(explicit_mapping))
-    blockers.extend(_validate_requirement_coverage(source, explicit_mapping) if source is not None else ())
+    if source is not None:
+        blockers.extend(_validate_requirement_coverage(source, explicit_mapping))
+        blockers.extend(_validate_typed_requirement_bindings(source, explicit_mapping))
     provenance = explicit_mapping.get("provenance")
     refs = provenance.get("source_refs") if isinstance(provenance, Mapping) else None
     if not isinstance(refs, (list, tuple)) or not refs or any(not isinstance(ref, str) or not ref for ref in refs):

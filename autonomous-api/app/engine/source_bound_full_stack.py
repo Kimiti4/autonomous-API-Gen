@@ -713,6 +713,7 @@ def lower_source_bound_candidate(
     if source is not None:
         blockers.extend(_validate_requirement_coverage(source, explicit_mapping))
         blockers.extend(_validate_typed_requirement_bindings(source, explicit_mapping))
+        blockers.extend(_validate_semantic_obligations(source, explicit_mapping))
     provenance = explicit_mapping.get("provenance")
     refs = provenance.get("source_refs") if isinstance(provenance, Mapping) else None
     if not isinstance(refs, (list, tuple)) or not refs or any(not isinstance(ref, str) or not ref for ref in refs):
@@ -901,4 +902,70 @@ def _validate_typed_requirement_bindings(
     missing = sorted(set(requirements) - seen)
     if missing:
         blockers.append(ProjectionBlocker("SBFS-025", "requirements lack typed architecture bindings", tuple(missing)))
+    return tuple(blockers)
+
+
+
+def _validate_semantic_obligations(source: Mapping[str, Any], mapping: Mapping[str, Any]) -> tuple[ProjectionBlocker, ...]:
+    """Enforce minimum typed architecture obligations; linkage is not proof."""
+    graph = source.get("requirement_graph")
+    nodes = graph.get("nodes") if isinstance(graph, Mapping) else None
+    if isinstance(nodes, Mapping):
+        requirements = {str(k): v for k, v in nodes.items() if isinstance(v, Mapping)}
+    elif isinstance(nodes, (list, tuple)):
+        requirements = {v.get("id"): v for v in nodes if isinstance(v, Mapping) and isinstance(v.get("id"), str)}
+    else:
+        return ()
+    bindings = mapping.get("requirement_bindings")
+    if not isinstance(bindings, (list, tuple)):
+        return ()
+    blockers: list[ProjectionBlocker] = []
+    layers = {name: mapping.get(name) for name in REQUIRED_LAYERS}
+
+    def objects(value: Any):
+        if isinstance(value, Mapping):
+            yield value
+            for child in value.values():
+                yield from objects(child)
+        elif isinstance(value, (list, tuple)):
+            for child in value:
+                yield from objects(child)
+
+    for binding in bindings:
+        if not isinstance(binding, Mapping):
+            continue
+        rid, layer, target_id = binding.get("requirement_id"), binding.get("layer"), binding.get("target_id")
+        req = requirements.get(rid) if isinstance(rid, str) else None
+        if not isinstance(req, Mapping) or not isinstance(layer, str) or not isinstance(target_id, str):
+            continue
+        statement = str(req.get("statement", req.get("text", ""))).casefold()
+        target = next((obj for obj in objects(layers.get(layer)) if target_id in {
+            obj.get("id"), obj.get("module_id"), obj.get("operation_id"), obj.get("contract_id"),
+            obj.get("policy_id"), obj.get("route_id"), obj.get("schema_id"), obj.get("field_id")
+        }), None)
+        if target is None:
+            continue
+        auth = any(x in statement for x in ("authorization", "authorisation", "permission", "role-based", "rbac", "access control", "only the owner", "only administrators", "authorized users", "authorised users"))
+        api = any(x in statement for x in ("api", "endpoint", "http", "rest", "request", "response", "route", "pagination", "openapi"))
+        integrity = any(x in statement for x in ("must not", "unique", "invariant", "consistency", "integrity", "cannot be empty", "cannot exceed", "foreign key", "atomic"))
+        if auth:
+            policies = target.get("security_boundaries", target.get("policies", target.get("security_policies")))
+            enforceable = isinstance(policies, (list, tuple)) and any(
+                isinstance(p, Mapping) and p.get("enforcement") in {"runtime", "middleware", "policy_engine", "database"}
+                and isinstance(p.get("policy_id", p.get("id")), str) for p in policies
+            )
+            if layer != "backend" or not enforceable:
+                blockers.append(ProjectionBlocker("SBFS-026", "authorization requirement must bind to a backend object with an explicit enforceable security policy", (rid, target_id)))
+        if api:
+            is_contract = layer == "api" and bool(target.get("contract_id")) and (isinstance(target.get("operations"), (list, tuple)) or isinstance(target.get("operation_id"), str))
+            is_operation = layer == "api" and bool(target.get("operation_id")) and bool(target.get("method")) and bool(target.get("path"))
+            if not (is_contract or is_operation):
+                blockers.append(ProjectionBlocker("SBFS-027", "API requirement must bind to an explicit API contract or operation", (rid, target_id)))
+        if integrity:
+            invariants = target.get("invariants")
+            fields = target.get("fields")
+            has_invariants = isinstance(invariants, (list, tuple)) and bool(invariants)
+            has_constraints = isinstance(fields, (list, tuple)) and any(isinstance(f, Mapping) and any(k in f for k in ("constraints", "required", "unique", "minimum", "maximum")) for f in fields)
+            if layer != "backend" or not (has_invariants or has_constraints):
+                blockers.append(ProjectionBlocker("SBFS-028", "data-integrity requirement must bind to a backend invariant or constrained data schema", (rid, target_id)))
     return tuple(blockers)

@@ -233,41 +233,92 @@ class CampaignRunner:
             _record(TrialStage.STRUCTURAL, conf.passed, f"missing={conf.missing}")
             _record(TrialStage.SEMANTIC, conf.passed, f"semantic={conf.passed}")
 
+            tag = f"cbc1-{trial_id[:8]}"
             if self.builder:
-                tag = f"cbc1-{trial_id[:8]}"
-                b_ok, b_hash = self.builder.build(d, tag)
-                _record(TrialStage.BUILD, b_ok, f"build_hash={b_hash}")
+                build_result = self.builder.build(d, tag)
+                if hasattr(build_result, "stage") and build_result.stage == TrialStage.BUILD:
+                    b_ok = build_result.passed is True and bool(build_result.image_digest)
+                    b_detail = (
+                        f"mode={build_result.mode.value}; image_digest={build_result.image_digest}; "
+                        f"logs_hash={build_result.logs_hash}; detail={build_result.detail}"
+                    )
+                elif isinstance(build_result, tuple) and len(build_result) == 2:
+                    b_ok, b_hash = build_result
+                    b_detail = f"build_hash={b_hash}"
+                else:
+                    b_ok, b_detail = False, "invalid build adapter result; explicit stage evidence required"
+                _record(TrialStage.BUILD, b_ok, b_detail)
             else:
                 ok, detail = _unconfigured_stage(TrialStage.BUILD)
                 _record(TrialStage.BUILD, ok, detail)
 
-            if self.tester and backend_test_cmd:
-                image = f"cbc1-{trial_id[:8]}"
-                t_ok, t_hash = self.tester.run_tests(image, backend_test_cmd)
-                _record(TrialStage.TEST, t_ok, f"test_hash={t_hash}")
+            if self.tester:
+                image = tag
+                try:
+                    test_spec = backend.test_spec()
+                    test_result = self.tester.run_tests(image, test_spec, repo_dir=d, tag=tag)
+                    if hasattr(test_result, "stage") and test_result.stage == TrialStage.TEST:
+                        t_ok = test_result.passed is True and test_result.mode.value == "real_docker"
+                        t_detail = (
+                            f"mode={test_result.mode.value}; logs_hash={test_result.logs_hash}; "
+                            f"failure_class={test_result.failure_class}; detail={test_result.detail}"
+                        )
+                    else:
+                        t_ok, t_detail = False, "invalid test adapter result; explicit stage evidence required"
+                except Exception as exc:
+                    t_ok, t_detail = False, f"test adapter failed closed: {type(exc).__name__}: {exc}"
+                _record(TrialStage.TEST, t_ok, t_detail)
             else:
                 ok, detail = _unconfigured_stage(TrialStage.TEST)
                 _record(TrialStage.TEST, ok, detail)
 
+            port = 18000 + int(trial_id.replace("-", "")[:6], 16) % 1000
             cid = ""
             if self.deployer:
-                d_ok, cid = self.deployer.deploy(f"cbc1-{trial_id[:8]}", 8000 + hash(trial_id) % 1000)
-                _record(TrialStage.DEPLOY, d_ok, f"cid={cid}")
+                try:
+                    deploy_result = self.deployer.deploy(tag, port)
+                    if hasattr(deploy_result, "stage") and deploy_result.stage == TrialStage.DEPLOY:
+                        d_ok = deploy_result.passed is True and deploy_result.mode.value == "real_docker" and bool(deploy_result.container_id)
+                        cid = deploy_result.container_id if d_ok else ""
+                        d_detail = (
+                            f"mode={deploy_result.mode.value}; cid={cid}; logs_hash={deploy_result.logs_hash}; "
+                            f"detail={deploy_result.detail}"
+                        )
+                    else:
+                        d_ok, d_detail = False, "invalid deploy adapter result; explicit stage evidence required"
+                except Exception as exc:
+                    d_ok, d_detail = False, f"deploy adapter failed closed: {type(exc).__name__}: {exc}"
+                _record(TrialStage.DEPLOY, d_ok, d_detail)
             else:
                 ok, detail = _unconfigured_stage(TrialStage.DEPLOY)
                 _record(TrialStage.DEPLOY, ok, detail)
 
             if self.prober:
-                port = 8000 + hash(trial_id) % 1000
-                r_ok = self.prober.probe(port)
-                _record(TrialStage.RUNTIME, r_ok, f"runtime_ok={r_ok}")
+                try:
+                    probe_result = self.prober.probe(port, cid)
+                    r_ok = probe_result.passed is True and probe_result.mode.value == "real_docker"
+                    r_detail = (
+                        f"mode={probe_result.mode.value}; logs_hash={probe_result.logs_hash}; "
+                        f"detail={probe_result.detail}"
+                    )
+                except Exception as exc:
+                    r_ok, r_detail = False, f"runtime adapter failed closed: {type(exc).__name__}: {exc}"
+                _record(TrialStage.RUNTIME, r_ok, r_detail)
             else:
                 ok, detail = _unconfigured_stage(TrialStage.RUNTIME)
                 _record(TrialStage.RUNTIME, ok, detail)
 
             if self.destroyer and cid:
-                x_ok = self.destroyer.destroy(cid)
-                _record(TrialStage.DESTROY, x_ok, f"destroy_ok={x_ok}")
+                try:
+                    destroy_result = self.destroyer.destroy(cid)
+                    x_ok = destroy_result.passed is True and destroy_result.mode.value == "real_docker"
+                    x_detail = (
+                        f"mode={destroy_result.mode.value}; logs_hash={destroy_result.logs_hash}; "
+                        f"detail={destroy_result.detail}"
+                    )
+                except Exception as exc:
+                    x_ok, x_detail = False, f"destroy adapter failed closed: {type(exc).__name__}: {exc}"
+                _record(TrialStage.DESTROY, x_ok, x_detail)
             else:
                 ok, detail = _unconfigured_stage(TrialStage.DESTROY)
                 _record(TrialStage.DESTROY, ok, detail)

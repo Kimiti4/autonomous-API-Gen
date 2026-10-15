@@ -87,7 +87,7 @@ def run_campaign_a(
     )
     all_trials_certified = bool(trials) and all(trial.verdict == "CERTIFIED" for trial in trials)
     summary["full_stack_verification"] = {
-        "status": "passed" if semantic_passed == len(trials) and all_verify_stages_passed else "blocked",
+        "status": "passed" if bool(trials) and semantic_passed == len(trials) and all_verify_stages_passed else "blocked",
         "source_bound_trials_passed": semantic_passed,
         "required_trials": len(trials),
         "blockers": semantic_blockers[:50],

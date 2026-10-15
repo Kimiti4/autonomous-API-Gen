@@ -1210,6 +1210,11 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
     policies = typed("security_policy")
     infra = typed("infrastructure_target")
     requirements = typed("requirement_ref")
+    frontend_routes = typed("frontend_route")
+    frontend_interactions = typed("frontend_interaction")
+    effects = typed("effect")
+    invariants = typed("invariant")
+    consequences = typed("consequence")
 
     # The ISR graph currently carries API node identity but not necessarily
     # operation-level method/path/schema/error/idempotency contracts.
@@ -1243,28 +1248,38 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
                 (model["id"],),
             ))
 
-    # These layers are not first-class nodes in the current ISR taxonomy.
-    if not any(node["type"] in {"frontend", "ui_route", "interaction"} for node in node_records.values()):
+    if not frontend_routes or not frontend_interactions:
         blockers.append(ProjectionBlocker(
-            "MAP-FE-001", "ISR contains no first-class frontend routes/interactions; frontend semantics cannot be inferred",
+            "MAP-FE-001", "ISR requires first-class frontend routes and interactions",
         ))
-    if not any(edge["type"] in {"effect", "causes_effect", "replays"} for edge in edge_records):
-        blockers.append(ProjectionBlocker(
-            "MAP-EFFECT-001", "ISR contains no explicit effect/replay graph semantics",
-        ))
-    if not any("consequence" in node["type"] or "invariant" in node["type"] for node in node_records.values()):
-        blockers.append(ProjectionBlocker(
-            "MAP-CONSEQ-001", "ISR contains no first-class consequence/invariant nodes",
-        ))
+    for route in frontend_routes:
+        if not any(key in route["properties"] for key in ("path", "route", "url")):
+            blockers.append(ProjectionBlocker("MAP-FE-002", f"frontend route {route['id']!r} lacks an explicit path", (route["id"],)))
+    for interaction in frontend_interactions:
+        if not all(key in interaction["properties"] for key in ("action", "flow_id")):
+            blockers.append(ProjectionBlocker("MAP-FE-003", f"frontend interaction {interaction['id']!r} lacks action/flow semantics", (interaction["id"],)))
+    if not effects:
+        blockers.append(ProjectionBlocker("MAP-EFFECT-001", "ISR contains no first-class effect nodes"))
+    for effect in effects:
+        if not all(key in effect["properties"] for key in ("effect_type", "idempotency_policy", "replay_policy", "failure_policy")):
+            blockers.append(ProjectionBlocker("MAP-EFFECT-002", f"effect {effect['id']!r} lacks type/idempotency/replay/failure semantics", (effect["id"],)))
+    if not invariants:
+        blockers.append(ProjectionBlocker("MAP-INV-001", "ISR contains no first-class invariant nodes"))
+    for invariant in invariants:
+        if not all(key in invariant["properties"] for key in ("expression", "enforcement_point", "verification_method")):
+            blockers.append(ProjectionBlocker("MAP-INV-002", f"invariant {invariant['id']!r} lacks expression/enforcement/verification semantics", (invariant["id"],)))
+    if not consequences:
+        blockers.append(ProjectionBlocker("MAP-CONSEQ-001", "ISR contains no first-class consequence nodes"))
+    for consequence in consequences:
+        if not all(key in consequence["properties"] for key in ("trigger", "outcome", "failure_policy")):
+            blockers.append(ProjectionBlocker("MAP-CONSEQ-002", f"consequence {consequence['id']!r} lacks trigger/outcome/failure semantics", (consequence["id"],)))
     if not policies:
-        blockers.append(ProjectionBlocker(
-            "MAP-SEC-001", "ISR contains no explicit security-policy nodes",
-        ))
+        blockers.append(ProjectionBlocker("MAP-SEC-001", "ISR contains no explicit security-policy nodes"))
 
-    # Structural inventory is diagnostic and deterministic; it is not a
-    # complete explicit_mapping and must never be passed as certification proof.
+    source_refs = sorted(set(str(value) for value in source_snapshot.get("source_refs", ())))
+    source_hash = _canonical_hash(dict(source_snapshot))
     inventory = {
-        "schema": "isr-architecture-inventory/1",
+        "schema": "isr-architecture-inventory/2",
         "domains": domains,
         "capabilities": capabilities,
         "services": services,
@@ -1274,14 +1289,56 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
         "security_policies": policies,
         "infrastructure_targets": infra,
         "requirement_refs": requirements,
+        "frontend_routes": frontend_routes,
+        "frontend_interactions": frontend_interactions,
+        "effects": effects,
+        "invariants": invariants,
+        "consequences": consequences,
         "edges": sorted(edge_records, key=lambda item: item["id"]),
-        "source_refs": list(source_snapshot.get("source_refs", ())),
-        "source_hash": _canonical_hash(dict(source_snapshot)),
+        "source_refs": source_refs,
+        "source_hash": source_hash,
     }
-    # A complete contract requires dedicated typed lowering for every layer.
-    # Until the ISR contains all required semantics, return inventory only as
-    # diagnostics and no publishable mapping.
+
+    # Derive traceability only through explicit ISR edges. A capability must
+    # satisfy a requirement reference and be implemented by a service; no
+    # lexical guess is used to connect requirements to implementation targets.
+    requirement_bindings: list[dict[str, str]] = []
+    refs_by_id = {item["id"]: item for item in requirements}
+    capabilities_by_id = {item["id"]: item for item in capabilities}
+    for edge in edge_records:
+        if edge["type"] != "satisfies" or edge["target_id"] not in refs_by_id:
+            continue
+        capability = capabilities_by_id.get(edge["source_id"])
+        if capability is None:
+            continue
+        for implementation_edge in edge_records:
+            if implementation_edge["type"] != "implemented_by" or implementation_edge["source_id"] != capability["id"]:
+                continue
+            service_id = implementation_edge["target_id"]
+            requirement_id = refs_by_id[edge["target_id"]]["properties"].get("requirement_id", edge["target_id"])
+            if isinstance(requirement_id, str) and requirement_id:
+                requirement_bindings.append({
+                    "requirement_id": requirement_id,
+                    "layer": "backend",
+                    "target_id": service_id,
+                    "source_edge_id": edge["id"],
+                    "implementation_edge_id": implementation_edge["id"],
+                })
+
+    # Full mapping follows the verifier's typed five-layer contract. If any
+    # required semantic field is absent, only diagnostic blockers are returned.
+    explicit_mapping = {
+        "schema": "source-bound-architecture-mapping/1",
+        "frontend": {"routes": frontend_routes, "interactions": frontend_interactions},
+        "api": {"contracts": apis, "events": events},
+        "backend": {"services": services, "data_models": data_models, "security_policies": policies, "domains": domains, "capabilities": capabilities},
+        "effects": effects,
+        "consequences": {"invariants": invariants, "consequences": consequences},
+        "requirement_bindings": sorted(requirement_bindings, key=lambda item: (item["requirement_id"], item["target_id"])),
+        "provenance": {"source_refs": source_refs, "source_hash": source_hash, "isr_content_hash": revision.get("content_hash", "")},
+        "inventory": inventory,
+    }
     return ArchitectureMappingProduction(
-        mapping=inventory if not blockers else None,
+        mapping=explicit_mapping if not blockers else None,
         blockers=tuple(blockers),
     )

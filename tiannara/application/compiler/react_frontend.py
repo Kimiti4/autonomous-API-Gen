@@ -44,7 +44,7 @@ class ReactFrontend:
     def _package(self):
         return '{"name":"esap-react-app","private":true,"version":"0.1.0","scripts":{"build":"tsc --noEmit && vite build","test":"vitest run"},"dependencies":{"react":"^19.1.0","react-dom":"^19.1.0"},"devDependencies":{"@types/react":"^19.1.0","@types/react-dom":"^19.1.0","@vitejs/plugin-react":"^5.0.0","vite":"^7.0.0","typescript":"^5.9.0","vitest":"^3.2.4"}}'
     def _vite_config(self):
-        return 'import { defineConfig } from "vite";\\nimport react from "@vitejs/plugin-react";\\nexport default defineConfig({ plugins: [react()] });\\n'
+        return 'import { defineConfig } from "vite";\nimport react from "@vitejs/plugin-react";\nexport default defineConfig({ plugins: [react()] });\n'
     def _tsconfig(self):
         return '{"compilerOptions":{"target":"ES2022","module":"ESNext","moduleResolution":"Bundler","strict":true,"jsx":"react-jsx","noEmit":true}}'
     def _main(self):

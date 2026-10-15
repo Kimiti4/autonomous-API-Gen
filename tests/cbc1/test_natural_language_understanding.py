@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from autonomous_api.app.engine.natural_language_understanding import (
+from app.engine.natural_language_understanding import (
     understand_requirement,
     to_requirement_draft,
 )

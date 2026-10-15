@@ -98,7 +98,7 @@ serde = {{ version = "1", features = ["derive"] }}
 serde_json = "1"
 
 [dev-dependencies]
-tower = "0.5"
+tower = { version = "0.5", features = ["util"] }
 """
 
     def _models(self, model):
@@ -126,9 +126,29 @@ async fn main() {
 """
 
     def _test(self):
-        return """#[test]
-fn generated_health_contract_is_present() {
-    assert_eq!("/health", "/health");
+        return """#[cfg(test)]
+mod tests {
+    use super::app;
+    use axum::{body::{to_bytes, Body}, http::Request};
+    use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn health_endpoint_returns_ok() {
+        let response = app()
+            .oneshot(Request::builder().uri("/health").body(Body::empty()).expect("request"))
+            .await.expect("response");
+        assert_eq!(response.status(), 200);
+        let body = to_bytes(response.into_body(), usize::MAX).await.expect("body");
+        assert_eq!(&body[..], b"ok");
+    }
+
+    #[tokio::test]
+    async fn unknown_route_returns_not_found() {
+        let response = app()
+            .oneshot(Request::builder().uri("/not-a-route").body(Body::empty()).expect("request"))
+            .await.expect("response");
+        assert_eq!(response.status(), 404);
+    }
 }
 """
 
@@ -147,11 +167,8 @@ CMD ["/usr/local/bin/app"]
     def _manifest(self):
         return CapabilityManifest(
             backend_id=self.backend_id,
-            capabilities=[BundleCapability.BUILD, BundleCapability.LINT,
-                BundleCapability.STATIC_ANALYSIS, BundleCapability.TEST,
-                BundleCapability.SECURITY_SCAN, BundleCapability.CONTAINERIZE,
-                BundleCapability.DEPLOY, BundleCapability.HEALTH_CHECK,
-                BundleCapability.OBSERVABILITY, BundleCapability.DOCUMENTATION,
-                BundleCapability.RELEASE],
+            capabilities=[BundleCapability.BUILD, BundleCapability.TEST,
+                BundleCapability.CONTAINERIZE, BundleCapability.HEALTH_CHECK,
+                BundleCapability.DOCUMENTATION],
             metadata={"language": "rust", "framework": "axum", "style": "typed-hexagonal"},
         )

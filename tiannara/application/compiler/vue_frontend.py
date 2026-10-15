@@ -23,7 +23,7 @@ class VueFrontend:
     def name(self): return self.backend_id
     def build_profile(self,system_name):
         return BackendBuildProfile(language="typescript",required_files=("package.json","tsconfig.json","vite.config.ts","src/App.vue"),
-          verifier_kind="vue",build_command=["npm","run","build"],test_command=["npm","test","--","--runInBand"],
+          verifier_kind="vue",build_command=["npm","run","build"],test_command=["npm","test"],
           runtime_image="node:22-alpine",requires_build_phase=True)
     def build_profile_declaration(self):
         return BackendCapabilityDeclaration(backend_id=self.backend_id,artifact_kinds=[ArtifactKind.FRONTEND_APPLICATION],

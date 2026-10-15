@@ -748,3 +748,74 @@ def lower_source_bound_candidate(
     return SourceBoundLowering(
         source_hash, candidate_hash, mapping_hash, lowered, tuple(blockers)
     )
+
+
+
+def _canonical_requirement_ids(source: Mapping[str, Any]) -> tuple[str, ...] | None:
+    """Return requirement node IDs when the source snapshot carries a graph."""
+    graph = source.get("requirement_graph")
+    if not isinstance(graph, Mapping):
+        return None
+    nodes = graph.get("nodes")
+    if isinstance(nodes, Mapping):
+        identifiers = []
+        for key, node in nodes.items():
+            if not isinstance(key, str) or not key:
+                return ()
+            if isinstance(node, Mapping):
+                node_id = node.get("id", key)
+                if not isinstance(node_id, str) or not node_id:
+                    return ()
+                if node_id != key:
+                    # A keyed graph whose key and declared ID disagree is ambiguous.
+                    return ()
+                identifiers.append(node_id)
+            else:
+                return ()
+        return tuple(sorted(set(identifiers)))
+    if isinstance(nodes, (list, tuple)):
+        identifiers = []
+        for node in nodes:
+            if not isinstance(node, Mapping) or not isinstance(node.get("id"), str) or not node.get("id"):
+                return ()
+            identifiers.append(node["id"])
+        if len(set(identifiers)) != len(identifiers):
+            return ()
+        return tuple(sorted(identifiers))
+    return ()
+
+
+def _validate_requirement_coverage(
+    source: Mapping[str, Any],
+    mapping: Mapping[str, Any],
+) -> tuple[ProjectionBlocker, ...]:
+    """Require every authoritative requirement node to have an explicit mapping reference.
+
+    This is traceability coverage, not proof that the mapped decision is
+    semantically correct. That still requires domain-specific verification.
+    """
+    requirement_ids = _canonical_requirement_ids(source)
+    if requirement_ids is None:
+        # Lightweight callers without a requirement graph retain the explicit
+        # source_refs contract; real PlanArtifacts snapshots include the graph.
+        return ()
+    if not requirement_ids:
+        return (ProjectionBlocker(
+            "SBFS-015", "requirement graph is malformed or has no unambiguous requirement IDs"
+        ),)
+
+    provenance = mapping.get("provenance")
+    refs = provenance.get("source_refs") if isinstance(provenance, Mapping) else None
+    if not isinstance(refs, (list, tuple)) or any(not isinstance(ref, str) or not ref for ref in refs):
+        return (ProjectionBlocker(
+            "SBFS-016", "requirement coverage cannot be evaluated without valid provenance.source_refs"
+        ),)
+
+    missing = sorted(set(requirement_ids) - set(refs))
+    if missing:
+        return (ProjectionBlocker(
+            "SBFS-017",
+            "authoritative requirements are not represented in mapping provenance",
+            tuple(missing),
+        ),)
+    return ()

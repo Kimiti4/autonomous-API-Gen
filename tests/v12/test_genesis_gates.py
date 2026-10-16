@@ -213,6 +213,90 @@ def test_requirement_relationships_survive_as_typed_isr_edges() -> None:
     assert refines.properties["source_requirement_edge_id"] == "refines-child"
 
 
+def test_explicit_source_architecture_fragments_project_into_typed_isr() -> None:
+    requirement = RequirementNode(
+        id="req-ui",
+        kind=RequirementKind.FUNCTIONAL,
+        statement="show project list",
+        priority=Priority.MUST,
+        source_refs=["spec:projects#ui"],
+        properties={
+            "isr_nodes": [
+                {
+                    "id": "ui:projects",
+                    "type": "frontend_route",
+                    "properties": {
+                        "path": "/projects",
+                        "source_requirement_ids": ["req-ui"],
+                    },
+                },
+                {
+                    "id": "api:projects",
+                    "type": "api",
+                    "properties": {
+                        "operations": [{
+                            "operation_id": "list_projects",
+                            "method": "GET",
+                            "path": "/projects",
+                        }],
+                        "source_requirement_ids": ["req-ui"],
+                    },
+                },
+                {
+                    "id": "ui:projects:list",
+                    "type": "frontend_interaction",
+                    "properties": {
+                        "action": "list_projects",
+                        "flow_id": "list-projects",
+                        "source_requirement_ids": ["req-ui"],
+                    },
+                },
+            ],
+            "isr_edges": [
+                {
+                    "id": "ui-projects-routes-to-api",
+                    "type": "routes_to",
+                    "source_id": "ui:projects",
+                    "target_id": "api:projects",
+                    "properties": {"source_requirement_ids": ["req-ui"]},
+                },
+                {
+                    "id": "ui-projects-invokes-api",
+                    "type": "invokes",
+                    "source_id": "ui:projects:list",
+                    "target_id": "api:projects",
+                    "properties": {"source_requirement_ids": ["req-ui"]},
+                },
+            ],
+        },
+    )
+    req = RequirementGraph(schema_version="1.0", nodes={"req-ui": requirement}, edges={})
+    result = ReferenceDeterministicMapper().map(req, "map-1.0")
+    assert result.graph.nodes["ui:projects"].type.value == "frontend_route"
+    assert result.graph.nodes["api:projects"].properties["operations"][0]["operation_id"] == "list_projects"
+    assert result.graph.edges["ui-projects-routes-to-api"].type.value == "routes_to"
+    assert result.graph.edges["ui-projects-invokes-api"].source_id == "ui:projects:list"
+
+
+def test_explicit_source_architecture_fragment_without_provenance_fails_closed() -> None:
+    requirement = RequirementNode(
+        id="req-ui",
+        kind=RequirementKind.FUNCTIONAL,
+        statement="show project list",
+        priority=Priority.MUST,
+        properties={
+            "isr_nodes": [{
+                "id": "ui:projects",
+                "type": "frontend_route",
+                "properties": {"path": "/projects"},
+            }],
+        },
+    )
+    req = RequirementGraph(schema_version="1.0", nodes={"req-ui": requirement}, edges={})
+    with pytest.raises(ValueError, match="source_requirement_ids"):
+        ReferenceDeterministicMapper().map(req, "map-1.0")
+
+
 # ---------------------------------------------------------------------------
 # G11 — Genesis evidence is certifiable by v1.1 accountability plane
 # ---------------------------------------------------------------------------

@@ -24,7 +24,7 @@ class AngularFrontend:
     def name(self): return self.backend_id
     def build_profile(self,system_name):
         return BackendBuildProfile(language="typescript",required_files=("package.json","angular.json","tsconfig.json","tsconfig.spec.json","src/index.html","src/main.ts","src/app/app.component.spec.ts"),
-          verifier_kind="angular",build_command=["npm","run","build"],test_command=["npm","test","--","--watch=false"],
+          verifier_kind="angular",build_command=["npm","run","build"],test_command=["npm","test"],
           runtime_image="node:22-alpine",requires_build_phase=True)
     def build_profile_declaration(self):
         return BackendCapabilityDeclaration(backend_id=self.backend_id,artifact_kinds=[ArtifactKind.FRONTEND_APPLICATION],
@@ -48,7 +48,7 @@ class AngularFrontend:
     def _package(self):
         return '{"name":"esap-angular-app","private":true,"version":"0.1.0","scripts":{"build":"ng build","test":"ng test"},"dependencies":{"@angular/common":"^20.0.0","@angular/core":"^20.0.0","@angular/platform-browser":"^20.0.0","rxjs":"^7.8.0","zone.js":"^0.15.0"},"devDependencies":{"@angular/build":"^20.0.0","@angular/cli":"^20.0.0","@angular/compiler-cli":"^20.0.0","typescript":"^5.9.0","vitest":"^3.2.4","jsdom":"^26.1.0"}}'
     def _angular_json(self):
-        return '{"$schema":"./node_modules/@angular/cli/lib/config/schema.json","version":1,"projects":{"app":{"projectType":"application","root":"","sourceRoot":"src","architect":{"build":{"builder":"@angular/build:application","options":{"browser":"src/main.ts","index":"src/index.html","tsConfig":"tsconfig.json"}},"test":{"builder":"@angular/build:unit-test","options":{"tsConfig":"tsconfig.spec.json"}}}}}}'
+        return '{"$schema":"./node_modules/@angular/cli/lib/config/schema.json","version":1,"projects":{"app":{"projectType":"application","root":"","sourceRoot":"src","architect":{"build":{"builder":"@angular/build:application","options":{"browser":"src/main.ts","index":"src/index.html","tsConfig":"tsconfig.json"}},"test":{"builder":"@angular/build:unit-test","options":{"buildTarget":"app:build","tsConfig":"tsconfig.spec.json"}}}}}}'
     def _tsconfig(self):
         return '{"compilerOptions":{"target":"ES2022","module":"ES2022","moduleResolution":"bundler","strict":true,"experimentalDecorators":true,"skipLibCheck":true},"angularCompilerOptions":{"strictTemplates":true}}'
     def _index(self,model):

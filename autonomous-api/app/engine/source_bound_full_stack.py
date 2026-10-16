@@ -1244,6 +1244,10 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
         blockers.append(ProjectionBlocker(
             "MAP-REQ-000", "ISR contains no authoritative requirement references to bind architecture against",
         ))
+    if not data_models:
+        blockers.append(ProjectionBlocker(
+            "MAP-DATA-000", "ISR contains no explicit data-model nodes with fields and invariants",
+        ))
 
     # Verify that each carried ISR requirement ref is an exact semantic
     # projection of the authoritative RequirementGraph node, and that source

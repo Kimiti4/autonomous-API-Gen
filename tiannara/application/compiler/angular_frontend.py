@@ -42,7 +42,7 @@ class AngularFrontend:
         return CompilationResult(backend_id=self.backend_id,system_name=slugify(model.system_name),files={
           "package.json":self._package(),"angular.json":self._angular_json(),"tsconfig.json":self._tsconfig(),"tsconfig.spec.json":self._tsconfig_spec(),
           "src/index.html":self._index(model),"src/main.ts":self._main(),"src/app/app.component.ts":self._component(model),
-          "src/app/app.component.html":self._template(model),"src/app/app.component.spec.ts":self._test(),
+          "src/app/app.component.html":self._template(model),"src/app/app.component.spec.ts":self._test(model),
           "src/domain.ts":self._domain(model),"README.md":f"# {model.system_name}\n\nGenerated from the technology-neutral ISR.\n"
         },capability_manifest=self._manifest())
     def _package(self):

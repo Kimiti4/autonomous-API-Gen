@@ -8,9 +8,9 @@
 
 | Target | Source/config/deps | Build/install | Meaningful tests | Runtime/health | Security/auth | Semantic correspondence | Independent verification |
 |---|---|---|---|---|---|---|---|
-| React / TypeScript | P | P — generated-project install/build added to CI, pending | P — server-render test emitted; title encoded as data; CI pending | U | U | U | U |
-| Vue / TypeScript | P | P — generated-project install/build added to CI, pending | P — mounted component test and Vite Vue plugin emitted; CI pending | U | U | U | U |
-| Angular | P | P — generated-project install/build added to CI, pending | P — Vitest/TestBed test emitted; CI pending | U | U | U | U |
+| React / TypeScript | P | P — dependency install and production build passed in CI on `dc41c92`; re-run after latest Angular fixes pending | P — server-render test passed in CI on `dc41c92` | U | U | U | U |
+| Vue / TypeScript | P | P — dependency install and production build passed in CI on `dc41c92` | P — mounted-component test passed in CI on `dc41c92` | U | U | U | U |
+| Angular | P | P — install passed; first live test run failed due missing `buildTarget`; config fix committed, rerun pending | P — TestBed/Vitest component test emitted; CI blocked before test execution by builder schema | U | U | U | U |
 | Next.js | P | P — generated-project install/build added to CI, pending | P — page render test emitted; Vitest command corrected; CI pending | U | U | U | U |
 | Nuxt | P | P — generated-project install/build added to CI, pending | P — Nuxt 4 app layout and mounted component test emitted; CI pending | U | U | U | U |
 | Svelte | P | P — generated-project install/build added to CI, pending | P — Svelte 5 mount API and component test emitted; CI pending | U | U | U | U |
@@ -50,7 +50,10 @@ Latest fully completed validation head: `a62b7ff88a79e6e4dc614f8d9fe5ea1a7b3b79a
 ## Latest execution findings (2026-10-16)
 
 - The first live generated-frontend matrix reached the React production build after installing dependencies and passing its component test, then failed at TypeScript declaration checking. The generated project lacked Node type declarations and did not skip incompatible third-party declaration checks (Disposable, Node built-ins, Buffer, and related symbols).
-- Corrective changes have now been committed to the React and Vue generated dependency/type configurations, and Node typings have been added to Svelte and Nuxt manifests. These fixes are **not yet validated**; a subsequent matrix run is queued against the current branch head.
+- React and Vue generated projects then passed dependency installation, meaningful component tests, and production builds in the live matrix. Corrective changes also added Node typings to Svelte and Nuxt manifests; those targets have not yet been reached by the sequential matrix.
+- The same live run reached Angular and failed before executing its test because the Angular unit-test builder requires `buildTarget`. That option is now wired to `app:build`, the build-profile test command is normalized to `npm test`, and a regression assertion was added. The rerun is queued; Angular is not yet validated.
 - Existing cleanup tests cover workspace removal after a conformance exception, path-traversal rejection, and container destruction after a failed deployment health gate. They are in the compiler matrix's required test command, but the latest run has not completed them because the frontend execution step failed first.
 - The exact candidate hash is recomputed from sorted generated file contents by semantic correspondence verification, and the runner rejects mismatched candidate hashes from either verification gate. The canonical full-stack IR verifier independently checks cross-layer coherence/effect consequences; it does not substitute for build, runtime, or security tests.
 - Current Stage 1 blocker remains source-semantic completeness: the production mapping producer intentionally refuses to publish the five-layer mapping while authoritative PlanArtifacts/ISR do not explicitly encode required frontend routes, API operation contracts, enforcement policies, effects, and consequences. That blocker must be resolved by enriching authoritative source artifacts and loss-checked lowering—not by inventing a mapping.
+
+- Most recent generated-frontend execution detail: React and Vue are now demonstrated install/test/build passes on commit `dc41c92acf4976c46e265e38dd7ad0d2eeb0f1fb`; Angular's first real execution exposed a configuration defect, which has been corrected in `556026985de057dfdb92e9438bbbc689a5a87478` and covered by a follow-up regression test. The current full matrix is pending on the later branch head.

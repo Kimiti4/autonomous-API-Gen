@@ -263,7 +263,7 @@ def lower_explicit_mapping_to_full_stack_ir(
     if not isinstance(explicit_mapping, Mapping):
         raise TypeError("explicit_mapping must be a mapping")
 
-    allowed_top = set(REQUIRED_LAYERS) | {"provenance"}
+    allowed_top = set(REQUIRED_LAYERS) | {"provenance", "requirement_bindings"}
     extra_top = set(explicit_mapping) - allowed_top
     if extra_top:
         findings.append(f"unsupported top-level mapping keys: {sorted(extra_top)}")

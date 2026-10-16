@@ -8,18 +8,18 @@
 
 | Target | Source/config/deps | Build/install | Meaningful tests | Runtime/health | Security/auth | Semantic correspondence | Independent verification |
 |---|---|---|---|---|---|---|---|
-| React / TypeScript | P | U | P — render test emitted; latest CI pending | U | U | U | U |
-| Vue / TypeScript | P | U | P — mounted component test emitted; latest CI pending | U | U | U | U |
+| React / TypeScript | P | U | P — server-render test emitted; generated title is encoded as data; latest framework-specific CI pending | U | U | U | U |
+| Vue / TypeScript | P | U | P — mounted component test and Vite Vue plugin emitted; latest framework-specific CI pending | U | U | U | U |
 | Angular | S | U | U | U | U | U | U |
-| Next.js | P | U | P — render test emitted; build-profile command corrected, latest CI pending | U | U | U | U |
-| Nuxt | P | U | P — mounted component test emitted; latest CI pending | U | U | U | U |
-| Svelte | P | U | P — component test emitted; latest CI pending | U | U | U | U |
+| Next.js | P | U | P — page render test emitted; Vitest command corrected; latest framework-specific CI pending | U | U | U | U |
+| Nuxt | P | U | P — Nuxt 4 app layout and mounted component test emitted; latest framework-specific CI pending | U | U | U | U |
+| Svelte | P | U | P — Svelte 5 mount API and component test emitted; latest framework-specific CI pending | U | U | U | U |
 | Phoenix LiveView | S | U | U | U | U | U | U |
 | Hologram | S | U | U | U | U | U | U |
 | Scenic | S | U | U | U | U | U | U |
 | Python / FastAPI | P | U | U — test suite presence is not generated-app execution evidence | U | U | U | U |
 | Go / net/http | P | U | U — profile exists; generated behavior still needs execution proof | U | U | U | U |
-| Rust / Axum | P | U | U — generated health test was found to be vacuous; replacement and real Cargo execution remain required | U | U | U | U |
+| Rust / Axum | P | P — generated project passed `cargo test` and `cargo build --release` on the CI runner toolchain; pinned Rust 1.85 Docker build added and pending | P — two router-level integration tests passed (`/health` 200/body and unknown-route 404) | P — runner-side process not yet exercised; Docker runtime health/404 probes added and pending | U | U | U |
 | TypeScript / Node / Express | P | U | P — current health test only checks a string; real HTTP behavior required | U | U | U | U |
 | TypeScript / Node / NestJS | S | U | U | U | U | U | U |
 | Java / Spring Boot | S | U | U | U | U | U | U |
@@ -35,7 +35,7 @@
 2. **Workspace cleanup:** the trial workspace is now removed in a `finally` block on normal returns and exceptions after workspace creation. Regression coverage and CI validation are still pending.
 3. **Campaign semantic projection:** authoritative PlanArtifacts are snapshotted, but the deterministic mapping producer correctly blocks when typed source semantics do not express the required frontend, API, backend, effect, and consequence obligations. No fabricated mapping is accepted.
 4. **Next.js:** the build profile had a Jest-only `--runInBand` option despite using Vitest. It now invokes `npm test`. The root layout now imports `ReactNode` explicitly.
-5. **Rust/Axum:** the generated test in `tiannara/application/compiler/rust_axum_backend.py` was a vacuous string equality assertion. The toolchain change to Rust 1.85 has a source-level regression assertion, but **an actual generated-project `cargo test` / release build has not yet been evidenced**. Do not mark the Rust target build-verified.
+5. **Rust/Axum:** replaced the vacuous health test with router-level `/health` status/body and unknown-route 404 checks. The generated project passed `cargo test` (2 integration tests) and `cargo build --release` in CI on the runner’s stable Rust 1.99.1 toolchain. A separate Docker build using the generated `rust:1.85-slim` stage plus live container health/404 probes has now been added; its CI result is pending. Do not mark the pinned Rust 1.85 image verified until that run passes.
 6. **Capability claims:** target manifests must be compared with executable operations. A manifest or Dockerfile alone does not establish security scanning, deployment, observability, or release capability.
 
 ## Certification rule
@@ -44,4 +44,4 @@ A target can be marked passed only when the exact generated candidate has eviden
 
 ## CI snapshot
 
-Latest known PR branch head: `8eb2a0cdf5b7ba8f0cdc7af73d836058dc43a979`. The compiler matrix, including the new generated Rust/Axum `cargo test` and release-build step, is queued. Earlier compiler-matrix and source-quality runs passed on prior heads; those results do not validate the latest runner/frontend edits.
+Latest observed validated PR head: `a62b7ff88a79e6e4dc614f8d9fe5ea1a7b3b79a6`. Compiler Certification Matrix and Compiler Source Quality passed on that head. The matrix’s generated Rust project passed host-toolchain `cargo test` and release build. The pinned Rust 1.85 Docker build and live runtime probes were added in commit `038fc4954118221e3855cd322e3a4963f5cae5c9`; their CI result is pending. CBC-1 Campaign A failed on the validated head: 78/78 evidence records formed a valid hash chain, but 0/78 trials were certified because the full-stack semantic gate remained blocked. This is not a production certification pass.

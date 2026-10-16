@@ -56,7 +56,21 @@ jobs:
           for target in react_ts vue_ts angular_ts next_ts nuxt_ts svelte_ts; do
             echo "=== $target: install dependencies ==="
             cd "/tmp/esap-generated-frontends/$target"
-            npm install --no-audit --no-fund --no-progress
+            if [ "$target" = "nuxt_ts" ]; then
+              # npm's Arborist has a known crash on this Nuxt dependency graph
+              # ("Cannot read properties of null (reading 'edgesOut')"). Retry
+              # only that internal failure with peer auto-resolution disabled;
+              # generated tests and the production build remain mandatory.
+              if ! npm install --no-audit --no-fund --no-progress 2>&1 | tee /tmp/esap-nuxt-npm-install.log; then
+                if grep --fixed-strings --quiet "Cannot read properties of null (reading 'edgesOut')" /tmp/esap-nuxt-npm-install.log; then
+                  npm install --legacy-peer-deps --no-audit --no-fund --no-progress
+                else
+                  exit 1
+                fi
+              fi
+            else
+              npm install --no-audit --no-fund --no-progress
+            fi
             echo "=== $target: meaningful generated tests ==="
             npm test
             echo "=== $target: production build ==="

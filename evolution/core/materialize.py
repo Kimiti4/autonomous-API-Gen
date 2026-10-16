@@ -23,10 +23,30 @@ class ReferenceGenomeMaterializer:
                 id=f"domain:{d}", type=NodeType.DOMAIN, properties={"label": d}
             )
             style = arch.genes[d].value if arch else "bounded-context"
+            source_nodes = genome.source_graph.get("nodes", {}) if isinstance(genome.source_graph, Mapping) else {}
+            domain_requirement = next(
+                (
+                    value for value in source_nodes.values()
+                    if isinstance(value, Mapping)
+                    and value.get("type") == NodeType.REQUIREMENT_REF.value
+                    and value.get("properties", {}).get("requirement_id") == d
+                ),
+                None,
+            )
+            source_statement = (
+                domain_requirement.get("properties", {}).get("semantic_content")
+                if isinstance(domain_requirement, Mapping)
+                and isinstance(domain_requirement.get("properties"), Mapping)
+                else None
+            )
+            service_properties = {"style": style}
+            if isinstance(source_statement, str) and source_statement.strip():
+                service_properties["responsibility"] = source_statement
+                service_properties["source_requirement_ref"] = f"requirement_ref:{d}"
             nodes[f"service:{d}"] = Node(
                 id=f"service:{d}",
                 type=NodeType.SERVICE,
-                properties={"style": style},
+                properties=service_properties,
             )
 
         # --- persistence: data_model + PERSISTS edge per service ---
@@ -119,5 +139,42 @@ class ReferenceGenomeMaterializer:
             for key, value in edges.items():
                 preserved_edges.setdefault(key, value)
             nodes, edges = preserved_nodes, preserved_edges
+
+            # Requirement refinements are authoritative source relationships.
+            # When a functional requirement refines a domain requirement, bind
+            # its capability to the service generated for that domain. No
+            # lexical name matching is used.
+            for source_edge in preserved_edges.values():
+                if source_edge.type is not EdgeType.REQUIREMENT_REFINES:
+                    continue
+                source_ref = preserved_nodes.get(source_edge.source_id)
+                target_ref = preserved_nodes.get(source_edge.target_id)
+                if source_ref is None or target_ref is None:
+                    continue
+                source_props = source_ref.properties
+                target_props = target_ref.properties
+                capability_id = f"capability:{source_props.get('requirement_id', '')}"
+                service_id = f"service:{target_props.get('requirement_id', '')}"
+                if (
+                    source_props.get("requirement_kind") == "functional"
+                    and target_props.get("requirement_kind") == "domain_concept"
+                    and capability_id in nodes
+                    and service_id in nodes
+                ):
+                    edge_id = f"implemented-by:{source_props.get('requirement_id')}"
+                    edges.setdefault(
+                        edge_id,
+                        Edge(
+                            id=edge_id,
+                            type=EdgeType.IMPLEMENTED_BY,
+                            source_id=capability_id,
+                            target_id=service_id,
+                            properties={
+                                "derived_from_requirement_edge": source_edge.id,
+                                "source_requirement_ref": source_edge.source_id,
+                                "target_requirement_ref": source_edge.target_id,
+                            },
+                        ),
+                    )
 
         return ISRGraph(nodes=nodes, edges=edges)

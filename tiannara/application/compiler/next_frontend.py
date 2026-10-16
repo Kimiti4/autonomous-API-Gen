@@ -36,7 +36,7 @@ class NextFrontend:
           "vite.config.ts":self._vite_config(),
           "app/page.test.tsx":self._test(),
           "app/page.tsx":f'const title = {json.dumps(model.system_name, ensure_ascii=True)};\nexport default function Page() {{ return <main><h1>{{title}}</h1><p>Generated application</p></main>; }}',
-          "app/layout.tsx":'import type { ReactNode } from "react"; export default function RootLayout({children}:{children:ReactNode}){return <html><body>{children}</body></html}',
+          "app/layout.tsx":'import type { ReactNode } from "react"; export default function RootLayout({children}:{children:ReactNode}){return <html><body>{children}</body></html>}',
           "README.md":f"# {model.system_name}\n\nGenerated from the technology-neutral ISR.\n"
         },capability_manifest=self._manifest())
     def _package(self):

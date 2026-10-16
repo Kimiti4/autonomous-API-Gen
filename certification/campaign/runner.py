@@ -318,7 +318,7 @@ class CampaignRunner:
                     and stage_results.get(TrialStage.SEMANTIC) is True
                 ):
                     b_ok, b_detail = False, (
-                        "skipped: structural and semantic conformance must both pass before build"
+                        "skipped: prerequisite failure — structural and semantic conformance must both pass before build"
                     )
                     _record(TrialStage.BUILD, b_ok, b_detail)
                 elif self.builder:

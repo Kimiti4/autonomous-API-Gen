@@ -144,7 +144,7 @@ class ReferenceGenomeMaterializer:
             # When a functional requirement refines a domain requirement, bind
             # its capability to the service generated for that domain. No
             # lexical name matching is used.
-            for source_edge in preserved_edges.values():
+            for source_edge in list(preserved_edges.values()):
                 if source_edge.type is not EdgeType.REQUIREMENT_REFINES:
                     continue
                 source_ref = preserved_nodes.get(source_edge.source_id)

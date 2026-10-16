@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from isr.core.graph import Edge, EdgeType, ISRGraph, Node, NodeType
-from reqgraph.core.graph import RequirementGraph, RequirementKind
+from reqgraph.core.graph import RequirementEdgeType, RequirementGraph, RequirementKind
 from genesis.evidence import CoverageReport
 
 CONSTITUTIONAL_DEFAULTS = (
@@ -110,6 +110,32 @@ class ReferenceDeterministicMapper:
                         source_id=capability_id,
                         target_id=ref_id,
                     )
+
+        relationship_types = {
+            RequirementEdgeType.DEPENDS_ON: EdgeType.REQUIREMENT_DEPENDS_ON,
+            RequirementEdgeType.CONFLICTS_WITH: EdgeType.REQUIREMENT_CONFLICTS_WITH,
+            RequirementEdgeType.REFINES: EdgeType.REQUIREMENT_REFINES,
+            RequirementEdgeType.OWNED_BY: EdgeType.REQUIREMENT_OWNED_BY,
+        }
+        for requirement_edge in sorted(req.edges.values(), key=lambda edge: edge.id):
+            edge_type = relationship_types[requirement_edge.type]
+            source_id = f"requirement_ref:{requirement_edge.source_id}"
+            target_id = f"requirement_ref:{requirement_edge.target_id}"
+            if source_id not in nodes or target_id not in nodes:
+                # A malformed requirement graph must not be partially projected.
+                raise ValueError(
+                    f"requirement relationship {requirement_edge.id!r} has an unknown endpoint"
+                )
+            edges[f"requirement:{requirement_edge.id}"] = Edge(
+                id=f"requirement:{requirement_edge.id}",
+                type=edge_type,
+                source_id=source_id,
+                target_id=target_id,
+                properties={
+                    "source_requirement_edge_id": requirement_edge.id,
+                    "resolution_ref": requirement_edge.resolution_ref,
+                },
+            )
         graph = ISRGraph(nodes=nodes, edges=edges)
 
         uncovered = [

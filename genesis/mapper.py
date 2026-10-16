@@ -71,10 +71,11 @@ class ReferenceDeterministicMapper:
                 target_type = NodeType.DOMAIN
             elif n.kind is RequirementKind.FUNCTIONAL:
                 target_type = NodeType.CAPABILITY
-            elif n.kind is RequirementKind.NON_FUNCTIONAL:
-                target_type = NodeType.SERVICE
-            elif n.kind is RequirementKind.CONSTRAINT:
-                target_type = NodeType.SECURITY_POLICY
+            elif n.kind in {RequirementKind.NON_FUNCTIONAL, RequirementKind.CONSTRAINT}:
+                # These requirement classes do not identify an implementation
+                # node type by themselves. Preserve the requirement ref and
+                # require explicit ISR declarations for any realization.
+                continue
             else:
                 continue
 

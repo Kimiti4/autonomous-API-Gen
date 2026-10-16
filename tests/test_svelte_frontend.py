@@ -8,6 +8,7 @@ def test_svelte_emits_svelte_specific_structure():
     model=SystemModel(system_name="Svelte Test",problem_statement="test",requirements_ref=RequirementsReference(graph_id="g",graph_hash="h"))
     result=build_compiler_registry().backend("svelte_ts").generate(model)
     assert "src/App.svelte" in result.files and "svelte.config.js" in result.files
+    assert '<div id="app"></div><script type="module" src="/src/main.ts"></script>' in result.files["index.html"]
 
 
 def test_svelte_uses_svelte5_mount_and_real_component_test():
@@ -21,3 +22,4 @@ def test_svelte_uses_svelte5_mount_and_real_component_test():
     assert "render(App)" in result.files["src/App.test.ts"]
     assert "expect(true).toBe(true)" not in result.files["src/App.test.ts"]
     assert "src/App.test.ts" in backend.build_profile(model.system_name).required_files
+    assert "index.html" in backend.build_profile(model.system_name).required_files

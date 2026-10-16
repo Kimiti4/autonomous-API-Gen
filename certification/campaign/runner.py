@@ -310,6 +310,9 @@ class CampaignRunner:
                 # Structural/semantic conformance is a prerequisite for any
                 # expensive or stateful execution. Do not build an invalid
                 # candidate and rely on later gates to reject it.
+                # Initialize explicitly: a prerequisite failure skips the build branch,
+                # but downstream stages must still observe a failed build result.
+                b_ok = False
                 if not (
                     stage_results.get(TrialStage.STRUCTURAL) is True
                     and stage_results.get(TrialStage.SEMANTIC) is True

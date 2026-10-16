@@ -1,0 +1,962 @@
+from types import SimpleNamespace
+
+from app.engine.source_bound_full_stack import (
+    project_source_bound_full_stack,
+    source_snapshot_from_plan_artifacts,
+)
+
+
+class _Dumpable:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def model_dump(self):
+        return self.payload
+
+
+def _plan_artifacts(requirement_text="read item"):
+    return SimpleNamespace(
+        plan=_Dumpable({"plan_id": "plan-1", "isr_id": "isr-1", "services": []}),
+        revision=_Dumpable({
+            "system_id": "system-1", "revision_id": "rev-1",
+            "content_hash": "a" * 64,
+            "graph": {"nodes": {"isr:domain:item": {"id": "isr:domain:item"}}},
+        }),
+        genome=_Dumpable({"genes": []}),
+        requirement_graph=_Dumpable({
+            "nodes": {
+                "req:item": {"id": "req:item", "statement": requirement_text},
+            },
+            "edges": {},
+        }),
+        requirement_graph_hash="b" * 64,
+        genome_hash="c" * 64,
+        plan_hash="d" * 64,
+    )
+
+
+def test_missing_mapping_fails_closed_without_inventing_ir():
+    result = project_source_bound_full_stack(
+        source_artifacts={"source_refs": ["req:1"], "requirements": ["create workspace"]},
+        candidate_files={"app.py": "pass"},
+    )
+    assert result.status == "blocked"
+    assert result.inputs is None
+    assert not result.ready
+    assert any(blocker.code == "SBFS-004" for blocker in result.blockers)
+
+
+def test_incomplete_architecture_mapping_fails_closed():
+    result = project_source_bound_full_stack(
+        source_artifacts={"source_refs": ["req:1"]},
+        candidate_files={"app.py": "pass"},
+        explicit_mapping={
+            "api": {"operations": []},
+            "provenance": {"source_refs": ["req:1"]},
+        },
+    )
+    assert result.status == "blocked"
+    assert result.inputs is None
+    missing = {b.message for b in result.blockers if b.code == "SBFS-005"}
+    assert any("frontend" in message for message in missing)
+    assert any("backend" in message for message in missing)
+    assert any("effects" in message for message in missing)
+    assert any("consequences" in message for message in missing)
+
+
+def test_mapping_must_reference_known_source_ids_when_available():
+    result = project_source_bound_full_stack(
+        source_artifacts={"source_refs": ["req:known"]},
+        candidate_files={"app.py": "pass"},
+        explicit_mapping={
+            "frontend": {},
+            "api": {},
+            "backend": {},
+            "effects": [],
+            "consequences": [],
+            "provenance": {"source_refs": ["req:invented"]},
+        },
+    )
+    assert result.status == "blocked"
+    assert any(b.code == "SBFS-008" for b in result.blockers)
+
+
+def test_source_and_candidate_mutations_change_their_digests():
+    source = {"source_refs": ["req:1"], "requirements": ["read item"]}
+    candidate = {"app.py": "def read_item(): return 1"}
+
+    first = project_source_bound_full_stack(
+        source_artifacts=source, candidate_files=candidate
+    )
+    changed_source = project_source_bound_full_stack(
+        source_artifacts={**source, "requirements": ["read item with authorization"]},
+        candidate_files=candidate,
+    )
+    changed_candidate = project_source_bound_full_stack(
+        source_artifacts=source,
+        candidate_files={"app.py": "def read_item(): return None"},
+    )
+
+    assert first.source_hash != changed_source.source_hash
+    assert first.candidate_hash != changed_candidate.candidate_hash
+
+
+def test_empty_candidate_manifest_fails_closed():
+    result = project_source_bound_full_stack(
+        source_artifacts={"source_refs": ["req:1"]},
+        candidate_files={},
+    )
+    assert result.status == "blocked"
+    assert result.candidate_hash == ""
+    assert any(b.code == "SBFS-002" for b in result.blockers)
+
+
+
+def test_mapping_blocks_when_source_inventory_is_absent():
+    result = project_source_bound_full_stack(
+        source_artifacts={"requirements": ["read item"]},
+        candidate_files={"app.py": "pass"},
+        explicit_mapping={
+            "frontend": {},
+            "api": {},
+            "backend": {},
+            "effects": [],
+            "consequences": [],
+            "provenance": {"source_refs": ["req:1"]},
+        },
+    )
+    assert result.status == "blocked"
+    assert any(b.code == "SBFS-010" for b in result.blockers)
+
+
+def test_complete_shape_is_still_not_claimed_as_semantically_ready():
+    result = project_source_bound_full_stack(
+        source_artifacts={"source_refs": ["req:1"]},
+        candidate_files={"app.py": "pass"},
+        explicit_mapping={
+            "frontend": {"routes": ["/items"]},
+            "api": {"operations": [{"operation_id": "list_items"}]},
+            "backend": {"modules": ["items"]},
+            "effects": [],
+            "consequences": [],
+            "provenance": {"source_refs": ["req:1"]},
+        },
+    )
+    assert result.status == "mapping_present_unverified"
+    assert result.inputs is None
+    assert result.ready is False
+
+
+
+def test_snapshot_uses_real_plan_artifact_fields_and_inventories_ids():
+    snapshot = source_snapshot_from_plan_artifacts(_plan_artifacts())
+    assert snapshot["schema"] == "source-bound-plan-snapshot/1"
+    assert "req:item" in snapshot["source_refs"]
+    assert "isr:domain:item" in snapshot["source_refs"]
+    assert snapshot["plan"]["plan_id"] == "plan-1"
+    assert snapshot["revision"]["content_hash"] == "a" * 64
+
+
+def test_snapshot_digest_changes_when_requirement_graph_changes():
+    first = source_snapshot_from_plan_artifacts(_plan_artifacts("read item"))
+    changed = source_snapshot_from_plan_artifacts(
+        _plan_artifacts("read item only after authorization")
+    )
+    first_projection = project_source_bound_full_stack(
+        source_artifacts=first, candidate_files={"app.py": "pass"}
+    )
+    changed_projection = project_source_bound_full_stack(
+        source_artifacts=changed, candidate_files={"app.py": "pass"}
+    )
+    assert first_projection.source_hash != changed_projection.source_hash
+
+
+def test_snapshot_rejects_plan_artifacts_without_source_identifiers():
+    artifacts = _plan_artifacts()
+    artifacts.requirement_graph = _Dumpable({"nodes": {}, "edges": {}})
+    artifacts.revision = _Dumpable({
+        "content_hash": "a" * 64, "graph": {"nodes": {}}
+    })
+    try:
+        source_snapshot_from_plan_artifacts(artifacts)
+    except ValueError as exc:
+        assert "no canonical requirement/ISR identifiers" in str(exc)
+    else:
+        raise AssertionError("missing source identifiers must fail closed")
+
+
+
+def _complete_explicit_mapping():
+    return {
+        "frontend": {
+            "schema_version": "1", "contract_id": "frontend:items",
+            "routes": ["/items"], "api_contract_id": "items",
+            "quality_obligation_ids": [], "state_domains": ["items"],
+            "interaction_flows": ["list-items"], "accessibility_requirements": [],
+            "observability_requirements": [], "modules": [{
+                "module_id": "items-page", "responsibility": "Render items",
+                "dependencies": [], "invariants": [],
+            }],
+            "data_flows": [{
+                "flow_id": "list-items", "source": "items-page",
+                "destination": "GET /items", "contract": "items-list",
+                "failure_policy": "show-error",
+            }],
+            "security_boundaries": ["authenticated-user"],
+            "failure_states": ["load-failed"], "design_constraints": [],
+        },
+        "api": {
+            "schema_version": "1", "contract_id": "items",
+            "operations": [{
+                "operation_id": "list_items", "method": "GET", "path": "/items",
+                "request_schema": None, "response_schema": None,
+                "authorization_policy": "authenticated-user", "errors": [],
+                "idempotency_required": False, "paginated": False, "version": "v1",
+            }],
+            "global_error_contract": "problem-json", "auth_scheme": "bearer",
+            "schemas": [],
+        },
+        "backend": {
+            "schema_version": "1", "contract_id": "backend:items",
+            "domain_modules": ["items"], "api_contract_id": "items",
+            "quality_obligation_ids": [], "persistence_targets": ["items-store"],
+            "event_targets": [], "observability_requirements": [],
+            "modules": [{
+                "module_id": "items", "responsibility": "Read items",
+                "dependencies": [], "invariants": ["read-only"],
+            }],
+            "data_flows": [{
+                "flow_id": "items-read", "source": "items-api",
+                "destination": "items-store", "contract": "item-record",
+                "failure_policy": "fail-closed",
+            }],
+            "security_boundaries": ["authenticated-user"], "failure_modes": ["store-unavailable"],
+        },
+        "effects": [],
+        "consequences": [],
+        "provenance": {"source_refs": ["req:item", "isr:domain:item"]},
+    }
+
+
+def test_explicit_mapping_lowers_to_canonical_ir_without_inferred_defaults():
+    from app.engine.source_bound_full_stack import (
+        lower_explicit_mapping_to_full_stack_ir,
+    )
+
+    lowered = lower_explicit_mapping_to_full_stack_ir(_complete_explicit_mapping())
+    assert lowered.frontend is not None
+    assert lowered.api is not None
+    assert lowered.backend is not None
+    assert lowered.api.operations[0].authorization_policy == "authenticated-user"
+    assert lowered.frontend.routes == ("/items",)
+    assert lowered.backend.persistence_targets == ("items-store",)
+    assert lowered.source_refs == ("isr:domain:item", "req:item")
+    assert lowered.structurally_valid
+
+
+def test_explicit_mapping_rejects_unknown_fields_instead_of_dropping_them():
+    from app.engine.source_bound_full_stack import (
+        lower_explicit_mapping_to_full_stack_ir,
+    )
+
+    mapping = _complete_explicit_mapping()
+    mapping["api"]["transport_guess"] = "http"
+    lowered = lower_explicit_mapping_to_full_stack_ir(mapping)
+    assert not lowered.structurally_valid
+    assert any("unsupported keys" in finding for finding in lowered.findings)
+
+
+def test_state_changing_api_without_explicit_effect_is_represented_for_gate_failure():
+    from app.engine.source_bound_full_stack import (
+        lower_explicit_mapping_to_full_stack_ir,
+    )
+    from app.engine.full_stack_verification import verify_full_stack
+
+    mapping = _complete_explicit_mapping()
+    mapping["api"]["operations"][0]["method"] = "POST"
+    lowered = lower_explicit_mapping_to_full_stack_ir(mapping)
+    assert lowered.structurally_valid
+    report = verify_full_stack(
+        lowered.frontend, lowered.api, lowered.backend,
+        lowered.effects, lowered.consequences,
+    )
+    assert not report.passed
+    assert any(f.code == "FS-EFFECT-002" for f in report.effects)
+
+
+
+def test_architecture_fact_extraction_preserves_plan_and_isr_relationships():
+    from app.engine.source_bound_full_stack import (
+        extract_architecture_facts,
+    )
+
+    artifacts = _plan_artifacts()
+    artifacts.plan = _Dumpable({
+        "plan_id": "plan-1", "isr_id": "isr-1",
+        "services": [{
+            "id": "svc:catalog", "name": "Catalog",
+            "data_models": [{"id": "model:item", "entity_name": "Item"}],
+            "published_events": [{"id": "event:item-created", "name": "ItemCreated"}],
+            "consumed_events": [{"id": "event:price-updated", "name": "PriceUpdated"}],
+        }],
+        "security": [{"policy_id": "policy:catalog-read"}],
+    })
+    artifacts.revision = _Dumpable({
+        "system_id": "system-1", "revision_id": "rev-1",
+        "content_hash": "a" * 64,
+        "graph": {
+            "nodes": {"isr:domain:item": {"kind": "domain", "name": "Item"}},
+            "edges": {"edge:owns": {"source": "isr:domain:item", "target": "isr:service:catalog"}},
+        },
+    })
+    snapshot = source_snapshot_from_plan_artifacts(artifacts)
+    facts = extract_architecture_facts(snapshot)
+
+    assert facts.services == ({"id": "svc:catalog", "name": "Catalog"},)
+    assert facts.data_models[0] == {
+        "id": "model:item", "entity_name": "Item", "service_id": "svc:catalog"
+    }
+    assert facts.published_events[0]["id"] == "event:item-created"
+    assert facts.consumed_events[0]["id"] == "event:price-updated"
+    assert facts.security_policy_ids == ("policy:catalog-read",)
+    assert facts.isr_nodes[0]["id"] == "isr:domain:item"
+    assert facts.isr_edges[0]["source"] == "isr:domain:item"
+    assert not facts.complete_for_full_stack
+
+
+def test_architecture_fact_mutation_changes_source_hash_and_fact_value():
+    from app.engine.source_bound_full_stack import (
+        extract_architecture_facts,
+    )
+
+    first_artifacts = _plan_artifacts()
+    changed_artifacts = _plan_artifacts()
+    for artifacts, name in ((first_artifacts, "Catalog"), (changed_artifacts, "Inventory")):
+        artifacts.plan = _Dumpable({
+            "plan_id": "plan-1", "isr_id": "isr-1",
+            "services": [{
+                "id": "svc:catalog", "name": name,
+                "data_models": [{"id": "model:item", "entity_name": "Item"}],
+                "published_events": [], "consumed_events": [],
+            }],
+            "security": [{"policy_id": "policy:read"}],
+        })
+    first = extract_architecture_facts(source_snapshot_from_plan_artifacts(first_artifacts))
+    changed = extract_architecture_facts(source_snapshot_from_plan_artifacts(changed_artifacts))
+    assert first.services[0]["name"] != changed.services[0]["name"]
+    assert first.source_hash != changed.source_hash
+
+
+def test_missing_plan_semantics_are_blockers_not_inferred_defaults():
+    from app.engine.source_bound_full_stack import (
+        extract_architecture_facts,
+    )
+
+    artifacts = _plan_artifacts()
+    artifacts.plan = _Dumpable({
+        "plan_id": "plan-1", "isr_id": "isr-1",
+        "services": [{"id": "svc:empty", "name": "Empty"}],
+        "security": [],
+    })
+    facts = extract_architecture_facts(source_snapshot_from_plan_artifacts(artifacts))
+    assert not facts.complete_for_full_stack
+    assert any("no explicit data models" in blocker for blocker in facts.blockers)
+    assert any("no explicit event declarations" in blocker for blocker in facts.blockers)
+    assert any("no explicit security policy identifiers" in blocker for blocker in facts.blockers)
+
+
+
+def test_source_bound_lowering_rejects_unbound_mapping_digests():
+    from app.engine.source_bound_full_stack import (
+        lower_source_bound_candidate,
+    )
+
+    source = {"source_refs": ["req:item", "isr:domain:item"], "revision": "rev-1"}
+    candidate = {"app.py": "print('candidate')"}
+    mapping = _complete_explicit_mapping()
+    mapping["provenance"]["source_hash"] = "0" * 64
+    mapping["provenance"]["candidate_hash"] = "1" * 64
+
+    result = lower_source_bound_candidate(
+        source_artifacts=source,
+        candidate_files=candidate,
+        explicit_mapping=mapping,
+    )
+    assert not result.ready_for_verification
+    assert result.lowered is not None
+    assert any(blocker.code == "SBFS-011" for blocker in result.blockers)
+    assert any(blocker.code == "SBFS-012" for blocker in result.blockers)
+
+
+def test_source_bound_lowering_rejects_provenance_outside_source_snapshot():
+    from app.engine.source_bound_full_stack import (
+        _canonical_hash,
+        lower_source_bound_candidate,
+    )
+
+    source = {"source_refs": ["req:item"], "revision": "rev-1"}
+    candidate = {"app.py": "print('candidate')"}
+    mapping = _complete_explicit_mapping()
+    mapping["provenance"]["source_refs"] = ["req:invented"]
+    mapping["provenance"]["source_hash"] = _canonical_hash(source)
+    mapping["provenance"]["candidate_hash"] = _canonical_hash(candidate)
+
+    result = lower_source_bound_candidate(
+        source_artifacts=source,
+        candidate_files=candidate,
+        explicit_mapping=mapping,
+    )
+    assert not result.ready_for_verification
+    assert any(blocker.code == "SBFS-008" for blocker in result.blockers)
+
+
+def test_source_bound_lowering_accepts_matching_source_candidate_and_ir_binding():
+    from app.engine.source_bound_full_stack import (
+        _canonical_hash,
+        lower_source_bound_candidate,
+    )
+
+    source = {"source_refs": ["req:item", "isr:domain:item"], "revision": "rev-1"}
+    candidate = {"app.py": "print('candidate')"}
+    mapping = _complete_explicit_mapping()
+    mapping["provenance"]["source_hash"] = _canonical_hash(source)
+    mapping["provenance"]["candidate_hash"] = _canonical_hash(candidate)
+
+    result = lower_source_bound_candidate(
+        source_artifacts=source,
+        candidate_files=candidate,
+        explicit_mapping=mapping,
+    )
+    assert result.ready_for_verification
+    assert result.lowered is not None
+    assert result.source_hash == _canonical_hash(source)
+    assert result.candidate_hash == _canonical_hash(candidate)
+
+
+
+def test_source_bound_lowering_blocks_unmapped_authoritative_requirement():
+    from app.engine.source_bound_full_stack import (
+        _canonical_hash,
+        lower_source_bound_candidate,
+    )
+
+    source = {
+        "source_refs": ["req:item", "req:security", "isr:domain:item"],
+        "requirement_graph": {
+            "nodes": {
+                "req:item": {"id": "req:item", "statement": "List items"},
+                "req:security": {"id": "req:security", "statement": "Require authentication"},
+            },
+            "edges": {},
+        },
+        "revision": "rev-1",
+    }
+    candidate = {"app.py": "print('candidate')"}
+    mapping = _complete_explicit_mapping()
+    # Deliberately omit req:security from provenance even though it exists in
+    # source_refs and its security intent is not otherwise traceably mapped.
+    mapping["provenance"]["source_refs"] = ["req:item", "isr:domain:item"]
+    mapping["requirement_bindings"] = [{
+        "requirement_id": "req:item", "layer": "api", "target_id": "list_items",
+        "requirement_hash": _canonical_hash(source["requirement_graph"]["nodes"]["req:item"]),
+    }]
+    mapping["provenance"]["source_hash"] = _canonical_hash(source)
+    mapping["provenance"]["candidate_hash"] = _canonical_hash(candidate)
+
+    result = lower_source_bound_candidate(
+        source_artifacts=source,
+        candidate_files=candidate,
+        explicit_mapping=mapping,
+    )
+    assert not result.ready_for_verification
+    assert any(
+        blocker.code == "SBFS-017" and blocker.source_refs == ("req:security",)
+        for blocker in result.blockers
+    )
+
+
+def test_source_bound_lowering_accepts_complete_requirement_reference_coverage():
+    from app.engine.source_bound_full_stack import (
+        _canonical_hash,
+        lower_source_bound_candidate,
+    )
+
+    source = {
+        "source_refs": ["req:item", "req:security", "isr:domain:item"],
+        "requirement_graph": {
+            "nodes": {
+                "req:item": {"id": "req:item", "statement": "List items"},
+                "req:security": {"id": "req:security", "statement": "Require authentication"},
+            },
+            "edges": {},
+        },
+        "revision": "rev-1",
+    }
+    candidate = {"app.py": "print('candidate')"}
+    mapping = _complete_explicit_mapping()
+    mapping["provenance"]["source_refs"] = ["req:item", "req:security", "isr:domain:item"]
+    mapping["requirement_bindings"] = [
+        {"requirement_id": rid, "layer": "api", "target_id": "list_items",
+         "requirement_hash": _canonical_hash(node)}
+        for rid, node in source["requirement_graph"]["nodes"].items()
+    ]
+    mapping["provenance"]["source_hash"] = _canonical_hash(source)
+    mapping["provenance"]["candidate_hash"] = _canonical_hash(candidate)
+
+    result = lower_source_bound_candidate(
+        source_artifacts=source,
+        candidate_files=candidate,
+        explicit_mapping=mapping,
+    )
+    assert result.ready_for_verification
+
+
+
+def test_typed_requirement_binding_rejects_stale_requirement_content():
+    from app.engine.source_bound_full_stack import (
+        _canonical_hash,
+        lower_source_bound_candidate,
+    )
+
+    source = {
+        "source_refs": ["req:item", "isr:domain:item"],
+        "requirement_graph": {
+            "nodes": {"req:item": {"id": "req:item", "statement": "Read item"}},
+            "edges": {},
+        },
+    }
+    candidate = {"app.py": "print('candidate')"}
+    mapping = _complete_explicit_mapping()
+    mapping["provenance"]["source_refs"] = ["req:item", "isr:domain:item"]
+    mapping["requirement_bindings"] = [{
+        "requirement_id": "req:item", "layer": "api", "target_id": "list_items",
+        "requirement_hash": _canonical_hash({"id": "req:item", "statement": "Old requirement"}),
+    }]
+    mapping["provenance"]["source_hash"] = _canonical_hash(source)
+    mapping["provenance"]["candidate_hash"] = _canonical_hash(candidate)
+
+    result = lower_source_bound_candidate(
+        source_artifacts=source, candidate_files=candidate, explicit_mapping=mapping
+    )
+    assert not result.ready_for_verification
+    assert any(blocker.code == "SBFS-023" for blocker in result.blockers)
+
+
+def test_typed_requirement_binding_rejects_nonexistent_architecture_target():
+    from app.engine.source_bound_full_stack import (
+        _canonical_hash,
+        lower_source_bound_candidate,
+    )
+
+    source = {
+        "source_refs": ["req:item", "isr:domain:item"],
+        "requirement_graph": {
+            "nodes": {"req:item": {"id": "req:item", "statement": "Read item"}},
+            "edges": {},
+        },
+    }
+    candidate = {"app.py": "print('candidate')"}
+    mapping = _complete_explicit_mapping()
+    mapping["provenance"]["source_refs"] = ["req:item", "isr:domain:item"]
+    mapping["requirement_bindings"] = [{
+        "requirement_id": "req:item", "layer": "api", "target_id": "api:invented",
+        "requirement_hash": _canonical_hash(source["requirement_graph"]["nodes"]["req:item"]),
+    }]
+    mapping["provenance"]["source_hash"] = _canonical_hash(source)
+    mapping["provenance"]["candidate_hash"] = _canonical_hash(candidate)
+
+    result = lower_source_bound_candidate(
+        source_artifacts=source, candidate_files=candidate, explicit_mapping=mapping
+    )
+    assert not result.ready_for_verification
+    assert any(blocker.code == "SBFS-024" for blocker in result.blockers)
+
+
+
+def test_authorization_requirement_rejects_target_without_enforceable_policy():
+    from app.engine.source_bound_full_stack import _validate_semantic_obligations
+
+    source = {"requirement_graph": {"nodes": {
+        "req:auth": {"id": "req:auth", "statement": "Only the owner can delete a workspace"}
+    }}}
+    mapping = {
+        "frontend": {}, "api": {}, "backend": {"modules": [{
+            "module_id": "workspace_service", "responsibility": "workspace operations",
+            "dependencies": [], "invariants": [], "security_boundaries": []
+        }]}, "effects": [], "consequences": [],
+        "requirement_bindings": [{
+            "requirement_id": "req:auth", "layer": "backend",
+            "target_id": "workspace_service"
+        }]
+    }
+    blockers = _validate_semantic_obligations(source, mapping)
+    assert any(b.code == "SBFS-026" for b in blockers)
+
+
+def test_authorization_requirement_accepts_explicit_enforcement_contract_only():
+    from app.engine.source_bound_full_stack import _validate_semantic_obligations
+
+    source = {"requirement_graph": {"nodes": {
+        "req:auth": {"id": "req:auth", "statement": "Only the owner can delete a workspace"}
+    }}}
+    mapping = {
+        "frontend": {}, "api": {}, "backend": {"modules": [{
+            "module_id": "workspace_service", "responsibility": "workspace operations",
+            "dependencies": [], "invariants": [],
+            "security_boundaries": [{
+                "policy_id": "workspace-owner-policy", "enforcement": "middleware"
+            }]
+        }]}, "effects": [], "consequences": [],
+        "requirement_bindings": [{
+            "requirement_id": "req:auth", "layer": "backend",
+            "target_id": "workspace_service"
+        }]
+    }
+    blockers = _validate_semantic_obligations(source, mapping)
+    assert not any(b.code == "SBFS-026" for b in blockers)
+
+
+def test_api_requirement_must_bind_to_explicit_contract_or_operation():
+    from app.engine.source_bound_full_stack import _validate_semantic_obligations
+
+    source = {"requirement_graph": {"nodes": {
+        "req:api": {"id": "req:api", "statement": "The API endpoint returns item details"}
+    }}}
+    mapping = {
+        "frontend": {}, "api": {"operations": [{"operation_id": "get_item"}]},
+        "backend": {}, "effects": [], "consequences": [],
+        "requirement_bindings": [{
+            "requirement_id": "req:api", "layer": "api", "target_id": "get_item"
+        }]
+    }
+    blockers = _validate_semantic_obligations(source, mapping)
+    assert any(b.code == "SBFS-027" for b in blockers)
+
+
+
+def test_owner_only_requirement_rejects_policy_that_allows_members():
+    from app.engine.source_bound_full_stack import _validate_semantic_obligations
+
+    source = {"requirement_graph": {"nodes": {
+        "req:owner": {"id": "req:owner", "statement": "Only the owner can delete a workspace"}
+    }}}
+    mapping = {
+        "frontend": {}, "api": {}, "backend": {"modules": [{
+            "module_id": "workspace_service", "security_boundaries": [{
+                "policy_id": "workspace-delete", "enforcement": "middleware",
+                "allowed_roles": ["owner", "member"]
+            }]
+        }]}, "effects": [], "consequences": [],
+        "requirement_bindings": [{"requirement_id": "req:owner", "layer": "backend", "target_id": "workspace_service"}]
+    }
+    blockers = _validate_semantic_obligations(source, mapping)
+    assert any(b.code == "SBFS-029" for b in blockers)
+
+
+def test_api_delete_requirement_rejects_get_operation():
+    from app.engine.source_bound_full_stack import _validate_semantic_obligations
+
+    source = {"requirement_graph": {"nodes": {
+        "req:delete": {"id": "req:delete", "statement": "Delete the workspace through the API endpoint"}
+    }}}
+    mapping = {
+        "frontend": {}, "api": {"operations": [{
+            "operation_id": "delete_workspace", "method": "GET", "path": "/workspaces/{id}"
+        }]}, "backend": {}, "effects": [], "consequences": [],
+        "requirement_bindings": [{"requirement_id": "req:delete", "layer": "api", "target_id": "delete_workspace"}]
+    }
+    blockers = _validate_semantic_obligations(source, mapping)
+    assert any(b.code == "SBFS-031" for b in blockers)
+
+
+
+def test_projection_rejects_semantic_contradiction_on_actual_projection_path():
+    source = {
+        "source_refs": ["req:owner"],
+        "requirement_graph": {"nodes": {
+            "req:owner": {"id": "req:owner", "statement": "Only the owner can delete a workspace"}
+        }},
+    }
+    mapping = {
+        "frontend": {}, "api": {}, "backend": {"modules": [{
+            "module_id": "workspace_service", "security_boundaries": [{
+                "policy_id": "workspace-delete", "enforcement": "middleware",
+                "allowed_roles": ["owner", "member"]
+            }]
+        }]}, "effects": [], "consequences": [],
+        "provenance": {"source_refs": ["req:owner"]},
+        "requirement_bindings": [{
+            "requirement_id": "req:owner", "layer": "backend", "target_id": "workspace_service"
+        }],
+    }
+    result = project_source_bound_full_stack(
+        source_artifacts=source, candidate_files={"app.py": "def delete_workspace(): pass"},
+        explicit_mapping=mapping,
+    )
+    assert result.status == "blocked"
+    assert any(blocker.code == "SBFS-029" for blocker in result.blockers)
+
+
+def test_meaning_change_invalidates_source_binding_hash_and_rechecks_semantics():
+    base_source = {
+        "source_refs": ["req:owner"],
+        "requirement_graph": {"nodes": {
+            "req:owner": {"id": "req:owner", "statement": "Only the owner can delete a workspace"}
+        }},
+    }
+    changed_source = {
+        "source_refs": ["req:owner"],
+        "requirement_graph": {"nodes": {
+            "req:owner": {"id": "req:owner", "statement": "Only administrators can delete a workspace"}
+        }},
+    }
+    mapping = {
+        "frontend": {}, "api": {}, "backend": {"modules": [{
+            "module_id": "workspace_service", "security_boundaries": [{
+                "policy_id": "workspace-delete", "enforcement": "middleware",
+                "allowed_roles": ["owner", "member"]
+            }]
+        }]}, "effects": [], "consequences": [],
+        "provenance": {"source_refs": ["req:owner"]},
+        "requirement_bindings": [{
+            "requirement_id": "req:owner", "layer": "backend", "target_id": "workspace_service"
+        }],
+    }
+    first = project_source_bound_full_stack(
+        source_artifacts=base_source, candidate_files={"app.py": "def delete_workspace(): pass"},
+        explicit_mapping=mapping,
+    )
+    changed = project_source_bound_full_stack(
+        source_artifacts=changed_source, candidate_files={"app.py": "def delete_workspace(): pass"},
+        explicit_mapping=mapping,
+    )
+    assert first.source_hash != changed.source_hash
+    assert first.mapping_hash == changed.mapping_hash
+    assert any(b.code == "SBFS-029" for b in first.blockers)
+    # The meaning changed while the binding and candidate remained identical.
+    # Since no proven mapping exists for the new administrator-only semantics,
+    # the result must remain blocked rather than inherit the old decision.
+    assert changed.status == "blocked"
+
+
+
+def test_stale_source_hash_in_mapping_provenance_blocks_projection():
+    from app.engine.source_bound_full_stack import _canonical_hash
+
+    source = {
+        "source_refs": ["req:1"],
+        "requirement_graph": {"nodes": {
+            "req:1": {"id": "req:1", "statement": "Read item details"}
+        }},
+    }
+    changed_source = {
+        "source_refs": ["req:1"],
+        "requirement_graph": {"nodes": {
+            "req:1": {"id": "req:1", "statement": "Delete item details"}
+        }},
+    }
+    mapping = {
+        "frontend": {}, "api": {}, "backend": {}, "effects": [], "consequences": [],
+        "provenance": {"source_refs": ["req:1"], "source_hash": _canonical_hash(source)},
+    }
+    result = project_source_bound_full_stack(
+        source_artifacts=changed_source, candidate_files={"app.py": "pass"},
+        explicit_mapping=mapping,
+    )
+    assert result.status == "blocked"
+    assert any(blocker.code == "SBFS-032" for blocker in result.blockers)
+
+
+def test_production_semantic_verifier_rejects_mapping_without_reproducible_authoritative_isr():
+    from app.engine.source_bound_full_stack import (
+        SourceBoundSemanticCorrespondenceVerifier, _canonical_hash,
+    )
+    from compiler.core.repository import build_repository
+
+    # A requirement list and hand-authored mapping are not enough: there is no
+    # authoritative ISR graph from which to independently reproduce the IR.
+    source = {"source_refs": ["req:item"], "requirements": [{"id": "req:item", "statement": "List items"}]}
+    mapping = _complete_explicit_mapping()
+    mapping["provenance"]["source_refs"] = ["req:item"]
+    mapping["provenance"]["source_hash"] = _canonical_hash(source)
+    files = {"app.py": "def list_items():\n    return []\n"}
+    candidate_hash = build_repository(files).content_hash
+    mapping["provenance"]["candidate_hash"] = candidate_hash
+
+    result = SourceBoundSemanticCorrespondenceVerifier().verify_bound({
+        "source_artifacts": source,
+        "explicit_mapping": mapping,
+        "candidate_files": files,
+    }, candidate_hash)
+
+    assert not result.passed
+    assert result.source_hash == _canonical_hash(source)
+    assert result.mapping_hash == _canonical_hash(mapping)
+    assert result.candidate_hash == candidate_hash
+    assert any("source-to-ISR canonical reprojection is incomplete" in finding for finding in result.findings)
+
+
+def test_production_semantic_verifier_rejects_changed_requirement_with_stale_mapping():
+    from app.engine.source_bound_full_stack import (
+        SourceBoundSemanticCorrespondenceVerifier, _canonical_hash,
+    )
+    from compiler.core.repository import build_repository
+
+    original = {"source_refs": ["req:item"], "requirements": [{"id": "req:item", "statement": "List items"}]}
+    mapping = _complete_explicit_mapping()
+    mapping["provenance"]["source_refs"] = ["req:item"]
+    mapping["provenance"]["source_hash"] = _canonical_hash(original)
+    changed = {"source_refs": ["req:item"], "requirements": [{"id": "req:item", "statement": "Delete items"}]}
+    files = {"app.py": "def list_items():\n    return []\n"}
+    mapping["provenance"]["candidate_hash"] = build_repository(files).content_hash
+
+    result = SourceBoundSemanticCorrespondenceVerifier().verify_bound({
+        "source_artifacts": changed,
+        "explicit_mapping": mapping,
+        "candidate_files": files,
+    }, build_repository(files).content_hash)
+
+    assert not result.passed
+    assert any("source_hash" in finding for finding in result.findings)
+
+
+def test_production_semantic_verifier_rejects_candidate_mutation_and_wrong_expected_hash():
+    from app.engine.source_bound_full_stack import (
+        SourceBoundSemanticCorrespondenceVerifier, _canonical_hash,
+    )
+    from compiler.core.repository import build_repository
+
+    source = {"source_refs": ["req:item"], "requirements": [{"id": "req:item", "statement": "List items"}]}
+    mapping = _complete_explicit_mapping()
+    mapping["provenance"]["source_refs"] = ["req:item"]
+    mapping["provenance"]["source_hash"] = _canonical_hash(source)
+    files = {"app.py": "def list_items():\n    return []\n"}
+    mapping["provenance"]["candidate_hash"] = build_repository(files).content_hash
+    wrong_hash = build_repository({"app.py": "def list_items():\n    return None\n"}).content_hash
+
+    result = SourceBoundSemanticCorrespondenceVerifier().verify_bound({
+        "source_artifacts": source,
+        "explicit_mapping": mapping,
+        "candidate_files": files,
+    }, wrong_hash)
+
+    assert not result.passed
+    assert any("candidate hash" in finding for finding in result.findings)
+
+
+def test_production_semantic_verifier_rejects_unknown_source_reference():
+    from app.engine.source_bound_full_stack import (
+        SourceBoundSemanticCorrespondenceVerifier, _canonical_hash,
+    )
+    from compiler.core.repository import build_repository
+
+    source = {"source_refs": ["req:item"], "requirements": [{"id": "req:item", "statement": "List items"}]}
+    mapping = _complete_explicit_mapping()
+    mapping["provenance"]["source_refs"] = ["req:invented"]
+    mapping["provenance"]["source_hash"] = _canonical_hash(source)
+    files = {"app.py": "def list_items():\n    return []\n"}
+
+    result = SourceBoundSemanticCorrespondenceVerifier().verify_bound({
+        "source_artifacts": source,
+        "explicit_mapping": mapping,
+        "candidate_files": files,
+    }, build_repository(files).content_hash)
+
+    assert not result.passed
+    assert any("unknown source identifiers" in finding for finding in result.findings)
+
+
+def test_semantic_correspondence_rejects_unbound_authoritative_requirement() -> None:
+    from app.engine.source_bound_full_stack import (
+        SourceBoundSemanticCorrespondenceVerifier, _canonical_hash,
+    )
+    from compiler.core.repository import build_repository
+
+    source = {
+        "source_refs": ["req:item", "req:security", "isr:domain:item"],
+        "requirement_graph": {
+            "nodes": {
+                "req:item": {"id": "req:item", "statement": "List items"},
+                "req:security": {"id": "req:security", "statement": "Require authentication"},
+            },
+            "edges": {},
+        },
+    }
+    mapping = _complete_explicit_mapping()
+    mapping["provenance"]["source_refs"] = list(source["source_refs"])
+    mapping["provenance"]["source_hash"] = _canonical_hash(source)
+    mapping["requirement_bindings"] = [{
+        "requirement_id": "req:item",
+        "layer": "api",
+        "target_id": "list_items",
+        "requirement_hash": _canonical_hash(source["requirement_graph"]["nodes"]["req:item"]),
+    }]
+    files = {"app.py": "def list_items(): return []"}
+    mapping["provenance"]["candidate_hash"] = build_repository(files).content_hash
+    result = SourceBoundSemanticCorrespondenceVerifier().verify_bound(
+        {
+            "source_artifacts": source,
+            "explicit_mapping": mapping,
+            "candidate_files": files,
+        },
+        build_repository(files).content_hash,
+    )
+    assert not result.passed
+    assert any("typed requirement binding" in finding and "req:security" in finding for finding in result.findings)
+
+
+def test_default_candidate_bound_full_stack_verifier_checks_lowered_ir():
+    from certification.campaign.runner import _CanonicalFullStackVerifier
+    from app.engine.source_bound_full_stack import lower_explicit_mapping_to_full_stack_ir
+
+    lowered = lower_explicit_mapping_to_full_stack_ir(_complete_explicit_mapping())
+    assert lowered.structurally_valid
+    inputs = (
+        lowered.frontend, lowered.api, lowered.backend,
+        lowered.effects, lowered.consequences,
+    )
+    result = _CanonicalFullStackVerifier().verify_bound(inputs, "candidate-digest-1")
+    assert result.candidate_hash == "candidate-digest-1"
+    assert result.passed is True, result.findings
+
+
+def test_default_candidate_bound_full_stack_verifier_rejects_missing_ir_inputs():
+    from certification.campaign.runner import _CanonicalFullStackVerifier
+
+    result = _CanonicalFullStackVerifier().verify_bound((None, None), "candidate-digest-1")
+    assert result.passed is False
+    assert "five canonical IR inputs are required" in result.findings
+
+
+def test_meaning_change_invalidates_mapping_bound_to_previous_source_hash():
+    import hashlib
+    import json
+
+    from app.engine.source_bound_full_stack import project_source_bound_full_stack
+
+    source = {
+        "source_refs": ["req:item", "isr:domain:item"],
+        "requirements": [{"id": "req:item", "statement": "Read items"}],
+    }
+    canonical = json.dumps(source, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    mapping = _complete_explicit_mapping()
+    mapping["provenance"]["source_hash"] = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    first = project_source_bound_full_stack(
+        source_artifacts=source,
+        candidate_files={"src/items.py": "def read_items(): return []"},
+        explicit_mapping=mapping,
+    )
+    changed_source = {
+        **source,
+        "requirements": [{"id": "req:item", "statement": "Read items only for authorized users"}],
+    }
+    changed = project_source_bound_full_stack(
+        source_artifacts=changed_source,
+        candidate_files={"src/items.py": "def read_items(): return []"},
+        explicit_mapping=mapping,
+    )
+
+    assert first.source_hash != changed.source_hash
+    assert any(blocker.code == "SBFS-032" for blocker in changed.blockers)
+    assert changed.ready is False

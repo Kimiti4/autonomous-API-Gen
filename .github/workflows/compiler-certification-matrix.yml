@@ -102,16 +102,37 @@ jobs:
             docker rm --force "$container_id" >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
+          echo "Started container: $container_id"
+          docker inspect --format 'state={{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}}' "$container_id"
           healthy=0
           for attempt in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:18088/health | grep --fixed-strings --quiet '"status":"ok"'; then
+            response_file="$(mktemp)"
+            http_status="$(curl --silent --show-error --output "$response_file" --write-out "%{http_code}" --max-time 2 http://127.0.0.1:18088/health 2>/tmp/esap-health-curl.err || true)"
+            response="$(cat "$response_file")"
+            rm -f "$response_file"
+            echo "health attempt=$attempt status=${http_status:-curl-error} body=${response:-<empty>}"
+            if [ "$http_status" = "200" ] && printf '%s' "$response" | grep --fixed-strings --quiet '"status":"ok"'; then
               healthy=1
+              break
+            fi
+            if [ "$(docker inspect --format '{{.State.Running}}' "$container_id")" != "true" ]; then
+              echo "Container stopped before health check succeeded."
               break
             fi
             sleep 1
           done
-          test "$healthy" -eq 1
-          status="$(curl --silent --output /dev/null --write-out "%{http_code}" http://127.0.0.1:18088/not-a-route)"
+          if [ "$healthy" -ne 1 ]; then
+            echo "::error::Generated Express container did not pass /health."
+            echo "--- docker inspect ---"
+            docker inspect "$container_id"
+            echo "--- docker logs ---"
+            docker logs "$container_id" 2>&1 || true
+            echo "--- curl diagnostic ---"
+            cat /tmp/esap-health-curl.err 2>/dev/null || true
+            exit 1
+          fi
+          status="$(curl --silent --show-error --output /tmp/esap-unknown-route.body --write-out "%{http_code}" --max-time 5 http://127.0.0.1:18088/not-a-route)"
+          echo "unknown-route status=$status body=$(cat /tmp/esap-unknown-route.body)"
           test "$status" = "404"
       - name: Test execution prerequisites, candidate binding, and frontend generation
         run: |

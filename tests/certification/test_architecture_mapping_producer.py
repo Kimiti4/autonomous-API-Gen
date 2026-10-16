@@ -225,9 +225,7 @@ def test_mapping_producer_emits_canonical_ir_only_when_every_layer_is_explicit()
     assert result.canonical_mapping["api"]["operations"][0]["operation_id"] == "create_project"
     assert result.canonical_mapping["requirement_bindings"][0]["requirement_id"] == "REQ-PROJECT-001"
 
-    from app.engine.source_bound_full_stack import (
-        SourceBoundSemanticCorrespondenceVerifier, _canonical_hash,
-    )
+    from app.engine.source_bound_full_stack import SourceBoundSemanticCorrespondenceVerifier
     from compiler.core.repository import build_repository
     files = {"app.py": "def create_project(): return {'created': True}"}
     mapping = dict(result.canonical_mapping)

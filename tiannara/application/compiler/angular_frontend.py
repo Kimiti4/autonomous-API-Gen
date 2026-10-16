@@ -6,6 +6,7 @@ is verified independently rather than copied from another frontend target.
 """
 from __future__ import annotations
 from pathlib import Path
+import json
 from tiannara.application.compiler.build_profile import BackendBuildProfile
 from tiannara.application.compiler.writer import write_bundle
 from tiannara.domain.models.backend_declaration import ArtifactKind, BackendCapabilityDeclaration
@@ -22,7 +23,7 @@ class AngularFrontend:
     @property
     def name(self): return self.backend_id
     def build_profile(self,system_name):
-        return BackendBuildProfile(language="typescript",required_files=("package.json","tsconfig.json","src/main.ts"),
+        return BackendBuildProfile(language="typescript",required_files=("package.json","angular.json","tsconfig.json","src/main.ts","src/app/app.component.spec.ts"),
           verifier_kind="angular",build_command=["npm","run","build"],test_command=["npm","test","--","--watch=false"],
           runtime_image="node:22-alpine",requires_build_phase=True)
     def build_profile_declaration(self):
@@ -45,19 +46,20 @@ class AngularFrontend:
           "src/domain.ts":self._domain(model),"README.md":f"# {model.system_name}\n\nGenerated from the technology-neutral ISR.\n"
         },capability_manifest=self._manifest())
     def _package(self):
-        return '{"name":"esap-angular-app","private":true,"version":"0.1.0","scripts":{"build":"ng build","test":"ng test --watch=false --browsers=ChromeHeadless"},"dependencies":{"@angular/common":"^20.0.0","@angular/core":"^20.0.0","@angular/platform-browser":"^20.0.0","rxjs":"^7.8.0","zone.js":"^0.15.0"},"devDependencies":{"@angular/cli":"^20.0.0","@angular/compiler-cli":"^20.0.0","typescript":"^5.8.0"}}'
+        return '{"name":"esap-angular-app","private":true,"version":"0.1.0","scripts":{"build":"ng build","test":"ng test"},"dependencies":{"@angular/common":"^20.0.0","@angular/core":"^20.0.0","@angular/platform-browser":"^20.0.0","rxjs":"^7.8.0","zone.js":"^0.15.0"},"devDependencies":{"@angular/build":"^20.0.0","@angular/cli":"^20.0.0","@angular/compiler-cli":"^20.0.0","typescript":"^5.9.0","vitest":"^3.2.4","jsdom":"^26.1.0"}}'
     def _angular_json(self):
-        return '{"$schema":"./node_modules/@angular/cli/lib/config/schema.json","version":1,"projects":{"app":{"projectType":"application","root":"","sourceRoot":"src","architect":{"build":{"builder":"@angular-devkit/build-angular:application","options":{"browser":"src/main.ts","tsConfig":"tsconfig.json"}},"test":{"builder":"@angular-devkit/build-angular:karma","options":{"tsConfig":"tsconfig.json"}}}}}}'
+        return '{"$schema":"./node_modules/@angular/cli/lib/config/schema.json","version":1,"projects":{"app":{"projectType":"application","root":"","sourceRoot":"src","architect":{"build":{"builder":"@angular/build:application","options":{"browser":"src/main.ts","tsConfig":"tsconfig.json"}},"test":{"builder":"@angular/build:unit-test","options":{"tsConfig":"tsconfig.json"}}}}}}'
     def _tsconfig(self):
         return '{"compilerOptions":{"target":"ES2022","module":"ES2022","moduleResolution":"bundler","strict":true,"experimentalDecorators":true,"skipLibCheck":true},"angularCompilerOptions":{"strictTemplates":true}}'
     def _main(self):
         return 'import { bootstrapApplication } from "@angular/platform-browser";\nimport { AppComponent } from "./app/app.component";\nbootstrapApplication(AppComponent).catch(err => console.error(err));\n'
     def _component(self,model):
-        return f'import {{ Component }} from "@angular/core";\n\n@Component({{selector:"app-root",standalone:true,templateUrl:"./app.component.html"}})\nexport class AppComponent {{ readonly title = "{model.system_name}"; }}\n'
+        title = json.dumps(model.system_name, ensure_ascii=True)
+        return f'import {{ Component }} from "@angular/core";\n\n@Component({{selector:"app-root",standalone:true,templateUrl:"./app.component.html"}})\nexport class AppComponent {{ readonly title = {title}; }}\n'
     def _template(self,model):
         return '<main><h1>{{ title }}</h1><p>Generated application</p></main>\n'
     def _test(self):
-        return 'import { TestBed } from "@angular/core/testing";\nimport { AppComponent } from "./app.component";\ndescribe("AppComponent",()=>{it("creates",async()=>{const fixture=TestBed.createComponent(AppComponent); expect(fixture.componentInstance).toBeTruthy();});});\n'
+        return 'import { TestBed } from "@angular/core/testing";\nimport { describe, it, expect } from "vitest";\nimport { AppComponent } from "./app.component";\ndescribe("AppComponent",()=>{it("renders the application content",async()=>{await TestBed.configureTestingModule({imports:[AppComponent]}).compileComponents();const fixture=TestBed.createComponent(AppComponent);fixture.detectChanges();expect(fixture.nativeElement.querySelector("h1")?.textContent).toContain("Generated application");expect(fixture.nativeElement.textContent).toContain("Generated application");});});\n'
     def _domain(self,model):
         return "\n".join(f"export interface {pascal_case(dm.name)} {{\n"+"".join(f"  {f.name}{'' if f.required else '?'}: unknown;\n" for f in dm.fields)+"}\n" for dm in model.data_models)
     def _manifest(self):

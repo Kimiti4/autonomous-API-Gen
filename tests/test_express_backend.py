@@ -13,6 +13,7 @@ def test_express_is_distinct_from_nestjs():
     b=build_compiler_registry().backend("express")
     result=b.generate(model)
     assert "src/index.ts" in result.files
+    assert '"skipLibCheck":true' in result.files["tsconfig.json"]
     assert "@nestjs" not in "\n".join(result.files.values())
 
 

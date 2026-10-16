@@ -125,8 +125,8 @@ def test_g10_constitutional_defaults_injected() -> None:
     assert len(default_nodes) == 5
 
 
-def test_g10_stakeholders_not_mapped() -> None:
-    """Stakeholder nodes are problem-space-only; they produce no ISR nodes."""
+def test_g10_stakeholders_preserved_as_requirement_refs() -> None:
+    """Stakeholder semantics survive as a requirement ref without an architecture node."""
     req = RequirementGraph(
         schema_version="1.0",
         nodes={
@@ -141,8 +141,35 @@ def test_g10_stakeholders_not_mapped() -> None:
     )
     m = ReferenceDeterministicMapper()
     result = m.map(req, "map-1.0")
-    # Stakeholders are skipped; only constitutional defaults exist
-    assert len(result.graph.nodes) == 5
+    assert "requirement_ref:r1" in result.graph.nodes
+    assert result.graph.nodes["requirement_ref:r1"].properties["semantic_content"] == "the product owner"
+    assert result.coverage.uncovered == []
+
+
+def test_g10_functional_requirement_has_first_class_ref_and_satisfies_edge() -> None:
+    req = RequirementGraph(
+        schema_version="1.0",
+        nodes={
+            "r-auth": RequirementNode(
+                id="r-auth",
+                kind=RequirementKind.FUNCTIONAL,
+                statement="authenticate users",
+                priority=Priority.MUST,
+                acceptance_criteria=["valid credentials create a session"],
+                source_refs=["spec:auth#1"],
+            ),
+        },
+        edges={},
+    )
+    result = ReferenceDeterministicMapper().map(req, "map-1.0")
+    ref = result.graph.nodes["requirement_ref:r-auth"]
+    assert ref.properties["semantic_content"] == "authenticate users"
+    assert ref.properties["acceptance_criteria"] == ["valid credentials create a session"]
+    assert ref.properties["source_refs"] == ["spec:auth#1"]
+    edge = result.graph.edges["satisfies:r-auth"]
+    assert edge.type is EdgeType.SATISFIES
+    assert edge.source_id == "capability:r-auth"
+    assert edge.target_id == "requirement_ref:r-auth"
 
 
 # ---------------------------------------------------------------------------

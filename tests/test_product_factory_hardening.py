@@ -372,7 +372,8 @@ def test_market_evidence_confidence_clamped_to_max():
 
 
 def test_compilation_dry_run():
-    executor = CompilationExecutor()
+    # Dry-run is explicit and is never treated as a production compiler.
+    executor = CompilationExecutor(gateway=DryRunCompilerGateway())
 
     report = executor.execute(
         product_id="product_1",
@@ -386,6 +387,27 @@ def test_compilation_dry_run():
     assert report.success is True
     assert report.artifact_count > 0
     assert len(report.jobs) == 5
+
+
+def test_default_executor_fails_closed_without_real_compiler_gateway():
+    executor = CompilationExecutor()
+
+    report = executor.execute(
+        product_id="product_unconfigured",
+        isr={"name": "Must not fabricate artifacts"},
+    )
+
+    assert report.success is False
+    assert report.artifact_count == 0
+    assert report.missing_required_backends == [
+        target.backend_id for target in default_compilation_targets()
+    ]
+    assert all(job.status == "FAILED" for job in report.jobs)
+    assert all(not job.artifacts for job in report.jobs)
+    assert all(
+        any("No production CompilerGateway is configured" in line for line in job.logs)
+        for job in report.jobs
+    )
 
 
 def test_default_compilation_targets_count():
@@ -447,7 +469,7 @@ def _optional_target(backend_id: str):
 
 
 def test_compilation_tracks_jobs_and_artifacts():
-    executor = CompilationExecutor()
+    executor = CompilationExecutor(gateway=DryRunCompilerGateway())
 
     report = executor.execute(
         product_id="product_1",

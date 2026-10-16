@@ -62,5 +62,6 @@ def test_semantic_verifier_accepts_explicit_complete_matching_evidence():
     assert evidence == {
         "passed": True, "source_hash": "source-sha256",
         "mapping_hash": "mapping-sha256", "candidate_hash": "candidate",
+        "findings": [],
     }
     assert "passed" in detail

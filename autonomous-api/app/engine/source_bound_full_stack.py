@@ -1022,8 +1022,11 @@ class SourceBoundSemanticCorrespondenceVerifier:
 
     Inputs must contain source_artifacts, explicit_mapping, and candidate_files.
     Hashes are recomputed from those payloads; caller-supplied hashes are never
-    accepted as proof. This verifies source provenance and cross-layer IR
-    coherence, not runtime behavior; build/test/runtime gates remain separate.
+    accepted as proof. The canonical mapping is also re-derived from the
+    authoritative ISR and compared with the submitted mapping, excluding only
+    the candidate hash attached after generation. This verifies source
+    provenance and cross-layer IR coherence, not runtime behavior;
+    build/test/runtime gates remain separate.
     """
 
     def verify_bound(

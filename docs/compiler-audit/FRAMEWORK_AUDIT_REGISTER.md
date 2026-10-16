@@ -8,12 +8,12 @@
 
 | Target | Source/config/deps | Build/install | Meaningful tests | Runtime/health | Security/auth | Semantic correspondence | Independent verification |
 |---|---|---|---|---|---|---|---|
-| React / TypeScript | P | U | P — server-render test emitted; generated title is encoded as data; latest framework-specific CI pending | U | U | U | U |
-| Vue / TypeScript | P | U | P — mounted component test and Vite Vue plugin emitted; latest framework-specific CI pending | U | U | U | U |
-| Angular | S | U | U | U | U | U | U |
-| Next.js | P | U | P — page render test emitted; Vitest command corrected; latest framework-specific CI pending | U | U | U | U |
-| Nuxt | P | U | P — Nuxt 4 app layout and mounted component test emitted; latest framework-specific CI pending | U | U | U | U |
-| Svelte | P | U | P — Svelte 5 mount API and component test emitted; latest framework-specific CI pending | U | U | U | U |
+| React / TypeScript | P | P — generated-project install/build added to CI, pending | P — server-render test emitted; title encoded as data; CI pending | U | U | U | U |
+| Vue / TypeScript | P | P — generated-project install/build added to CI, pending | P — mounted component test and Vite Vue plugin emitted; CI pending | U | U | U | U |
+| Angular | P | P — generated-project install/build added to CI, pending | P — Vitest/TestBed test emitted; CI pending | U | U | U | U |
+| Next.js | P | P — generated-project install/build added to CI, pending | P — page render test emitted; Vitest command corrected; CI pending | U | U | U | U |
+| Nuxt | P | P — generated-project install/build added to CI, pending | P — Nuxt 4 app layout and mounted component test emitted; CI pending | U | U | U | U |
+| Svelte | P | P — generated-project install/build added to CI, pending | P — Svelte 5 mount API and component test emitted; CI pending | U | U | U | U |
 | Phoenix LiveView | S | U | U | U | U | U | U |
 | Hologram | S | U | U | U | U | U | U |
 | Scenic | S | U | U | U | U | U | U |
@@ -32,7 +32,7 @@
 ## Priority findings
 
 1. **Candidate identity:** the Campaign A runner previously passed different digests to the candidate-bound full-stack and semantic verifiers. The runner now uses the canonical generated-repository hash as the candidate identity for all verification gates; source/IR provenance remains a separate evidence dimension.
-2. **Workspace cleanup:** the trial workspace is now removed in a `finally` block on normal returns and exceptions after workspace creation. Regression coverage and CI validation are still pending.
+2. **Prerequisites and cleanup:** the trial workspace is removed in a `finally` block. Real build execution is now skipped unless both structural and semantic conformance explicitly pass; a regression test asserts the builder is never called for a non-conformant candidate. CI validation is pending.
 3. **Campaign semantic projection:** authoritative PlanArtifacts are snapshotted, but the deterministic mapping producer correctly blocks when typed source semantics do not express the required frontend, API, backend, effect, and consequence obligations. No fabricated mapping is accepted.
 4. **Next.js:** the build profile had a Jest-only `--runInBand` option despite using Vitest. It now invokes `npm test`. The root layout now imports `ReactNode` explicitly.
 5. **Rust/Axum:** replaced the vacuous health test with router-level `/health` status/body and unknown-route 404 checks. The generated project passed `cargo test` (2 integration tests) and `cargo build --release` in CI on the runner’s stable Rust 1.99.1 toolchain. A separate Docker build using the generated `rust:1.85-slim` stage plus live container health/404 probes has now been added; its CI result is pending. Do not mark the pinned Rust 1.85 image verified until that run passes.
@@ -44,4 +44,4 @@ A target can be marked passed only when the exact generated candidate has eviden
 
 ## CI snapshot
 
-Latest observed validated PR head: `a62b7ff88a79e6e4dc614f8d9fe5ea1a7b3b79a6`. Compiler Certification Matrix and Compiler Source Quality passed on that head. The matrix’s generated Rust project passed host-toolchain `cargo test` and release build. The pinned Rust 1.85 Docker build and live runtime probes were added in commit `038fc4954118221e3855cd322e3a4963f5cae5c9`; their CI result is pending. CBC-1 Campaign A failed on the validated head: 78/78 evidence records formed a valid hash chain, but 0/78 trials were certified because the full-stack semantic gate remained blocked. This is not a production certification pass.
+Latest fully completed validation head: `a62b7ff88a79e6e4dc614f8d9fe5ea1a7b3b79a6`. Compiler Certification Matrix and Compiler Source Quality passed on that head. The generated Rust project passed host-toolchain `cargo test` and `cargo build --release`; the two router-level tests passed. The actual `rust:1.85-slim` Docker build and live container probes are now in the matrix workflow but have not yet completed. The runner prerequisite gate and regression tests, six generated frontend install/test/production-build checks, Angular entrypoint/test config fixes, and removal of unsupported frontend manifest claims were added afterward. Current branch head `886061cdb26366c6e5a5974ddfdd0fba0be1baa0` has CI queued. CBC-1 Campaign A failed on the last fully completed head: 78/78 evidence records formed a valid hash chain, but 0/78 trials were certified because the source-bound semantic gate remained blocked. This is not a production certification pass.

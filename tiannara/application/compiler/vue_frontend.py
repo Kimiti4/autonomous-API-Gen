@@ -60,7 +60,4 @@ class VueFrontend:
     def _test(self):
         return '// @vitest-environment jsdom\nimport { describe, it, expect } from "vitest";\nimport { mount } from "@vue/test-utils";\nimport App from "./App.vue";\ndescribe("generated Vue application",()=>{it("renders the title and application content",()=>{const wrapper=mount(App);expect(wrapper.find("h1").exists()).toBe(true);expect(wrapper.text()).toContain("Generated application");});});\n'
     def _manifest(self):
-        return CapabilityManifest(backend_id=self.backend_id,capabilities=[
-          BundleCapability.BUILD,BundleCapability.LINT,BundleCapability.STATIC_ANALYSIS,
-          BundleCapability.TEST,BundleCapability.SECURITY_SCAN,BundleCapability.DOCUMENTATION,
-          BundleCapability.RELEASE],metadata={"language":"typescript","framework":"vue","style":"reactive-component"})
+        return CapabilityManifest(backend_id=self.backend_id,capabilities=[BundleCapability.BUILD, BundleCapability.TEST, BundleCapability.DOCUMENTATION],metadata={"language":"typescript","framework":"vue","style":"reactive-component"})

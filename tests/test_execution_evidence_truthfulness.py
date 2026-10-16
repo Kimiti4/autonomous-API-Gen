@@ -35,15 +35,17 @@ def test_gateway_reported_execution_is_distinguished_from_independent_attestatio
         product_id="p1", isr={"name": "demo"}, targets=_target()
     )
 
-    assert report.success is True
+    # A gateway's self-reported success is recorded, but cannot satisfy the
+    # required-backend gate without independent verification.
+    assert report.success is False
     assert report.artifact_count == 2
+    assert report.missing_required_backends == ["python.fastapi.foundation"]
     job = report.jobs[0]
     assert job.status == "SUCCEEDED"
     assert job.execution_mode == "executed"
     assert job.evidence_status == "REPORTED"
     assert job.artifacts == ["app/main.py", "app/manifest.json"]
     assert job.planned_artifacts == []
-    # REPORTED is intentionally not VERIFIED or CERTIFIED.
     assert job.evidence_status not in {"VERIFIED", "CERTIFIED"}
 
 

@@ -74,6 +74,70 @@ def test_requirement_semantics_survive_genome_and_isr_materialization() -> None:
     assert materialized.nodes["service:req-domain"].properties["responsibility"] == "user identity"
 
 
+def test_explicit_source_architecture_survives_genome_materialization() -> None:
+    requirement = RequirementNode(
+        id="req-project-ui",
+        kind=RequirementKind.FUNCTIONAL,
+        statement="show project list",
+        priority=Priority.MUST,
+        source_refs=["spec:projects#ui"],
+        properties={
+            "isr_nodes": [
+                {
+                    "id": "ui:projects",
+                    "type": "frontend_route",
+                    "properties": {
+                        "path": "/projects",
+                        "source_requirement_ids": ["req-project-ui"],
+                    },
+                },
+                {
+                    "id": "api:projects",
+                    "type": "api",
+                    "properties": {
+                        "operations": [{
+                            "operation_id": "list_projects",
+                            "method": "GET",
+                            "path": "/projects",
+                        }],
+                        "source_requirement_ids": ["req-project-ui"],
+                    },
+                },
+            ],
+            "isr_edges": [{
+                "id": "ui-projects-routes-to-api",
+                "type": "routes_to",
+                "source_id": "ui:projects",
+                "target_id": "api:projects",
+                "properties": {"source_requirement_ids": ["req-project-ui"]},
+            }],
+        },
+    )
+    requirement_graph = RequirementGraph(
+        schema_version="1.0", nodes={requirement.id: requirement}, edges={}
+    )
+    genesis = ReferenceDeterministicMapper().map(requirement_graph, "map-1.0")
+    revision = ISRRevision.create(
+        system_id="explicit-architecture-preservation",
+        revision_id="rev0",
+        schema_version="1.0",
+        graph=genesis.graph,
+        provenance=Provenance(
+            requirement_refs=[requirement.id],
+            derivation_refs=["genesis:map-1.0"],
+            created_by="test",
+            created_at="2026-01-01T00:00:00Z",
+        ),
+    )
+    genome = ReferenceGenomeConstructor().construct(revision)
+    materialized = ReferenceGenomeMaterializer().materialize(genome)
+
+    assert materialized.nodes["ui:projects"].properties["path"] == "/projects"
+    assert materialized.nodes["api:projects"].properties["operations"][0]["operation_id"] == "list_projects"
+    assert materialized.edges["ui-projects-routes-to-api"].type.value == "routes_to"
+    assert materialized.edges["ui-projects-routes-to-api"].properties["source_requirement_ids"] == ["req-project-ui"]
+
+
 def test_crossover_preserves_shared_source_semantic_substrate() -> None:
     genome = ReferenceGenomeConstructor().construct(_revision())
     child = ReferenceCrossoverOperator().crossover(genome, genome)

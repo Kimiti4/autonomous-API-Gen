@@ -22,6 +22,27 @@ class CompilerGateway(Protocol):
         ...
 
 
+class UnconfiguredCompilerGateway:
+    """Fail-closed default when no real compiler integration is configured.
+
+    A successful dry-run is not compilation evidence. Callers must explicitly
+    inject a real CompilerGateway or opt into DryRunCompilerGateway for tests
+    and demonstrations.
+    """
+
+    def compile_isr(
+        self,
+        isr: Dict[str, Any],
+        backend_id: str,
+        environment: str,
+    ) -> Dict[str, Any]:
+        raise RuntimeError(
+            "No production CompilerGateway is configured; refusing to fabricate "
+            f"artifacts for backend '{backend_id}'. Inject a real gateway or "
+            "explicitly opt into DryRunCompilerGateway for non-production use."
+        )
+
+
 class DryRunCompilerGateway:
     """Deterministic dry-run compiler gateway."""
 
@@ -77,7 +98,7 @@ class CompilationExecutor:
         self,
         gateway: CompilerGateway | None = None,
     ) -> None:
-        self.gateway = gateway or DryRunCompilerGateway()
+        self.gateway = gateway if gateway is not None else UnconfiguredCompilerGateway()
 
     def execute(
         self,

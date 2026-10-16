@@ -173,6 +173,46 @@ def test_g10_functional_requirement_has_first_class_ref_and_satisfies_edge() -> 
     assert edge.target_id == "requirement_ref:r-auth"
 
 
+def test_requirement_relationships_survive_as_typed_isr_edges() -> None:
+    req = RequirementGraph(
+        schema_version="1.0",
+        nodes={
+            "req-child": RequirementNode(
+                id="req-child", kind=RequirementKind.FUNCTIONAL,
+                statement="create child records", priority=Priority.MUST,
+            ),
+            "req-parent": RequirementNode(
+                id="req-parent", kind=RequirementKind.DOMAIN_CONCEPT,
+                statement="parent records", priority=Priority.MUST,
+            ),
+            "stake-owner": RequirementNode(
+                id="stake-owner", kind=RequirementKind.STAKEHOLDER,
+                statement="record owner", priority=Priority.SHOULD,
+            ),
+        },
+        edges={
+            "refines-child": RequirementEdge(
+                id="refines-child", type=RequirementEdgeType.REFINES,
+                source_id="req-child", target_id="req-parent",
+            ),
+            "owned-child": RequirementEdge(
+                id="owned-child", type=RequirementEdgeType.OWNED_BY,
+                source_id="req-child", target_id="stake-owner",
+            ),
+        },
+    )
+    result = ReferenceDeterministicMapper().map(req, "map-1.0")
+    refines = result.graph.edges["requirement:refines-child"]
+    owned = result.graph.edges["requirement:owned-child"]
+    assert refines.type.value == "requirement_refines"
+    assert refines.source_id == "requirement_ref:req-child"
+    assert refines.target_id == "requirement_ref:req-parent"
+    assert owned.type.value == "requirement_owned_by"
+    assert owned.source_id == "requirement_ref:req-child"
+    assert owned.target_id == "requirement_ref:stake-owner"
+    assert refines.properties["source_requirement_edge_id"] == "refines-child"
+
+
 # ---------------------------------------------------------------------------
 # G11 — Genesis evidence is certifiable by v1.1 accountability plane
 # ---------------------------------------------------------------------------

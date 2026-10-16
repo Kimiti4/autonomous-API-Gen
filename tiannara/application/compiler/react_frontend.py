@@ -42,11 +42,11 @@ class ReactFrontend:
           "README.md":f"# {model.system_name}\n\nGenerated from the technology-neutral ISR.\n"
         },capability_manifest=self._manifest())
     def _package(self):
-        return '{"name":"esap-react-app","private":true,"version":"0.1.0","scripts":{"build":"tsc --noEmit && vite build","test":"vitest run"},"dependencies":{"react":"^19.1.0","react-dom":"^19.1.0"},"devDependencies":{"@types/react":"^19.1.0","@types/react-dom":"^19.1.0","@vitejs/plugin-react":"^5.0.0","vite":"^7.0.0","typescript":"^5.9.0","vitest":"^3.2.4"}}'
+        return '{"name":"esap-react-app","private":true,"version":"0.1.0","scripts":{"build":"tsc --noEmit && vite build","test":"vitest run"},"dependencies":{"react":"^19.1.0","react-dom":"^19.1.0"},"devDependencies":{"@types/react":"^19.1.0","@types/react-dom":"^19.1.0","@types/node":"^22.0.0","@vitejs/plugin-react":"^5.0.0","vite":"^7.0.0","typescript":"^5.9.0","vitest":"^3.2.4"}}'
     def _vite_config(self):
         return 'import { defineConfig } from "vite";\nimport react from "@vitejs/plugin-react";\nexport default defineConfig({ plugins: [react()] });\n'
     def _tsconfig(self):
-        return '{"compilerOptions":{"target":"ES2022","module":"ESNext","moduleResolution":"Bundler","strict":true,"jsx":"react-jsx","noEmit":true}}'
+        return '{"compilerOptions":{"target":"ES2022","module":"ESNext","moduleResolution":"Bundler","strict":true,"jsx":"react-jsx","noEmit":true,"skipLibCheck":true}}'
     def _main(self):
         return 'import React from "react";\nimport { createRoot } from "react-dom/client";\nimport App from "./App";\ncreateRoot(document.getElementById("root")!).render(<React.StrictMode><App /></React.StrictMode>);\n'
     def _app(self,model):

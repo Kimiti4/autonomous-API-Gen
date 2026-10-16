@@ -72,6 +72,7 @@ jobs:
             tests/cbc1/test_source_bound_full_stack_projection.py \
             tests/certification/test_campaign_semantic_input_wiring.py \
             tests/test_react_frontend_generation.py \
+            tests/test_frontend_capability_manifests.py \
             tests/test_vue_frontend.py \
             tests/test_angular_frontend.py \
             tests/test_next_frontend.py \

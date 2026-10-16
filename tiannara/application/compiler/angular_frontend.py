@@ -23,7 +23,7 @@ class AngularFrontend:
     @property
     def name(self): return self.backend_id
     def build_profile(self,system_name):
-        return BackendBuildProfile(language="typescript",required_files=("package.json","angular.json","tsconfig.json","src/main.ts","src/app/app.component.spec.ts"),
+        return BackendBuildProfile(language="typescript",required_files=("package.json","angular.json","tsconfig.json","tsconfig.spec.json","src/index.html","src/main.ts","src/app/app.component.spec.ts"),
           verifier_kind="angular",build_command=["npm","run","build"],test_command=["npm","test","--","--watch=false"],
           runtime_image="node:22-alpine",requires_build_phase=True)
     def build_profile_declaration(self):
@@ -41,16 +41,20 @@ class AngularFrontend:
     def generate(self,model:SystemModel):
         return CompilationResult(backend_id=self.backend_id,system_name=slugify(model.system_name),files={
           "package.json":self._package(),"angular.json":self._angular_json(),"tsconfig.json":self._tsconfig(),
-          "src/main.ts":self._main(),"src/app/app.component.ts":self._component(model),
+          "src/index.html":self._index(model),"src/main.ts":self._main(),"src/app/app.component.ts":self._component(model),
           "src/app/app.component.html":self._template(model),"src/app/app.component.spec.ts":self._test(),
           "src/domain.ts":self._domain(model),"README.md":f"# {model.system_name}\n\nGenerated from the technology-neutral ISR.\n"
         },capability_manifest=self._manifest())
     def _package(self):
         return '{"name":"esap-angular-app","private":true,"version":"0.1.0","scripts":{"build":"ng build","test":"ng test"},"dependencies":{"@angular/common":"^20.0.0","@angular/core":"^20.0.0","@angular/platform-browser":"^20.0.0","rxjs":"^7.8.0","zone.js":"^0.15.0"},"devDependencies":{"@angular/build":"^20.0.0","@angular/cli":"^20.0.0","@angular/compiler-cli":"^20.0.0","typescript":"^5.9.0","vitest":"^3.2.4","jsdom":"^26.1.0"}}'
     def _angular_json(self):
-        return '{"$schema":"./node_modules/@angular/cli/lib/config/schema.json","version":1,"projects":{"app":{"projectType":"application","root":"","sourceRoot":"src","architect":{"build":{"builder":"@angular/build:application","options":{"browser":"src/main.ts","tsConfig":"tsconfig.json"}},"test":{"builder":"@angular/build:unit-test","options":{"tsConfig":"tsconfig.json"}}}}}}'
+        return '{"$schema":"./node_modules/@angular/cli/lib/config/schema.json","version":1,"projects":{"app":{"projectType":"application","root":"","sourceRoot":"src","architect":{"build":{"builder":"@angular/build:application","options":{"browser":"src/main.ts","index":"src/index.html","tsConfig":"tsconfig.json"}},"test":{"builder":"@angular/build:unit-test","options":{"tsConfig":"tsconfig.spec.json"}}}}}}'
     def _tsconfig(self):
         return '{"compilerOptions":{"target":"ES2022","module":"ES2022","moduleResolution":"bundler","strict":true,"experimentalDecorators":true,"skipLibCheck":true},"angularCompilerOptions":{"strictTemplates":true}}'
+    def _index(self,model):
+        return '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Generated application</title><meta name="viewport" content="width=device-width, initial-scale=1"></head><body><app-root></app-root></body></html>'
+    def _tsconfig_spec(self):
+        return '{"extends":"./tsconfig.json","compilerOptions":{"types":["vitest/globals"]},"include":["src/**/*.spec.ts"]}'
     def _main(self):
         return 'import { bootstrapApplication } from "@angular/platform-browser";\nimport { AppComponent } from "./app/app.component";\nbootstrapApplication(AppComponent).catch(err => console.error(err));\n'
     def _component(self,model):

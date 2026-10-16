@@ -23,6 +23,7 @@ def test_angular_uses_safe_title_and_behavioral_vitest_test():
     result=backend.generate(model)
     assert f"readonly title = {json.dumps(model.system_name, ensure_ascii=True)};" in result.files["src/app/app.component.ts"]
     assert "@angular/build:unit-test" in result.files["angular.json"]
+    assert '"buildTarget":"app:build"' in result.files["angular.json"]
     assert "src/index.html" in result.files
     assert "tsconfig.spec.json" in result.files
     assert '"index":"src/index.html"' in result.files["angular.json"]

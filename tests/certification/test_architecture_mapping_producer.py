@@ -118,7 +118,21 @@ def _complete_semantic_snapshot(snapshot):
     graph["nodes"], graph["edges"] = nodes, edges
     revision["graph"] = graph
     snapshot["revision"] = revision
-    snapshot["source_refs"] = sorted(set(snapshot.get("source_refs", ())) | set(nodes))
+    snapshot["source_refs"] = sorted(set(snapshot.get("source_refs", ())) | set(nodes) | {"REQ-PROJECT-001"})
+    snapshot["requirement_graph"] = {
+        "schema_version": "1",
+        "nodes": {
+            "REQ-PROJECT-001": {
+                "id": "REQ-PROJECT-001",
+                "kind": "functional",
+                "statement": "An authorized workspace member can create a project.",
+                "priority": "must",
+                "acceptance_criteria": ["a project is created in the selected workspace"],
+                "source_refs": ["taskflow-requirements.md#REQ-PROJECT-001"],
+            },
+        },
+        "edges": {},
+    }
     return snapshot
 
 
@@ -138,6 +152,74 @@ def test_typed_isr_semantics_lower_to_all_five_mapping_layers():
     assert result.mapping["requirement_obligations"][0]["verification_method"] == "integration_test"
     assert result.mapping["consequences"]["invariants"][0]["id"] == "invariant:project-name"
     assert result.mapping["provenance"]["source_hash"]
+
+
+
+def test_mapping_producer_emits_canonical_ir_only_when_every_layer_is_explicit():
+    artifacts = build_artifacts_for(default_corpus()[0])
+    snapshot = _complete_semantic_snapshot(source_snapshot_from_plan_artifacts(artifacts))
+    revision = dict(snapshot["revision"])
+    graph = dict(revision["graph"])
+    nodes = {key: dict(value) for key, value in graph["nodes"].items()}
+
+    frontend_contract = {
+        "schema_version": "1", "contract_id": "frontend:projects",
+        "routes": ["/projects"], "api_contract_id": "projects",
+        "quality_obligation_ids": [], "state_domains": ["projects"],
+        "interaction_flows": ["create-project"], "accessibility_requirements": [],
+        "observability_requirements": [],
+        "modules": [{"module_id": "projects-page", "responsibility": "Manage projects", "dependencies": [], "invariants": ["project-name-non-empty"]}],
+        "data_flows": [{"flow_id": "create-project", "source": "projects-page", "destination": "POST /projects", "contract": "projects", "failure_policy": "show-error"}],
+        "security_boundaries": ["policy:project-owner"], "failure_states": ["create-failed"], "design_constraints": [],
+    }
+    api_contract = {
+        "schema_version": "1", "contract_id": "projects",
+        "operations": [{
+            "operation_id": "create_project", "method": "POST", "path": "/projects",
+            "request_schema": None, "response_schema": None,
+            "authorization_policy": "policy:project-owner", "errors": [],
+            "idempotency_required": True, "paginated": False, "version": "v1",
+        }],
+        "global_error_contract": "problem-json", "auth_scheme": "bearer", "schemas": [],
+    }
+    backend_contract = {
+        "schema_version": "1", "contract_id": "backend:projects",
+        "domain_modules": ["projects"], "api_contract_id": "projects",
+        "quality_obligation_ids": [], "persistence_targets": ["projects-store"],
+        "event_targets": [], "observability_requirements": [],
+        "modules": [{"module_id": "projects", "responsibility": "Manage projects", "dependencies": [], "invariants": ["project-name-non-empty"]}],
+        "data_flows": [{"flow_id": "projects-write", "source": "create_project", "destination": "projects-store", "contract": "project-record", "failure_policy": "rollback"}],
+        "security_boundaries": ["policy:project-owner"], "failure_modes": ["store-unavailable"],
+    }
+    nodes["ui:route:projects"]["properties"]["frontend_contract"] = frontend_contract
+    nodes["api:projects"]["properties"]["api_contract"] = api_contract
+    nodes["service:projects"]["properties"]["backend_contract"] = backend_contract
+    nodes["effect:create-project"]["properties"]["effect_path"] = {
+        "operation_id": "create_project", "frontend_flow_id": "create-project",
+        "domain_module": "projects", "effect_id": "effect:create-project",
+        "authorization_boundary": "policy:project-owner", "consequence": "consequence:duplicate",
+    }
+    nodes["consequence:duplicate"]["properties"]["effect_consequence"] = {
+        "effect_id": "effect:create-project", "persistence": "projects-store",
+        "event": "none", "idempotency_key": "request-id",
+        "uniqueness_constraint": "project-id", "retry_policy": "bounded",
+        "concurrency_policy": "optimistic-lock", "recovery_policy": "return-prior-result",
+    }
+    graph["nodes"] = nodes
+    revision["graph"] = graph
+    snapshot["revision"] = revision
+    snapshot["source_refs"] = sorted(set(snapshot["source_refs"]) | {"REQ-PROJECT-001"})
+    result = produce_architecture_mapping(snapshot)
+
+    assert result.complete
+    assert result.canonical_ready, result.canonical_blockers
+    assert result.canonical_mapping is not None
+    assert set(result.canonical_mapping) == {
+        "frontend", "api", "backend", "effects", "consequences",
+        "requirement_bindings", "provenance",
+    }
+    assert result.canonical_mapping["api"]["operations"][0]["operation_id"] == "create_project"
+    assert result.canonical_mapping["requirement_bindings"][0]["requirement_id"] == "REQ-PROJECT-001"
 
 
 def test_typed_effect_missing_replay_policy_blocks_full_mapping():

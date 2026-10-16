@@ -64,7 +64,7 @@ class AngularFrontend:
         return '<main><h1>{{ title }}</h1><p>Generated application</p></main>\n'
     def _test(self,model):
         title = json.dumps(model.system_name, ensure_ascii=True)
-        return f'import "zone.js";\nimport {{ TestBed }} from "@angular/core/testing";\nimport {{ describe, it, expect }} from "vitest";\nimport {{ AppComponent }} from "./app.component";\ndescribe("AppComponent",()=>{{it("renders the application content",async()=>{{await TestBed.configureTestingModule({{imports:[AppComponent]}}).compileComponents();const fixture=TestBed.createComponent(AppComponent);fixture.detectChanges();expect(fixture.nativeElement.querySelector("h1")?.textContent).toContain({title});expect(fixture.nativeElement.textContent).toContain("Generated application");}});}});}}\n'
+        return f'import "zone.js";\nimport {{ TestBed }} from "@angular/core/testing";\nimport {{ describe, it, expect }} from "vitest";\nimport {{ AppComponent }} from "./app.component";\ndescribe("AppComponent",()=>{{it("renders the application content",async()=>{{await TestBed.configureTestingModule({{imports:[AppComponent]}}).compileComponents();const fixture=TestBed.createComponent(AppComponent);fixture.detectChanges();expect(fixture.nativeElement.querySelector("h1")?.textContent).toContain({title});expect(fixture.nativeElement.textContent).toContain("Generated application");}});}}\n'
     def _domain(self,model):
         return "\n".join(f"export interface {pascal_case(dm.name)} {{\n"+"".join(f"  {f.name}{'' if f.required else '?'}: unknown;\n" for f in dm.fields)+"}\n" for dm in model.data_models)
     def _manifest(self):

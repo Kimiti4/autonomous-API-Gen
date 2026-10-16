@@ -1096,6 +1096,15 @@ class SourceBoundSemanticCorrespondenceVerifier:
                 findings.append("candidate hash does not match recomputed repository contents")
 
         if isinstance(mapping, Mapping):
+            if source_dict is not None:
+                # Semantic correspondence must prove complete requirement
+                # coverage and typed target bindings, not merely hash identity.
+                for blocker in _validate_requirement_coverage(source_dict, mapping):
+                    findings.append(f"requirement coverage: {blocker.code}: {blocker.message}")
+                for blocker in _validate_typed_requirement_bindings(source_dict, mapping):
+                    findings.append(f"typed requirement binding: {blocker.code}: {blocker.message}")
+                for blocker in _validate_semantic_obligations(source_dict, mapping):
+                    findings.append(f"semantic obligation: {blocker.code}: {blocker.message}")
             try:
                 lowered = lower_explicit_mapping_to_full_stack_ir(mapping)
                 findings.extend(lowered.findings)

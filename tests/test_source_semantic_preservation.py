@@ -74,6 +74,74 @@ def test_requirement_semantics_survive_genome_and_isr_materialization() -> None:
     assert materialized.nodes["service:req-domain"].properties["responsibility"] == "user identity"
 
 
+def test_all_typed_requirement_relationships_survive_isr_materialization() -> None:
+    functional = RequirementNode(
+        id="req-operation", kind=RequirementKind.FUNCTIONAL,
+        statement="perform operation", priority=Priority.MUST,
+        source_refs=["spec:operation"],
+    )
+    domain = RequirementNode(
+        id="req-domain", kind=RequirementKind.DOMAIN_CONCEPT,
+        statement="operation domain", priority=Priority.MUST,
+        source_refs=["spec:domain"],
+    )
+    owner = RequirementNode(
+        id="req-owner", kind=RequirementKind.STAKEHOLDER,
+        statement="service operator", priority=Priority.SHOULD,
+        source_refs=["spec:owner"],
+    )
+    relationships = {
+        "depends": RequirementEdge(
+            id="depends", type=RequirementEdgeType.DEPENDS_ON,
+            source_id=functional.id, target_id=domain.id,
+        ),
+        "conflicts": RequirementEdge(
+            id="conflicts", type=RequirementEdgeType.CONFLICTS_WITH,
+            source_id=functional.id, target_id=domain.id,
+        ),
+        "refines": RequirementEdge(
+            id="refines", type=RequirementEdgeType.REFINES,
+            source_id=functional.id, target_id=domain.id,
+        ),
+        "owned": RequirementEdge(
+            id="owned", type=RequirementEdgeType.OWNED_BY,
+            source_id=functional.id, target_id=owner.id,
+        ),
+    }
+    graph = RequirementGraph(
+        schema_version="1.0",
+        nodes={node.id: node for node in (functional, domain, owner)},
+        edges=relationships,
+    )
+    genesis = ReferenceDeterministicMapper().map(graph, "map-1.0")
+    revision = ISRRevision.create(
+        system_id="typed-relationship-preservation",
+        revision_id="rev0",
+        schema_version="1.0",
+        graph=genesis.graph,
+        provenance=Provenance(
+            requirement_refs=sorted(graph.nodes),
+            derivation_refs=["genesis:map-1.0"],
+            created_by="test",
+            created_at="2026-01-01T00:00:00Z",
+        ),
+    )
+    materialized = ReferenceGenomeMaterializer().materialize(
+        ReferenceGenomeConstructor().construct(revision)
+    )
+
+    expected = {
+        "requirement:depends": "requirement_depends_on",
+        "requirement:conflicts": "requirement_conflicts_with",
+        "requirement:refines": "requirement_refines",
+        "requirement:owned": "requirement_owned_by",
+    }
+    for edge_id, edge_type in expected.items():
+        assert materialized.edges[edge_id].type.value == edge_type
+        assert materialized.edges[edge_id].source_id == f"requirement_ref:{functional.id}"
+    assert materialized.edges["requirement:owned"].target_id == f"requirement_ref:{owner.id}"
+
+
 def test_explicit_source_architecture_survives_genome_materialization() -> None:
     requirement = RequirementNode(
         id="req-project-ui",

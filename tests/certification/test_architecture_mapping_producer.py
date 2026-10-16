@@ -297,3 +297,34 @@ def test_architecture_without_requirement_references_is_not_publishable():
 
     assert result.mapping is None
     assert any(item.code == "MAP-REQ-000" for item in result.blockers)
+
+
+
+def test_genesis_preserves_each_authoritative_requirement_in_isr_with_provenance():
+    artifacts = build_artifacts_for(default_corpus()[0])
+    requirement_graph = artifacts.requirement_graph
+    isr_graph = artifacts.revision.graph
+
+    for requirement in requirement_graph.nodes.values():
+        ref_id = f"requirement_ref:{requirement.id}"
+        assert ref_id in isr_graph.nodes
+        ref_node = isr_graph.nodes[ref_id]
+        assert ref_node.type.value == "requirement_ref"
+        assert ref_node.properties["requirement_id"] == requirement.id
+        assert ref_node.properties["statement"] == requirement.statement
+        assert ref_node.properties["requirement_kind"] == requirement.kind.value
+        assert ref_node.properties["priority"] == requirement.priority.value
+        assert ref_node.properties["source_refs"] == list(requirement.source_refs)
+        assert ref_node.properties["acceptance_criteria"] == list(requirement.acceptance_criteria)
+
+    for requirement in requirement_graph.nodes.values():
+        if requirement.kind.value != "functional":
+            continue
+        capability_id = f"capability:{requirement.id}"
+        requirement_ref_id = f"requirement_ref:{requirement.id}"
+        assert any(
+            edge.type.value == "satisfies"
+            and edge.source_id == capability_id
+            and edge.target_id == requirement_ref_id
+            for edge in isr_graph.edges.values()
+        )

@@ -1758,6 +1758,7 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
         if (
             not isinstance(canonical_routes, (list, tuple))
             or any(not isinstance(value, str) or not value for value in canonical_routes)
+            or any(not isinstance(value, str) or not value for value in actual_routes)
             or sorted(canonical_routes) != sorted(actual_routes)
         ):
             canonical_blockers.append(ProjectionBlocker(
@@ -1769,6 +1770,7 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
         if (
             not isinstance(canonical_flows, (list, tuple))
             or any(not isinstance(value, str) or not value for value in canonical_flows)
+            or any(not isinstance(value, str) or not value for value in actual_flows)
             or sorted(canonical_flows) != sorted(actual_flows)
         ):
             canonical_blockers.append(ProjectionBlocker(
@@ -1821,8 +1823,9 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
             ))
 
         policy_ids = {
-            policy["properties"].get("policy_id", policy["id"])
+            value if isinstance(value, str) and value else policy["id"]
             for policy in policies
+            for value in [policy["properties"].get("policy_id")]
         }
         security_boundaries = backend.get("security_boundaries", [])
         if (
@@ -1859,7 +1862,10 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
         for effect in canonical_effects:
             if not isinstance(effect, Mapping):
                 continue
-            if effect.get("authorization_boundary") not in policy_ids:
+            if (
+                not isinstance(effect.get("authorization_boundary"), str)
+                or effect.get("authorization_boundary") not in policy_ids
+            ):
                 canonical_blockers.append(ProjectionBlocker(
                     "MAP-IR-014", "canonical effect authorization boundary is not an explicit ISR policy",
                     (str(effect.get("effect_id", "")), str(effect.get("authorization_boundary", ""))),
@@ -1877,6 +1883,7 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
             if (
                 not isinstance(domain_modules, (list, tuple))
                 or any(not isinstance(value, str) for value in domain_modules)
+                or not isinstance(effect.get("domain_module"), str)
                 or effect.get("domain_module") not in set(domain_modules)
             ):
                 canonical_blockers.append(ProjectionBlocker(

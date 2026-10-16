@@ -99,7 +99,8 @@ class NestJSBackend:
         return f'''{{"name":"{slug}","version":"0.1.0","private":true,
 "scripts":{{"build":"nest build","start":"node dist/main.js","test":"jest"}},
 "dependencies":{{"@nestjs/common":"^11.0.0","@nestjs/core":"^11.0.0","@nestjs/platform-express":"^11.0.0","reflect-metadata":"^0.2.2","rxjs":"^7.8.2"}},
-"devDependencies":{{"@nestjs/cli":"^11.0.0","@nestjs/schematics":"^11.0.0","@nestjs/testing":"^11.0.0","@types/node":"^22.0.0","jest":"^30.0.0","ts-jest":"^29.4.0","typescript":"^5.9.0"}}
+"devDependencies":{{"@nestjs/cli":"^11.0.0","@nestjs/schematics":"^11.0.0","@nestjs/testing":"^11.0.0","@types/node":"^22.0.0","jest":"^30.0.0","ts-jest":"^29.4.0","typescript":"^5.9.0"}},
+"jest":{{"preset":"ts-jest","testEnvironment":"node","testRegex":".spec.ts$"}}
 }}'''
 
     def _tsconfig(self):

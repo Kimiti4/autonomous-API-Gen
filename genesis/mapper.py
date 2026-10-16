@@ -157,6 +157,8 @@ class ReferenceDeterministicMapper:
 
         for default in CONSTITUTIONAL_DEFAULTS:
             node_id = f"service:constitution:{default}"
+            if node_id in nodes:
+                raise ValueError(f"constitutional default collides with declared ISR node: {node_id!r}")
             nodes[node_id] = Node(
                 id=node_id,
                 type=NodeType.SERVICE,

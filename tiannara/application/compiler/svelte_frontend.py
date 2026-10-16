@@ -33,7 +33,7 @@ class SvelteFrontend:
           "package.json":self._package(),
           "index.html":'<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Generated application</title></head><body><div id="app"></div><script type="module" src="/src/main.ts"></script></body></html>',
           "svelte.config.js":'import { vitePreprocess } from "@sveltejs/vite-plugin-svelte"; export default { preprocess: vitePreprocess() };',
-          "vite.config.ts":'import { defineConfig } from "vite"; import { svelte } from "@sveltejs/vite-plugin-svelte"; export default defineConfig({ plugins: [svelte()] });',
+          "vite.config.ts":'import { defineConfig } from "vitest/config"; import { svelte } from "@sveltejs/vite-plugin-svelte"; export default defineConfig({ plugins: [svelte()], test: { environment: "jsdom" } });',
           "src/main.ts":'import { mount } from "svelte"; import App from "./App.svelte"; mount(App, { target: document.body });',
           "src/App.svelte":f'<script lang="ts">const title = {json.dumps(model.system_name, ensure_ascii=True)};</script>\n<main><h1>{{title}}</h1><p>Generated application</p></main>\n',
           "src/App.test.ts":self._test(),

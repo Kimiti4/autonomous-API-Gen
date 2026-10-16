@@ -1068,11 +1068,6 @@ class SourceBoundSemanticCorrespondenceVerifier:
             else:
                 if provenance.get("source_hash") != source_hash or not source_hash:
                     findings.append("mapping source_hash does not match recomputed source artifacts")
-                if (
-                    not computed_candidate_hash
-                    or provenance.get("candidate_hash") != computed_candidate_hash
-                ):
-                    findings.append("mapping candidate_hash does not match recomputed candidate repository contents")
                 refs = provenance.get("source_refs")
                 known = source_dict.get("source_refs") if source_dict else None
                 if not isinstance(refs, (list, tuple)) or not refs:
@@ -1101,6 +1096,12 @@ class SourceBoundSemanticCorrespondenceVerifier:
                 findings.append("candidate hash does not match recomputed repository contents")
 
         if isinstance(mapping, Mapping):
+            provenance = mapping.get("provenance")
+            if isinstance(provenance, Mapping) and (
+                not computed_candidate_hash
+                or provenance.get("candidate_hash") != computed_candidate_hash
+            ):
+                findings.append("mapping candidate_hash does not match recomputed candidate repository contents")
             if source_dict is not None:
                 # Semantic correspondence must prove complete requirement
                 # coverage and typed target bindings, not merely hash identity.

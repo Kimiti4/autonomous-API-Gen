@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from isr.core.graph import EdgeType
 from isr.core.identity import Provenance, compute_content_hash
 from isr.core.invariants import ISRInvariantViolation, validate_invariants
 from isr.core.revision import ISRRevision

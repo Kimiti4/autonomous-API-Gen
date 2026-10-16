@@ -307,7 +307,18 @@ class CampaignRunner:
                 _record(TrialStage.SEMANTIC, conf.passed, f"semantic={conf.passed}")
     
                 tag = f"cbc1-{trial_id[:8]}"
-                if self.builder:
+                # Structural/semantic conformance is a prerequisite for any
+                # expensive or stateful execution. Do not build an invalid
+                # candidate and rely on later gates to reject it.
+                if not (
+                    stage_results.get(TrialStage.STRUCTURAL) is True
+                    and stage_results.get(TrialStage.SEMANTIC) is True
+                ):
+                    b_ok, b_detail = False, (
+                        "skipped: structural and semantic conformance must both pass before build"
+                    )
+                    _record(TrialStage.BUILD, b_ok, b_detail)
+                elif self.builder:
                     try:
                         build_result = self.builder.build(d, tag)
                         if (

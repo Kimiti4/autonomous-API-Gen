@@ -86,3 +86,6 @@ Changes now committed on `hardening/candidate-bound-full-stack-gate`:
 - Added genesis and end-to-end regression tests for requirement references, provenance, satisfies edges, mutation/materialization preservation, and incompatible-source crossover rejection.
 
 This is a source-path correction, **not** full-stack certification. Remaining semantic obligations still need explicit modeling and verification: requirement-to-service implementation edges, service responsibility, complete data-model fields/invariants, API operation contracts, frontend routes/interactions, security enforcement, effects, event delivery/order/payload semantics, and consequences. Do not infer these from names or prose, and do not loosen the certification gate. The fresh CI run must validate this patch before the change is considered verified.
+
+
+- First CI run after the semantic-preservation patch found the existing ISR invariant requires `requirement_ref.properties.ref_id`. The initial mapper patch carried `requirement_id` but omitted `ref_id`; four v1.2 tests failed at ISR revision creation for that reason. Corrected the mapper to emit both fields in commit `9d9ebd4c`. This is a source-contract correction; fresh CI is required to confirm the rerun.

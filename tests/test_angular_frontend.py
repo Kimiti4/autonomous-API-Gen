@@ -32,5 +32,6 @@ def test_angular_uses_safe_title_and_behavioral_vitest_test():
     assert 'import "zone.js"' in result.files["src/app/app.component.spec.ts"]
     assert 'from "vitest"' in result.files["src/app/app.component.spec.ts"]
     assert 'querySelector("h1")' in result.files["src/app/app.component.spec.ts"]
+    assert f"toContain({json.dumps(model.system_name, ensure_ascii=True)})" in result.files["src/app/app.component.spec.ts"]
     assert "toBeTruthy" not in result.files["src/app/app.component.spec.ts"]
     assert backend.build_profile(model.system_name).test_command == ["npm", "test"]

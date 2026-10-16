@@ -27,6 +27,7 @@ def test_angular_uses_safe_title_and_behavioral_vitest_test():
     assert '"runner":"vitest"' in result.files["angular.json"]
     assert "src/index.html" in result.files
     assert "tsconfig.spec.json" in result.files
+    assert result.files["tsconfig.spec.json"] == backend._tsconfig_spec()
     assert '"index":"src/index.html"' in result.files["angular.json"]
     assert 'from "vitest"' in result.files["src/app/app.component.spec.ts"]
     assert 'querySelector("h1")' in result.files["src/app/app.component.spec.ts"]

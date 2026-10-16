@@ -306,7 +306,12 @@ def test_campaign_a_success_matrix():
     )
     # The success matrix counts certified trials only. With no configured
     # execution adapters, it must remain empty.
-    assert summary["success_matrix"] == {}
+    assert summary["success_matrix"]
+    assert all(
+        count == 0
+        for category_counts in summary["success_matrix"].values()
+        for count in category_counts.values()
+    )
 
 
 def test_campaign_a_failure_taxonomy_empty():

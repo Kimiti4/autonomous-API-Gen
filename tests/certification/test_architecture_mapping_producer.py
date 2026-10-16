@@ -96,6 +96,10 @@ def _complete_semantic_snapshot(snapshot):
         "auth_scheme": "bearer",
     })
     node("service:projects", "service", {"responsibility": "Manage projects"})
+    node("dm:projects", "data_model", {
+        "fields": [{"name": "project_id", "type": "string", "required": True, "unique": True}],
+        "invariants": ["project_id is unique"],
+    })
     node("policy:project-owner", "security_policy", {
         "policy_id": "policy:project-owner", "enforcement": "runtime",
         "allowed_roles": ["owner"],
@@ -114,6 +118,7 @@ def _complete_semantic_snapshot(snapshot):
     })
     edge("edge:capability-requirement", "satisfies", "capability:project-create", "requirement:project-create")
     edge("edge:capability-service", "implemented_by", "capability:project-create", "service:projects")
+    edge("edge:service-data", "persists", "service:projects", "dm:projects")
     edge("edge:route-api", "routes_to", "ui:route:projects", "api:projects")
     edge("edge:interaction-api", "invokes", "ui:interaction:create-project", "api:projects")
     edge("edge:api-effect", "causes_effect", "api:projects", "effect:create-project")
@@ -189,10 +194,10 @@ def test_mapping_producer_emits_canonical_ir_only_when_every_layer_is_explicit()
     backend_contract = {
         "schema_version": "1", "contract_id": "backend:projects",
         "domain_modules": ["projects"], "api_contract_id": "projects",
-        "quality_obligation_ids": [], "persistence_targets": ["projects-store"],
+        "quality_obligation_ids": [], "persistence_targets": ["dm:projects"],
         "event_targets": [], "observability_requirements": [],
         "modules": [{"module_id": "service:projects", "responsibility": "Manage projects", "dependencies": [], "invariants": ["project-name-non-empty"]}],
-        "data_flows": [{"flow_id": "projects-write", "source": "create_project", "destination": "projects-store", "contract": "project-record", "failure_policy": "rollback"}],
+        "data_flows": [{"flow_id": "projects-write", "source": "create_project", "destination": "dm:projects", "contract": "project-record", "failure_policy": "rollback"}],
         "security_boundaries": ["policy:project-owner"], "failure_modes": ["store-unavailable"],
     }
     nodes["ui:route:projects"]["properties"]["frontend_contract"] = frontend_contract
@@ -204,7 +209,7 @@ def test_mapping_producer_emits_canonical_ir_only_when_every_layer_is_explicit()
         "authorization_boundary": "policy:project-owner", "consequence": "consequence:duplicate",
     }
     nodes["consequence:duplicate"]["properties"]["effect_consequence"] = {
-        "effect_id": "effect:create-project", "persistence": "projects-store",
+        "effect_id": "effect:create-project", "persistence": "dm:projects",
         "event": "none", "idempotency_key": "request-id",
         "uniqueness_constraint": "project-id", "retry_policy": "bounded",
         "concurrency_policy": "optimistic-lock", "recovery_policy": "return-prior-result",

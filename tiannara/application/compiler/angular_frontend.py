@@ -67,7 +67,4 @@ class AngularFrontend:
     def _domain(self,model):
         return "\n".join(f"export interface {pascal_case(dm.name)} {{\n"+"".join(f"  {f.name}{'' if f.required else '?'}: unknown;\n" for f in dm.fields)+"}\n" for dm in model.data_models)
     def _manifest(self):
-        return CapabilityManifest(backend_id=self.backend_id,capabilities=[
-          BundleCapability.BUILD,BundleCapability.LINT,BundleCapability.STATIC_ANALYSIS,
-          BundleCapability.TEST,BundleCapability.SECURITY_SCAN,BundleCapability.DOCUMENTATION,
-          BundleCapability.RELEASE],metadata={"language":"typescript","framework":"angular","style":"standalone-components"})
+        return CapabilityManifest(backend_id=self.backend_id,capabilities=[BundleCapability.BUILD, BundleCapability.TEST, BundleCapability.DOCUMENTATION],metadata={"language":"typescript","framework":"angular","style":"standalone-components"})

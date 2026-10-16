@@ -32,13 +32,12 @@ def test_unconfigured_stage_cannot_certify_trial():
 
 
 def test_real_build_is_skipped_when_structural_semantic_prerequisites_fail(monkeypatch):
-    from types import SimpleNamespace
-
     from certification.campaign.plan_builder import build_artifacts_for
     from certification.campaign.runner import CampaignRunner
     from certification.corpus.corpus import default_corpus
     from certification.core.trial import TrialStage
     from compiler.composition import build_backend_registry
+    from compiler.core.conformance import ConformanceReport
 
     workload = default_corpus()[0]
     artifacts = build_artifacts_for(workload)
@@ -55,7 +54,7 @@ def test_real_build_is_skipped_when_structural_semantic_prerequisites_fail(monke
     monkeypatch.setattr(
         backend,
         "conformance",
-        lambda plan, repo: SimpleNamespace(passed=False, missing=("required operation",)),
+        lambda plan, repo: ConformanceReport(passed=False, missing=["required operation"]),
     )
     builder = Builder()
     trial = CampaignRunner(builder=builder).run_trial(

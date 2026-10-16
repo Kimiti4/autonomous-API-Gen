@@ -1332,9 +1332,16 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
         if not isinstance(semantic_content, str) or not semantic_content.strip():
             blockers.append(ProjectionBlocker("MAP-REQ-002", f"requirement {requirement_id!r} lacks authoritative semantic content", (requirement["id"],)))
             continue
-        if not isinstance(props.get("source_ref"), str) or not props.get("source_ref"):
+        source_ref = props.get("source_ref")
+        source_refs = props.get("source_refs")
+        if not (
+            isinstance(source_ref, str) and source_ref
+            or isinstance(source_refs, (list, tuple)) and source_refs
+            and all(isinstance(ref, str) and ref for ref in source_refs)
+        ):
             blockers.append(ProjectionBlocker("MAP-REQ-003", f"requirement {requirement_id!r} lacks source_ref provenance", (requirement["id"],)))
-        if not isinstance(props.get("revision"), (str, int)) or str(props.get("revision")).strip() == "":
+        source_revision = props.get("revision", revision.get("revision_id", revision.get("content_hash")))
+        if not isinstance(source_revision, (str, int)) or str(source_revision).strip() == "":
             blockers.append(ProjectionBlocker("MAP-REQ-004", f"requirement {requirement_id!r} lacks an authoritative revision", (requirement["id"],)))
 
         matches = [edge for edge in requirement_edges if edge["target_id"] == requirement["id"]]
@@ -1401,8 +1408,8 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
             "requirement_node_id": requirement["id"],
             "semantic_content": semantic_content,
             "requirement_kind": requirement_kind,
-            "source_ref": props.get("source_ref"),
-            "revision": str(props.get("revision", "")),
+            "source_ref": props.get("source_ref", props.get("source_refs", [])),
+            "revision": str(props.get("revision", revision.get("revision_id", revision.get("content_hash", "")))),
             "capability_id": capability["id"],
             "service_id": service["id"],
             "enforcement_targets": enforcement_targets,

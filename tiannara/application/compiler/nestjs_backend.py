@@ -98,7 +98,7 @@ class NestJSBackend:
     def _package(self, slug):
         return f'''{{"name":"{slug}","version":"0.1.0","private":true,
 "scripts":{{"build":"nest build","start":"node dist/main.js","test":"jest"}},
-"dependencies":{{"@nestjs/common":"^11.0.0","@nestjs/core":"^11.0.0","reflect-metadata":"^0.2.2","rxjs":"^7.8.2"}},
+"dependencies":{{"@nestjs/common":"^11.0.0","@nestjs/core":"^11.0.0","@nestjs/platform-express":"^11.0.0","reflect-metadata":"^0.2.2","rxjs":"^7.8.2"}},
 "devDependencies":{{"@nestjs/cli":"^11.0.0","@nestjs/schematics":"^11.0.0","@nestjs/testing":"^11.0.0","@types/node":"^22.0.0","jest":"^30.0.0","ts-jest":"^29.4.0","typescript":"^5.9.0"}}
 }}'''
 
@@ -144,9 +144,14 @@ export class HealthController {
         return '\n'.join(lines) + '\n'
 
     def _test(self):
-        return '''describe('generated application', () => {
-  it('declares the required health contract', () => {
-    expect('/health').toBe('/health');
+        return '''import { Test } from '@nestjs/testing';
+import { HealthController } from '../src/health.controller';
+describe('HealthController', () => {
+  it('returns the health payload', async () => {
+    const moduleRef = await Test.createTestingModule({ controllers: [HealthController] }).compile();
+    const controller = moduleRef.get(HealthController);
+    expect(controller.health()).toEqual({ status: 'ok' });
+    await moduleRef.close();
   });
 });
 '''

@@ -8,6 +8,8 @@ def test_next_emits_next_specific_structure():
     model=SystemModel(system_name="Next Test",problem_statement="test",requirements_ref=RequirementsReference(graph_id="g",graph_hash="h"))
     result=build_compiler_registry().backend("next_ts").generate(model)
     assert "app/page.tsx" in result.files and "app/layout.tsx" in result.files
+    assert result.files["app/layout.tsx"].endswith("</html>}")
+    assert "</html}" not in result.files["app/layout.tsx"]
 
 
 def test_next_generation_uses_safe_title_and_real_render_test():

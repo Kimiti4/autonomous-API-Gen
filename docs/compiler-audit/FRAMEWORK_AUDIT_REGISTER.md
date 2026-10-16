@@ -10,7 +10,7 @@
 |---|---|---|---|---|---|---|---|
 | React / TypeScript | P | P — dependency install and production build passed in CI on `dc41c92`; re-run after latest Angular fixes pending | P — server-render test passed in CI on `dc41c92` | U | U | U | U |
 | Vue / TypeScript | P | P — dependency install and production build passed in CI on `dc41c92` | P — mounted-component test passed in CI on `dc41c92` | U | U | U | U |
-| Angular | P | P — install passed; first live test run failed due missing `buildTarget`; config fix committed, rerun pending | P — TestBed/Vitest component test emitted; CI blocked before test execution by builder schema | U | U | U | U |
+| Angular | P | P — dependency installation passed in the 2026-10-16 matrix; production build pending after test fix | P — live TestBed/Vitest execution reached the component assertion and exposed a mismatch between the generated model title and the test expectation; generator now asserts the model-derived title, rerun pending | U | U | U | U |
 | Next.js | P | P — generated-project install/build added to CI, pending | P — page render test emitted; Vitest command corrected; CI pending | U | U | U | U |
 | Nuxt | P | P — generated-project install/build added to CI, pending | P — Nuxt 4 app layout and mounted component test emitted; CI pending | U | U | U | U |
 | Svelte | P | P — generated-project install/build added to CI, pending | P — Svelte 5 mount API and component test emitted; CI pending | U | U | U | U |

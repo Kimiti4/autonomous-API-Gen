@@ -140,23 +140,13 @@ WORKDIR /app
 COPY pom.xml .
 RUN mvn -q -DskipTests dependency:go-offline
 COPY src ./src
-RUN mvn test package -DskipTests
+RUN mvn test && mvn package -DskipTests
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 COPY --from=build /app/target/esap-app-0.1.0.jar app.jar
 EXPOSE 8000
 ENTRYPOINT ["java","-jar","app.jar"]'''
 
-        return '''FROM eclipse-temurin:21-jdk AS build
-WORKDIR /app
-COPY . .
-RUN ./mvnw test || mvn test
-RUN mvn package -DskipTests
-FROM eclipse-temurin:21-jre
-WORKDIR /app
-COPY --from=build /app/target/*.jar app.jar
-EXPOSE 8000
-ENTRYPOINT ["java","-jar","app.jar"]'''
 
     def _manifest(self):
         return CapabilityManifest(backend_id=self.backend_id, capabilities=[

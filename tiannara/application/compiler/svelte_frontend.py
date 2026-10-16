@@ -39,7 +39,7 @@ class SvelteFrontend:
           "README.md":f"# {model.system_name}\n\nGenerated from the technology-neutral ISR.\n"
         },capability_manifest=self._manifest())
     def _package(self):
-        return '{"name":"esap-svelte-app","private":true,"version":"0.1.0","scripts":{"build":"vite build","test":"vitest run"},"devDependencies":{"@sveltejs/vite-plugin-svelte":"^6.0.0","svelte":"^5.0.0","vite":"^7.0.0","typescript":"^5.9.0","vitest":"^3.2.4","@testing-library/svelte":"^5.2.8","jsdom":"^26.1.0"}}'
+        return '{"name":"esap-svelte-app","private":true,"version":"0.1.0","scripts":{"build":"vite build","test":"vitest run"},"devDependencies":{"@sveltejs/vite-plugin-svelte":"^6.0.0","svelte":"^5.0.0","vite":"^7.0.0","typescript":"^5.9.0","@types/node":"^22.0.0","vitest":"^3.2.4","@testing-library/svelte":"^5.2.8","jsdom":"^26.1.0"}}'
     def _test(self):
         return '// @vitest-environment jsdom\nimport { describe, it, expect } from "vitest";\nimport { render } from "@testing-library/svelte";\nimport App from "./App.svelte";\ndescribe("generated Svelte application",()=>{it("renders app content",()=>{const {container}=render(App);expect(container.querySelector("h1")).not.toBeNull();expect(container.textContent).toContain("Generated application");});});\n'
     def _manifest(self):

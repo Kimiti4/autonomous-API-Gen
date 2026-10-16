@@ -213,6 +213,36 @@ def test_requirement_relationships_survive_as_typed_isr_edges() -> None:
     assert refines.properties["source_requirement_edge_id"] == "refines-child"
 
 
+def test_nonfunctional_and_constraint_requirements_are_not_guessed_as_architecture_nodes() -> None:
+    req = RequirementGraph(
+        schema_version="1.0",
+        nodes={
+            "nf-latency": RequirementNode(
+                id="nf-latency",
+                kind=RequirementKind.NON_FUNCTIONAL,
+                statement="bounded response latency",
+                priority=Priority.SHOULD,
+                source_refs=["spec:performance#1"],
+            ),
+            "con-tenant": RequirementNode(
+                id="con-tenant",
+                kind=RequirementKind.CONSTRAINT,
+                statement="tenant isolation is mandatory",
+                priority=Priority.MUST,
+                source_refs=["spec:security#1"],
+            ),
+        },
+        edges={},
+    )
+    result = ReferenceDeterministicMapper().map(req, "map-1.0")
+
+    assert "requirement_ref:nf-latency" in result.graph.nodes
+    assert "requirement_ref:con-tenant" in result.graph.nodes
+    assert "service:nf-latency" not in result.graph.nodes
+    assert "security_policy:con-tenant" not in result.graph.nodes
+    assert result.coverage.uncovered == []
+
+
 def test_explicit_source_architecture_fragments_project_into_typed_isr() -> None:
     requirement = RequirementNode(
         id="req-ui",

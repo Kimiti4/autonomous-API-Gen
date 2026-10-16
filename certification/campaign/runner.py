@@ -465,18 +465,24 @@ class CampaignRunner:
                         )
                         source_snapshot = source_snapshot_from_plan_artifacts(artifacts)
                         mapping_result = produce_architecture_mapping(source_snapshot)
+                        canonical_mapping = None
+                        if mapping_result.complete and mapping_result.canonical_ready:
+                            canonical_mapping = dict(mapping_result.canonical_mapping)
+                            canonical_provenance = dict(canonical_mapping["provenance"])
+                            canonical_provenance["candidate_hash"] = candidate_hash
+                            canonical_mapping["provenance"] = canonical_provenance
                         semantic_correspondence_inputs = {
                             "source_artifacts": source_snapshot,
-                            # Only a complete typed mapping may enter the verifier.
-                            # Partial structural inventories remain diagnostic data.
-                            "explicit_mapping": (
-                                mapping_result.mapping
-                                if mapping_result.complete
-                                else getattr(artifacts, "explicit_mapping", None)
-                            ),
+                            # Only a complete canonical five-layer IR contract
+                            # bound to this exact candidate may enter verification.
+                            # Diagnostic inventories are never treated as lowered IR.
+                            "explicit_mapping": canonical_mapping,
                             "mapping_producer_findings": [
                                 f"{item.code}: {item.message}"
-                                for item in mapping_result.blockers
+                                for item in (
+                                    *mapping_result.blockers,
+                                    *mapping_result.canonical_blockers,
+                                )
                             ],
                             "candidate_files": dict(repo.files),
                         }

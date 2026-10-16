@@ -860,6 +860,44 @@ def test_production_semantic_verifier_rejects_unknown_source_reference():
     assert any("unknown source identifiers" in finding for finding in result.findings)
 
 
+def test_semantic_correspondence_rejects_unbound_authoritative_requirement() -> None:
+    from app.engine.source_bound_full_stack import (
+        SourceBoundSemanticCorrespondenceVerifier, _canonical_hash,
+    )
+    from compiler.core.repository import build_repository
+
+    source = {
+        "source_refs": ["req:item", "req:security", "isr:domain:item"],
+        "requirement_graph": {
+            "nodes": {
+                "req:item": {"id": "req:item", "statement": "List items"},
+                "req:security": {"id": "req:security", "statement": "Require authentication"},
+            },
+            "edges": {},
+        },
+    }
+    mapping = _complete_explicit_mapping()
+    mapping["provenance"]["source_refs"] = list(source["source_refs"])
+    mapping["provenance"]["source_hash"] = _canonical_hash(source)
+    mapping["requirement_bindings"] = [{
+        "requirement_id": "req:item",
+        "layer": "api",
+        "target_id": "list_items",
+        "requirement_hash": _canonical_hash(source["requirement_graph"]["nodes"]["req:item"]),
+    }]
+    files = {"app.py": "def list_items(): return []"}
+    result = SourceBoundSemanticCorrespondenceVerifier().verify_bound(
+        {
+            "source_artifacts": source,
+            "explicit_mapping": mapping,
+            "candidate_files": files,
+        },
+        build_repository(files).content_hash,
+    )
+    assert not result.passed
+    assert any("typed requirement binding" in finding and "req:security" in finding for finding in result.findings)
+
+
 def test_default_candidate_bound_full_stack_verifier_checks_lowered_ir():
     from certification.campaign.runner import _CanonicalFullStackVerifier
     from app.engine.source_bound_full_stack import lower_explicit_mapping_to_full_stack_ir

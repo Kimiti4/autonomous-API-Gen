@@ -118,3 +118,10 @@ Regression coverage was added for typed requirement relationships, source-declar
 
 
 Additional source-integrity correction: genesis no longer turns every non-functional requirement into a `SERVICE` or every generic constraint into a `SECURITY_POLICY`. Those classes remain first-class requirement refs until explicit typed ISR declarations identify their realization. This avoids giving latency, consistency, or other generic constraints a false architecture classification. A regression test covers that fail-closed behavior.
+
+
+### Follow-up integrity closure — deterministic reprojection verification — 2026-10-16
+
+A final review found that recomputed source/candidate hashes plus semantic validators still did not independently prove that the submitted canonical mapping was exactly derivable from the ISR. A modified mapping could retain the source hash label and pass checks not specific to the changed field. The verifier now reruns `produce_architecture_mapping` against the canonical source snapshot and compares the complete submitted mapping with the reproduced canonical projection, ignoring only `provenance.candidate_hash` (which is attached after candidate generation). If canonical reprojection is incomplete or throws, verification fails closed with actionable findings. A regression test first confirms the authentic mapping passes, then alters the frontend route while retaining the same source and candidate hashes and confirms the verifier rejects it.
+
+This closes a verifier-level gap in step 4. It does **not** close missing source semantics in Campaign A: if the authoritative workload has no explicit frontend/API/backend/effect/consequence contracts, reprojection correctly remains incomplete and certification remains blocked. Fresh CI and campaign evidence for the new commit are required before calling this verified.

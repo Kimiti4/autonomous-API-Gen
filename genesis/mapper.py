@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from isr.core.graph import ISRGraph, Node, NodeType
+from isr.core.graph import Edge, EdgeType, ISRGraph, Node, NodeType
 from reqgraph.core.graph import RequirementGraph, RequirementKind
 from genesis.evidence import CoverageReport
 
@@ -46,6 +46,26 @@ class ReferenceDeterministicMapper:
         coverage: dict[str, list[str]] = {}
 
         for n in sorted(req.nodes.values(), key=lambda x: x.id):
+            # Preserve every authoritative requirement as a first-class ISR ref,
+            # independently of its architecture projection.
+            ref_id = f"requirement_ref:{n.id}"
+            nodes[ref_id] = Node(
+                id=ref_id,
+                type=NodeType.REQUIREMENT_REF,
+                properties={
+                    "requirement_id": n.id,
+                    "semantic_content": n.statement,
+                    "statement": n.statement,
+                    "requirement_kind": n.kind.value,
+                    "priority": n.priority.value,
+                    "acceptance_criteria": list(n.acceptance_criteria),
+                    "source_refs": list(n.source_refs),
+                    "resolution_ref": n.resolution_ref,
+                    "properties": dict(n.properties),
+                },
+            )
+            coverage.setdefault(n.id, []).append(ref_id)
+
             if n.kind is RequirementKind.DOMAIN_CONCEPT:
                 target_type = NodeType.DOMAIN
             elif n.kind is RequirementKind.FUNCTIONAL:
@@ -76,7 +96,20 @@ class ReferenceDeterministicMapper:
                 },
             )
 
-        graph = ISRGraph(nodes=nodes, edges={})
+        edges = {}
+        for n in sorted(req.nodes.values(), key=lambda x: x.id):
+            if n.kind is RequirementKind.FUNCTIONAL:
+                capability_id = f"capability:{n.id}"
+                ref_id = f"requirement_ref:{n.id}"
+                if capability_id in nodes and ref_id in nodes:
+                    edge_id = f"satisfies:{n.id}"
+                    edges[edge_id] = Edge(
+                        id=edge_id,
+                        type=EdgeType.SATISFIES,
+                        source_id=capability_id,
+                        target_id=ref_id,
+                    )
+        graph = ISRGraph(nodes=nodes, edges=edges)
 
         uncovered = [
             n.id for n in req.nodes.values()

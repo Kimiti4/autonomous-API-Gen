@@ -779,6 +779,7 @@ def test_production_semantic_verifier_recomputes_source_mapping_and_candidate_ha
     mapping["provenance"]["source_hash"] = _canonical_hash(source)
     files = {"app.py": "def list_items():\n    return []\n"}
     candidate_hash = build_repository(files).content_hash
+    mapping["provenance"]["candidate_hash"] = candidate_hash
 
     result = SourceBoundSemanticCorrespondenceVerifier().verify_bound({
         "source_artifacts": source,
@@ -804,6 +805,7 @@ def test_production_semantic_verifier_rejects_changed_requirement_with_stale_map
     mapping["provenance"]["source_hash"] = _canonical_hash(original)
     changed = {"source_refs": ["req:item"], "requirements": [{"id": "req:item", "statement": "Delete items"}]}
     files = {"app.py": "def list_items():\n    return []\n"}
+    mapping["provenance"]["candidate_hash"] = build_repository(files).content_hash
 
     result = SourceBoundSemanticCorrespondenceVerifier().verify_bound({
         "source_artifacts": changed,
@@ -826,6 +828,7 @@ def test_production_semantic_verifier_rejects_candidate_mutation_and_wrong_expec
     mapping["provenance"]["source_refs"] = ["req:item"]
     mapping["provenance"]["source_hash"] = _canonical_hash(source)
     files = {"app.py": "def list_items():\n    return []\n"}
+    mapping["provenance"]["candidate_hash"] = build_repository(files).content_hash
     wrong_hash = build_repository({"app.py": "def list_items():\n    return None\n"}).content_hash
 
     result = SourceBoundSemanticCorrespondenceVerifier().verify_bound({
@@ -886,6 +889,7 @@ def test_semantic_correspondence_rejects_unbound_authoritative_requirement() -> 
         "requirement_hash": _canonical_hash(source["requirement_graph"]["nodes"]["req:item"]),
     }]
     files = {"app.py": "def list_items(): return []"}
+    mapping["provenance"]["candidate_hash"] = build_repository(files).content_hash
     result = SourceBoundSemanticCorrespondenceVerifier().verify_bound(
         {
             "source_artifacts": source,

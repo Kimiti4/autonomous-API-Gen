@@ -117,3 +117,40 @@ def test_truthy_non_boolean_verifier_result_never_passes():
     )
     assert passed is False
     assert "explicit True" in detail
+
+
+
+def test_independent_process_verifier_preserves_timeout_diagnostics(monkeypatch, tmp_path):
+    import subprocess
+
+    import certification.campaign.runner as runner
+
+    def timeout(*args, **kwargs):
+        raise subprocess.TimeoutExpired(
+            cmd=args[0], timeout=60, output="partial verifier output",
+            stderr="verifier still running",
+        )
+
+    monkeypatch.setattr(runner.subprocess, "run", timeout)
+    result = runner._IndependentProcessVerifier().verify(
+        str(tmp_path), "candidate-hash", str(tmp_path / "plan.json")
+    )
+    assert result.passed is False
+    assert "timed out after 60s" in result.detail
+    assert "partial verifier output" in result.detail
+    assert "verifier still running" in result.detail
+
+
+def test_independent_process_verifier_preserves_start_error(monkeypatch, tmp_path):
+    import certification.campaign.runner as runner
+
+    def cannot_start(*args, **kwargs):
+        raise OSError("executable unavailable")
+
+    monkeypatch.setattr(runner.subprocess, "run", cannot_start)
+    result = runner._IndependentProcessVerifier().verify(
+        str(tmp_path), "candidate-hash", str(tmp_path / "plan.json")
+    )
+    assert result.passed is False
+    assert "could not start" in result.detail
+    assert "executable unavailable" in result.detail

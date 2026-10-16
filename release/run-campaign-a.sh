@@ -42,11 +42,14 @@ certified = agg.get('certified', 0)
 print(f'Verdict: {verdict}')
 print(f'Reason:  {reason}')
 print(f'Result:  {certified}/{total} trials certified')
-print(f"Evidence ledger verification: {agg.get('evidence_ledger_verification_ok', agg.get('independent_verify_ok', False))}")
+print('Evidence ledger verification: {}'.format(agg.get('evidence_ledger_verification_ok', agg.get('independent_verify_ok', False))))
 full_stack = agg.get('full_stack_verification', {})
 if full_stack:
-    print(f"Full-stack semantic verification: {full_stack.get('status', 'unknown')} "
-          f"({full_stack.get('source_bound_trials_passed', 0)}/{full_stack.get('required_trials', total)} source-bound trials passed)")
+    print('Full-stack semantic verification: {} ({}/{} source-bound trials passed)'.format(
+        full_stack.get('status', 'unknown'),
+        full_stack.get('source_bound_trials_passed', 0),
+        full_stack.get('required_trials', total),
+    ))
     blockers = full_stack.get('blockers', [])
     if blockers:
         print('Top semantic/architecture blockers:')

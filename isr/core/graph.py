@@ -49,6 +49,11 @@ class EdgeType(str, Enum):
     CAUSES_EFFECT = "causes_effect"  # api|service|event -> effect
     REQUIRES_INVARIANT = "requires_invariant"  # data_model|service|effect -> invariant
     CONSEQUENCE_OF = "consequence_of"  # consequence -> effect|invariant
+    # Preserve source requirement relationships as typed edges between refs.
+    REQUIREMENT_DEPENDS_ON = "requirement_depends_on"
+    REQUIREMENT_CONFLICTS_WITH = "requirement_conflicts_with"
+    REQUIREMENT_REFINES = "requirement_refines"
+    REQUIREMENT_OWNED_BY = "requirement_owned_by"
 
 
 class Node(BaseModel):
@@ -134,5 +139,21 @@ EDGE_TYPE_COMPATIBILITY: dict[EdgeType, tuple[frozenset[NodeType], frozenset[Nod
     EdgeType.CONSEQUENCE_OF: (
         frozenset({NodeType.CONSEQUENCE}),
         frozenset({NodeType.EFFECT, NodeType.INVARIANT}),
+    ),
+    EdgeType.REQUIREMENT_DEPENDS_ON: (
+        frozenset({NodeType.REQUIREMENT_REF}),
+        frozenset({NodeType.REQUIREMENT_REF}),
+    ),
+    EdgeType.REQUIREMENT_CONFLICTS_WITH: (
+        frozenset({NodeType.REQUIREMENT_REF}),
+        frozenset({NodeType.REQUIREMENT_REF}),
+    ),
+    EdgeType.REQUIREMENT_REFINES: (
+        frozenset({NodeType.REQUIREMENT_REF}),
+        frozenset({NodeType.REQUIREMENT_REF}),
+    ),
+    EdgeType.REQUIREMENT_OWNED_BY: (
+        frozenset({NodeType.REQUIREMENT_REF}),
+        frozenset({NodeType.REQUIREMENT_REF}),
     ),
 }

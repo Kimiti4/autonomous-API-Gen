@@ -18,6 +18,7 @@ def test_express_is_distinct_from_nestjs():
 
 def test_express_generated_health_test_exercises_live_http_endpoint():
     from tiannara.domain.models.system_model import SystemModel, RequirementsReference
+    from tiannara.domain.models.capability_manifest import BundleCapability
 
     model = SystemModel(
         system_name="Express Health Contract",
@@ -26,8 +27,17 @@ def test_express_generated_health_test_exercises_live_http_endpoint():
     )
     backend = build_compiler_registry().backend("express")
     generated = backend.generate(model)
-    test_source = generated.files["test/health.test.js"]
-    assert "assert.ok(true)" not in test_source
-    assert "app.listen(0, '127.0.0.1')" in test_source
-    assert "await fetch('http://127.0.0.1:' + address.port + '/health')" in test_source
-    assert "assert.equal(response.status, 200)" in test_source
+    test_source = generated.files["test/app.test.ts"]
+    assert "expect(true).toBe(true)" not in test_source
+    assert 'createApp().listen(0, "127.0.0.1")' in test_source
+    assert 'fetch(baseUrl + "/health")' in test_source
+    assert "expect(response.status).toBe(200)" in test_source
+    assert 'expect(await response.json()).toEqual({ status: "ok" })' in test_source
+    assert 'fetch(baseUrl + "/not-a-route")' in test_source
+    assert backend.build_profile(model.system_name).test_command == ["npm", "test"]
+    unsupported = {
+        BundleCapability.LINT, BundleCapability.STATIC_ANALYSIS,
+        BundleCapability.SECURITY_SCAN, BundleCapability.DEPLOY,
+        BundleCapability.OBSERVABILITY, BundleCapability.RELEASE,
+    }
+    assert not (unsupported & set(generated.capability_manifest.capabilities))

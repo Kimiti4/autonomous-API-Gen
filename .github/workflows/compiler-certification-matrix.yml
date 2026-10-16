@@ -56,6 +56,27 @@ jobs:
           PY
           cargo test --manifest-path /tmp/esap-generated-rust/Cargo.toml
           cargo build --manifest-path /tmp/esap-generated-rust/Cargo.toml --release
+      - name: Build pinned Rust 1.85 container and exercise HTTP behavior
+        run: |
+          # The host Cargo build above uses the runner's stable toolchain.
+          # This Docker build specifically validates the generated rust:1.85-slim stage.
+          docker build --tag esap-generated-rust:ci /tmp/esap-generated-rust
+          container_id="$(docker run --detach --publish 127.0.0.1:18089:8000 esap-generated-rust:ci)"
+          cleanup() {
+            docker rm --force "$container_id" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          healthy=0
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:18089/health | grep --fixed-strings --line-regexp --quiet "ok"; then
+              healthy=1
+              break
+            fi
+            sleep 1
+          done
+          test "$healthy" -eq 1
+          status="$(curl --silent --output /dev/null --write-out "%{http_code}" http://127.0.0.1:18089/not-a-route)"
+          test "$status" = "404"
       - name: Enforce certification boundary
         run: |
           python - <<'PY'

@@ -1755,27 +1755,35 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
             node["properties"].get("path", node["properties"].get("route", node["properties"].get("url")))
             for node in frontend_routes
         ]
-        if not isinstance(canonical_routes, (list, tuple)) or sorted(canonical_routes) != sorted(actual_routes):
+        if (
+            not isinstance(canonical_routes, (list, tuple))
+            or any(not isinstance(value, str) or not value for value in canonical_routes)
+            or sorted(canonical_routes) != sorted(actual_routes)
+        ):
             canonical_blockers.append(ProjectionBlocker(
                 "MAP-IR-006", "canonical frontend routes differ from the explicit ISR frontend-route nodes",
                 tuple(node["id"] for node in frontend_routes),
             ))
         canonical_flows = frontend.get("interaction_flows")
         actual_flows = [node["properties"].get("flow_id") for node in frontend_interactions]
-        if not isinstance(canonical_flows, (list, tuple)) or sorted(canonical_flows) != sorted(actual_flows):
+        if (
+            not isinstance(canonical_flows, (list, tuple))
+            or any(not isinstance(value, str) or not value for value in canonical_flows)
+            or sorted(canonical_flows) != sorted(actual_flows)
+        ):
             canonical_blockers.append(ProjectionBlocker(
                 "MAP-IR-007", "canonical frontend flows differ from the explicit ISR interaction nodes",
                 tuple(node["id"] for node in frontend_interactions),
             ))
 
         isr_operation_signatures = sorted(
-            (operation.get("operation_id"), str(operation.get("method", "")).upper(), operation.get("path"))
+            (str(operation.get("operation_id", "")), str(operation.get("method", "")).upper(), str(operation.get("path", "")))
             for node in apis
             for operation in node["properties"].get("operations", [])
             if isinstance(operation, Mapping)
         )
         ir_operation_signatures = sorted(
-            (operation.get("operation_id"), str(operation.get("method", "")).upper(), operation.get("path"))
+            (str(operation.get("operation_id", "")), str(operation.get("method", "")).upper(), str(operation.get("path", "")))
             for operation in api_contract.get("operations", [])
             if isinstance(operation, Mapping)
         )
@@ -1802,9 +1810,11 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
                 ))
 
         persistence_targets = backend.get("persistence_targets", [])
-        if not isinstance(persistence_targets, (list, tuple)) or not set(
-            model["id"] for model in data_models
-        ).issubset(set(persistence_targets)):
+        if (
+            not isinstance(persistence_targets, (list, tuple))
+            or any(not isinstance(value, str) or not value for value in persistence_targets)
+            or not set(model["id"] for model in data_models).issubset(set(persistence_targets))
+        ):
             canonical_blockers.append(ProjectionBlocker(
                 "MAP-IR-010", "canonical backend persistence targets omit explicit ISR data models",
                 tuple(model["id"] for model in data_models),
@@ -1815,7 +1825,11 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
             for policy in policies
         }
         security_boundaries = backend.get("security_boundaries", [])
-        if not isinstance(security_boundaries, (list, tuple)) or not policy_ids.issubset(set(security_boundaries)):
+        if (
+            not isinstance(security_boundaries, (list, tuple))
+            or any(not isinstance(value, str) or not value for value in security_boundaries)
+            or not policy_ids.issubset(set(security_boundaries))
+        ):
             canonical_blockers.append(ProjectionBlocker(
                 "MAP-IR-011", "canonical backend security boundaries omit explicit ISR security policies",
                 tuple(sorted(str(value) for value in policy_ids)),
@@ -1823,7 +1837,8 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
 
         canonical_effects = canonical_mapping["effects"]
         canonical_effect_ids = {
-            value.get("effect_id") for value in canonical_effects if isinstance(value, Mapping)
+            value.get("effect_id") for value in canonical_effects
+            if isinstance(value, Mapping) and isinstance(value.get("effect_id"), str)
         }
         isr_effect_ids = {node["id"] for node in effects}
         if canonical_effect_ids != isr_effect_ids:
@@ -1833,7 +1848,8 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
             ))
         canonical_consequences = canonical_mapping["consequences"]
         consequence_effect_ids = {
-            value.get("effect_id") for value in canonical_consequences if isinstance(value, Mapping)
+            value.get("effect_id") for value in canonical_consequences
+            if isinstance(value, Mapping) and isinstance(value.get("effect_id"), str)
         }
         if consequence_effect_ids != isr_effect_ids:
             canonical_blockers.append(ProjectionBlocker(
@@ -1848,12 +1864,21 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
                     "MAP-IR-014", "canonical effect authorization boundary is not an explicit ISR policy",
                     (str(effect.get("effect_id", "")), str(effect.get("authorization_boundary", ""))),
                 ))
-            if effect.get("frontend_flow_id") not in set(canonical_flows or ()):
+            if (
+                not isinstance(canonical_flows, (list, tuple))
+                or any(not isinstance(value, str) for value in canonical_flows)
+                or effect.get("frontend_flow_id") not in set(canonical_flows)
+            ):
                 canonical_blockers.append(ProjectionBlocker(
                     "MAP-IR-015", "canonical effect references an unknown frontend flow",
                     (str(effect.get("effect_id", "")), str(effect.get("frontend_flow_id", ""))),
                 ))
-            if effect.get("domain_module") not in set(backend.get("domain_modules", ())):
+            domain_modules = backend.get("domain_modules", ())
+            if (
+                not isinstance(domain_modules, (list, tuple))
+                or any(not isinstance(value, str) for value in domain_modules)
+                or effect.get("domain_module") not in set(domain_modules)
+            ):
                 canonical_blockers.append(ProjectionBlocker(
                     "MAP-IR-016", "canonical effect references an unknown backend domain module",
                     (str(effect.get("effect_id", "")), str(effect.get("domain_module", ""))),

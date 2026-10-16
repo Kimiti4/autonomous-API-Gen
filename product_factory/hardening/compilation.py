@@ -186,6 +186,9 @@ class CompilationExecutor:
                     job.evidence_status = "REPORTED"
                     job.artifacts = list(artifacts)
                     artifact_count += len(artifacts)
+                    if target.required:
+                        # A caller-supplied report cannot satisfy a certification prerequisite.
+                        missing_required_backends.append(target.backend_id)
                 else:
                     evidence = output.get("execution_evidence")
                     job.status = "UNKNOWN"
@@ -210,7 +213,7 @@ class CompilationExecutor:
             jobs.append(job)
 
         success = (
-            all(job.status == "SUCCEEDED" for job in jobs)
+            all(job.status == "SUCCEEDED" and job.evidence_status == "VERIFIED" for job in jobs)
             and not missing_required_backends
         )
 

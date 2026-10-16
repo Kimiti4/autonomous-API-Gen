@@ -44,4 +44,4 @@ class NuxtFrontend:
     def _test(self):
         return 'import { describe, it, expect } from "vitest";\nimport { mount } from "@vue/test-utils";\nimport App from "../app/app.vue";\ndescribe("generated Nuxt app",()=>{it("renders the application content",()=>{const wrapper=mount(App);expect(wrapper.find("h1").exists()).toBe(true);expect(wrapper.text()).toContain("Generated application");});});\n'
     def _manifest(self):
-        return CapabilityManifest(backend_id=self.backend_id,capabilities=[BundleCapability.BUILD,BundleCapability.LINT,BundleCapability.STATIC_ANALYSIS,BundleCapability.TEST,BundleCapability.SECURITY_SCAN,BundleCapability.DOCUMENTATION,BundleCapability.RELEASE],metadata={"language":"typescript","framework":"nuxt"})
+        return CapabilityManifest(backend_id=self.backend_id,capabilities=[BundleCapability.BUILD, BundleCapability.TEST, BundleCapability.DOCUMENTATION],metadata={"language":"typescript","framework":"nuxt"})

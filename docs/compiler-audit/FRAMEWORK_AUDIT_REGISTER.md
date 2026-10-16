@@ -128,3 +128,6 @@ This closes a verifier-level gap in step 4. It does **not** close missing source
 
 
 Additional regression coverage in the same source-path hardening sequence now explicitly exercises all four authoritative requirement relationship types—`depends_on`, `conflicts_with`, `refines`, and `owned_by`—through genesis mapping, genome construction, and ISR materialization. The test asserts exact edge types and endpoints, not merely that some edge survives.
+
+
+The first fresh CBC unit-gate run correctly rejected a legacy verifier test that supplied only a minimal requirement list plus a hand-authored mapping, without an authoritative ISR graph. The fixture had expected a pass despite the verifier now requiring deterministic source reprojection. The test has been corrected to expect fail-closed behavior and assert the missing-reprojection finding; the producer-backed complete-ISR test remains the positive-path case. This preserves the gate rather than weakening it to satisfy a stale fixture.

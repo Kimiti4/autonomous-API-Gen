@@ -135,6 +135,8 @@ jobs:
           echo "unknown-route status=$status body=$(cat /tmp/esap-unknown-route.body)"
           test "$status" = "404"
       - name: Test execution prerequisites, candidate binding, and frontend generation
+        env:
+          PYTHONPATH: autonomous-api
         run: |
           pytest -q \
             tests/cbc1/test_campaign_runner_cleanup.py \

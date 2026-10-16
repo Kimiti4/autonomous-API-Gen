@@ -41,8 +41,6 @@ class ExpressBackend:
         return CompilationResult(backend_id=self.backend_id,system_name=slugify(model.system_name),files={
           "package.json":self._package(),"tsconfig.json":self._tsconfig(),"src/index.ts":self._app(),"test/app.test.ts":self._test(),
           "src/domain.ts":self._domain(model),"Dockerfile":self._docker(),"README.md":f"# {model.system_name}\n\nGenerated from the technology-neutral ISR.\n"
-          "src/domain.ts":self._domain(model),"test/app.test.ts":self._test(),
-          "Dockerfile":self._docker(),"README.md":f"# {model.system_name}\n\nGenerated from the technology-neutral ISR.\n"
         },capability_manifest=self._manifest())
     def _package(self):
         return '{"name":"esap-express-app","version":"0.1.0","private":true,"scripts":{"build":"tsc","start":"node dist/index.js","test":"vitest run"},"dependencies":{"express":"^5.1.0"},"devDependencies":{"@types/express":"^5.0.1","@types/node":"^22.0.0","typescript":"^5.9.0","vitest":"^3.2.4"}}'

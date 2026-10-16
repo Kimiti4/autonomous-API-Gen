@@ -1114,6 +1114,37 @@ class SourceBoundSemanticCorrespondenceVerifier:
                 for blocker in _validate_semantic_obligations(source_dict, mapping):
                     refs = f" source_refs={blocker.source_refs}" if blocker.source_refs else ""
                     findings.append(f"semantic obligation: {blocker.code}: {blocker.message}{refs}")
+
+                # A source hash only binds the provenance label; it does not
+                # prove that the submitted IR was actually derived from that
+                # source. Re-run the deterministic producer and compare the
+                # complete canonical projection, excluding only the candidate
+                # hash that is added after generation.
+                try:
+                    reproduced = produce_architecture_mapping(source_dict)
+                    if not reproduced.canonical_ready or reproduced.canonical_mapping is None:
+                        details = "; ".join(
+                            f"{item.code}: {item.message}"
+                            for item in reproduced.canonical_blockers
+                        ) or "canonical mapping was not produced"
+                        findings.append(
+                            f"source-to-ISR canonical reprojection is incomplete: {details}"
+                        )
+                    else:
+                        submitted = dict(mapping)
+                        submitted_provenance = submitted.get("provenance")
+                        if isinstance(submitted_provenance, Mapping):
+                            submitted_provenance = dict(submitted_provenance)
+                            submitted_provenance.pop("candidate_hash", None)
+                            submitted["provenance"] = submitted_provenance
+                        if _canonical_hash(submitted) != _canonical_hash(dict(reproduced.canonical_mapping)):
+                            findings.append(
+                                "explicit mapping does not equal the deterministic canonical projection of the authoritative source ISR"
+                            )
+                except Exception as exc:
+                    findings.append(
+                        f"source-to-ISR canonical reprojection failed closed: {type(exc).__name__}: {exc}"
+                    )
             try:
                 lowered = lower_explicit_mapping_to_full_stack_ir(mapping)
                 findings.extend(lowered.findings)

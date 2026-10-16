@@ -53,6 +53,7 @@ class ReferenceDeterministicMapper:
                 id=ref_id,
                 type=NodeType.REQUIREMENT_REF,
                 properties={
+                    "ref_id": n.id,
                     "requirement_id": n.id,
                     "semantic_content": n.statement,
                     "statement": n.statement,

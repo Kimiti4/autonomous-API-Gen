@@ -187,7 +187,7 @@ def test_mapping_producer_emits_canonical_ir_only_when_every_layer_is_explicit()
         "domain_modules": ["projects"], "api_contract_id": "projects",
         "quality_obligation_ids": [], "persistence_targets": ["projects-store"],
         "event_targets": [], "observability_requirements": [],
-        "modules": [{"module_id": "projects", "responsibility": "Manage projects", "dependencies": [], "invariants": ["project-name-non-empty"]}],
+        "modules": [{"module_id": "service:projects", "responsibility": "Manage projects", "dependencies": [], "invariants": ["project-name-non-empty"]}],
         "data_flows": [{"flow_id": "projects-write", "source": "create_project", "destination": "projects-store", "contract": "project-record", "failure_policy": "rollback"}],
         "security_boundaries": ["policy:project-owner"], "failure_modes": ["store-unavailable"],
     }

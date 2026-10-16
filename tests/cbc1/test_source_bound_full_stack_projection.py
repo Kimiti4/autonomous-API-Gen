@@ -881,3 +881,37 @@ def test_default_candidate_bound_full_stack_verifier_rejects_missing_ir_inputs()
     result = _CanonicalFullStackVerifier().verify_bound((None, None), "candidate-digest-1")
     assert result.passed is False
     assert "five canonical IR inputs are required" in result.findings
+
+
+def test_meaning_change_invalidates_mapping_bound_to_previous_source_hash():
+    import hashlib
+    import json
+
+    from app.engine.source_bound_full_stack import project_source_bound_full_stack
+
+    source = {
+        "source_refs": ["req:item", "isr:domain:item"],
+        "requirements": [{"id": "req:item", "statement": "Read items"}],
+    }
+    canonical = json.dumps(source, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    mapping = _complete_explicit_mapping()
+    mapping["provenance"]["source_hash"] = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    first = project_source_bound_full_stack(
+        source_artifacts=source,
+        candidate_files={"src/items.py": "def read_items(): return []"},
+        explicit_mapping=mapping,
+    )
+    changed_source = {
+        **source,
+        "requirements": [{"id": "req:item", "statement": "Read items only for authorized users"}],
+    }
+    changed = project_source_bound_full_stack(
+        source_artifacts=changed_source,
+        candidate_files={"src/items.py": "def read_items(): return []"},
+        explicit_mapping=mapping,
+    )
+
+    assert first.source_hash != changed.source_hash
+    assert any(blocker.code == "SBFS-032" for blocker in changed.blockers)
+    assert changed.ready is False

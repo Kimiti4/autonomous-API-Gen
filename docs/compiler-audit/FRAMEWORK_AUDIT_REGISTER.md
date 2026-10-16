@@ -89,3 +89,15 @@ This is a source-path correction, **not** full-stack certification. Remaining se
 
 
 - First CI run after the semantic-preservation patch found the existing ISR invariant requires `requirement_ref.properties.ref_id`. The initial mapper patch carried `requirement_id` but omitted `ref_id`; four v1.2 tests failed at ISR revision creation for that reason. Corrected the mapper to emit both fields in commit `9d9ebd4c`. This is a source-contract correction; fresh CI is required to confirm the rerun.
+
+
+## Source-to-ISR path — relationship preservation and candidate-bound lowering review — 2026-10-16
+
+Follow-up changes after the first source-substrate patch:
+- Added typed ISR edge kinds for requirement dependency, conflict, refinement, and ownership relationships. Genesis now projects every authoritative RequirementGraph edge to requirement-ref endpoints, preserving the original edge ID and resolution reference.
+- Materialization now derives capability-to-service `implemented_by` links only from an explicit requirement-refinement edge from a functional requirement to a domain concept. The edge records the source relationship and both requirement refs. The service responsibility is copied from the authoritative domain requirement statement; it is not inferred from a name.
+- Architecture mapping producer provenance now accepts the original source-reference list and the containing ISR revision ID, rather than requiring duplicated singular fields that the source schema does not define.
+
+The full Campaign A path was re-run on commit `3458629f` before these follow-up changes: Compiler Certification Matrix and the other listed hardening/quality workflows passed, but CBC-1 Campaign A failed with `NOT_CERTIFIED`, 0/78 trials certified, and all 78 failures in semantic verification. The artifact's remaining blockers include missing explicit data-model fields/invariants, API operation contracts, frontend routes/interactions, effect and consequence semantics, event delivery/order/payload semantics, and some requirement verification metadata.
+
+This follow-up addresses source relationship loss and traceability, but it does **not** claim Campaign A is closed. Full-stack IR lowering and semantic correspondence must still reject the current corpus wherever its authoritative source does not state those semantics. No default fields, inferred routes, fabricated authorization policies, or invented replay/consequence guarantees may be used to manufacture a pass.

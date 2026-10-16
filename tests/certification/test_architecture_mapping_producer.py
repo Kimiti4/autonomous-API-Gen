@@ -89,7 +89,7 @@ def _complete_semantic_snapshot(snapshot):
         "name": "Create project", "description": "Create a project in a workspace",
     })
     node("ui:route:projects", "frontend_route", {"path": "/projects"})
-    node("ui:interaction:create-project", "frontend_interaction", {"action": "create_project", "flow_id": "flow:create-project"})
+    node("ui:interaction:create-project", "frontend_interaction", {"action": "create_project", "flow_id": "create-project"})
     node("api:projects", "api", {
         "operations": [{"operation_id": "create_project", "method": "POST", "path": "/projects"}],
         "global_error_contract": {"schema": "ProblemDetails"},

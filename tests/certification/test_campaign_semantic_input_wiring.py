@@ -3,7 +3,7 @@ from certification.campaign.plan_builder import build_artifacts_for
 from certification.corpus.corpus import default_corpus
 from certification.campaign.runner import CampaignRunner
 from compiler.composition import build_backend_registry
-from autonomous_api.app.engine.source_bound_full_stack import source_snapshot_from_plan_artifacts
+from app.engine.source_bound_full_stack import source_snapshot_from_plan_artifacts
 
 
 def test_campaign_plan_artifacts_produce_canonical_source_snapshot():

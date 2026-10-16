@@ -22,7 +22,7 @@ class ExpressBackend:
     @property
     def name(self): return self.backend_id
     def build_profile(self,system_name):
-        return BackendBuildProfile(language="typescript",required_files=("package.json","tsconfig.json","src/index.ts","test/app.test.ts","Dockerfile"),
+        return BackendBuildProfile(language="typescript",required_files=("package.json","tsconfig.json","src/index.ts","src/app.ts","test/app.test.ts","Dockerfile"),
           verifier_kind="express",build_command=["npm","run","build"],test_command=["npm","test","--","--runInBand"],
           runtime_image="node:22-alpine",requires_build_phase=True)
     def build_profile_declaration(self):
@@ -39,7 +39,7 @@ class ExpressBackend:
           path=Path(output_dir),artifacts=result.file_paths(),capability_manifest=result.capability_manifest)
     def generate(self,model:SystemModel):
         return CompilationResult(backend_id=self.backend_id,system_name=slugify(model.system_name),files={
-          "package.json":self._package(),"tsconfig.json":self._tsconfig(),"src/index.ts":self._app(),"test/app.test.ts":self._test(),
+          "package.json":self._package(),"tsconfig.json":self._tsconfig(),"src/index.ts":self._app_entry(),"src/app.ts":self._app(),"test/app.test.ts":self._test(),
           "src/domain.ts":self._domain(model),"Dockerfile":self._docker(),"README.md":f"# {model.system_name}\n\nGenerated from the technology-neutral ISR.\n"
         },capability_manifest=self._manifest())
     def _package(self):
@@ -56,12 +56,9 @@ export function createApp() {
   app.get("/health", (_req: Request, res: Response) => res.json({ status: "ok" }));
   return app;
 }
-
-if (require.main === module) {
-  const port = Number(process.env.PORT || 8000);
-  createApp().listen(port, "0.0.0.0");
-}
 '''
+    def _app_entry(self):
+        return 'import { createApp } from "./app";\nconst port = Number(process.env.PORT || 8000);\ncreateApp().listen(port, "0.0.0.0");\n'
     def _domain(self,model):
         return "\n".join(f"export interface {pascal_case(dm.name)} {{\n"+
           "".join(f"  {f.name}{'' if f.required else '?'}: unknown;\n" for f in dm.fields)+"}\n"
@@ -69,7 +66,7 @@ if (require.main === module) {
     def _test(self):
         return '''import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Server } from "node:http";
-import { createApp } from "../src/index";
+import { createApp } from "../src/app";
 
 let server: Server;
 let baseUrl: string;

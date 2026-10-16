@@ -1133,13 +1133,19 @@ class SourceBoundSemanticCorrespondenceVerifier:
 
 @dataclass(frozen=True)
 class ArchitectureMappingProduction:
-    """Deterministic ISR-to-architecture mapping attempt with explicit gaps."""
+    """Deterministic ISR mapping plus a separately validated canonical IR contract."""
     mapping: Mapping[str, Any] | None
     blockers: tuple[ProjectionBlocker, ...]
+    canonical_mapping: Mapping[str, Any] | None = None
+    canonical_blockers: tuple[ProjectionBlocker, ...] = ()
 
     @property
     def complete(self) -> bool:
         return self.mapping is not None and not self.blockers
+
+    @property
+    def canonical_ready(self) -> bool:
+        return self.canonical_mapping is not None and not self.canonical_blockers
 
 
 def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> ArchitectureMappingProduction:

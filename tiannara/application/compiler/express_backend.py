@@ -43,7 +43,7 @@ class ExpressBackend:
           "src/domain.ts":self._domain(model),"Dockerfile":self._docker(),"README.md":f"# {model.system_name}\n\nGenerated from the technology-neutral ISR.\n"
         },capability_manifest=self._manifest())
     def _package(self):
-        return '{"name":"esap-express-app","version":"0.1.0","private":true,"scripts":{"build":"tsc","start":"node dist/index.js","test":"vitest run"},"dependencies":{"express":"^5.1.0"},"devDependencies":{"@types/express":"^5.0.1","@types/node":"^22.0.0","typescript":"^5.9.0","vitest":"^3.2.4"}}'
+        return '{"name":"esap-express-app","version":"0.1.0","private":true,"scripts":{"build":"tsc","start":"node dist/src/index.js","test":"vitest run"},"dependencies":{"express":"^5.1.0"},"devDependencies":{"@types/express":"^5.0.1","@types/node":"^22.0.0","typescript":"^5.9.0","vitest":"^3.2.4"}}'
     def _tsconfig(self):
         return '{"compilerOptions":{"target":"ES2022","module":"commonjs","moduleResolution":"node","strict":true,"esModuleInterop":true,"skipLibCheck":true,"outDir":"dist"}}'
     def _app(self):
@@ -106,7 +106,7 @@ FROM node:22-alpine
 WORKDIR /app
 COPY --from=build /app .
 EXPOSE 8000
-CMD ["node","dist/index.js"]
+CMD ["node","dist/src/index.js"]
 '''
     def _manifest(self):
         return CapabilityManifest(backend_id=self.backend_id,capabilities=[

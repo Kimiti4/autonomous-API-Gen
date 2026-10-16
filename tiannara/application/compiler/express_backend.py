@@ -45,7 +45,7 @@ class ExpressBackend:
     def _package(self):
         return '{"name":"esap-express-app","version":"0.1.0","private":true,"scripts":{"build":"tsc","start":"node dist/index.js","test":"vitest run"},"dependencies":{"express":"^5.1.0"},"devDependencies":{"@types/express":"^5.0.1","@types/node":"^22.0.0","typescript":"^5.9.0","vitest":"^3.2.4"}}'
     def _tsconfig(self):
-        return '{"compilerOptions":{"target":"ES2022","module":"commonjs","moduleResolution":"node","strict":true,"esModuleInterop":true,"outDir":"dist"}}'
+        return '{"compilerOptions":{"target":"ES2022","module":"commonjs","moduleResolution":"node","strict":true,"esModuleInterop":true,"skipLibCheck":true,"outDir":"dist"}}'
     def _app(self):
         return '''import express from "express";
 import type { Request, Response } from "express";

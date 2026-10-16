@@ -174,11 +174,8 @@ CMD ["node", "dist/main.js"]
     def _manifest(self):
         return CapabilityManifest(
             backend_id=self.backend_id,
-            capabilities=[BundleCapability.BUILD, BundleCapability.LINT,
-                BundleCapability.STATIC_ANALYSIS, BundleCapability.TEST,
-                BundleCapability.SECURITY_SCAN, BundleCapability.CONTAINERIZE,
-                BundleCapability.DEPLOY, BundleCapability.HEALTH_CHECK,
-                BundleCapability.OBSERVABILITY, BundleCapability.DOCUMENTATION,
-                BundleCapability.RELEASE],
+            capabilities=[BundleCapability.BUILD, BundleCapability.TEST,
+                BundleCapability.CONTAINERIZE, BundleCapability.HEALTH_CHECK,
+                BundleCapability.DOCUMENTATION],
             metadata={"language":"typescript","framework":"nestjs","style":"typed-modular"},
         )

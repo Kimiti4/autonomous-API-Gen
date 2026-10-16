@@ -20,6 +20,7 @@ def test_svelte_uses_svelte5_mount_and_real_component_test():
     assert f"const title = {json.dumps(model.system_name, ensure_ascii=True)};" in result.files["src/App.svelte"]
     assert "mount(App, { target: document.body })" in result.files["src/main.ts"]
     assert "render(App)" in result.files["src/App.test.ts"]
+    assert 'test: { environment: "jsdom" }' in result.files["vite.config.ts"]
     assert "expect(true).toBe(true)" not in result.files["src/App.test.ts"]
     assert "src/App.test.ts" in backend.build_profile(model.system_name).required_files
     assert "index.html" in backend.build_profile(model.system_name).required_files

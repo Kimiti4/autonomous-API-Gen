@@ -23,7 +23,7 @@ class ExpressBackend:
     def name(self): return self.backend_id
     def build_profile(self,system_name):
         return BackendBuildProfile(language="typescript",required_files=("package.json","tsconfig.json","src/index.ts","src/app.ts","test/app.test.ts","Dockerfile"),
-          verifier_kind="express",build_command=["npm","run","build"],test_command=["npm","test","--","--runInBand"],
+          verifier_kind="express",build_command=["npm","run","build"],test_command=["npm","test"],
           runtime_image="node:22-alpine",requires_build_phase=True)
     def build_profile_declaration(self):
         return BackendCapabilityDeclaration(backend_id=self.backend_id,artifact_kinds=[ArtifactKind.BACKEND_SERVICE],

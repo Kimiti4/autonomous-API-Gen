@@ -225,6 +225,25 @@ def test_mapping_producer_emits_canonical_ir_only_when_every_layer_is_explicit()
     assert result.canonical_mapping["api"]["operations"][0]["operation_id"] == "create_project"
     assert result.canonical_mapping["requirement_bindings"][0]["requirement_id"] == "REQ-PROJECT-001"
 
+    from app.engine.source_bound_full_stack import (
+        SourceBoundSemanticCorrespondenceVerifier, _canonical_hash,
+    )
+    from compiler.core.repository import build_repository
+    files = {"app.py": "def create_project(): return {'created': True}"}
+    mapping = dict(result.canonical_mapping)
+    provenance = dict(mapping["provenance"])
+    provenance["candidate_hash"] = build_repository(files).content_hash
+    mapping["provenance"] = provenance
+    verified = SourceBoundSemanticCorrespondenceVerifier().verify_bound(
+        {
+            "source_artifacts": snapshot,
+            "explicit_mapping": mapping,
+            "candidate_files": files,
+        },
+        build_repository(files).content_hash,
+    )
+    assert verified.passed, verified.findings
+
 
 def test_typed_effect_missing_replay_policy_blocks_full_mapping():
     artifacts = build_artifacts_for(default_corpus()[0])

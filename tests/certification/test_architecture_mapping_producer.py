@@ -247,6 +247,25 @@ def test_mapping_producer_emits_canonical_ir_only_when_every_layer_is_explicit()
     )
     assert verified.passed, verified.findings
 
+    # Re-hashing a tampered mapping must not make it appear source-derived.
+    altered = dict(mapping)
+    altered_frontend = dict(mapping["frontend"])
+    altered_frontend["routes"] = ["/unrelated-route"]
+    altered["frontend"] = altered_frontend
+    rejected = SourceBoundSemanticCorrespondenceVerifier().verify_bound(
+        {
+            "source_artifacts": snapshot,
+            "explicit_mapping": altered,
+            "candidate_files": files,
+        },
+        build_repository(files).content_hash,
+    )
+    assert not rejected.passed
+    assert any(
+        "does not equal the deterministic canonical projection" in finding
+        for finding in rejected.findings
+    )
+
 
 def test_typed_effect_missing_replay_policy_blocks_full_mapping():
     artifacts = build_artifacts_for(default_corpus()[0])

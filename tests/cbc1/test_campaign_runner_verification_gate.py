@@ -71,8 +71,49 @@ def test_default_independent_process_verifier_binds_disk_contents_to_candidate_h
     }), encoding="utf-8")
 
     verifier = _IndependentProcessVerifier()
-    assert verifier.verify(str(candidate_dir), plan_hash, str(plan_path)) is True
+    passed = verifier.verify(str(candidate_dir), plan_hash, str(plan_path))
+    assert passed.passed is True
+    assert passed.payload is not None
+    assert passed.payload["candidate_match"] is True
 
     target = candidate_dir / expected_paths[0]
     target.write_text(target.read_text(encoding="utf-8") + "\n# mutation", encoding="utf-8")
-    assert verifier.verify(str(candidate_dir), plan_hash, str(plan_path)) is False
+    failed = verifier.verify(str(candidate_dir), plan_hash, str(plan_path))
+    assert failed.passed is False
+    assert "candidate_match" in failed.detail
+    assert "stdout_tail=" in failed.detail
+
+
+
+def test_structured_verifier_failure_preserves_diagnostics():
+    from certification.campaign.runner import (
+        _IndependentVerificationResult,
+        _run_independent_verifier,
+    )
+
+    class DiagnosticVerifier:
+        def verify(self, candidate_dir, plan_hash, plan_path):
+            return _IndependentVerificationResult(
+                False,
+                "exit_code=2; missing_or_false=['candidate_match']; stderr_tail='hash mismatch'",
+                {"candidate_match": False},
+            )
+
+    passed, detail = _run_independent_verifier(
+        DiagnosticVerifier(), "/candidate", "hash", "/plan"
+    )
+    assert passed is False
+    assert "candidate_match" in detail
+    assert "hash mismatch" in detail
+
+
+def test_truthy_non_boolean_verifier_result_never_passes():
+    class TruthyVerifier:
+        def verify(self, candidate_dir, plan_hash, plan_path):
+            return {"passed": True}
+
+    passed, detail = _run_independent_verifier(
+        TruthyVerifier(), "/candidate", "hash", "/plan"
+    )
+    assert passed is False
+    assert "explicit True" in detail

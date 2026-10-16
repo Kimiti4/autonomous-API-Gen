@@ -42,13 +42,25 @@ certified = agg.get('certified', 0)
 print(f'Verdict: {verdict}')
 print(f'Reason:  {reason}')
 print(f'Result:  {certified}/{total} trials certified')
+print(f"Evidence ledger verification: {agg.get('evidence_ledger_verification_ok', agg.get('independent_verify_ok', False))}")
+full_stack = agg.get('full_stack_verification', {})
+if full_stack:
+    print(f"Full-stack semantic verification: {full_stack.get('status', 'unknown')} "
+          f"({full_stack.get('source_bound_trials_passed', 0)}/{full_stack.get('required_trials', total)} source-bound trials passed)")
+    blockers = full_stack.get('blockers', [])
+    if blockers:
+        print('Top semantic/architecture blockers:')
+        for blocker in blockers[:10]:
+            print(f'  - {blocker}')
+        if len(blockers) > 10:
+            print(f'  ... {len(blockers) - 10} additional blocker(s) in cbc1-a-aggregate.json')
 print()
 print('Category matrix:')
 for cat, backends in agg.get('category_matrix', {}).items():
     print(f'  {cat}: {backends}')
 if agg.get('failure_taxonomy_independent'):
     print()
-    print('Failure taxonomy (independent):')
+    print('Stage failure taxonomy (ledger replay):')
     for stage, count in agg['failure_taxonomy_independent'].items():
         print(f'  {stage}: {count}')
 if agg.get('independent_verify_problems'):

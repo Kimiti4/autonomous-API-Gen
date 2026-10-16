@@ -1527,13 +1527,24 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
             service_id = implementation_edge["target_id"]
             requirement_id = refs_by_id[edge["target_id"]]["properties"].get("requirement_id", edge["target_id"])
             if isinstance(requirement_id, str) and requirement_id:
-                requirement_bindings.append({
-                    "requirement_id": requirement_id,
-                    "layer": "backend",
-                    "target_id": service_id,
-                    "source_edge_id": edge["id"],
-                    "implementation_edge_id": implementation_edge["id"],
-                })
+                source_req_graph = source_snapshot.get("requirement_graph", {})
+                source_req_nodes = source_req_graph.get("nodes", {}) if isinstance(source_req_graph, Mapping) else {}
+                source_req = source_req_nodes.get(requirement_id) if isinstance(source_req_nodes, Mapping) else None
+                if isinstance(source_req, Mapping):
+                    requirement_bindings.append({
+                        "requirement_id": requirement_id,
+                        "layer": "backend",
+                        "target_id": service_id,
+                        "requirement_hash": _canonical_hash(source_req),
+                        "source_edge_id": edge["id"],
+                        "implementation_edge_id": implementation_edge["id"],
+                    })
+                else:
+                    blockers.append(ProjectionBlocker(
+                        "MAP-REQ-010",
+                        f"requirement {requirement_id!r} cannot be bound to an authoritative requirement-graph node",
+                        (requirement_id, edge["target_id"]),
+                    ))
 
     # Full mapping follows the verifier's typed five-layer contract. If any
     # required semantic field is absent, only diagnostic blockers are returned.
@@ -1549,7 +1560,99 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
         "provenance": {"source_refs": source_refs, "source_hash": source_hash, "isr_content_hash": revision.get("content_hash", "")},
         "inventory": inventory,
     }
+    # The diagnostic inventory above is intentionally not the canonical IR
+    # contract. Full-stack verification consumes only explicit, schema-complete
+    # contract payloads carried by typed ISR nodes; no list/field defaults are
+    # synthesized here.
+    canonical_blockers: list[ProjectionBlocker] = []
+    frontend_contracts = [
+        node["properties"].get("frontend_contract")
+        for node in frontend_routes
+        if isinstance(node.get("properties"), Mapping)
+        and isinstance(node["properties"].get("frontend_contract"), Mapping)
+    ]
+    api_contracts = [
+        node["properties"].get("api_contract")
+        for node in apis
+        if isinstance(node.get("properties"), Mapping)
+        and isinstance(node["properties"].get("api_contract"), Mapping)
+    ]
+    backend_contracts = [
+        node["properties"].get("backend_contract")
+        for node in services
+        if isinstance(node.get("properties"), Mapping)
+        and isinstance(node["properties"].get("backend_contract"), Mapping)
+    ]
+    effect_paths = [
+        node["properties"].get("effect_path")
+        for node in effects
+        if isinstance(node.get("properties"), Mapping)
+        and isinstance(node["properties"].get("effect_path"), Mapping)
+    ]
+    effect_consequences = [
+        node["properties"].get("effect_consequence")
+        for node in consequences
+        if isinstance(node.get("properties"), Mapping)
+        and isinstance(node["properties"].get("effect_consequence"), Mapping)
+    ]
+    for label, values in (
+        ("frontend_contract", frontend_contracts),
+        ("api_contract", api_contracts),
+        ("backend_contract", backend_contracts),
+    ):
+        if len(values) != 1:
+            canonical_blockers.append(ProjectionBlocker(
+                "MAP-IR-001",
+                f"canonical full-stack lowering requires exactly one explicit {label} payload; found {len(values)}",
+            ))
+    if len(effect_paths) != len(effects):
+        canonical_blockers.append(ProjectionBlocker(
+            "MAP-IR-002",
+            "every ISR effect must carry an explicit canonical effect_path payload",
+            tuple(node["id"] for node in effects if not isinstance(node.get("properties", {}).get("effect_path"), Mapping)),
+        ))
+    if len(effect_consequences) != len(consequences):
+        canonical_blockers.append(ProjectionBlocker(
+            "MAP-IR-003",
+            "every ISR consequence must carry an explicit canonical effect_consequence payload",
+            tuple(node["id"] for node in consequences if not isinstance(node.get("properties", {}).get("effect_consequence"), Mapping)),
+        ))
+
+    canonical_mapping = None
+    if not canonical_blockers:
+        canonical_mapping = {
+            "frontend": dict(frontend_contracts[0]),
+            "api": dict(api_contracts[0]),
+            "backend": dict(backend_contracts[0]),
+            "effects": [dict(value) for value in effect_paths],
+            "consequences": [dict(value) for value in effect_consequences],
+            "requirement_bindings": sorted(
+                requirement_bindings,
+                key=lambda item: (item["requirement_id"], item["target_id"]),
+            ),
+            "provenance": {
+                "source_refs": source_refs,
+                "source_hash": source_hash,
+                "isr_content_hash": revision.get("content_hash", ""),
+            },
+        }
+        try:
+            lowered = lower_explicit_mapping_to_full_stack_ir(canonical_mapping)
+            canonical_blockers.extend(
+                ProjectionBlocker("MAP-IR-004", finding)
+                for finding in lowered.findings
+            )
+        except (TypeError, ValueError, KeyError) as exc:
+            canonical_blockers.append(ProjectionBlocker(
+                "MAP-IR-005",
+                f"canonical mapping validation failed closed: {type(exc).__name__}: {exc}",
+            ))
+        if canonical_blockers:
+            canonical_mapping = None
+
     return ArchitectureMappingProduction(
         mapping=explicit_mapping if not blockers else None,
         blockers=tuple(blockers),
+        canonical_mapping=canonical_mapping,
+        canonical_blockers=tuple(canonical_blockers),
     )

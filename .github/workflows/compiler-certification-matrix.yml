@@ -15,6 +15,7 @@ on:
 jobs:
   compiler-matrix:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -27,6 +28,40 @@ jobs:
           pip install pytest
       - name: Resolve compiler matrix
         run: pytest -q tests/certification/test_compiler_matrix_certification.py
+      - name: Set up Node.js for generated frontend execution
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Generate, install, test, and production-build frontend targets
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from tiannara.application.compiler.composition import build_compiler_registry
+          from tiannara.application.compiler.writer import write_bundle
+          from tiannara.domain.models.system_model import RequirementsReference, SystemModel
+
+          registry = build_compiler_registry()
+          model = SystemModel(
+              system_name='ESAP Frontend CI Smoke',
+              problem_statement='Execute generated frontend build and behavior tests',
+              requirements_ref=RequirementsReference(graph_id='ci-frontend', graph_hash='ci-frontend'),
+          )
+          root = Path('/tmp/esap-generated-frontends')
+          for backend_id in ('react_ts', 'vue_ts', 'angular_ts', 'next_ts', 'nuxt_ts', 'svelte_ts'):
+              bundle = registry.backend(backend_id).generate(model)
+              write_bundle(bundle, str(root / backend_id))
+              print(f'Generated {backend_id}: {len(bundle.files)} files')
+          PY
+          set -euo pipefail
+          for target in react_ts vue_ts angular_ts next_ts nuxt_ts svelte_ts; do
+            echo "=== $target: install dependencies ==="
+            cd "/tmp/esap-generated-frontends/$target"
+            npm install --no-audit --no-fund --no-progress
+            echo "=== $target: meaningful generated tests ==="
+            npm test
+            echo "=== $target: production build ==="
+            NEXT_TELEMETRY_DISABLED=1 npm run build
+          done
       - name: Test execution prerequisites, candidate binding, and frontend generation
         run: |
           pytest -q \

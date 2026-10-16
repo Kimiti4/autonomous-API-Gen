@@ -1106,11 +1106,14 @@ class SourceBoundSemanticCorrespondenceVerifier:
                 # Semantic correspondence must prove complete requirement
                 # coverage and typed target bindings, not merely hash identity.
                 for blocker in _validate_requirement_coverage(source_dict, mapping):
-                    findings.append(f"requirement coverage: {blocker.code}: {blocker.message}")
+                    refs = f" source_refs={blocker.source_refs}" if blocker.source_refs else ""
+                    findings.append(f"requirement coverage: {blocker.code}: {blocker.message}{refs}")
                 for blocker in _validate_typed_requirement_bindings(source_dict, mapping):
-                    findings.append(f"typed requirement binding: {blocker.code}: {blocker.message}")
+                    refs = f" source_refs={blocker.source_refs}" if blocker.source_refs else ""
+                    findings.append(f"typed requirement binding: {blocker.code}: {blocker.message}{refs}")
                 for blocker in _validate_semantic_obligations(source_dict, mapping):
-                    findings.append(f"semantic obligation: {blocker.code}: {blocker.message}")
+                    refs = f" source_refs={blocker.source_refs}" if blocker.source_refs else ""
+                    findings.append(f"semantic obligation: {blocker.code}: {blocker.message}{refs}")
             try:
                 lowered = lower_explicit_mapping_to_full_stack_ir(mapping)
                 findings.extend(lowered.findings)

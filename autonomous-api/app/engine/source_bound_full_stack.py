@@ -1471,7 +1471,23 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
             blockers.append(ProjectionBlocker("MAP-REQ-008", f"requirement {requirement_id!r} maps to a non-service implementation target", (requirement["id"], implementation_edges[0]["id"])))
             continue
 
-        requirement_kind = str(props.get("requirement_kind", props.get("kind", "functional"))).lower()
+        nested_source_properties = props.get("properties", {})
+        nested_source_properties = nested_source_properties if isinstance(nested_source_properties, Mapping) else {}
+        requirement_kind = str(
+            props.get(
+                "obligation_kind",
+                props.get(
+                    "semantic_kind",
+                    nested_source_properties.get(
+                        "obligation_kind",
+                        nested_source_properties.get(
+                            "semantic_kind",
+                            props.get("requirement_kind", props.get("kind", "functional")),
+                        ),
+                    ),
+                ),
+            )
+        ).lower()
         enforcement_targets: list[dict[str, str]] = []
         if requirement_kind in {"authorization", "security", "rbac", "abac"}:
             linked_policy_edges = [
@@ -1506,7 +1522,9 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
         else:
             enforcement_targets.append({"kind": "service", "id": service["id"]})
 
-        verification_method = props.get("verification_method")
+        verification_method = props.get(
+            "verification_method", nested_source_properties.get("verification_method")
+        )
         if not isinstance(verification_method, str) or not verification_method.strip():
             blockers.append(ProjectionBlocker("MAP-REQ-009", f"requirement {requirement_id!r} lacks a verification method", (requirement["id"],)))
         requirement_obligations.append({

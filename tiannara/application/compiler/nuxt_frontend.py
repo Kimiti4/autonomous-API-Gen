@@ -38,7 +38,7 @@ class NuxtFrontend:
           "README.md":f"# {model.system_name}\n\nGenerated from the technology-neutral ISR.\n"
         },capability_manifest=self._manifest())
     def _package(self):
-        return '{"name":"esap-nuxt-app","private":true,"version":"0.1.0","scripts":{"build":"nuxt build","test":"vitest run"},"dependencies":{"nuxt":"^4.0.0","vue":"^3.5.0"},"devDependencies":{"typescript":"^5.9.0","vitest":"^3.2.4","@vitejs/plugin-vue":"^6.0.0","@vue/test-utils":"^2.4.6","jsdom":"^26.1.0"}}'
+        return '{"name":"esap-nuxt-app","private":true,"version":"0.1.0","scripts":{"build":"nuxt build","test":"vitest run"},"dependencies":{"nuxt":"^4.0.0","vue":"^3.5.0"},"devDependencies":{"typescript":"^5.9.0","@types/node":"^22.0.0","vitest":"^3.2.4","@vitejs/plugin-vue":"^6.0.0","@vue/test-utils":"^2.4.6","jsdom":"^26.1.0"}}'
     def _vitest_config(self):
         return 'import { defineConfig } from "vitest/config";\nimport vue from "@vitejs/plugin-vue";\nexport default defineConfig({ plugins: [vue()], test: { environment: "jsdom" } });\n'
     def _test(self):

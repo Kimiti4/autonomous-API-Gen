@@ -44,11 +44,11 @@ class VueFrontend:
           "src/App.test.ts":self._test(),"README.md":f"# {model.system_name}\n\nGenerated from the technology-neutral ISR.\n"
         },capability_manifest=self._manifest())
     def _package(self):
-        return '{"name":"esap-vue-app","private":true,"version":"0.1.0","scripts":{"build":"vue-tsc --noEmit && vite build","test":"vitest run"},"dependencies":{"vue":"^3.5.0","vite":"^7.0.0","typescript":"^5.9.0","vue-tsc":"^2.2.0","vitest":"^3.0.0","@vitejs/plugin-vue":"^6.0.0","@vue/test-utils":"^2.4.6","jsdom":"^26.1.0"}}'
+        return '{"name":"esap-vue-app","private":true,"version":"0.1.0","scripts":{"build":"vue-tsc --noEmit && vite build","test":"vitest run"},"dependencies":{"vue":"^3.5.0","vite":"^7.0.0","typescript":"^5.9.0","vue-tsc":"^2.2.0","vitest":"^3.0.0","@vitejs/plugin-vue":"^6.0.0","@types/node":"^22.0.0","@vue/test-utils":"^2.4.6","jsdom":"^26.1.0"}}'
     def _vite_config(self):
         return 'import { defineConfig } from "vite";\nimport vue from "@vitejs/plugin-vue";\nexport default defineConfig({ plugins: [vue()] });\n'
     def _tsconfig(self):
-        return '{"compilerOptions":{"target":"ES2022","module":"ESNext","moduleResolution":"Bundler","strict":true,"noEmit":true}}'
+        return '{"compilerOptions":{"target":"ES2022","module":"ESNext","moduleResolution":"Bundler","strict":true,"noEmit":true,"skipLibCheck":true}}'
     def _main(self):
         return 'import { createApp } from "vue";\nimport App from "./App.vue";\ncreateApp(App).mount("#app");\n'
     def _app(self,model):

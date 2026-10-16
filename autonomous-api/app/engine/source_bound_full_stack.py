@@ -1236,6 +1236,84 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
             "MAP-REQ-000", "ISR contains no authoritative requirement references to bind architecture against",
         ))
 
+    # Verify that each carried ISR requirement ref is an exact semantic
+    # projection of the authoritative RequirementGraph node, and that source
+    # relationships survived with their typed endpoints.
+    requirement_graph = source_snapshot.get("requirement_graph")
+    source_requirement_nodes = (
+        requirement_graph.get("nodes", {})
+        if isinstance(requirement_graph, Mapping) else {}
+    )
+    if isinstance(source_requirement_nodes, Mapping) and source_requirement_nodes:
+        isr_requirement_by_source_id = {
+            item["properties"].get("requirement_id", item["id"]): item
+            for item in requirements
+        }
+        missing_requirement_refs = sorted(
+            set(source_requirement_nodes) - set(isr_requirement_by_source_id)
+        )
+        if missing_requirement_refs:
+            blockers.append(ProjectionBlocker(
+                "MAP-REQ-011",
+                "authoritative requirement nodes were lost before ISR projection",
+                tuple(str(value) for value in missing_requirement_refs),
+            ))
+        for source_id, source_requirement in source_requirement_nodes.items():
+            ref_node = isr_requirement_by_source_id.get(source_id)
+            if ref_node is None or not isinstance(source_requirement, Mapping):
+                continue
+            props = ref_node["properties"]
+            expected_values = {
+                "semantic_content": source_requirement.get("statement"),
+                "requirement_kind": source_requirement.get("kind"),
+                "priority": source_requirement.get("priority"),
+                "acceptance_criteria": list(source_requirement.get("acceptance_criteria", ())),
+                "source_refs": list(source_requirement.get("source_refs", ())),
+                "resolution_ref": source_requirement.get("resolution_ref"),
+            }
+            mismatches = [
+                key for key, expected in expected_values.items()
+                if props.get(key) != expected
+            ]
+            if mismatches:
+                blockers.append(ProjectionBlocker(
+                    "MAP-REQ-012",
+                    f"ISR requirement ref {ref_node['id']!r} differs from authoritative source fields: {mismatches}",
+                    (str(source_id), ref_node["id"]),
+                ))
+
+        source_requirement_edges = requirement_graph.get("edges", {})
+        if isinstance(source_requirement_edges, Mapping):
+            relation_types = {
+                "depends_on": "requirement_depends_on",
+                "conflicts_with": "requirement_conflicts_with",
+                "refines": "requirement_refines",
+                "owned_by": "requirement_owned_by",
+            }
+            for edge_key, source_edge in source_requirement_edges.items():
+                if not isinstance(source_edge, Mapping):
+                    blockers.append(ProjectionBlocker(
+                        "MAP-REQ-013",
+                        f"authoritative requirement edge {edge_key!r} is malformed",
+                    ))
+                    continue
+                expected_id = f"requirement:{source_edge.get('id', edge_key)}"
+                actual = next((edge for edge in edge_records if edge["id"] == expected_id), None)
+                expected_type = relation_types.get(str(source_edge.get("type", "")).split(".")[-1].lower())
+                expected_source = f"requirement_ref:{source_edge.get('source_id', '')}"
+                expected_target = f"requirement_ref:{source_edge.get('target_id', '')}"
+                if (
+                    actual is None or expected_type is None
+                    or actual["type"] != expected_type
+                    or actual["source_id"] != expected_source
+                    or actual["target_id"] != expected_target
+                ):
+                    blockers.append(ProjectionBlocker(
+                        "MAP-REQ-014",
+                        f"authoritative requirement relationship {edge_key!r} was not preserved exactly",
+                        (expected_id, expected_source, expected_target),
+                    ))
+
     # The ISR graph currently carries API node identity but not necessarily
     # operation-level method/path/schema/error/idempotency contracts.
     for api in apis:

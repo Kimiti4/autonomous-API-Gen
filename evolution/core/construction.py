@@ -46,4 +46,8 @@ class ReferenceGenomeConstructor:
                 genes={"style": Gene(gene_id="style", decision="protocol", value="event-driven")},
             )
 
-        return Genome(system_id=isr.system_id, chromosomes=chroms)
+        return Genome(
+            system_id=isr.system_id,
+            chromosomes=chroms,
+            source_graph=isr.graph.model_dump(mode="json"),
+        )

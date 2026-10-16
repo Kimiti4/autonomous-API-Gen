@@ -4,7 +4,7 @@ from __future__ import annotations
 from genesis.mapper import ReferenceDeterministicMapper
 from isr.core.identity import Provenance
 from isr.core.revision import ISRRevision
-from reqgraph.core.graph import Priority, RequirementGraph, RequirementKind, RequirementNode
+from reqgraph.core.graph import Priority, RequirementEdge, RequirementEdgeType, RequirementGraph, RequirementKind, RequirementNode
 from evolution.core.construction import ReferenceGenomeConstructor
 from evolution.core.materialize import ReferenceGenomeMaterializer
 from evolution.core.operations import ReferenceCrossoverOperator, ReferenceMutationOperator
@@ -20,7 +20,25 @@ def _revision(statement: str = "authenticate users") -> ISRRevision:
         acceptance_criteria=["valid credentials create a session"],
         source_refs=["spec:auth#1"],
     )
-    graph = RequirementGraph(schema_version="1.0", nodes={requirement.id: requirement})
+    domain = RequirementNode(
+        id="req-domain",
+        kind=RequirementKind.DOMAIN_CONCEPT,
+        statement="user identity",
+        priority=Priority.MUST,
+        source_refs=["spec:identity#1"],
+    )
+    graph = RequirementGraph(
+        schema_version="1.0",
+        nodes={requirement.id: requirement, domain.id: domain},
+        edges={
+            "refines-auth": RequirementEdge(
+                id="refines-auth",
+                type=RequirementEdgeType.REFINES,
+                source_id="req-auth",
+                target_id="req-domain",
+            )
+        },
+    )
     genesis = ReferenceDeterministicMapper().map(graph, "map-1.0")
     return ISRRevision.create(
         system_id="semantic-preservation-test",
@@ -49,6 +67,11 @@ def test_requirement_semantics_survive_genome_and_isr_materialization() -> None:
     edge = materialized.edges["satisfies:req-auth"]
     assert edge.source_id == "capability:req-auth"
     assert edge.target_id == "requirement_ref:req-auth"
+    implementation = materialized.edges["implemented-by:req-auth"]
+    assert implementation.source_id == "capability:req-auth"
+    assert implementation.target_id == "service:req-domain"
+    assert implementation.properties["derived_from_requirement_edge"] == "requirement:refines-auth"
+    assert materialized.nodes["service:req-domain"].properties["responsibility"] == "user identity"
 
 
 def test_crossover_preserves_shared_source_semantic_substrate() -> None:
@@ -57,6 +80,7 @@ def test_crossover_preserves_shared_source_semantic_substrate() -> None:
     materialized = ReferenceGenomeMaterializer().materialize(child)
     assert "requirement_ref:req-auth" in materialized.nodes
     assert "satisfies:req-auth" in materialized.edges
+    assert "implemented-by:req-auth" in materialized.edges
 
 
 def test_crossover_rejects_different_source_semantic_substrates() -> None:

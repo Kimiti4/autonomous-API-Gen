@@ -46,4 +46,4 @@ class NextFrontend:
     def _test(self):
         return 'import { describe, it, expect } from "vitest";\nimport { renderToStaticMarkup } from "react-dom/server";\nimport Page from "./page";\ndescribe("generated Next page",()=>{it("renders page content",()=>{const markup=renderToStaticMarkup(<Page />);expect(markup).toContain("<h1>");expect(markup).toContain("Generated application");});});\n'
     def _manifest(self):
-        return CapabilityManifest(backend_id=self.backend_id,capabilities=[BundleCapability.BUILD,BundleCapability.LINT,BundleCapability.STATIC_ANALYSIS,BundleCapability.TEST,BundleCapability.SECURITY_SCAN,BundleCapability.DOCUMENTATION,BundleCapability.RELEASE],metadata={"language":"typescript","framework":"next"})
+        return CapabilityManifest(backend_id=self.backend_id,capabilities=[BundleCapability.BUILD, BundleCapability.TEST, BundleCapability.DOCUMENTATION],metadata={"language":"typescript","framework":"next"})

@@ -84,3 +84,37 @@ def test_allows_mkdtemp_materialization():
         """
     )
     assert v == []
+
+
+def test_allows_safe_candidate_path_materialization():
+    # _safe_candidate_path(d, p) over a mkdtemp workspace is provenance-safe
+    # forward artifact creation, exactly like os.path.join on that workspace.
+    v = _probe(
+        """
+        import os, tempfile
+        from certification.campaign.runner import _safe_candidate_path
+        def build(repo):
+            d = tempfile.mkdtemp(prefix="cbc1-x-")
+            for p, c in repo.files.items():
+                full = _safe_candidate_path(d, p)
+                os.makedirs(os.path.dirname(full), exist_ok=True)
+                with open(full, "w", encoding="utf-8") as fh:
+                    fh.write(c)
+        """
+    )
+    assert v == []
+
+
+def test_catches_safe_candidate_path_over_untrusted_root():
+    # The sanitizer itself must not launder writes rooted outside a
+    # benign temp/evidence expression.
+    v = _probe(
+        """
+        from certification.campaign.runner import _safe_candidate_path
+        def rematerialize(trial_dir):
+            full = _safe_candidate_path(trial_dir, "candidate/app.py")
+            with open(full, "w", encoding="utf-8") as fh:
+                fh.write("patched")
+        """
+    )
+    assert v

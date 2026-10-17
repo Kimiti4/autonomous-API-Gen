@@ -90,8 +90,18 @@ class ExpressBackendCompiler:
             GeneratedArtifact(
                 "test/health.test.js",
                 "const test = require('node:test');\n"
-                "const assert = require('node:assert');\n"
-                "test('health contract exists', () => assert.ok(true));\n",
+                "const assert = require('node:assert/strict');\n"
+                "const app = require('../app');\n"
+                "test('GET /health returns the live health contract', async (t) => {\n"
+                "  const server = app.listen(0, '127.0.0.1');\n"
+                "  t.after(() => new Promise((resolve, reject) => server.close((err) => err ? reject(err) : resolve())));\n"
+                "  await new Promise((resolve, reject) => { server.once('listening', resolve); server.once('error', reject); });\n"
+                "  const address = server.address();\n"
+                "  assert.ok(address && typeof address === 'object');\n"
+                "  const response = await fetch('http://127.0.0.1:' + address.port + '/health');\n"
+                "  assert.equal(response.status, 200);\n"
+                "  assert.deepEqual(await response.json(), { status: 'ok' });\n"
+                "});\n",
                 "test",
             ),
         )

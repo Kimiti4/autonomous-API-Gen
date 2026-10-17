@@ -220,10 +220,10 @@ def test_default_corpus_covers_all_categories():
 
 
 # ---------------------------------------------------------------------------
-# Full stub trial (compile → all stub stages → CERTIFIED)
+# Unconfigured execution stages must never produce CERTIFIED
 # ---------------------------------------------------------------------------
 
-def test_full_stub_trial_certified():
+def test_full_stub_trial_not_certified():
     runner = CampaignRunner()
     plan = _plan()
     backend = _backend()
@@ -235,9 +235,31 @@ def test_full_stub_trial_certified():
         revision_id="rev1",
         backend=backend,
     )
-    assert trial.verdict == "CERTIFIED"
+    assert trial.verdict == "NOT_CERTIFIED"
     assert len(trial.stages) == 8
-    assert all(se.passed for se in trial.stages)
+    by_stage = {se.stage: se for se in trial.stages}
+    assert by_stage[TrialStage.STRUCTURAL].passed
+    assert by_stage[TrialStage.SEMANTIC].passed
+    for stage in (
+        TrialStage.BUILD, TrialStage.TEST, TrialStage.DEPLOY,
+        TrialStage.RUNTIME, TrialStage.DESTROY, TrialStage.VERIFY,
+    ):
+        assert not by_stage[stage].passed
+        # Every failed stage must declare its fail-closed mode explicitly:
+        # unconfigured adapter, upstream skip, not-applicable cleanup, or an
+        # unavailable verification gate — never a silent or blank pass.
+        detail = by_stage[stage].detail
+        assert (
+            "not_configured" in detail
+            or "skipped" in detail
+            or "not_applicable" in detail
+            or "unavailable" in detail
+        ), detail
+    # The verify stage evaluates all three mandatory gates even on a stub.
+    verify_detail = by_stage[TrialStage.VERIFY].detail
+    assert "independent=" in verify_detail
+    assert "full_stack=" in verify_detail
+    assert "semantic_correspondence=" in verify_detail
     assert trial.metrics.isr_semantic_conformance == 1.0
     assert trial.backend == "python-fastapi"
 
@@ -264,7 +286,12 @@ def test_independent_verify_separate_process():
     ).hexdigest()
     plan_path = os.path.join(d, ".plan.json")
     with open(plan_path, "w") as f:
-        json.dump({"expected_paths": sorted(ep.values())}, f)
+        json.dump({
+            "expected_paths": sorted(ep.values()),
+            "candidate_hash": repo.content_hash,
+            "backend_name": backend.identity().name,
+            "plan": plan.model_dump(mode="json"),
+        }, f)
 
     result = subprocess.run(
         [sys.executable, "-m", "certification.stages.independent_verify", d, plan_hash, plan_path],
@@ -272,10 +299,56 @@ def test_independent_verify_separate_process():
         text=True,
         cwd=os.path.join(os.path.dirname(__file__), "..", ".."),
     )
-    assert result.returncode == 0
+    assert result.returncode == 0, result.stdout + result.stderr
     data = json.loads(result.stdout)
     assert data["independent"] is True
     assert data["plan_match"] is True
+    # The separate process must rebind the candidate digest, not just paths.
+    assert data["candidate_match"] is True
+    assert data["conformance_passed"] is True
 
 
 import subprocess
+
+
+
+def test_campaign_runner_records_full_stack_gate_against_candidate():
+    class _Result:
+        passed = True
+        findings = ()
+        candidate_hash = ""
+
+    class _FullStackVerifier:
+        def __init__(self):
+            self.calls = 0
+
+        def verify_bound(self, inputs, candidate_hash):
+            self.calls += 1
+            result = _Result()
+            result.candidate_hash = candidate_hash
+            return result
+
+    verifier = _FullStackVerifier()
+    runner = CampaignRunner(full_stack_verifier=verifier)
+    trial = runner.run_trial(
+        intent="candidate-binding-test",
+        category="api",
+        novelty_class="template",
+        plan=_plan(),
+        revision_id="rev-candidate-binding",
+        backend=_backend(),
+        full_stack_inputs=("frontend-ir", "api-contract-ir", "backend-ir", (), ()),
+    )
+
+    verify = next(stage for stage in trial.stages if stage.stage == TrialStage.VERIFY)
+    assert verifier.calls == 1
+    assert "full-stack verification passed with matching candidate binding" in verify.detail
+    assert "candidate_hash=" in verify.detail
+    # Independent generated-candidate verification remains mandatory and now
+    # runs by default. With no source/mapping inputs the semantic
+    # correspondence gate must still fail closed, so the verify stage as a
+    # whole cannot pass and the trial cannot certify.
+    assert "independent=[independent verification passed]" in verify.detail
+    assert "semantic correspondence unavailable" in verify.detail
+    assert verify.passed is False
+    assert trial.verdict == "NOT_CERTIFIED"

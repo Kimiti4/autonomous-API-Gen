@@ -920,6 +920,29 @@ def _validate_typed_requirement_bindings(
 
 
 
+_API_OBLIGATION_TERMS: tuple[str, ...] = (
+    "api", "endpoint", "http", "rest", "request", "response",
+    "route", "pagination", "openapi",
+)
+_API_OBLIGATION_PATTERN = re.compile(
+    r"\b(?:%s)\b" % "|".join(re.escape(term) for term in _API_OBLIGATION_TERMS),
+    re.IGNORECASE,
+)
+
+
+def statement_requires_api_binding(statement: str) -> bool:
+    """Classify a requirement statement as an API-surface obligation.
+
+    Shared by the canonical mapping producer (binding layer selection) and the
+    semantic obligation verifier so both sides classify identically and a
+    statement can never be demanded into one layer while the producer only
+    emits another. Matching is word-boundary based: plural domain seeds such
+    as "routes" or "requests" are not API obligations, while genuine API
+    statements ("The API endpoint returns item details") remain matched.
+    """
+    return bool(statement) and _API_OBLIGATION_PATTERN.search(statement) is not None
+
+
 def _validate_semantic_obligations(source: Mapping[str, Any], mapping: Mapping[str, Any]) -> tuple[ProjectionBlocker, ...]:
     """Enforce minimum typed architecture obligations; linkage is not proof."""
     graph = source.get("requirement_graph")
@@ -960,7 +983,7 @@ def _validate_semantic_obligations(source: Mapping[str, Any], mapping: Mapping[s
         if target is None:
             continue
         auth = any(x in statement for x in ("authorization", "authorisation", "permission", "role-based", "rbac", "access control", "only the owner", "only administrators", "authorized users", "authorised users"))
-        api = any(x in statement for x in ("api", "endpoint", "http", "rest", "request", "response", "route", "pagination", "openapi"))
+        api = statement_requires_api_binding(statement)
         integrity = any(x in statement for x in ("must not", "unique", "invariant", "consistency", "integrity", "cannot be empty", "cannot exceed", "foreign key", "atomic"))
         if auth:
             policies = target.get("security_boundaries", target.get("policies", target.get("security_policies")))
@@ -1674,10 +1697,27 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
                 source_req_nodes = source_req_graph.get("nodes", {}) if isinstance(source_req_graph, Mapping) else {}
                 source_req = source_req_nodes.get(requirement_id) if isinstance(source_req_nodes, Mapping) else None
                 if isinstance(source_req, Mapping):
+                    # Traceability stays fully typed (satisfies -> capability ->
+                    # implemented_by -> service). The binding LAYER is chosen
+                    # with the same obligation classification the verifier
+                    # applies: an API-surface obligation must surface the API
+                    # contract object as its binding target; every other
+                    # obligation surfaces the implementing service.
+                    layer, target_id = "backend", service_id
+                    if statement_requires_api_binding(str(source_req.get("statement", ""))):
+                        for api_node in apis:
+                            api_contract = api_node.get("properties", {}).get("api_contract")
+                            contract_id = (
+                                api_contract.get("contract_id")
+                                if isinstance(api_contract, Mapping) else None
+                            )
+                            if isinstance(contract_id, str) and contract_id:
+                                layer, target_id = "api", contract_id
+                                break
                     requirement_bindings.append({
                         "requirement_id": requirement_id,
-                        "layer": "backend",
-                        "target_id": service_id,
+                        "layer": layer,
+                        "target_id": target_id,
                         "requirement_hash": _canonical_hash(source_req),
                         "source_edge_id": edge["id"],
                         "implementation_edge_id": implementation_edge["id"],

@@ -22,6 +22,10 @@ WRITE_MODES = {"w", "wb", "w+", "wt", "a", "ab", "a+", "at"}
 ALLOWED_PATH_CALLS = ("ledger_path_for", "aggregate_path_for", "bundle_path_for", "portpool_path_for")
 EVIDENCE_LITERAL_PREFIXES = ("release/evidence", "evidence/", ".tiannara/")
 TEMP_FACTORY_CALLS = ("mkdtemp", "mkstemp", "TemporaryDirectory")
+# Provenance-safe path resolvers: like os.path.join, they only stay benign
+# when at least one argument is already a benign (temp/evidence) expression;
+# otherwise the result is untrusted and writes through it remain violations.
+PATH_SANITIZERS = ("_safe_candidate_path",)
 
 
 class _ModuleScan(ast.NodeVisitor):
@@ -72,8 +76,12 @@ class _ModuleScan(ast.NodeVisitor):
                 if self._is_benign_expr(source):
                     self.benign_vars.add(t.id)
                 elif (isinstance(source, ast.Call)
-                        and isinstance(source.func, ast.Attribute)
-                        and source.func.attr == "join"
+                        and (
+                            (isinstance(source.func, ast.Attribute)
+                             and source.func.attr == "join")
+                            or (isinstance(source.func, ast.Name)
+                                and source.func.id in PATH_SANITIZERS)
+                        )
                         and any(self._is_benign_expr(a) for a in source.args)):
                     self.benign_vars.add(t.id)
 

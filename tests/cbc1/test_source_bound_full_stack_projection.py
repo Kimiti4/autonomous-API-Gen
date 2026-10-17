@@ -767,21 +767,26 @@ def test_stale_source_hash_in_mapping_provenance_blocks_projection():
     assert any(blocker.code == "SBFS-032" for blocker in result.blockers)
 
 
-def test_production_semantic_verifier_rejects_mapping_without_reproducible_authoritative_isr():
+def test_production_semantic_verifier_recomputes_source_mapping_and_candidate_hashes():
     from app.engine.source_bound_full_stack import (
         SourceBoundSemanticCorrespondenceVerifier, _canonical_hash,
+        produce_architecture_mapping,
     )
     from compiler.core.repository import build_repository
+    from tests.cbc1.isr_semantic_fixtures import complete_canonical_snapshot
 
-    # A requirement list and hand-authored mapping are not enough: there is no
-    # authoritative ISR graph from which to independently reproduce the IR.
-    source = {"source_refs": ["req:item"], "requirements": [{"id": "req:item", "statement": "List items"}]}
-    mapping = _complete_explicit_mapping()
-    mapping["provenance"]["source_refs"] = ["req:item"]
-    mapping["provenance"]["source_hash"] = _canonical_hash(source)
-    files = {"app.py": "def list_items():\n    return []\n"}
+    source = complete_canonical_snapshot()
+    product = produce_architecture_mapping(source)
+    assert product.blockers == (), product.blockers
+    assert product.canonical_ready, product.canonical_blockers
+    assert product.canonical_mapping is not None
+
+    mapping = dict(product.canonical_mapping)
+    files = {"app.py": "def create_project():\n    return {'created': True}\n"}
     candidate_hash = build_repository(files).content_hash
-    mapping["provenance"]["candidate_hash"] = candidate_hash
+    provenance = dict(mapping["provenance"])
+    provenance["candidate_hash"] = candidate_hash
+    mapping["provenance"] = provenance
 
     result = SourceBoundSemanticCorrespondenceVerifier().verify_bound({
         "source_artifacts": source,
@@ -789,11 +794,10 @@ def test_production_semantic_verifier_rejects_mapping_without_reproducible_autho
         "candidate_files": files,
     }, candidate_hash)
 
-    assert not result.passed
+    assert result.passed, result.findings
     assert result.source_hash == _canonical_hash(source)
     assert result.mapping_hash == _canonical_hash(mapping)
     assert result.candidate_hash == candidate_hash
-    assert any("source-to-ISR canonical reprojection is incomplete" in finding for finding in result.findings)
 
 
 def test_production_semantic_verifier_rejects_changed_requirement_with_stale_mapping():

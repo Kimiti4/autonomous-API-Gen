@@ -33,12 +33,13 @@ class SpringBootBackend:
     def build_profile(self, system_name: str) -> BackendBuildProfile:
         return BackendBuildProfile(
             language="java",
-            required_files=("pom.xml", "pom.xml", "src/main/java/com/generated/Application.java",
-                            "src/main/java/com/generated/HealthController.java"),
+            required_files=("pom.xml", "src/main/java/com/generated/Application.java",
+                            "src/main/java/com/generated/HealthController.java",
+                            "src/test/java/com/generated/ApplicationTest.java"),
             verifier_kind="spring_boot",
             build_command=["mvn", "test"],
             test_command=["mvn", "test"],
-            runtime_image="eclipse-temurin:21-jre",
+            runtime_image="maven:3.9-eclipse-temurin-21",
             requires_build_phase=True,
         )
 
@@ -66,9 +67,8 @@ class SpringBootBackend:
             "pom.xml": self._pom(),
             "src/main/java/com/generated/Application.java": self._application(),
             "src/main/java/com/generated/HealthController.java": self._health(),
-            "src/main/java/com/generated/domain/Models.java": self._models(model),
+            **self._model_files(model),
             "src/test/java/com/generated/ApplicationTest.java": self._test(),
-            "mvnw": self._mvnw(),
             "Dockerfile": self._dockerfile(),
             "README.md": f"# {model.system_name}\n\nGenerated from the technology-neutral ISR.\n",
         }, capability_manifest=self._manifest())
@@ -104,41 +104,52 @@ import org.springframework.web.bind.annotation.RestController;
  }
 }'''
 
-    def _models(self, model):
-        out=["package com.generated.domain;","import java.util.*;"]
+    def _model_files(self, model):
+        files = {}
         for dm in model.data_models:
-            out.append(f"public class {pascal_case(dm.name)} {{")
+            fields = []
             for field in dm.fields:
-                typ=_TYPES.get(field.type,"String")
-                out.append(f" private {typ} {field.name};")
-            out.append("}")
-        return "\n".join(out)
+                typ = _TYPES.get(field.type, "String")
+                fields.append(f" private {typ} {field.name};")
+            body = "package com.generated.domain;\nimport java.util.*;\npublic class " + pascal_case(dm.name) + " {\n" + "\n".join(fields) + "\n}\n"
+            files[f"src/main/java/com/generated/domain/{pascal_case(dm.name)}.java"] = body
+        return files
 
     def _test(self):
         return '''package com.generated;
 import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-class ApplicationTest { @Test void generatedContractExists(){ assertTrue(true); } }'''
-
-    def _mvnw(self):
-        return "#!/bin/sh\nexec mvn \"$@\"\n"
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.web.servlet.MockMvc;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+@SpringBootTest
+@AutoConfigureMockMvc
+class ApplicationTest {
+ @Autowired MockMvc mockMvc;
+ @Test void healthEndpointReturnsOk() throws Exception {
+  mockMvc.perform(get("/health")).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("ok"));
+ }
+}'''
 
     def _dockerfile(self):
-        return '''FROM eclipse-temurin:21-jdk AS build
+        return '''FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /app
-COPY . .
-RUN ./mvnw test || mvn test
-RUN mvn package -DskipTests
+COPY pom.xml .
+RUN mvn -q -DskipTests dependency:go-offline
+COPY src ./src
+RUN mvn test && mvn package -DskipTests
 FROM eclipse-temurin:21-jre
 WORKDIR /app
-COPY --from=build /app/target/*.jar app.jar
+COPY --from=build /app/target/esap-app-0.1.0.jar app.jar
 EXPOSE 8000
 ENTRYPOINT ["java","-jar","app.jar"]'''
 
+
     def _manifest(self):
         return CapabilityManifest(backend_id=self.backend_id, capabilities=[
-            BundleCapability.BUILD,BundleCapability.LINT,BundleCapability.STATIC_ANALYSIS,
-            BundleCapability.TEST,BundleCapability.SECURITY_SCAN,BundleCapability.CONTAINERIZE,
-            BundleCapability.DEPLOY,BundleCapability.HEALTH_CHECK,BundleCapability.OBSERVABILITY,
-            BundleCapability.DOCUMENTATION,BundleCapability.RELEASE],
+            BundleCapability.BUILD,BundleCapability.TEST,BundleCapability.CONTAINERIZE,
+            BundleCapability.HEALTH_CHECK,BundleCapability.DOCUMENTATION],
             metadata={"language":"java","framework":"spring-boot","style":"typed-modular"})

@@ -371,8 +371,8 @@ def test_market_evidence_confidence_clamped_to_max():
     assert result.confidence <= 1.0
 
 
-def test_compilation_dry_run():
-    executor = CompilationExecutor()
+def test_compilation_dry_run_is_never_reported_as_success():
+    executor = CompilationExecutor(gateway=DryRunCompilerGateway())
 
     report = executor.execute(
         product_id="product_1",
@@ -383,9 +383,45 @@ def test_compilation_dry_run():
         },
     )
 
-    assert report.success is True
-    assert report.artifact_count > 0
+    assert report.success is False
+    assert report.artifact_count == 0
     assert len(report.jobs) == 5
+    assert all(job.status == "DRY_RUN" for job in report.jobs)
+    assert all(job.artifacts == [] for job in report.jobs)
+    assert all(any("Planned only:" in line for line in job.logs) for job in report.jobs)
+
+
+class _EmptyOutputGateway:
+    def compile_isr(self, isr, backend_id, environment):
+        return {"artifacts": [], "logs": []}
+
+
+def test_gateway_with_empty_output_cannot_claim_compilation_success():
+    report = CompilationExecutor(gateway=_EmptyOutputGateway()).execute(
+        product_id="product_1",
+        isr={"name": "Test Product"},
+    )
+
+    assert report.success is False
+    assert report.artifact_count == 0
+    assert len(report.missing_required_backends) == 5
+    assert all(job.status == "UNKNOWN" for job in report.jobs)
+    assert all(job.evidence_status == "MISSING" for job in report.jobs)
+    assert all("Execution success was not accepted" in job.logs[-1] for job in report.jobs)
+
+
+def test_default_compiler_gateway_fails_closed_without_real_backend():
+    report = CompilationExecutor().execute(
+        product_id="product_1",
+        isr={"name": "Test Product"},
+    )
+
+    assert report.success is False
+    assert report.artifact_count == 0
+    assert report.missing_required_backends
+    assert all(job.status == "FAILED" for job in report.jobs)
+    assert all(job.artifacts == [] for job in report.jobs)
+    assert all("No real compiler gateway is configured" in job.logs[0] for job in report.jobs)
 
 
 def test_default_compilation_targets_count():
@@ -446,8 +482,8 @@ def _optional_target(backend_id: str):
     return CompilationTarget(backend_id=backend_id, required=False)
 
 
-def test_compilation_tracks_jobs_and_artifacts():
-    executor = CompilationExecutor()
+def test_compilation_tracks_dry_run_plans_without_fabricating_artifacts():
+    executor = CompilationExecutor(gateway=DryRunCompilerGateway())
 
     report = executor.execute(
         product_id="product_1",
@@ -456,8 +492,9 @@ def test_compilation_tracks_jobs_and_artifacts():
 
     assert len(report.jobs) == 5
     for job in report.jobs:
-        assert job.status == "SUCCEEDED"
-        assert job.artifacts
+        assert job.status == "DRY_RUN"
+        assert job.artifacts == []
+        assert any("Planned only:" in line for line in job.logs)
         assert job.created_at
 
 

@@ -21,7 +21,9 @@ class PublicationResult:
     repo_url: str; commit_refs: tuple[str,...]; ledger_ref: str; bundle_hash: str
 
 def publish_bundle(bundle: SystemDeploymentBundle, provider: RepositoryProvider, ledger: EvolutionLedger, certification_gate) -> PublicationResult:
-    # Gate: never publish if not CERTIFIED
+    # Gate: publication requires explicit, already-earned certification evidence.
+    if not bundle.certification_refs:
+        raise ValueError("publication blocked: no certification evidence references supplied")
     for ref in bundle.certification_refs:
         ev = ledger.event_by_ref(ref)
         if ev is None or ev.payload.get("verdict") != "CERTIFIED":
@@ -30,7 +32,7 @@ def publish_bundle(bundle: SystemDeploymentBundle, provider: RepositoryProvider,
             raise ValueError("bounded evidence -- publication blocked")
     # Ledger-addressable
     payload = {"bundle_hash": canonical_hash(bundle.artifact_hash), "isr": bundle.isr_hash}
-    ev = EvolutionEvent(event_id=f"publish-{bundle.artifact_hash[:8]}", evolution_id=bundle.artifact_hash, sequence=0, event_type=EventType.CERTIFICATION, subject_id=bundle.artifact_hash, payload=payload)
+    ev = EvolutionEvent(event_id=f"publish-{bundle.artifact_hash[:8]}", evolution_id=bundle.artifact_hash, sequence=0, event_type=EventType.PUBLICATION, subject_id=bundle.artifact_hash, payload=payload)
     ref = ledger.append_event(ev, evolution_id=bundle.artifact_hash)
     repo_url = provider.create_repository(f"tiannara-{bundle.artifact_hash[:8]}", bundle)
     return PublicationResult(repo_url, (ref,), ref, bundle.artifact_hash)

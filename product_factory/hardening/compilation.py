@@ -5,6 +5,7 @@ Phase 24.3 — Product Compilation Execution with Phase 25 Backends.
 from __future__ import annotations
 
 from typing import Any, Dict, List, Protocol
+import re
 
 from ..utils import deterministic_id, utcnow
 from .models import CompilationJob, CompilationReport, CompilationTarget
@@ -52,9 +53,12 @@ class DryRunCompilerGateway:
             artifacts.append(f"{backend_id}/.github/workflows/ci.yml")
 
         return {
-            "artifacts": artifacts,
+            "mode": "dry_run",
+            "artifacts": [],
+            "planned_artifacts": artifacts,
+            "evidence_status": "NOT_EXECUTED",
             "logs": [
-                f"Dry-run compilation for backend {backend_id}.",
+                f"Dry-run compilation for backend {backend_id}; no files were generated.",
                 f"Environment: {environment}.",
             ],
         }
@@ -122,14 +126,57 @@ class CompilationExecutor:
                     environment=environment,
                 )
 
+                mode = output.get("mode", "unknown")
                 artifacts = output.get("artifacts", [])
+                planned_artifacts = output.get("planned_artifacts", [])
                 logs = output.get("logs", [])
 
-                job.status = "SUCCEEDED"
-                job.artifacts = artifacts
+                job.execution_mode = mode
+                job.planned_artifacts = planned_artifacts
                 job.logs = logs
 
-                artifact_count += len(artifacts)
+                if mode == "executed" and output.get("execution_evidence"):
+                    evidence = output["execution_evidence"]
+                    if (
+                        isinstance(evidence, dict)
+                        and type(evidence.get("exit_code")) is int
+                        and evidence.get("exit_code") == 0
+                        and isinstance(evidence.get("artifact_manifest_sha256"), str)
+                        and re.fullmatch(r"[0-9a-f]{64}", evidence["artifact_manifest_sha256"])
+                        and isinstance(artifacts, list)
+                        and bool(artifacts)
+                        and all(isinstance(path, str) and path.strip() for path in artifacts)
+                    ):
+                        job.status = "SUCCEEDED"
+                        job.evidence_status = "REPORTED"
+                        job.artifacts = artifacts
+                        artifact_count += len(artifacts)
+                    else:
+                        job.status = "UNKNOWN"
+                        job.evidence_status = "INVALID"
+                        job.logs.append(
+                            "Execution output lacked valid exit-code and artifact-manifest evidence."
+                        )
+                        if target.required:
+                            missing_required_backends.append(target.backend_id)
+                elif mode == "dry_run":
+                    job.status = "DRY_RUN"
+                    job.evidence_status = "NOT_EXECUTED"
+                    job.artifacts = []
+                    job.logs.append(
+                        "Dry-run output is planning evidence only; it cannot satisfy a required compilation target."
+                    )
+                    if target.required:
+                        missing_required_backends.append(target.backend_id)
+                else:
+                    job.status = "UNKNOWN"
+                    job.evidence_status = "MISSING"
+                    job.artifacts = []
+                    job.logs.append(
+                        "Backend did not provide recognized execution evidence; success is not inferred."
+                    )
+                    if target.required:
+                        missing_required_backends.append(target.backend_id)
 
             except Exception as exc:
                 job.status = "FAILED"

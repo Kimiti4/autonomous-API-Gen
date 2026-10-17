@@ -1,0 +1,39 @@
+name: Execution Evidence Truthfulness
+
+on:
+  pull_request:
+    paths:
+      - "product_factory/hardening/compilation.py"
+      - "product_factory/hardening/models.py"
+      - "tiannara/application/publication/deployment_handoff.py"
+      - "tests/test_execution_evidence_truthfulness.py"
+      - ".github/workflows/execution-evidence-truthfulness.yml"
+  push:
+    branches:
+      - "hardening/execution-evidence-truthfulness"
+    paths:
+      - "product_factory/hardening/compilation.py"
+      - "product_factory/hardening/models.py"
+      - "tiannara/application/publication/deployment_handoff.py"
+      - "tests/test_execution_evidence_truthfulness.py"
+      - ".github/workflows/execution-evidence-truthfulness.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  truthfulness-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install focused test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest pydantic
+      - name: Verify execution and deployment evidence boundaries
+        run: python -m pytest -o addopts="" -q tests/test_execution_evidence_truthfulness.py

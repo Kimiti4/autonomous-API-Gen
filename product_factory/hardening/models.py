@@ -178,6 +178,10 @@ class CompilationJob(BaseModel):
     status: str = "PENDING"
 
     artifacts: List[str] = Field(default_factory=list)
+    # Candidate paths emitted by a dry-run are plans, not generated artifacts.
+    planned_artifacts: List[str] = Field(default_factory=list)
+    execution_mode: str = "unknown"
+    evidence_status: str = "UNKNOWN"
 
     logs: List[str] = Field(default_factory=list)
 

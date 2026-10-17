@@ -33,8 +33,13 @@ class Event:
     name: str
     description: str = ""
     schema: tuple[Field, ...] = ()
-    pattern: EventPattern = EventPattern.PUBLISH_SUBSCRIBE
+    # None means the source contract did not declare an event pattern.
+    pattern: Optional[EventPattern] = None
     guarantee: EventGuarantee = EventGuarantee.AT_LEAST_ONCE
     ordering_required: bool = False
     ttl_seconds: Optional[int] = None
     metadata: dict[str, str] = field(default_factory=dict)
+    ordering_semantics: str = "none"
+    producer_service_id: Optional[str] = None
+    consumer_service_ids: tuple[str, ...] = ()
+    payload_model_id: Optional[str] = None

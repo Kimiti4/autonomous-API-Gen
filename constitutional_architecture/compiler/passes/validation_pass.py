@@ -18,6 +18,105 @@ class ValidationPass(CompilerPass):
         return {"isr_validated"}
 
     def execute(self, ctx: CompilerContext) -> PassResult:
+        binding = getattr(ctx, "source_binding", None)
+        original_isr = getattr(ctx, "original_isr", None)
+        original_system = getattr(original_isr, "system", None)
+        graph_ref = getattr(original_system, "requirement_graph_ref", None)
+        require_source_binding = bool(
+            getattr(getattr(ctx, "config", None), "require_source_binding", False)
+            or graph_ref is not None
+        )
+        if graph_ref is not None and not graph_ref.projection_complete:
+            ctx.diagnostics.fatal(
+                "COMP-SOURCE-BINDING-004",
+                "Projected ISR is marked incomplete: "
+                + "; ".join(graph_ref.projection_blockers),
+            )
+            return PassResult(
+                success=False,
+                description="Incomplete intent projection blocked",
+                metrics={"source_binding_valid": False, "projection_complete": False},
+            )
+        if require_source_binding and binding is None:
+            ctx.diagnostics.fatal(
+                "COMP-SOURCE-BINDING-001",
+                "Required source/graph/ISR binding is missing",
+            )
+            return PassResult(
+                success=False,
+                description="Source binding blocked: required binding is missing",
+                metrics={"source_binding_valid": False, "source_binding_missing": True},
+            )
+        if binding is not None:
+            try:
+                from constitutional_architecture.compiler.source_binding import (
+                    verify_constitutional_source_binding,
+                )
+                report = verify_constitutional_source_binding(
+                    binding=binding, isr=ctx.original_isr
+                )
+            except Exception as exc:
+                ctx.diagnostics.fatal(
+                    "COMP-SOURCE-BINDING-002",
+                    f"Source binding verification unavailable: {type(exc).__name__}: {exc}",
+                )
+                return PassResult(
+                    success=False,
+                    description="Source binding blocked: verification unavailable",
+                    metrics={
+                        "source_binding_valid": False,
+                        "source_binding_error": type(exc).__name__,
+                    },
+                )
+            if not report.complete:
+                ctx.diagnostics.fatal(
+                    "COMP-SOURCE-BINDING-003",
+                    "Source/graph/ISR binding failed: " + "; ".join(report.blockers),
+                )
+                return PassResult(
+                    success=False,
+                    description="Source binding failed",
+                    metrics={
+                        "source_binding_valid": False,
+                        "source_sha256": report.source_sha256,
+                        "graph_sha256": report.graph_sha256,
+                        "isr_sha256": report.isr_sha256,
+                        "blockers": list(report.blockers),
+                    },
+                )
+        # Legacy/test adapters may expose only the validation graph interface.
+        # Native ISR objects always have a system; when present, projection
+        # validation is mandatory and exceptions fail closed.
+        if getattr(ctx.isr, "system", None) is not None:
+            try:
+                from constitutional_architecture.isr.semantics.intent_architecture import (
+                    validate_system_architecture_projection,
+                )
+                architecture_errors = validate_system_architecture_projection(ctx.isr.system)
+            except Exception as exc:
+                ctx.diagnostics.fatal(
+                    "COMP-ARCH-PROJECTION-002",
+                    f"Architecture projection validation unavailable: {type(exc).__name__}: {exc}",
+                )
+                return PassResult(
+                    success=False,
+                    description="Architecture projection blocked: validator unavailable",
+                    metrics={"architecture_projection_valid": False, "validation_unavailable": True},
+                )
+            if architecture_errors:
+                ctx.diagnostics.fatal(
+                    "COMP-ARCH-PROJECTION-001",
+                    "Architecture projection integrity failed: " + "; ".join(architecture_errors),
+                )
+                return PassResult(
+                    success=False,
+                    description="Architecture projection integrity failed",
+                    metrics={
+                        "architecture_projection_valid": False,
+                        "architecture_errors": list(architecture_errors),
+                    },
+                )
+
         try:
             from constitutional_architecture.validation.checker import ArchitecturalTypeChecker
             from constitutional_architecture.engine.isr_adapter import isr_to_graph

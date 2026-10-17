@@ -231,6 +231,28 @@ class CodeQualityInspector:
                 ))
             seen_casefolded[normalized] = path
 
+            # Scan every artifact, including config and workflow files, for secrets.
+            for match in _PRIVATE_KEY.finditer(content):
+                findings.append(QualityFinding(
+                    rule_id="QRY-SEC-001",
+                    severity=QualitySeverity.BLOCKER,
+                    path=path,
+                    line=content.count("\n", 0, match.start()) + 1,
+                    message="Private-key material appears in generated artifacts; remove and rotate the exposed key.",
+                ))
+            for pattern, rule_id, label in (
+                (_AWS_ACCESS_KEY, "QRY-SEC-002", "AWS access-key identifier"),
+                (_GITHUB_TOKEN, "QRY-SEC-003", "GitHub token"),
+            ):
+                for match in pattern.finditer(content):
+                    findings.append(QualityFinding(
+                        rule_id=rule_id,
+                        severity=QualitySeverity.BLOCKER,
+                        path=path,
+                        line=content.count("\n", 0, match.start()) + 1,
+                        message=f"Possible hard-coded {label} detected.",
+                    ))
+
             suffix = PurePosixPath(path).suffix.lower()
             if suffix not in _SOURCE_SUFFIXES:
                 continue
@@ -246,27 +268,6 @@ class CodeQualityInspector:
                     message="Source artifact is empty.",
                 ))
                 continue
-
-            for match in _PRIVATE_KEY.finditer(content):
-                findings.append(QualityFinding(
-                    rule_id="QRY-SEC-001",
-                    severity=QualitySeverity.BLOCKER,
-                    path=path,
-                    line=content.count("\n", 0, match.start()) + 1,
-                    message="Private-key material appears in generated source; remove and rotate the exposed key.",
-                ))
-            for pattern, rule_id, label in (
-                (_AWS_ACCESS_KEY, "QRY-SEC-002", "AWS access-key identifier"),
-                (_GITHUB_TOKEN, "QRY-SEC-003", "GitHub token"),
-            ):
-                for match in pattern.finditer(content):
-                    findings.append(QualityFinding(
-                        rule_id=rule_id,
-                        severity=QualitySeverity.BLOCKER,
-                        path=path,
-                        line=content.count("\n", 0, match.start()) + 1,
-                        message=f"Possible hard-coded {label} detected.",
-                    ))
 
             for match in _PLACEHOLDER.finditer(content):
                 findings.append(QualityFinding(

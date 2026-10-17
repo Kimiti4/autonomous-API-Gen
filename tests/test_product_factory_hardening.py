@@ -413,6 +413,27 @@ def test_default_executor_fails_closed_without_real_compiler_gateway():
     )
 
 
+def test_default_executor_fails_closed_without_real_compiler_gateway():
+    executor = CompilationExecutor()
+
+    report = executor.execute(
+        product_id="product_unconfigured",
+        isr={"name": "Must not fabricate artifacts"},
+    )
+
+    assert report.success is False
+    assert report.artifact_count == 0
+    assert report.missing_required_backends == [
+        target.backend_id for target in default_compilation_targets()
+    ]
+    assert all(job.status == "FAILED" for job in report.jobs)
+    assert all(not job.artifacts for job in report.jobs)
+    assert all(
+        any("No real compiler gateway is configured" in line for line in job.logs)
+        for job in report.jobs
+    )
+
+
 def test_default_compilation_targets_count():
     targets = default_compilation_targets()
 

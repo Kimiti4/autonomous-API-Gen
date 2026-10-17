@@ -28,7 +28,12 @@ class CompilerGatewayNotConfigured(RuntimeError):
 
 
 class UnconfiguredCompilerGateway:
-    """Fail-closed default: no generation is claimed without a real gateway."""
+    """Fail-closed default: no generation is claimed without a real gateway.
+
+    A successful dry-run is not compilation evidence. Callers must explicitly
+    inject a real CompilerGateway or opt into DryRunCompilerGateway for tests
+    and demonstrations.
+    """
 
     def compile_isr(
         self,

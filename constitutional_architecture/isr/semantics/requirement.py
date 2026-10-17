@@ -35,6 +35,63 @@ if TYPE_CHECKING:
     from constitutional_architecture.isr.model.isr import ISR
 
 
+@dataclass(frozen=True)
+class RequirementGraphReference:
+    """Identity and gate status of the exact source graph projected into the ISR."""
+    graph_id: str
+    graph_sha256: str
+    source_sha256: str
+    projection_complete: bool = True
+    projection_blockers: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.graph_id or not self.graph_sha256 or not self.source_sha256:
+            raise RequirementValidationError("graph reference requires graph, graph hash, and source hash")
+        if self.projection_complete and self.projection_blockers:
+            raise RequirementValidationError("a complete projection cannot contain blockers")
+        if not self.projection_complete and not self.projection_blockers:
+            raise RequirementValidationError("an incomplete projection must record its blockers")
+
+
+@dataclass(frozen=True)
+class RequirementSourceMetadata:
+    """First-class preservation of graph semantics not carried by Requirement itself.
+
+    This is not opaque extension metadata: each record is keyed to a constitutional
+    requirement ID and is consumed by traceability/certification.
+    """
+    requirement_id: str
+    source_kind: str
+    priority: str
+    acceptance_criteria: tuple[str, ...] = ()
+    verification_method: str = "test"
+    rationale: str = ""
+    provenance_source: str = "unknown"
+    taxonomy_version: str | None = None
+    stratum: str | None = None
+    seed: int | None = None
+    created_by: str = "unknown"
+
+    def __post_init__(self) -> None:
+        if not self.requirement_id or not self.source_kind or not self.priority:
+            raise RequirementValidationError("source metadata requires requirement id, kind, and priority")
+        if any(not criterion.strip() for criterion in self.acceptance_criteria):
+            raise RequirementValidationError("acceptance criteria cannot be blank")
+
+
+@dataclass(frozen=True)
+class RequirementRelation:
+    """A directed or symmetric relation preserved from the source requirement graph."""
+    source_requirement_id: str
+    target_requirement_id: str
+    kind: str
+    rationale: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.source_requirement_id or not self.target_requirement_id or not self.kind:
+            raise RequirementValidationError("requirement relation endpoints and kind are required")
+
+
 class RequirementValidationError(ValueError):
     """A requirement or criterion violates its construction or structural contract."""
 
@@ -211,6 +268,37 @@ def validate_system_requirement_constraints(system: Any) -> tuple[str, ...]:
                     f"business capability '{capability.capability_id}' "
                     f"references unknown requirement '{requirement_ref}'"
                 )
+    return tuple(errors)
+
+
+def validate_requirement_graph_projection(system: Any) -> tuple[str, ...]:
+    """Validate first-class graph projection metadata and relation references."""
+    errors: list[str] = []
+    graph_ref = getattr(system, "requirement_graph_ref", None)
+    metadata = tuple(getattr(system, "requirement_source_metadata", ()))
+    relations = tuple(getattr(system, "requirement_relations", ()))
+    if graph_ref is None:
+        if metadata or relations:
+            errors.append("requirement graph metadata/relations exist without graph identity")
+        return tuple(errors)
+
+    requirement_ids = {item.requirement_id for item in system.requirements}
+    metadata_ids = [item.requirement_id for item in metadata]
+    if len(metadata_ids) != len(set(metadata_ids)):
+        errors.append("duplicate requirement source metadata IDs")
+    if set(metadata_ids) != requirement_ids:
+        errors.append("requirement source metadata must cover every ISR requirement exactly")
+    for relation in relations:
+        if relation.source_requirement_id not in requirement_ids:
+            errors.append(
+                f"requirement relation has unknown source '{relation.source_requirement_id}'"
+            )
+        if relation.target_requirement_id not in requirement_ids:
+            errors.append(
+                f"requirement relation has unknown target '{relation.target_requirement_id}'"
+            )
+    if not graph_ref.graph_id or not graph_ref.graph_sha256 or not graph_ref.source_sha256:
+        errors.append("requirement graph identity is incomplete")
     return tuple(errors)
 
 

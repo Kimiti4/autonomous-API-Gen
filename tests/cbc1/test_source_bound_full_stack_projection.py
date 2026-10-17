@@ -770,15 +770,23 @@ def test_stale_source_hash_in_mapping_provenance_blocks_projection():
 def test_production_semantic_verifier_recomputes_source_mapping_and_candidate_hashes():
     from app.engine.source_bound_full_stack import (
         SourceBoundSemanticCorrespondenceVerifier, _canonical_hash,
+        produce_architecture_mapping,
     )
     from compiler.core.repository import build_repository
+    from tests.cbc1.isr_semantic_fixtures import complete_canonical_snapshot
 
-    source = {"source_refs": ["req:item"], "requirements": [{"id": "req:item", "statement": "List items"}]}
-    mapping = _complete_explicit_mapping()
-    mapping["provenance"]["source_refs"] = ["req:item"]
-    mapping["provenance"]["source_hash"] = _canonical_hash(source)
-    files = {"app.py": "def list_items():\n    return []\n"}
+    source = complete_canonical_snapshot()
+    product = produce_architecture_mapping(source)
+    assert product.blockers == (), product.blockers
+    assert product.canonical_ready, product.canonical_blockers
+    assert product.canonical_mapping is not None
+
+    mapping = dict(product.canonical_mapping)
+    files = {"app.py": "def create_project():\n    return {'created': True}\n"}
     candidate_hash = build_repository(files).content_hash
+    provenance = dict(mapping["provenance"])
+    provenance["candidate_hash"] = candidate_hash
+    mapping["provenance"] = provenance
 
     result = SourceBoundSemanticCorrespondenceVerifier().verify_bound({
         "source_artifacts": source,
@@ -804,6 +812,7 @@ def test_production_semantic_verifier_rejects_changed_requirement_with_stale_map
     mapping["provenance"]["source_hash"] = _canonical_hash(original)
     changed = {"source_refs": ["req:item"], "requirements": [{"id": "req:item", "statement": "Delete items"}]}
     files = {"app.py": "def list_items():\n    return []\n"}
+    mapping["provenance"]["candidate_hash"] = build_repository(files).content_hash
 
     result = SourceBoundSemanticCorrespondenceVerifier().verify_bound({
         "source_artifacts": changed,
@@ -826,6 +835,7 @@ def test_production_semantic_verifier_rejects_candidate_mutation_and_wrong_expec
     mapping["provenance"]["source_refs"] = ["req:item"]
     mapping["provenance"]["source_hash"] = _canonical_hash(source)
     files = {"app.py": "def list_items():\n    return []\n"}
+    mapping["provenance"]["candidate_hash"] = build_repository(files).content_hash
     wrong_hash = build_repository({"app.py": "def list_items():\n    return None\n"}).content_hash
 
     result = SourceBoundSemanticCorrespondenceVerifier().verify_bound({
@@ -858,6 +868,45 @@ def test_production_semantic_verifier_rejects_unknown_source_reference():
 
     assert not result.passed
     assert any("unknown source identifiers" in finding for finding in result.findings)
+
+
+def test_semantic_correspondence_rejects_unbound_authoritative_requirement() -> None:
+    from app.engine.source_bound_full_stack import (
+        SourceBoundSemanticCorrespondenceVerifier, _canonical_hash,
+    )
+    from compiler.core.repository import build_repository
+
+    source = {
+        "source_refs": ["req:item", "req:security", "isr:domain:item"],
+        "requirement_graph": {
+            "nodes": {
+                "req:item": {"id": "req:item", "statement": "List items"},
+                "req:security": {"id": "req:security", "statement": "Require authentication"},
+            },
+            "edges": {},
+        },
+    }
+    mapping = _complete_explicit_mapping()
+    mapping["provenance"]["source_refs"] = list(source["source_refs"])
+    mapping["provenance"]["source_hash"] = _canonical_hash(source)
+    mapping["requirement_bindings"] = [{
+        "requirement_id": "req:item",
+        "layer": "api",
+        "target_id": "list_items",
+        "requirement_hash": _canonical_hash(source["requirement_graph"]["nodes"]["req:item"]),
+    }]
+    files = {"app.py": "def list_items(): return []"}
+    mapping["provenance"]["candidate_hash"] = build_repository(files).content_hash
+    result = SourceBoundSemanticCorrespondenceVerifier().verify_bound(
+        {
+            "source_artifacts": source,
+            "explicit_mapping": mapping,
+            "candidate_files": files,
+        },
+        build_repository(files).content_hash,
+    )
+    assert not result.passed
+    assert any("typed requirement binding" in finding and "req:security" in finding for finding in result.findings)
 
 
 def test_default_candidate_bound_full_stack_verifier_checks_lowered_ir():

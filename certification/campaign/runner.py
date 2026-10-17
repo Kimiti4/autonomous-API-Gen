@@ -24,15 +24,10 @@ from certification.core.trial import (
 )
 from certification.core import metrics as M
 from certification.provenance.bundle import ProvenanceBundle
-# The source tree is named autonomous-api (hyphenated), while Python imports
-# use the app package beneath it. Add that source root explicitly so Campaign A
-# behaves the same from its CLI and from test runners.
+# The autonomous-api source-root bootstrap lives in
+# certification.campaign.__init__ so every campaign module and test shares it.
 import sys
 from pathlib import Path
-
-_AUTONOMOUS_API_ROOT = Path(__file__).resolve().parents[2] / "autonomous-api"
-if _AUTONOMOUS_API_ROOT.is_dir() and str(_AUTONOMOUS_API_ROOT) not in sys.path:
-    sys.path.insert(0, str(_AUTONOMOUS_API_ROOT))
 
 from app.engine.source_bound_full_stack import (
     SourceBoundSemanticCorrespondenceVerifier,
@@ -110,6 +105,22 @@ class _IndependentProcessVerifier:
         return _IndependentVerificationResult(passed, detail, payload)
 
 
+def _safe_candidate_path(root: str, relative_path: str) -> str:
+    """Resolve a generated path without permitting workspace escape."""
+    if (
+        not isinstance(relative_path, str) or not relative_path
+        or "\x00" in relative_path or "\\" in relative_path
+        or os.path.isabs(relative_path)
+        or any(part == ".." for part in relative_path.split("/"))
+    ):
+        raise ValueError(f"unsafe generated candidate path: {relative_path!r}")
+    root_real = os.path.realpath(root)
+    full_path = os.path.realpath(os.path.join(root_real, relative_path))
+    if os.path.commonpath((root_real, full_path)) != root_real:
+        raise ValueError(f"generated candidate path escapes workspace: {relative_path!r}")
+    return full_path
+
+
 @dataclass(frozen=True)
 class _CandidateBoundFullStackResult:
     passed: bool
@@ -135,23 +146,6 @@ class _CanonicalFullStackVerifier:
         report = verify_full_stack(*inputs)
         findings = tuple(f"{item!r}" for item in report.findings)
         return _CandidateBoundFullStackResult(report.passed is True, candidate_hash, findings)
-
-
-
-def _safe_candidate_path(root: str, relative_path: str) -> str:
-    """Resolve a generated path without permitting workspace escape."""
-    if (
-        not isinstance(relative_path, str) or not relative_path
-        or "\x00" in relative_path or "\\" in relative_path
-        or os.path.isabs(relative_path)
-        or any(part == ".." for part in relative_path.split("/"))
-    ):
-        raise ValueError(f"unsafe generated candidate path: {relative_path!r}")
-    root_real = os.path.realpath(root)
-    full_path = os.path.realpath(os.path.join(root_real, relative_path))
-    if os.path.commonpath((root_real, full_path)) != root_real:
-        raise ValueError(f"generated candidate path escapes workspace: {relative_path!r}")
-    return full_path
 
 
 def _now() -> str:
@@ -509,18 +503,24 @@ class CampaignRunner:
                         )
                         source_snapshot = source_snapshot_from_plan_artifacts(artifacts)
                         mapping_result = produce_architecture_mapping(source_snapshot)
+                        canonical_mapping = None
+                        if mapping_result.complete and mapping_result.canonical_ready:
+                            canonical_mapping = dict(mapping_result.canonical_mapping)
+                            canonical_provenance = dict(canonical_mapping["provenance"])
+                            canonical_provenance["candidate_hash"] = candidate_hash
+                            canonical_mapping["provenance"] = canonical_provenance
                         semantic_correspondence_inputs = {
                             "source_artifacts": source_snapshot,
-                            # Only a complete typed mapping may enter the verifier.
-                            # Partial structural inventories remain diagnostic data.
-                            "explicit_mapping": (
-                                mapping_result.mapping
-                                if mapping_result.complete
-                                else getattr(artifacts, "explicit_mapping", None)
-                            ),
+                            # Only a complete canonical five-layer IR contract
+                            # bound to this exact candidate may enter verification.
+                            # Diagnostic inventories are never treated as lowered IR.
+                            "explicit_mapping": canonical_mapping,
                             "mapping_producer_findings": [
                                 f"{item.code}: {item.message}"
-                                for item in mapping_result.blockers
+                                for item in (
+                                    *mapping_result.blockers,
+                                    *mapping_result.canonical_blockers,
+                                )
                             ],
                             "candidate_files": dict(repo.files),
                         }

@@ -38,6 +38,8 @@ class Genome(BaseModel):
 
     system_id: str = Field(min_length=1)
     chromosomes: Mapping[str, Chromosome] = Field(default_factory=dict)
+    # Immutable semantic substrate carried through evolution; not an evolvable gene.
+    source_graph: Mapping[str, Any] = Field(default_factory=dict)
 
 
 def genome_content_hash(genome: Genome) -> str:
@@ -46,7 +48,7 @@ def genome_content_hash(genome: Genome) -> str:
     Order-independent: genes within each chromosome are sorted by gene_id,
     chromosomes are sorted by family value.
     """
-    canonical: dict[str, Any] = {"system_id": genome.system_id, "chromosomes": {}}
+    canonical: dict[str, Any] = {"system_id": genome.system_id, "chromosomes": {}, "source_graph": dict(genome.source_graph)}
     for fam_key in sorted(genome.chromosomes.keys()):
         chrom = genome.chromosomes[fam_key]
         canonical["chromosomes"][fam_key] = {

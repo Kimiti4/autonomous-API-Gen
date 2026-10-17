@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from isr.core.graph import EdgeType
 from isr.core.identity import Provenance, compute_content_hash
 from isr.core.invariants import ISRInvariantViolation, validate_invariants
 from isr.core.revision import ISRRevision
@@ -125,8 +126,8 @@ def test_g10_constitutional_defaults_injected() -> None:
     assert len(default_nodes) == 5
 
 
-def test_g10_stakeholders_not_mapped() -> None:
-    """Stakeholder nodes are problem-space-only; they produce no ISR nodes."""
+def test_g10_stakeholders_preserved_as_requirement_refs() -> None:
+    """Stakeholder semantics survive as a requirement ref without an architecture node."""
     req = RequirementGraph(
         schema_version="1.0",
         nodes={
@@ -141,8 +142,189 @@ def test_g10_stakeholders_not_mapped() -> None:
     )
     m = ReferenceDeterministicMapper()
     result = m.map(req, "map-1.0")
-    # Stakeholders are skipped; only constitutional defaults exist
-    assert len(result.graph.nodes) == 5
+    assert "requirement_ref:r1" in result.graph.nodes
+    assert result.graph.nodes["requirement_ref:r1"].properties["semantic_content"] == "the product owner"
+    assert result.coverage.uncovered == []
+
+
+def test_g10_functional_requirement_has_first_class_ref_and_satisfies_edge() -> None:
+    req = RequirementGraph(
+        schema_version="1.0",
+        nodes={
+            "r-auth": RequirementNode(
+                id="r-auth",
+                kind=RequirementKind.FUNCTIONAL,
+                statement="authenticate users",
+                priority=Priority.MUST,
+                acceptance_criteria=["valid credentials create a session"],
+                source_refs=["spec:auth#1"],
+            ),
+        },
+        edges={},
+    )
+    result = ReferenceDeterministicMapper().map(req, "map-1.0")
+    ref = result.graph.nodes["requirement_ref:r-auth"]
+    assert ref.properties["semantic_content"] == "authenticate users"
+    assert ref.properties["acceptance_criteria"] == ["valid credentials create a session"]
+    assert ref.properties["source_refs"] == ["spec:auth#1"]
+    edge = result.graph.edges["satisfies:r-auth"]
+    assert edge.type is EdgeType.SATISFIES
+    assert edge.source_id == "capability:r-auth"
+    assert edge.target_id == "requirement_ref:r-auth"
+
+
+def test_requirement_relationships_survive_as_typed_isr_edges() -> None:
+    req = RequirementGraph(
+        schema_version="1.0",
+        nodes={
+            "req-child": RequirementNode(
+                id="req-child", kind=RequirementKind.FUNCTIONAL,
+                statement="create child records", priority=Priority.MUST,
+            ),
+            "req-parent": RequirementNode(
+                id="req-parent", kind=RequirementKind.DOMAIN_CONCEPT,
+                statement="parent records", priority=Priority.MUST,
+            ),
+            "stake-owner": RequirementNode(
+                id="stake-owner", kind=RequirementKind.STAKEHOLDER,
+                statement="record owner", priority=Priority.SHOULD,
+            ),
+        },
+        edges={
+            "refines-child": RequirementEdge(
+                id="refines-child", type=RequirementEdgeType.REFINES,
+                source_id="req-child", target_id="req-parent",
+            ),
+            "owned-child": RequirementEdge(
+                id="owned-child", type=RequirementEdgeType.OWNED_BY,
+                source_id="req-child", target_id="stake-owner",
+            ),
+        },
+    )
+    result = ReferenceDeterministicMapper().map(req, "map-1.0")
+    refines = result.graph.edges["requirement:refines-child"]
+    owned = result.graph.edges["requirement:owned-child"]
+    assert refines.type.value == "requirement_refines"
+    assert refines.source_id == "requirement_ref:req-child"
+    assert refines.target_id == "requirement_ref:req-parent"
+    assert owned.type.value == "requirement_owned_by"
+    assert owned.source_id == "requirement_ref:req-child"
+    assert owned.target_id == "requirement_ref:stake-owner"
+    assert refines.properties["source_requirement_edge_id"] == "refines-child"
+
+
+def test_nonfunctional_and_constraint_requirements_are_not_guessed_as_architecture_nodes() -> None:
+    req = RequirementGraph(
+        schema_version="1.0",
+        nodes={
+            "nf-latency": RequirementNode(
+                id="nf-latency",
+                kind=RequirementKind.NON_FUNCTIONAL,
+                statement="bounded response latency",
+                priority=Priority.SHOULD,
+                source_refs=["spec:performance#1"],
+            ),
+            "con-tenant": RequirementNode(
+                id="con-tenant",
+                kind=RequirementKind.CONSTRAINT,
+                statement="tenant isolation is mandatory",
+                priority=Priority.MUST,
+                source_refs=["spec:security#1"],
+            ),
+        },
+        edges={},
+    )
+    result = ReferenceDeterministicMapper().map(req, "map-1.0")
+
+    assert "requirement_ref:nf-latency" in result.graph.nodes
+    assert "requirement_ref:con-tenant" in result.graph.nodes
+    assert "service:nf-latency" not in result.graph.nodes
+    assert "security_policy:con-tenant" not in result.graph.nodes
+    assert result.coverage.uncovered == []
+
+
+def test_explicit_source_architecture_fragments_project_into_typed_isr() -> None:
+    requirement = RequirementNode(
+        id="req-ui",
+        kind=RequirementKind.FUNCTIONAL,
+        statement="show project list",
+        priority=Priority.MUST,
+        source_refs=["spec:projects#ui"],
+        properties={
+            "isr_nodes": [
+                {
+                    "id": "ui:projects",
+                    "type": "frontend_route",
+                    "properties": {
+                        "path": "/projects",
+                        "source_requirement_ids": ["req-ui"],
+                    },
+                },
+                {
+                    "id": "api:projects",
+                    "type": "api",
+                    "properties": {
+                        "operations": [{
+                            "operation_id": "list_projects",
+                            "method": "GET",
+                            "path": "/projects",
+                        }],
+                        "source_requirement_ids": ["req-ui"],
+                    },
+                },
+                {
+                    "id": "ui:projects:list",
+                    "type": "frontend_interaction",
+                    "properties": {
+                        "action": "list_projects",
+                        "flow_id": "list-projects",
+                        "source_requirement_ids": ["req-ui"],
+                    },
+                },
+            ],
+            "isr_edges": [
+                {
+                    "id": "ui-projects-routes-to-api",
+                    "type": "routes_to",
+                    "source_id": "ui:projects",
+                    "target_id": "api:projects",
+                    "properties": {"source_requirement_ids": ["req-ui"]},
+                },
+                {
+                    "id": "ui-projects-invokes-api",
+                    "type": "invokes",
+                    "source_id": "ui:projects:list",
+                    "target_id": "api:projects",
+                    "properties": {"source_requirement_ids": ["req-ui"]},
+                },
+            ],
+        },
+    )
+    req = RequirementGraph(schema_version="1.0", nodes={"req-ui": requirement}, edges={})
+    result = ReferenceDeterministicMapper().map(req, "map-1.0")
+    assert result.graph.nodes["ui:projects"].type.value == "frontend_route"
+    assert result.graph.nodes["api:projects"].properties["operations"][0]["operation_id"] == "list_projects"
+    assert result.graph.edges["ui-projects-routes-to-api"].type.value == "routes_to"
+    assert result.graph.edges["ui-projects-invokes-api"].source_id == "ui:projects:list"
+
+
+def test_explicit_source_architecture_fragment_without_provenance_fails_closed() -> None:
+    requirement = RequirementNode(
+        id="req-ui",
+        kind=RequirementKind.FUNCTIONAL,
+        statement="show project list",
+        priority=Priority.MUST,
+        properties={
+            "isr_nodes": [{
+                "id": "ui:projects",
+                "type": "frontend_route",
+                "properties": {"path": "/projects"},
+            }],
+        },
+    )
+    req = RequirementGraph(schema_version="1.0", nodes={"req-ui": requirement}, edges={})
+    with pytest.raises(ValueError, match="source_requirement_ids"):
+        ReferenceDeterministicMapper().map(req, "map-1.0")
 
 
 # ---------------------------------------------------------------------------

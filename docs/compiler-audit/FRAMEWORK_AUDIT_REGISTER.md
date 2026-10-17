@@ -72,3 +72,62 @@ Latest fully completed validation head: `a62b7ff88a79e6e4dc614f8d9fe5ea1a7b3b79a
 - Campaign A evidence artifact for run `38873704694` was inspected directly. All 78 trials passed structural conformance and the sample first trial passed real Docker build, tests, deployment, runtime health probing, cleanup, and independent verification; all 78 were rejected at verification because the source-bound full-stack inputs/mapping were unavailable. The artifact's blocker inventory includes `MAP-REQ-000` (no authoritative requirement references in the materialized ISR), missing explicit service responsibilities, data-model fields/invariants, event delivery/order/payload semantics, first-class frontend routes/interactions, effects, invariants, consequences, and security-policy nodes. Therefore this is a semantic projection/ISR preservation failure, not evidence of 78 runtime execution failures. Certification remains blocked until these semantics are carried from authoritative source artifacts into ISR and loss-checked full-stack IR; do not synthesize fields or loosen the verifier.
 
 - Fresh matrix run for head `a4f78cb2` confirms the Angular generated component test and production build now pass. The sequence advanced to Next.js; its generated root layout failed production compilation because the closing `</html>` tag was malformed (`</html}`). Corrected the emitted JSX and added a generator regression assertion. Next.js test passed before its production build failed; the corrected build is pending rerun, and Nuxt/Svelte remain to be exercised after it.
+
+
+## Source-to-ISR semantic preservation — 2026-10-16
+
+Root-cause inspection found two destructive boundaries in the canonical Campaign A path. The genesis mapper projected only selected requirement kinds into generic architecture nodes and omitted first-class requirement references/typed satisfaction edges. The genome constructor retained domain names and a few decision genes, while the materializer rebuilt an ISR graph from those genes and discarded source nodes and edges. The downstream projection's missing-requirement and semantic-correspondence blockers were therefore consequences of upstream information loss, not merely verifier strictness.
+
+Changes now committed on `hardening/candidate-bound-full-stack-gate`:
+- Genesis emits a first-class `requirement_ref` for each requirement, preserving its statement, kind, priority, acceptance criteria, source references, resolution reference, and properties. Functional capability nodes are linked to their requirement refs through typed `satisfies` edges.
+- `Genome` carries the original canonical ISR graph as a non-evolvable semantic substrate; that substrate is included in the genome content hash.
+- The genome constructor captures the source graph; mutation preserves it; crossover rejects parents with different source substrates rather than silently blending incompatible source meaning.
+- The materializer restores source nodes/edges and adds derived nodes only where identifiers do not collide, so a derived architecture cannot overwrite source semantics.
+- Added genesis and end-to-end regression tests for requirement references, provenance, satisfies edges, mutation/materialization preservation, and incompatible-source crossover rejection.
+
+This is a source-path correction, **not** full-stack certification. Remaining semantic obligations still need explicit modeling and verification: requirement-to-service implementation edges, service responsibility, complete data-model fields/invariants, API operation contracts, frontend routes/interactions, security enforcement, effects, event delivery/order/payload semantics, and consequences. Do not infer these from names or prose, and do not loosen the certification gate. The fresh CI run must validate this patch before the change is considered verified.
+
+
+- First CI run after the semantic-preservation patch found the existing ISR invariant requires `requirement_ref.properties.ref_id`. The initial mapper patch carried `requirement_id` but omitted `ref_id`; four v1.2 tests failed at ISR revision creation for that reason. Corrected the mapper to emit both fields in commit `9d9ebd4c`. This is a source-contract correction; fresh CI is required to confirm the rerun.
+
+
+## Source-to-ISR path — relationship preservation and candidate-bound lowering review — 2026-10-16
+
+Follow-up changes after the first source-substrate patch:
+- Added typed ISR edge kinds for requirement dependency, conflict, refinement, and ownership relationships. Genesis now projects every authoritative RequirementGraph edge to requirement-ref endpoints, preserving the original edge ID and resolution reference.
+- Materialization now derives capability-to-service `implemented_by` links only from an explicit requirement-refinement edge from a functional requirement to a domain concept. The edge records the source relationship and both requirement refs. The service responsibility is copied from the authoritative domain requirement statement; it is not inferred from a name.
+- Architecture mapping producer provenance now accepts the original source-reference list and the containing ISR revision ID, rather than requiring duplicated singular fields that the source schema does not define.
+
+The full Campaign A path was re-run on commit `3458629f` before these follow-up changes: Compiler Certification Matrix and the other listed hardening/quality workflows passed, but CBC-1 Campaign A failed with `NOT_CERTIFIED`, 0/78 trials certified, and all 78 failures in semantic verification. The artifact's remaining blockers include missing explicit data-model fields/invariants, API operation contracts, frontend routes/interactions, effect and consequence semantics, event delivery/order/payload semantics, and some requirement verification metadata.
+
+This follow-up addresses source relationship loss and traceability, but it does **not** claim Campaign A is closed. Full-stack IR lowering and semantic correspondence must still reject the current corpus wherever its authoritative source does not state those semantics. No default fields, inferred routes, fabricated authorization policies, or invented replay/consequence guarantees may be used to manufacture a pass.
+
+
+## Source-to-ISR semantic path — four-stage hardening — 2026-10-16
+
+The source-to-ISR correction is now implemented across the four intended stages:
+
+1. **Preserve source semantics and relationships.** Genesis emits first-class requirement refs and typed requirement dependency/conflict/refinement/ownership edges. It accepts additional typed ISR node/edge declarations only when their schema, endpoints, edge compatibility, and `source_requirement_ids` provenance are explicit. Genome identity includes the source graph; mutation preserves it; crossover rejects incompatible source substrates; materialization retains source nodes/edges and derives capability-to-service implementation links only from explicit functional-requirement-to-domain refinements.
+2. **Establish source-to-implementation traceability.** The mapping producer compares ISR requirement refs field-by-field with the authoritative RequirementGraph and checks that every source requirement relationship survived with the correct type/endpoints. Requirement bindings must point through explicit satisfaction/implementation edges to actual typed architecture targets and carry a hash of the exact source requirement.
+3. **Produce canonical full-stack IR.** Diagnostic architecture inventory is no longer confused with canonical IR. The producer accepts canonical frontend/API/backend/effect/consequence contract payloads only from typed ISR nodes, checks those payloads against the route/interaction/API/service/data-model/security/effect/consequence nodes, and runs canonical schema lowering. The Campaign A runner passes only this validated mapping to verification and adds the exact generated repository digest to its provenance.
+4. **Independently verify the exact candidate.** The verifier recomputes source and repository hashes, requires the mapping's candidate hash to match the exact file manifest, validates complete requirement coverage and typed bindings, checks semantic obligations, lowers canonical IR, and runs full-stack coherence checks. Missing fields or relationships remain blockers; no default routes, data fields, authorization policy, event guarantees, or replay/consequence behavior are fabricated.
+
+Regression coverage was added for typed requirement relationships, source-declared ISR architecture fragments, materialization preservation, explicit canonical mapping, candidate-hash binding, and rejection of unmapped authoritative requirements. The first Campaign A attempt after introducing derived implementation edges exposed a dictionary-mutation bug during materialization; iteration was changed to use a stable snapshot. The subsequent verifier test run found a diagnostic omission (missing requirement IDs were not included in findings); findings now include the exact source references.
+
+**Certification boundary:** the code path is now capable of carrying and verifying explicit source-authored full-stack contracts, but this does not imply that the current Campaign A corpus supplies them. The existing workload builder produces broad CRUD/domain requirements and does not author complete canonical frontend/API/backend/effect/consequence contracts or data-model fields/invariants. Those trials must remain NOT_CERTIFIED until authoritative workload/source artifacts provide the missing semantics. The fresh CI and Campaign A runs for the latest commit must be checked before calling this change verified.
+
+
+Additional source-integrity correction: genesis no longer turns every non-functional requirement into a `SERVICE` or every generic constraint into a `SECURITY_POLICY`. Those classes remain first-class requirement refs until explicit typed ISR declarations identify their realization. This avoids giving latency, consistency, or other generic constraints a false architecture classification. A regression test covers that fail-closed behavior.
+
+
+### Follow-up integrity closure — deterministic reprojection verification — 2026-10-16
+
+A final review found that recomputed source/candidate hashes plus semantic validators still did not independently prove that the submitted canonical mapping was exactly derivable from the ISR. A modified mapping could retain the source hash label and pass checks not specific to the changed field. The verifier now reruns `produce_architecture_mapping` against the canonical source snapshot and compares the complete submitted mapping with the reproduced canonical projection, ignoring only `provenance.candidate_hash` (which is attached after candidate generation). If canonical reprojection is incomplete or throws, verification fails closed with actionable findings. A regression test first confirms the authentic mapping passes, then alters the frontend route while retaining the same source and candidate hashes and confirms the verifier rejects it.
+
+This closes a verifier-level gap in step 4. It does **not** close missing source semantics in Campaign A: if the authoritative workload has no explicit frontend/API/backend/effect/consequence contracts, reprojection correctly remains incomplete and certification remains blocked. Fresh CI and campaign evidence for the new commit are required before calling this verified.
+
+
+Additional regression coverage in the same source-path hardening sequence now explicitly exercises all four authoritative requirement relationship types—`depends_on`, `conflicts_with`, `refines`, and `owned_by`—through genesis mapping, genome construction, and ISR materialization. The test asserts exact edge types and endpoints, not merely that some edge survives.
+
+
+The first fresh CBC unit-gate run correctly rejected a legacy verifier test that supplied only a minimal requirement list plus a hand-authored mapping, without an authoritative ISR graph. The fixture had expected a pass despite the verifier now requiring deterministic source reprojection. The test has been corrected to expect fail-closed behavior and assert the missing-reprojection finding; the producer-backed complete-ISR test remains the positive-path case. This preserves the gate rather than weakening it to satisfy a stale fixture.

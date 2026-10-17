@@ -920,6 +920,29 @@ def _validate_typed_requirement_bindings(
 
 
 
+_API_OBLIGATION_TERMS: tuple[str, ...] = (
+    "api", "endpoint", "http", "rest", "request", "response",
+    "route", "pagination", "openapi",
+)
+_API_OBLIGATION_PATTERN = re.compile(
+    r"\b(?:%s)\b" % "|".join(re.escape(term) for term in _API_OBLIGATION_TERMS),
+    re.IGNORECASE,
+)
+
+
+def statement_requires_api_binding(statement: str) -> bool:
+    """Classify a requirement statement as an API-surface obligation.
+
+    Shared by the canonical mapping producer (binding layer selection) and the
+    semantic obligation verifier so both sides classify identically and a
+    statement can never be demanded into one layer while the producer only
+    emits another. Matching is word-boundary based: plural domain seeds such
+    as "routes" or "requests" are not API obligations, while genuine API
+    statements ("The API endpoint returns item details") remain matched.
+    """
+    return bool(statement) and _API_OBLIGATION_PATTERN.search(statement) is not None
+
+
 def _validate_semantic_obligations(source: Mapping[str, Any], mapping: Mapping[str, Any]) -> tuple[ProjectionBlocker, ...]:
     """Enforce minimum typed architecture obligations; linkage is not proof."""
     graph = source.get("requirement_graph")
@@ -960,7 +983,7 @@ def _validate_semantic_obligations(source: Mapping[str, Any], mapping: Mapping[s
         if target is None:
             continue
         auth = any(x in statement for x in ("authorization", "authorisation", "permission", "role-based", "rbac", "access control", "only the owner", "only administrators", "authorized users", "authorised users"))
-        api = any(x in statement for x in ("api", "endpoint", "http", "rest", "request", "response", "route", "pagination", "openapi"))
+        api = statement_requires_api_binding(statement)
         integrity = any(x in statement for x in ("must not", "unique", "invariant", "consistency", "integrity", "cannot be empty", "cannot exceed", "foreign key", "atomic"))
         if auth:
             policies = target.get("security_boundaries", target.get("policies", target.get("security_policies")))
@@ -1022,8 +1045,11 @@ class SourceBoundSemanticCorrespondenceVerifier:
 
     Inputs must contain source_artifacts, explicit_mapping, and candidate_files.
     Hashes are recomputed from those payloads; caller-supplied hashes are never
-    accepted as proof. This verifies source provenance and cross-layer IR
-    coherence, not runtime behavior; build/test/runtime gates remain separate.
+    accepted as proof. The canonical mapping is also re-derived from the
+    authoritative ISR and compared with the submitted mapping, excluding only
+    the candidate hash attached after generation. This verifies source
+    provenance and cross-layer IR coherence, not runtime behavior;
+    build/test/runtime gates remain separate.
     """
 
     def verify_bound(
@@ -1096,6 +1122,55 @@ class SourceBoundSemanticCorrespondenceVerifier:
                 findings.append("candidate hash does not match recomputed repository contents")
 
         if isinstance(mapping, Mapping):
+            provenance = mapping.get("provenance")
+            if isinstance(provenance, Mapping) and (
+                not computed_candidate_hash
+                or provenance.get("candidate_hash") != computed_candidate_hash
+            ):
+                findings.append("mapping candidate_hash does not match recomputed candidate repository contents")
+            if source_dict is not None:
+                # Semantic correspondence must prove complete requirement
+                # coverage and typed target bindings, not merely hash identity.
+                for blocker in _validate_requirement_coverage(source_dict, mapping):
+                    refs = f" source_refs={blocker.source_refs}" if blocker.source_refs else ""
+                    findings.append(f"requirement coverage: {blocker.code}: {blocker.message}{refs}")
+                for blocker in _validate_typed_requirement_bindings(source_dict, mapping):
+                    refs = f" source_refs={blocker.source_refs}" if blocker.source_refs else ""
+                    findings.append(f"typed requirement binding: {blocker.code}: {blocker.message}{refs}")
+                for blocker in _validate_semantic_obligations(source_dict, mapping):
+                    refs = f" source_refs={blocker.source_refs}" if blocker.source_refs else ""
+                    findings.append(f"semantic obligation: {blocker.code}: {blocker.message}{refs}")
+
+                # A source hash only binds the provenance label; it does not
+                # prove that the submitted IR was actually derived from that
+                # source. Re-run the deterministic producer and compare the
+                # complete canonical projection, excluding only the candidate
+                # hash that is added after generation.
+                try:
+                    reproduced = produce_architecture_mapping(source_dict)
+                    if not reproduced.canonical_ready or reproduced.canonical_mapping is None:
+                        details = "; ".join(
+                            f"{item.code}: {item.message}"
+                            for item in reproduced.canonical_blockers
+                        ) or "canonical mapping was not produced"
+                        findings.append(
+                            f"source-to-ISR canonical reprojection is incomplete: {details}"
+                        )
+                    else:
+                        submitted = dict(mapping)
+                        submitted_provenance = submitted.get("provenance")
+                        if isinstance(submitted_provenance, Mapping):
+                            submitted_provenance = dict(submitted_provenance)
+                            submitted_provenance.pop("candidate_hash", None)
+                            submitted["provenance"] = submitted_provenance
+                        if _canonical_hash(submitted) != _canonical_hash(dict(reproduced.canonical_mapping)):
+                            findings.append(
+                                "explicit mapping does not equal the deterministic canonical projection of the authoritative source ISR"
+                            )
+                except Exception as exc:
+                    findings.append(
+                        f"source-to-ISR canonical reprojection failed closed: {type(exc).__name__}: {exc}"
+                    )
             try:
                 lowered = lower_explicit_mapping_to_full_stack_ir(mapping)
                 findings.extend(lowered.findings)
@@ -1124,13 +1199,19 @@ class SourceBoundSemanticCorrespondenceVerifier:
 
 @dataclass(frozen=True)
 class ArchitectureMappingProduction:
-    """Deterministic ISR-to-architecture mapping attempt with explicit gaps."""
+    """Deterministic ISR mapping plus a separately validated canonical IR contract."""
     mapping: Mapping[str, Any] | None
     blockers: tuple[ProjectionBlocker, ...]
+    canonical_mapping: Mapping[str, Any] | None = None
+    canonical_blockers: tuple[ProjectionBlocker, ...] = ()
 
     @property
     def complete(self) -> bool:
         return self.mapping is not None and not self.blockers
+
+    @property
+    def canonical_ready(self) -> bool:
+        return self.canonical_mapping is not None and not self.canonical_blockers
 
 
 def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> ArchitectureMappingProduction:
@@ -1220,6 +1301,88 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
         blockers.append(ProjectionBlocker(
             "MAP-REQ-000", "ISR contains no authoritative requirement references to bind architecture against",
         ))
+    if not data_models:
+        blockers.append(ProjectionBlocker(
+            "MAP-DATA-000", "ISR contains no explicit data-model nodes with fields and invariants",
+        ))
+
+    # Verify that each carried ISR requirement ref is an exact semantic
+    # projection of the authoritative RequirementGraph node, and that source
+    # relationships survived with their typed endpoints.
+    requirement_graph = source_snapshot.get("requirement_graph")
+    source_requirement_nodes = (
+        requirement_graph.get("nodes", {})
+        if isinstance(requirement_graph, Mapping) else {}
+    )
+    if isinstance(source_requirement_nodes, Mapping) and source_requirement_nodes:
+        isr_requirement_by_source_id = {
+            item["properties"].get("requirement_id", item["id"]): item
+            for item in requirements
+        }
+        missing_requirement_refs = sorted(
+            set(source_requirement_nodes) - set(isr_requirement_by_source_id)
+        )
+        if missing_requirement_refs:
+            blockers.append(ProjectionBlocker(
+                "MAP-REQ-011",
+                "authoritative requirement nodes were lost before ISR projection",
+                tuple(str(value) for value in missing_requirement_refs),
+            ))
+        for source_id, source_requirement in source_requirement_nodes.items():
+            ref_node = isr_requirement_by_source_id.get(source_id)
+            if ref_node is None or not isinstance(source_requirement, Mapping):
+                continue
+            props = ref_node["properties"]
+            expected_values = {
+                "semantic_content": source_requirement.get("statement"),
+                "requirement_kind": source_requirement.get("kind"),
+                "priority": source_requirement.get("priority"),
+                "acceptance_criteria": list(source_requirement.get("acceptance_criteria", ())),
+                "source_refs": list(source_requirement.get("source_refs", ())),
+                "resolution_ref": source_requirement.get("resolution_ref"),
+            }
+            mismatches = [
+                key for key, expected in expected_values.items()
+                if props.get(key) != expected
+            ]
+            if mismatches:
+                blockers.append(ProjectionBlocker(
+                    "MAP-REQ-012",
+                    f"ISR requirement ref {ref_node['id']!r} differs from authoritative source fields: {mismatches}",
+                    (str(source_id), ref_node["id"]),
+                ))
+
+        source_requirement_edges = requirement_graph.get("edges", {})
+        if isinstance(source_requirement_edges, Mapping):
+            relation_types = {
+                "depends_on": "requirement_depends_on",
+                "conflicts_with": "requirement_conflicts_with",
+                "refines": "requirement_refines",
+                "owned_by": "requirement_owned_by",
+            }
+            for edge_key, source_edge in source_requirement_edges.items():
+                if not isinstance(source_edge, Mapping):
+                    blockers.append(ProjectionBlocker(
+                        "MAP-REQ-013",
+                        f"authoritative requirement edge {edge_key!r} is malformed",
+                    ))
+                    continue
+                expected_id = f"requirement:{source_edge.get('id', edge_key)}"
+                actual = next((edge for edge in edge_records if edge["id"] == expected_id), None)
+                expected_type = relation_types.get(str(source_edge.get("type", "")).split(".")[-1].lower())
+                expected_source = f"requirement_ref:{source_edge.get('source_id', '')}"
+                expected_target = f"requirement_ref:{source_edge.get('target_id', '')}"
+                if (
+                    actual is None or expected_type is None
+                    or actual["type"] != expected_type
+                    or actual["source_id"] != expected_source
+                    or actual["target_id"] != expected_target
+                ):
+                    blockers.append(ProjectionBlocker(
+                        "MAP-REQ-014",
+                        f"authoritative requirement relationship {edge_key!r} was not preserved exactly",
+                        (expected_id, expected_source, expected_target),
+                    ))
 
     # The ISR graph currently carries API node identity but not necessarily
     # operation-level method/path/schema/error/idempotency contracts.
@@ -1334,15 +1497,14 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
             continue
         source_ref = props.get("source_ref")
         source_refs = props.get("source_refs")
-        has_source_ref = isinstance(source_ref, str) and bool(source_ref.strip())
-        has_source_refs = (
-            isinstance(source_refs, (list, tuple))
-            and bool(source_refs)
-            and all(isinstance(ref, str) and ref.strip() for ref in source_refs)
-        )
-        if not (has_source_ref or has_source_refs):
-            blockers.append(ProjectionBlocker("MAP-REQ-003", f"requirement {requirement_id!r} lacks valid source reference provenance", (requirement["id"],)))
-        if not isinstance(props.get("revision"), (str, int)) or str(props.get("revision")).strip() == "":
+        if not (
+            isinstance(source_ref, str) and source_ref
+            or isinstance(source_refs, (list, tuple)) and source_refs
+            and all(isinstance(ref, str) and ref for ref in source_refs)
+        ):
+            blockers.append(ProjectionBlocker("MAP-REQ-003", f"requirement {requirement_id!r} lacks source_ref provenance", (requirement["id"],)))
+        source_revision = props.get("revision", revision.get("revision_id", revision.get("content_hash")))
+        if not isinstance(source_revision, (str, int)) or str(source_revision).strip() == "":
             blockers.append(ProjectionBlocker("MAP-REQ-004", f"requirement {requirement_id!r} lacks an authoritative revision", (requirement["id"],)))
 
         matches = [edge for edge in requirement_edges if edge["target_id"] == requirement["id"]]
@@ -1366,7 +1528,23 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
             blockers.append(ProjectionBlocker("MAP-REQ-008", f"requirement {requirement_id!r} maps to a non-service implementation target", (requirement["id"], implementation_edges[0]["id"])))
             continue
 
-        requirement_kind = str(props.get("requirement_kind", props.get("kind", "functional"))).lower()
+        nested_source_properties = props.get("properties", {})
+        nested_source_properties = nested_source_properties if isinstance(nested_source_properties, Mapping) else {}
+        requirement_kind = str(
+            props.get(
+                "obligation_kind",
+                props.get(
+                    "semantic_kind",
+                    nested_source_properties.get(
+                        "obligation_kind",
+                        nested_source_properties.get(
+                            "semantic_kind",
+                            props.get("requirement_kind", props.get("kind", "functional")),
+                        ),
+                    ),
+                ),
+            )
+        ).lower()
         enforcement_targets: list[dict[str, str]] = []
         if requirement_kind in {"authorization", "security", "rbac", "abac"}:
             linked_policy_edges = [
@@ -1401,7 +1579,9 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
         else:
             enforcement_targets.append({"kind": "service", "id": service["id"]})
 
-        verification_method = props.get("verification_method")
+        verification_method = props.get(
+            "verification_method", nested_source_properties.get("verification_method")
+        )
         if not isinstance(verification_method, str) or not verification_method.strip():
             blockers.append(ProjectionBlocker("MAP-REQ-009", f"requirement {requirement_id!r} lacks a verification method", (requirement["id"],)))
         requirement_obligations.append({
@@ -1409,8 +1589,8 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
             "requirement_node_id": requirement["id"],
             "semantic_content": semantic_content,
             "requirement_kind": requirement_kind,
-            "source_ref": props.get("source_ref"),
-            "revision": str(props.get("revision", "")),
+            "source_ref": props.get("source_ref", props.get("source_refs", [])),
+            "revision": str(props.get("revision", revision.get("revision_id", revision.get("content_hash", "")))),
             "capability_id": capability["id"],
             "service_id": service["id"],
             "enforcement_targets": enforcement_targets,
@@ -1513,13 +1693,41 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
             service_id = implementation_edge["target_id"]
             requirement_id = refs_by_id[edge["target_id"]]["properties"].get("requirement_id", edge["target_id"])
             if isinstance(requirement_id, str) and requirement_id:
-                requirement_bindings.append({
-                    "requirement_id": requirement_id,
-                    "layer": "backend",
-                    "target_id": service_id,
-                    "source_edge_id": edge["id"],
-                    "implementation_edge_id": implementation_edge["id"],
-                })
+                source_req_graph = source_snapshot.get("requirement_graph", {})
+                source_req_nodes = source_req_graph.get("nodes", {}) if isinstance(source_req_graph, Mapping) else {}
+                source_req = source_req_nodes.get(requirement_id) if isinstance(source_req_nodes, Mapping) else None
+                if isinstance(source_req, Mapping):
+                    # Traceability stays fully typed (satisfies -> capability ->
+                    # implemented_by -> service). The binding LAYER is chosen
+                    # with the same obligation classification the verifier
+                    # applies: an API-surface obligation must surface the API
+                    # contract object as its binding target; every other
+                    # obligation surfaces the implementing service.
+                    layer, target_id = "backend", service_id
+                    if statement_requires_api_binding(str(source_req.get("statement", ""))):
+                        for api_node in apis:
+                            api_contract = api_node.get("properties", {}).get("api_contract")
+                            contract_id = (
+                                api_contract.get("contract_id")
+                                if isinstance(api_contract, Mapping) else None
+                            )
+                            if isinstance(contract_id, str) and contract_id:
+                                layer, target_id = "api", contract_id
+                                break
+                    requirement_bindings.append({
+                        "requirement_id": requirement_id,
+                        "layer": layer,
+                        "target_id": target_id,
+                        "requirement_hash": _canonical_hash(source_req),
+                        "source_edge_id": edge["id"],
+                        "implementation_edge_id": implementation_edge["id"],
+                    })
+                else:
+                    blockers.append(ProjectionBlocker(
+                        "MAP-REQ-010",
+                        f"requirement {requirement_id!r} cannot be bound to an authoritative requirement-graph node",
+                        (requirement_id, edge["target_id"]),
+                    ))
 
     # Full mapping follows the verifier's typed five-layer contract. If any
     # required semantic field is absent, only diagnostic blockers are returned.
@@ -1535,7 +1743,245 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
         "provenance": {"source_refs": source_refs, "source_hash": source_hash, "isr_content_hash": revision.get("content_hash", "")},
         "inventory": inventory,
     }
+    # The diagnostic inventory above is intentionally not the canonical IR
+    # contract. Full-stack verification consumes only explicit, schema-complete
+    # contract payloads carried by typed ISR nodes; no list/field defaults are
+    # synthesized here.
+    canonical_blockers: list[ProjectionBlocker] = []
+    frontend_contracts = [
+        node["properties"].get("frontend_contract")
+        for node in frontend_routes
+        if isinstance(node.get("properties"), Mapping)
+        and isinstance(node["properties"].get("frontend_contract"), Mapping)
+    ]
+    api_contracts = [
+        node["properties"].get("api_contract")
+        for node in apis
+        if isinstance(node.get("properties"), Mapping)
+        and isinstance(node["properties"].get("api_contract"), Mapping)
+    ]
+    backend_contracts = [
+        node["properties"].get("backend_contract")
+        for node in services
+        if isinstance(node.get("properties"), Mapping)
+        and isinstance(node["properties"].get("backend_contract"), Mapping)
+    ]
+    effect_paths = [
+        node["properties"].get("effect_path")
+        for node in effects
+        if isinstance(node.get("properties"), Mapping)
+        and isinstance(node["properties"].get("effect_path"), Mapping)
+    ]
+    effect_consequences = [
+        node["properties"].get("effect_consequence")
+        for node in consequences
+        if isinstance(node.get("properties"), Mapping)
+        and isinstance(node["properties"].get("effect_consequence"), Mapping)
+    ]
+    for label, values in (
+        ("frontend_contract", frontend_contracts),
+        ("api_contract", api_contracts),
+        ("backend_contract", backend_contracts),
+    ):
+        if len(values) != 1:
+            canonical_blockers.append(ProjectionBlocker(
+                "MAP-IR-001",
+                f"canonical full-stack lowering requires exactly one explicit {label} payload; found {len(values)}",
+            ))
+    if len(effect_paths) != len(effects):
+        canonical_blockers.append(ProjectionBlocker(
+            "MAP-IR-002",
+            "every ISR effect must carry an explicit canonical effect_path payload",
+            tuple(node["id"] for node in effects if not isinstance(node.get("properties", {}).get("effect_path"), Mapping)),
+        ))
+    if len(effect_consequences) != len(consequences):
+        canonical_blockers.append(ProjectionBlocker(
+            "MAP-IR-003",
+            "every ISR consequence must carry an explicit canonical effect_consequence payload",
+            tuple(node["id"] for node in consequences if not isinstance(node.get("properties", {}).get("effect_consequence"), Mapping)),
+        ))
+
+    canonical_mapping = None
+    if not canonical_blockers:
+        canonical_mapping = {
+            "frontend": dict(frontend_contracts[0]),
+            "api": dict(api_contracts[0]),
+            "backend": dict(backend_contracts[0]),
+            "effects": [dict(value) for value in effect_paths],
+            "consequences": [dict(value) for value in effect_consequences],
+            "requirement_bindings": sorted(
+                requirement_bindings,
+                key=lambda item: (item["requirement_id"], item["target_id"]),
+            ),
+            "provenance": {
+                "source_refs": source_refs,
+                "source_hash": source_hash,
+                "isr_content_hash": revision.get("content_hash", ""),
+            },
+        }
+        # Prove that the canonical IR payload agrees with the typed ISR
+        # nodes and relationships from which it was projected.
+        frontend = canonical_mapping["frontend"]
+        api_contract = canonical_mapping["api"]
+        backend = canonical_mapping["backend"]
+        canonical_routes = frontend.get("routes")
+        actual_routes = [
+            node["properties"].get("path", node["properties"].get("route", node["properties"].get("url")))
+            for node in frontend_routes
+        ]
+        if (
+            not isinstance(canonical_routes, (list, tuple))
+            or any(not isinstance(value, str) or not value for value in canonical_routes)
+            or any(not isinstance(value, str) or not value for value in actual_routes)
+            or sorted(canonical_routes) != sorted(actual_routes)
+        ):
+            canonical_blockers.append(ProjectionBlocker(
+                "MAP-IR-006", "canonical frontend routes differ from the explicit ISR frontend-route nodes",
+                tuple(node["id"] for node in frontend_routes),
+            ))
+        canonical_flows = frontend.get("interaction_flows")
+        actual_flows = [node["properties"].get("flow_id") for node in frontend_interactions]
+        if (
+            not isinstance(canonical_flows, (list, tuple))
+            or any(not isinstance(value, str) or not value for value in canonical_flows)
+            or any(not isinstance(value, str) or not value for value in actual_flows)
+            or sorted(canonical_flows) != sorted(actual_flows)
+        ):
+            canonical_blockers.append(ProjectionBlocker(
+                "MAP-IR-007", "canonical frontend flows differ from the explicit ISR interaction nodes",
+                tuple(node["id"] for node in frontend_interactions),
+            ))
+
+        isr_operation_signatures = sorted(
+            (str(operation.get("operation_id", "")), str(operation.get("method", "")).upper(), str(operation.get("path", "")))
+            for node in apis
+            for operation in node["properties"].get("operations", [])
+            if isinstance(operation, Mapping)
+        )
+        ir_operation_signatures = sorted(
+            (str(operation.get("operation_id", "")), str(operation.get("method", "")).upper(), str(operation.get("path", "")))
+            for operation in api_contract.get("operations", [])
+            if isinstance(operation, Mapping)
+        )
+        if not isr_operation_signatures or isr_operation_signatures != ir_operation_signatures:
+            canonical_blockers.append(ProjectionBlocker(
+                "MAP-IR-008", "canonical API operations differ from explicit ISR API operation declarations",
+                tuple(node["id"] for node in apis),
+            ))
+
+        backend_modules = backend.get("modules", [])
+        modules_by_id = {
+            module.get("module_id"): module
+            for module in backend_modules
+            if isinstance(module, Mapping) and isinstance(module.get("module_id"), str)
+        } if isinstance(backend_modules, (list, tuple)) else {}
+        for service in services:
+            module = modules_by_id.get(service["id"])
+            responsibility = service["properties"].get("responsibility", service["properties"].get("description"))
+            if module is None or module.get("responsibility") != responsibility:
+                canonical_blockers.append(ProjectionBlocker(
+                    "MAP-IR-009",
+                    f"canonical backend module does not preserve ISR service identity/responsibility for {service['id']!r}",
+                    (service["id"],),
+                ))
+
+        persistence_targets = backend.get("persistence_targets", [])
+        if (
+            not isinstance(persistence_targets, (list, tuple))
+            or any(not isinstance(value, str) or not value for value in persistence_targets)
+            or not set(model["id"] for model in data_models).issubset(set(persistence_targets))
+        ):
+            canonical_blockers.append(ProjectionBlocker(
+                "MAP-IR-010", "canonical backend persistence targets omit explicit ISR data models",
+                tuple(model["id"] for model in data_models),
+            ))
+
+        policy_ids = {
+            value if isinstance(value, str) and value else policy["id"]
+            for policy in policies
+            for value in [policy["properties"].get("policy_id")]
+        }
+        security_boundaries = backend.get("security_boundaries", [])
+        if (
+            not isinstance(security_boundaries, (list, tuple))
+            or any(not isinstance(value, str) or not value for value in security_boundaries)
+            or not policy_ids.issubset(set(security_boundaries))
+        ):
+            canonical_blockers.append(ProjectionBlocker(
+                "MAP-IR-011", "canonical backend security boundaries omit explicit ISR security policies",
+                tuple(sorted(str(value) for value in policy_ids)),
+            ))
+
+        canonical_effects = canonical_mapping["effects"]
+        canonical_effect_ids = {
+            value.get("effect_id") for value in canonical_effects
+            if isinstance(value, Mapping) and isinstance(value.get("effect_id"), str)
+        }
+        isr_effect_ids = {node["id"] for node in effects}
+        if canonical_effect_ids != isr_effect_ids:
+            canonical_blockers.append(ProjectionBlocker(
+                "MAP-IR-012", "canonical effect paths do not correspond one-to-one with ISR effect nodes",
+                tuple(sorted(isr_effect_ids)),
+            ))
+        canonical_consequences = canonical_mapping["consequences"]
+        consequence_effect_ids = {
+            value.get("effect_id") for value in canonical_consequences
+            if isinstance(value, Mapping) and isinstance(value.get("effect_id"), str)
+        }
+        if consequence_effect_ids != isr_effect_ids:
+            canonical_blockers.append(ProjectionBlocker(
+                "MAP-IR-013", "canonical consequences do not cover every explicit ISR effect",
+                tuple(sorted(isr_effect_ids)),
+            ))
+        for effect in canonical_effects:
+            if not isinstance(effect, Mapping):
+                continue
+            if (
+                not isinstance(effect.get("authorization_boundary"), str)
+                or effect.get("authorization_boundary") not in policy_ids
+            ):
+                canonical_blockers.append(ProjectionBlocker(
+                    "MAP-IR-014", "canonical effect authorization boundary is not an explicit ISR policy",
+                    (str(effect.get("effect_id", "")), str(effect.get("authorization_boundary", ""))),
+                ))
+            if (
+                not isinstance(canonical_flows, (list, tuple))
+                or any(not isinstance(value, str) for value in canonical_flows)
+                or effect.get("frontend_flow_id") not in set(canonical_flows)
+            ):
+                canonical_blockers.append(ProjectionBlocker(
+                    "MAP-IR-015", "canonical effect references an unknown frontend flow",
+                    (str(effect.get("effect_id", "")), str(effect.get("frontend_flow_id", ""))),
+                ))
+            domain_modules = backend.get("domain_modules", ())
+            if (
+                not isinstance(domain_modules, (list, tuple))
+                or any(not isinstance(value, str) for value in domain_modules)
+                or not isinstance(effect.get("domain_module"), str)
+                or effect.get("domain_module") not in set(domain_modules)
+            ):
+                canonical_blockers.append(ProjectionBlocker(
+                    "MAP-IR-016", "canonical effect references an unknown backend domain module",
+                    (str(effect.get("effect_id", "")), str(effect.get("domain_module", ""))),
+                ))
+
+        try:
+            lowered = lower_explicit_mapping_to_full_stack_ir(canonical_mapping)
+            canonical_blockers.extend(
+                ProjectionBlocker("MAP-IR-004", finding)
+                for finding in lowered.findings
+            )
+        except (TypeError, ValueError, KeyError) as exc:
+            canonical_blockers.append(ProjectionBlocker(
+                "MAP-IR-005",
+                f"canonical mapping validation failed closed: {type(exc).__name__}: {exc}",
+            ))
+        if canonical_blockers:
+            canonical_mapping = None
+
     return ArchitectureMappingProduction(
         mapping=explicit_mapping if not blockers else None,
         blockers=tuple(blockers),
+        canonical_mapping=canonical_mapping,
+        canonical_blockers=tuple(canonical_blockers),
     )

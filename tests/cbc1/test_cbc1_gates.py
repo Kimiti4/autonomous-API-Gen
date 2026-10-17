@@ -245,7 +245,21 @@ def test_full_stub_trial_not_certified():
         TrialStage.RUNTIME, TrialStage.DESTROY, TrialStage.VERIFY,
     ):
         assert not by_stage[stage].passed
-        assert "not_configured" in by_stage[stage].detail or "no independent verifier" in by_stage[stage].detail
+        # Every failed stage must declare its fail-closed mode explicitly:
+        # unconfigured adapter, upstream skip, not-applicable cleanup, or an
+        # unavailable verification gate — never a silent or blank pass.
+        detail = by_stage[stage].detail
+        assert (
+            "not_configured" in detail
+            or "skipped" in detail
+            or "not_applicable" in detail
+            or "unavailable" in detail
+        ), detail
+    # The verify stage evaluates all three mandatory gates even on a stub.
+    verify_detail = by_stage[TrialStage.VERIFY].detail
+    assert "independent=" in verify_detail
+    assert "full_stack=" in verify_detail
+    assert "semantic_correspondence=" in verify_detail
     assert trial.metrics.isr_semantic_conformance == 1.0
     assert trial.backend == "python-fastapi"
 
@@ -272,7 +286,12 @@ def test_independent_verify_separate_process():
     ).hexdigest()
     plan_path = os.path.join(d, ".plan.json")
     with open(plan_path, "w") as f:
-        json.dump({"expected_paths": sorted(ep.values())}, f)
+        json.dump({
+            "expected_paths": sorted(ep.values()),
+            "candidate_hash": repo.content_hash,
+            "backend_name": backend.identity().name,
+            "plan": plan.model_dump(mode="json"),
+        }, f)
 
     result = subprocess.run(
         [sys.executable, "-m", "certification.stages.independent_verify", d, plan_hash, plan_path],
@@ -280,10 +299,13 @@ def test_independent_verify_separate_process():
         text=True,
         cwd=os.path.join(os.path.dirname(__file__), "..", ".."),
     )
-    assert result.returncode == 0
+    assert result.returncode == 0, result.stdout + result.stderr
     data = json.loads(result.stdout)
     assert data["independent"] is True
     assert data["plan_match"] is True
+    # The separate process must rebind the candidate digest, not just paths.
+    assert data["candidate_match"] is True
+    assert data["conformance_passed"] is True
 
 
 import subprocess
@@ -322,7 +344,12 @@ def test_campaign_runner_records_full_stack_gate_against_candidate():
     assert verifier.calls == 1
     assert "full-stack verification passed with matching candidate binding" in verify.detail
     assert "candidate_hash=" in verify.detail
-    # Independent generated-candidate verification remains mandatory.
-    assert "no independent verifier configured" in verify.detail
+    # Independent generated-candidate verification remains mandatory and now
+    # runs by default. Its detail carries the structured predicate
+    # diagnostics. With no source/mapping inputs the semantic
+    # correspondence gate must still fail closed, so the verify stage as a
+    # whole cannot pass and the trial cannot certify.
+    assert "required_predicates={'independent': True" in verify.detail
+    assert "semantic correspondence unavailable" in verify.detail
     assert verify.passed is False
     assert trial.verdict == "NOT_CERTIFIED"

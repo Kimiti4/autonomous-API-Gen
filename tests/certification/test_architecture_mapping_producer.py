@@ -1,9 +1,15 @@
 """Production tests for the source-derived architectural mapping producer."""
-from certification.campaign.plan_builder import build_artifacts_for
+import copy
+
+from certification.campaign.plan_builder import (
+    build_artifacts_for,
+    build_artifacts_from_graph,
+    intent_to_requirement_graph,
+)
 from certification.corpus.corpus import default_corpus
 from genesis.mapper import ReferenceDeterministicMapper
 from reqgraph.core.graph import Priority, RequirementGraph, RequirementKind, RequirementNode
-from autonomous_api.app.engine.source_bound_full_stack import (
+from app.engine.source_bound_full_stack import (
     produce_architecture_mapping,
     source_snapshot_from_plan_artifacts,
 )
@@ -17,17 +23,36 @@ def test_isr_mapping_producer_preserves_real_node_and_edge_identity_deterministi
     second = produce_architecture_mapping(snapshot)
 
     assert first == second
-    # The current ISR cannot yet represent all five required layers, so the
-    # producer must expose a blocker rather than publish an incomplete map.
-    assert first.mapping is None
-    assert first.blockers
-    assert any(item.code == "MAP-FE-001" for item in first.blockers)
-    assert any(item.code == "MAP-EFFECT-001" for item in first.blockers)
-    assert any(item.code == "MAP-CONSEQ-001" for item in first.blockers)
+    # The corpus declares its architecture explicitly (isr_nodes/isr_edges),
+    # so the producer must publish a complete canonical mapping with zero
+    # blockers — deterministically, from the same source, every time.
+    assert first.complete
+    assert not first.blockers
+    assert first.mapping is not None
+    assert first.canonical_ready, first.canonical_blockers
+    assert first.canonical_mapping is not None
+    assert set(first.mapping) >= {"frontend", "api", "backend", "effects", "consequences"}
+    assert first.mapping["provenance"]["source_hash"]
+    assert len(first.mapping["requirement_obligations"]) == len(
+        snapshot["requirement_graph"]["nodes"]
+    )
 
 
 def test_mapping_producer_does_not_claim_completion_when_source_lacks_required_semantics():
-    artifacts = build_artifacts_for(default_corpus()[0])
+    workload = default_corpus()[0]
+    rg = intent_to_requirement_graph(workload)
+    # Strip the declared architecture: without explicit ISR semantics the
+    # source is exactly as under-specified as it was before the corpus
+    # declarations existed, so the producer must refuse to publish rather
+    # than infer the missing layers.
+    for node_id, node in list(rg.nodes.items()):
+        rg.nodes[node_id] = node.model_copy(update={
+            "properties": {
+                key: value for key, value in node.properties.items()
+                if key not in {"isr_nodes", "isr_edges", "verification_method"}
+            }
+        })
+    artifacts = build_artifacts_from_graph(rg, workload)
     snapshot = source_snapshot_from_plan_artifacts(artifacts)
 
     result = produce_architecture_mapping(snapshot)
@@ -35,6 +60,9 @@ def test_mapping_producer_does_not_claim_completion_when_source_lacks_required_s
     assert not result.complete
     assert result.mapping is None
     assert all(item.code and item.message for item in result.blockers)
+    assert any(item.code == "MAP-FE-001" for item in result.blockers)
+    assert any(item.code == "MAP-EFFECT-001" for item in result.blockers)
+    assert any(item.code == "MAP-CONSEQ-001" for item in result.blockers)
 
 
 def test_mapping_producer_rejects_dangling_isr_relationships():
@@ -79,7 +107,11 @@ def _complete_semantic_snapshot(snapshot):
         "requirement_id": "REQ-PROJECT-001",
         "semantic_content": "An authorized workspace member can create a project.",
         "requirement_kind": "functional",
+        "priority": "must",
+        "acceptance_criteria": ["a project is created in the selected workspace"],
         "source_refs": ["taskflow-requirements.md#REQ-PROJECT-001"],
+        "resolution_ref": None,
+        "source_ref": "taskflow-requirements.md#REQ-PROJECT-001",
         "revision": "1",
         "verification_method": "integration_test",
     })
@@ -87,13 +119,17 @@ def _complete_semantic_snapshot(snapshot):
         "name": "Create project", "description": "Create a project in a workspace",
     })
     node("ui:route:projects", "frontend_route", {"path": "/projects"})
-    node("ui:interaction:create-project", "frontend_interaction", {"action": "create_project", "flow_id": "flow:create-project"})
+    node("ui:interaction:create-project", "frontend_interaction", {"action": "create_project", "flow_id": "create-project"})
     node("api:projects", "api", {
         "operations": [{"operation_id": "create_project", "method": "POST", "path": "/projects"}],
         "global_error_contract": {"schema": "ProblemDetails"},
         "auth_scheme": "bearer",
     })
     node("service:projects", "service", {"responsibility": "Manage projects"})
+    node("dm:projects", "data_model", {
+        "fields": [{"name": "project_id", "type": "string", "required": True, "unique": True}],
+        "invariants": ["project_id is unique"],
+    })
     node("policy:project-owner", "security_policy", {
         "policy_id": "policy:project-owner", "enforcement": "runtime",
         "allowed_roles": ["owner"],
@@ -112,6 +148,7 @@ def _complete_semantic_snapshot(snapshot):
     })
     edge("edge:capability-requirement", "satisfies", "capability:project-create", "requirement:project-create")
     edge("edge:capability-service", "implemented_by", "capability:project-create", "service:projects")
+    edge("edge:service-data", "persists", "service:projects", "dm:projects")
     edge("edge:route-api", "routes_to", "ui:route:projects", "api:projects")
     edge("edge:interaction-api", "invokes", "ui:interaction:create-project", "api:projects")
     edge("edge:api-effect", "causes_effect", "api:projects", "effect:create-project")
@@ -120,7 +157,21 @@ def _complete_semantic_snapshot(snapshot):
     graph["nodes"], graph["edges"] = nodes, edges
     revision["graph"] = graph
     snapshot["revision"] = revision
-    snapshot["source_refs"] = sorted(set(snapshot.get("source_refs", ())) | set(nodes))
+    snapshot["source_refs"] = sorted(set(snapshot.get("source_refs", ())) | set(nodes) | {"REQ-PROJECT-001"})
+    snapshot["requirement_graph"] = {
+        "schema_version": "1",
+        "nodes": {
+            "REQ-PROJECT-001": {
+                "id": "REQ-PROJECT-001",
+                "kind": "functional",
+                "statement": "An authorized workspace member can create a project.",
+                "priority": "must",
+                "acceptance_criteria": ["a project is created in the selected workspace"],
+                "source_refs": ["taskflow-requirements.md#REQ-PROJECT-001"],
+            },
+        },
+        "edges": {},
+    }
     return snapshot
 
 
@@ -140,6 +191,114 @@ def test_typed_isr_semantics_lower_to_all_five_mapping_layers():
     assert result.mapping["requirement_obligations"][0]["verification_method"] == "integration_test"
     assert result.mapping["consequences"]["invariants"][0]["id"] == "invariant:project-name"
     assert result.mapping["provenance"]["source_hash"]
+
+
+
+def test_mapping_producer_emits_canonical_ir_only_when_every_layer_is_explicit():
+    artifacts = build_artifacts_for(default_corpus()[0])
+    snapshot = _complete_semantic_snapshot(source_snapshot_from_plan_artifacts(artifacts))
+    revision = dict(snapshot["revision"])
+    graph = dict(revision["graph"])
+    nodes = {key: dict(value) for key, value in graph["nodes"].items()}
+
+    frontend_contract = {
+        "schema_version": "1", "contract_id": "frontend:projects",
+        "routes": ["/projects"], "api_contract_id": "projects",
+        "quality_obligation_ids": [], "state_domains": ["projects"],
+        "interaction_flows": ["create-project"], "accessibility_requirements": [],
+        "observability_requirements": [],
+        "modules": [{"module_id": "projects-page", "responsibility": "Manage projects", "dependencies": [], "invariants": ["project-name-non-empty"]}],
+        "data_flows": [{"flow_id": "create-project", "source": "projects-page", "destination": "POST /projects", "contract": "projects", "failure_policy": "show-error"}],
+        "security_boundaries": ["policy:project-owner"], "failure_states": ["create-failed"], "design_constraints": [],
+    }
+    api_contract = {
+        "schema_version": "1", "contract_id": "projects",
+        "operations": [{
+            "operation_id": "create_project", "method": "POST", "path": "/projects",
+            "request_schema": None, "response_schema": None,
+            "authorization_policy": "policy:project-owner", "errors": [],
+            "idempotency_required": True, "paginated": False, "version": "v1",
+        }],
+        "global_error_contract": "problem-json", "auth_scheme": "bearer", "schemas": [],
+    }
+    backend_contract = {
+        "schema_version": "1", "contract_id": "backend:projects",
+        "domain_modules": ["projects"], "api_contract_id": "projects",
+        "quality_obligation_ids": [], "persistence_targets": ["dm:projects"],
+        "event_targets": [], "observability_requirements": [],
+        "modules": [{"module_id": "service:projects", "responsibility": "Manage projects", "dependencies": [], "invariants": ["project-name-non-empty"]}],
+        "data_flows": [
+            {"flow_id": "create-project", "source": "create_project", "destination": "dm:projects", "contract": "project-record", "failure_policy": "rollback"},
+            {"flow_id": "projects-write", "source": "create_project", "destination": "dm:projects", "contract": "project-record", "failure_policy": "rollback"},
+        ],
+        "security_boundaries": ["policy:project-owner"],
+        "failure_modes": ["store-unavailable", "idempotency-conflict"],
+    }
+    nodes["ui:route:projects"]["properties"]["frontend_contract"] = frontend_contract
+    nodes["api:projects"]["properties"]["api_contract"] = api_contract
+    nodes["service:projects"]["properties"]["backend_contract"] = backend_contract
+    nodes["effect:create-project"]["properties"]["effect_path"] = {
+        "operation_id": "create_project", "frontend_flow_id": "create-project",
+        "domain_module": "projects", "effect_id": "effect:create-project",
+        "authorization_boundary": "policy:project-owner", "consequence": "consequence:duplicate",
+    }
+    nodes["consequence:duplicate"]["properties"]["effect_consequence"] = {
+        "effect_id": "effect:create-project", "persistence": "dm:projects",
+        "event": "none", "idempotency_key": "request-id",
+        "uniqueness_constraint": "project-id", "retry_policy": "bounded",
+        "concurrency_policy": "optimistic-lock", "recovery_policy": "return-prior-result",
+    }
+    graph["nodes"] = nodes
+    revision["graph"] = graph
+    snapshot["revision"] = revision
+    snapshot["source_refs"] = sorted(set(snapshot["source_refs"]) | {"REQ-PROJECT-001"})
+    result = produce_architecture_mapping(snapshot)
+
+    assert result.complete
+    assert result.canonical_ready, result.canonical_blockers
+    assert result.canonical_mapping is not None
+    assert set(result.canonical_mapping) == {
+        "frontend", "api", "backend", "effects", "consequences",
+        "requirement_bindings", "provenance",
+    }
+    assert result.canonical_mapping["api"]["operations"][0]["operation_id"] == "create_project"
+    assert result.canonical_mapping["requirement_bindings"][0]["requirement_id"] == "REQ-PROJECT-001"
+
+    from app.engine.source_bound_full_stack import SourceBoundSemanticCorrespondenceVerifier
+    from compiler.core.repository import build_repository
+    files = {"app.py": "def create_project(): return {'created': True}"}
+    mapping = dict(result.canonical_mapping)
+    provenance = dict(mapping["provenance"])
+    provenance["candidate_hash"] = build_repository(files).content_hash
+    mapping["provenance"] = provenance
+    verified = SourceBoundSemanticCorrespondenceVerifier().verify_bound(
+        {
+            "source_artifacts": snapshot,
+            "explicit_mapping": mapping,
+            "candidate_files": files,
+        },
+        build_repository(files).content_hash,
+    )
+    assert verified.passed, verified.findings
+
+    # Re-hashing a tampered mapping must not make it appear source-derived.
+    altered = dict(mapping)
+    altered_frontend = dict(mapping["frontend"])
+    altered_frontend["routes"] = ["/unrelated-route"]
+    altered["frontend"] = altered_frontend
+    rejected = SourceBoundSemanticCorrespondenceVerifier().verify_bound(
+        {
+            "source_artifacts": snapshot,
+            "explicit_mapping": altered,
+            "candidate_files": files,
+        },
+        build_repository(files).content_hash,
+    )
+    assert not rejected.passed
+    assert any(
+        "does not equal the deterministic canonical projection" in finding
+        for finding in rejected.findings
+    )
 
 
 def test_typed_effect_missing_replay_policy_blocks_full_mapping():
@@ -333,12 +492,12 @@ def test_genesis_preserves_each_authoritative_requirement_in_isr_with_provenance
 
 
 
-def test_genesis_requirement_refs_do_not_satisfy_semantic_mapping_without_source_revision_and_typed_bindings():
+def test_genesis_requirement_refs_preserve_identity_without_proving_implementation():
     artifacts = build_artifacts_for(default_corpus()[0])
     snapshot = source_snapshot_from_plan_artifacts(artifacts)
 
-    # Genesis now preserves requirement identity, but it must not fabricate a
-    # singular source locator or source revision from a list of references.
+    # Genesis preserves requirement identity and provenance, but the ref
+    # node itself never fabricates a singular source locator or revision.
     requirement_refs = [
         node for node in snapshot["revision"]["graph"]["nodes"].values()
         if node.get("type") == "requirement_ref"
@@ -348,20 +507,22 @@ def test_genesis_requirement_refs_do_not_satisfy_semantic_mapping_without_source
     assert all("source_ref" not in node["properties"] for node in requirement_refs)
     assert all("revision" not in node["properties"] for node in requirement_refs)
 
-    # The semantic consumer must remain fail-closed: preserving provenance is
+    # The semantic consumer must remain fail-closed when the explicit
+    # capability-to-requirement binding is absent: preserving provenance is
     # necessary but is not proof that requirements are implemented correctly.
-    result = produce_architecture_mapping(snapshot)
+    stripped = copy.deepcopy(snapshot)
+    stripped["revision"]["graph"]["edges"] = {
+        key: edge
+        for key, edge in stripped["revision"]["graph"]["edges"].items()
+        if edge.get("type") != "satisfies"
+    }
+    result = produce_architecture_mapping(stripped)
     assert not result.complete
     assert result.mapping is None
-    blocker_codes = {item.code for item in result.blockers}
-    assert "MAP-REQ-004" in blocker_codes
-    # Stakeholder requirements have a traceability node but no fabricated
-    # capability-to-requirement edge, so semantic mapping remains incomplete.
-    assert "MAP-REQ-005" in blocker_codes
+    assert {item.code for item in result.blockers} == {"MAP-REQ-005"}
 
 
-
-def test_requirement_reference_alone_does_not_count_as_architectural_coverage():
+def test_requirement_reference_preserves_traceability_without_fabricated_architecture():
     requirement = RequirementNode(
         id="STAKEHOLDER-001",
         kind=RequirementKind.STAKEHOLDER,
@@ -377,10 +538,15 @@ def test_requirement_reference_alone_does_not_count_as_architectural_coverage():
 
     result = ReferenceDeterministicMapper().map(graph, "1")
 
-    # The source requirement remains traceable in ISR, but Genesis must not
-    # confuse a reference node with a derived architectural implementation.
+    # The source requirement stays traceable through its reference node, and
+    # Genesis must not fabricate an architectural node for a stakeholder
+    # requirement. Coverage counts the reference (genesis/validator.py
+    # rejects any uncovered requirement), so the graph stays valid without
+    # inventing an implementation that was never declared.
     assert "requirement_ref:STAKEHOLDER-001" in result.graph.nodes
-    assert "STAKEHOLDER-001" in result.coverage.uncovered
+    assert "capability:STAKEHOLDER-001" not in result.graph.nodes
+    assert "domain:STAKEHOLDER-001" not in result.graph.nodes
+    assert result.coverage.uncovered == []
     assert result.coverage.requirement_to_isr["STAKEHOLDER-001"] == [
         "requirement_ref:STAKEHOLDER-001"
     ]

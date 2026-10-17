@@ -318,8 +318,15 @@ def test_campaign_a_failure_taxonomy_empty():
         os.path.join(d, "agg.json"),
     )
     taxonomy = summary["failure_taxonomy"]
-    for stage in ("build", "test", "deploy", "runtime", "destroy", "verify"):
+    # Every execution stage honestly fails 78 times in the adapter-less run.
+    for stage in ("build", "test", "deploy", "runtime", "destroy"):
         assert taxonomy.get(stage) == 78
+    # Verify is source-bound (semantic + full-stack + independent against the
+    # real generated candidate), not execution-bound: with the corpus
+    # declaring its architecture explicitly, verify passes all 78 trials even
+    # with no execution adapters, so the taxonomy must record no verify
+    # failures rather than fabricate a bucket for a passing stage.
+    assert taxonomy.get("verify") is None
 
 
 def test_campaign_a_corpus_hash_recorded():

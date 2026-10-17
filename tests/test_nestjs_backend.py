@@ -41,3 +41,15 @@ def test_nestjs_generation_consumes_only_system_model():
     assert "fastapi" not in source
     assert "axum" not in source
     assert "net/http" not in source
+
+
+def test_nestjs_emits_runtime_adapter_and_behavioral_controller_test():
+    from tiannara.domain.models.system_model import SystemModel, RequirementsReference
+    model=SystemModel(system_name="Nest health",problem_statement="test",requirements_ref=RequirementsReference(graph_id="g",graph_hash="h"))
+    result=build_compiler_registry().backend("nestjs").generate(model)
+    package=result.files["package.json"]
+    test=result.files["test/app.spec.ts"]
+    assert '"@nestjs/platform-express":"^11.0.0"' in package
+    assert '"preset":"ts-jest"' in package
+    assert "controller.health()).toEqual({ status: 'ok' })" in test
+    assert "expect('/health').toBe('/health')" not in test

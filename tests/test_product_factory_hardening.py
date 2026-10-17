@@ -384,9 +384,12 @@ def test_compilation_dry_run():
         },
     )
 
-    assert report.success is True
-    assert report.artifact_count > 0
+    assert report.success is False
+    assert report.artifact_count == 0
     assert len(report.jobs) == 5
+    assert all(job.status == "DRY_RUN" for job in report.jobs)
+    assert all(job.evidence_status == "NOT_EXECUTED" for job in report.jobs)
+    assert all(job.artifacts == [] for job in report.jobs)
 
 
 def test_default_executor_fails_closed_without_real_compiler_gateway():
@@ -405,7 +408,28 @@ def test_default_executor_fails_closed_without_real_compiler_gateway():
     assert all(job.status == "FAILED" for job in report.jobs)
     assert all(not job.artifacts for job in report.jobs)
     assert all(
-        any("No production CompilerGateway is configured" in line for line in job.logs)
+        any("No real compiler gateway is configured" in line for line in job.logs)
+        for job in report.jobs
+    )
+
+
+def test_default_executor_fails_closed_without_real_compiler_gateway():
+    executor = CompilationExecutor()
+
+    report = executor.execute(
+        product_id="product_unconfigured",
+        isr={"name": "Must not fabricate artifacts"},
+    )
+
+    assert report.success is False
+    assert report.artifact_count == 0
+    assert report.missing_required_backends == [
+        target.backend_id for target in default_compilation_targets()
+    ]
+    assert all(job.status == "FAILED" for job in report.jobs)
+    assert all(not job.artifacts for job in report.jobs)
+    assert all(
+        any("No real compiler gateway is configured" in line for line in job.logs)
         for job in report.jobs
     )
 
@@ -468,7 +492,7 @@ def _optional_target(backend_id: str):
     return CompilationTarget(backend_id=backend_id, required=False)
 
 
-def test_compilation_tracks_jobs_and_artifacts():
+def test_compilation_tracks_dry_run_plans_without_fabricating_artifacts():
     executor = CompilationExecutor(gateway=DryRunCompilerGateway())
 
     report = executor.execute(
@@ -476,10 +500,14 @@ def test_compilation_tracks_jobs_and_artifacts():
         isr={"name": "Test Product"},
     )
 
+    assert report.success is False
+    assert report.artifact_count == 0
     assert len(report.jobs) == 5
     for job in report.jobs:
-        assert job.status == "SUCCEEDED"
-        assert job.artifacts
+        assert job.status == "DRY_RUN"
+        assert job.artifacts == []
+        assert job.planned_artifacts
+        assert job.evidence_status == "NOT_EXECUTED"
         assert job.created_at
 
 

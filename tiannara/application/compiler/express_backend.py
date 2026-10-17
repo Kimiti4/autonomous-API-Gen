@@ -22,8 +22,8 @@ class ExpressBackend:
     @property
     def name(self): return self.backend_id
     def build_profile(self,system_name):
-        return BackendBuildProfile(language="typescript",required_files=("package.json","tsconfig.json","src/index.ts"),
-          verifier_kind="express",build_command=["npm","run","build"],test_command=["npm","test","--","--runInBand"],
+        return BackendBuildProfile(language="typescript",required_files=("package.json","tsconfig.json","src/index.ts","src/app.ts","test/app.test.ts","Dockerfile"),
+          verifier_kind="express",build_command=["npm","run","build"],test_command=["npm","test"],
           runtime_image="node:22-alpine",requires_build_phase=True)
     def build_profile_declaration(self):
         return BackendCapabilityDeclaration(backend_id=self.backend_id,artifact_kinds=[ArtifactKind.BACKEND_SERVICE],
@@ -39,43 +39,77 @@ class ExpressBackend:
           path=Path(output_dir),artifacts=result.file_paths(),capability_manifest=result.capability_manifest)
     def generate(self,model:SystemModel):
         return CompilationResult(backend_id=self.backend_id,system_name=slugify(model.system_name),files={
-          "package.json":self._package(),"tsconfig.json":self._tsconfig(),"src/index.ts":self._app(),
-          "src/domain.ts":self._domain(model),"test/app.test.ts":self._test(),
-          "Dockerfile":self._docker(),"README.md":f"# {model.system_name}\n\nGenerated from the technology-neutral ISR.\n"
+          "package.json":self._package(),"tsconfig.json":self._tsconfig(),"src/index.ts":self._app_entry(),"src/app.ts":self._app(),"test/app.test.ts":self._test(),
+          "src/domain.ts":self._domain(model),"Dockerfile":self._docker(),"README.md":f"# {model.system_name}\n\nGenerated from the technology-neutral ISR.\n"
         },capability_manifest=self._manifest())
     def _package(self):
-        return '{"name":"esap-express-app","version":"0.1.0","private":true,"scripts":{"build":"tsc","start":"node dist/index.js","test":"jest --runInBand"},"dependencies":{"express":"^5.1.0"},"devDependencies":{"@types/express":"^5.0.1","@types/node":"^22.0.0","jest":"^30.0.0","ts-jest":"^29.4.0","typescript":"^5.9.0"}}'
+        return '{"name":"esap-express-app","version":"0.1.0","private":true,"scripts":{"build":"tsc","start":"node dist/src/index.js","test":"vitest run"},"dependencies":{"express":"^5.1.0"},"devDependencies":{"@types/express":"^5.0.1","@types/node":"^22.0.0","typescript":"^5.9.0","vitest":"^3.2.4"}}'
     def _tsconfig(self):
-        return '{"compilerOptions":{"target":"ES2022","module":"commonjs","moduleResolution":"node","strict":true,"esModuleInterop":true,"outDir":"dist"}}'
+        return '{"compilerOptions":{"target":"ES2022","module":"commonjs","moduleResolution":"node","strict":true,"esModuleInterop":true,"skipLibCheck":true,"outDir":"dist"}}'
     def _app(self):
         return '''import express from "express";
-const app=express(); app.use(express.json());
-app.get("/health",(_req,res)=>res.json({status:"ok"}));
-app.listen(Number(process.env.PORT||8000));
+import type { Request, Response } from "express";
+
+export function createApp() {
+  const app = express();
+  app.use(express.json());
+  app.get("/health", (_req: Request, res: Response) => res.json({ status: "ok" }));
+  return app;
+}
 '''
+    def _app_entry(self):
+        return 'import { createApp } from "./app";\nconst port = Number(process.env.PORT || 8000);\ncreateApp().listen(port, "0.0.0.0");\n'
     def _domain(self,model):
         return "\n".join(f"export interface {pascal_case(dm.name)} {{\n"+
           "".join(f"  {f.name}{'' if f.required else '?'}: unknown;\n" for f in dm.fields)+"}\n"
           for dm in model.data_models)
     def _test(self):
-        return '''describe("generated Express app",()=>{it("declares health contract",()=>{expect("/health").toBe("/health");});});'''
+        return '''import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { Server } from "node:http";
+import { createApp } from "../src/app";
+
+let server: Server;
+let baseUrl: string;
+
+beforeAll(async () => {
+  server = createApp().listen(0, "127.0.0.1");
+  await new Promise<void>((resolve) => server.once("listening", resolve));
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("test server did not bind TCP port");
+  baseUrl = "http://127.0.0.1:" + address.port;
+});
+
+afterAll(async () => {
+  await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+});
+
+describe("generated Express HTTP behavior", () => {
+  it("returns a healthy JSON response", async () => {
+    const response = await fetch(baseUrl + "/health");
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ status: "ok" });
+  });
+  it("returns 404 for an unknown route", async () => {
+    const response = await fetch(baseUrl + "/not-a-route");
+    expect(response.status).toBe(404);
+  });
+});
+'''
     def _docker(self):
         return '''FROM node:22-alpine AS build
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
 COPY . .
-RUN npm run build && npm test
+RUN npm run build && npm test && npm prune --omit=dev
 FROM node:22-alpine
 WORKDIR /app
 COPY --from=build /app .
 EXPOSE 8000
-CMD ["node","dist/index.js"]
+CMD ["node","dist/src/index.js"]
 '''
     def _manifest(self):
         return CapabilityManifest(backend_id=self.backend_id,capabilities=[
-          BundleCapability.BUILD,BundleCapability.LINT,BundleCapability.STATIC_ANALYSIS,
-          BundleCapability.TEST,BundleCapability.SECURITY_SCAN,BundleCapability.CONTAINERIZE,
-          BundleCapability.DEPLOY,BundleCapability.HEALTH_CHECK,BundleCapability.OBSERVABILITY,
-          BundleCapability.DOCUMENTATION,BundleCapability.RELEASE],
+          BundleCapability.BUILD, BundleCapability.TEST, BundleCapability.CONTAINERIZE,
+          BundleCapability.HEALTH_CHECK, BundleCapability.DOCUMENTATION],
           metadata={"language":"typescript","runtime":"node.js","framework":"express","style":"middleware"})

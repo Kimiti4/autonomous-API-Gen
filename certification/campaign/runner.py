@@ -1,10 +1,13 @@
 """CampaignRunner — orchestrates CBC-1 trials and aggregates results."""
 from __future__ import annotations
+import shutil
 import hashlib
 import json
 import os
+import subprocess
 import tempfile
 import uuid
+from dataclasses import dataclass
 from typing import Any
 
 from compiler.core.plan import CompilationPlan
@@ -21,6 +24,128 @@ from certification.core.trial import (
 )
 from certification.core import metrics as M
 from certification.provenance.bundle import ProvenanceBundle
+# The autonomous-api source-root bootstrap lives in
+# certification.campaign.__init__ so every campaign module and test shares it.
+import sys
+from pathlib import Path
+
+from app.engine.source_bound_full_stack import (
+    SourceBoundSemanticCorrespondenceVerifier,
+)
+
+
+
+@dataclass(frozen=True)
+class _IndependentVerificationResult:
+    """Explicit verifier verdict plus diagnostics suitable for durable evidence."""
+
+    passed: bool
+    detail: str
+    payload: dict[str, Any] | None = None
+
+
+class _IndependentProcessVerifier:
+    """Re-check generated files and compiler conformance in a fresh process.
+
+    Preserve subprocess output on every failure. A diagnostic payload is never
+    treated as proof unless the process exits successfully and every required
+    predicate is explicitly true.
+    """
+
+    def verify(
+        self, candidate_dir: str, plan_hash: str, plan_path: str
+    ) -> _IndependentVerificationResult:
+        root = Path(__file__).resolve().parents[2]
+        script = root / "certification" / "stages" / "independent_verify.py"
+        env = os.environ.copy()
+        existing_pythonpath = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = os.pathsep.join(
+            value for value in (str(root), existing_pythonpath) if value
+        )
+        command = [sys.executable, str(script), candidate_dir, plan_hash, plan_path]
+        try:
+            completed = subprocess.run(
+                command, cwd=str(root), env=env, capture_output=True, text=True,
+                timeout=60, check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            stdout = exc.stdout.decode("utf-8", errors="replace") if isinstance(exc.stdout, bytes) else (exc.stdout or "")
+            stderr = exc.stderr.decode("utf-8", errors="replace") if isinstance(exc.stderr, bytes) else (exc.stderr or "")
+            return _IndependentVerificationResult(
+                False,
+                f"independent verifier timed out after 60s; stdout={stdout[-3000:]!r}; stderr={stderr[-3000:]!r}",
+            )
+        except OSError as exc:
+            return _IndependentVerificationResult(
+                False, f"independent verifier could not start: {type(exc).__name__}: {exc}"
+            )
+
+        stdout = completed.stdout or ""
+        stderr = completed.stderr or ""
+        payload = None
+        parse_error = ""
+        if stdout.strip():
+            try:
+                parsed = json.loads(stdout.strip().splitlines()[-1])
+                if isinstance(parsed, dict):
+                    payload = parsed
+                else:
+                    parse_error = f"last stdout line decoded to {type(parsed).__name__}, not an object"
+            except (json.JSONDecodeError, IndexError) as exc:
+                parse_error = f"could not parse verifier JSON: {type(exc).__name__}: {exc}"
+
+        required = ("independent", "plan_match", "files_complete", "candidate_match", "conformance_passed")
+        missing = [key for key in required if payload is None or payload.get(key) is not True]
+        passed = completed.returncode == 0 and not missing
+        detail = (
+            f"exit_code={completed.returncode}; required_predicates={dict((key, payload.get(key) if payload else None) for key in required)}; "
+            f"missing_or_false={missing}; parse_error={parse_error or 'none'}; "
+            f"stdout_tail={stdout[-3000:]!r}; stderr_tail={stderr[-3000:]!r}"
+        )
+        return _IndependentVerificationResult(passed, detail, payload)
+
+
+def _safe_candidate_path(root: str, relative_path: str) -> str:
+    """Resolve a generated path without permitting workspace escape."""
+    if (
+        not isinstance(relative_path, str) or not relative_path
+        or "\x00" in relative_path or "\\" in relative_path
+        or os.path.isabs(relative_path)
+        or any(part == ".." for part in relative_path.split("/"))
+    ):
+        raise ValueError(f"unsafe generated candidate path: {relative_path!r}")
+    root_real = os.path.realpath(root)
+    full_path = os.path.realpath(os.path.join(root_real, relative_path))
+    if os.path.commonpath((root_real, full_path)) != root_real:
+        raise ValueError(f"generated candidate path escapes workspace: {relative_path!r}")
+    return full_path
+
+
+@dataclass(frozen=True)
+class _CandidateBoundFullStackResult:
+    passed: bool
+    candidate_hash: str
+    findings: tuple[str, ...]
+
+
+class _CanonicalFullStackVerifier:
+    """Run the canonical IR coherence checks; source binding is checked separately.
+
+    The semantic-correspondence gate recomputes the candidate digest from the
+    actual generated files and binds the mapping to that digest. This verifier
+    independently evaluates the five lowered IR inputs and returns the digest
+    it was invoked for so the runner can enforce a consistent evidence record.
+    """
+
+    def verify_bound(self, inputs: Any, candidate_hash: str) -> _CandidateBoundFullStackResult:
+        if not isinstance(inputs, tuple) or len(inputs) != 5:
+            return _CandidateBoundFullStackResult(False, candidate_hash, ("five canonical IR inputs are required",))
+        if not isinstance(candidate_hash, str) or not candidate_hash:
+            return _CandidateBoundFullStackResult(False, "", ("candidate hash is required",))
+        from app.engine.full_stack_verification import verify_full_stack
+        report = verify_full_stack(*inputs)
+        findings = tuple(f"{item!r}" for item in report.findings)
+        return _CandidateBoundFullStackResult(report.passed is True, candidate_hash, findings)
 
 
 def _now() -> str:
@@ -32,11 +157,103 @@ def _h(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 
+def _run_independent_verifier(verifier: Any, candidate_dir: str,
+                              plan_hash: str, plan_path: str) -> tuple[bool, str]:
+    """Run the mandatory independent verifier; absence/errors never pass."""
+    if verifier is None:
+        return False, "verification unavailable: no independent verifier configured"
+    try:
+        result = verifier.verify(candidate_dir, plan_hash, plan_path)
+    except Exception as exc:
+        return False, f"verification failed closed: {type(exc).__name__}: {exc}"
+    # The production subprocess verifier returns a structured result so
+    # failure diagnostics survive into StageEvidence. Test/custom adapters may
+    # return literal True, but truthy values and malformed result objects never pass.
+    if result is True:
+        return True, "independent verification passed"
+    if isinstance(result, _IndependentVerificationResult):
+        return result.passed is True, result.detail
+    return False, f"verification did not return explicit True or a valid structured result (result={result!r})"
+
+
+def _run_candidate_bound_full_stack_verifier(verifier: Any, inputs: Any, candidate_hash: str) -> tuple[bool, str]:
+    """Require explicit full-stack IR inputs and a passing verifier result."""
+    if verifier is None:
+        return False, "full-stack verification unavailable: verifier not configured"
+    if not isinstance(inputs, tuple) or len(inputs) != 5:
+        return False, "full-stack verification unavailable: five explicit IR inputs required"
+    if not candidate_hash:
+        return False, "full-stack verification unavailable: candidate hash missing"
+    # A digest in the log is not binding. The verifier must receive the
+    # candidate digest as an input and echo it in its structured result.
+    # Do not fall back to verify_full_stack(*inputs): that API checks IR
+    # coherence but cannot attest which generated candidate the IR describes.
+    verify_bound = getattr(verifier, "verify_bound", None)
+    if not callable(verify_bound):
+        return False, (
+            "full-stack verification unavailable: verifier must implement "
+            "verify_bound(inputs, candidate_hash)"
+        )
+    try:
+        result = verify_bound(inputs, candidate_hash)
+    except Exception as exc:
+        return False, f"full-stack verification failed closed: {type(exc).__name__}: {exc}"
+    if getattr(result, "passed", None) is not True:
+        return False, f"full-stack verification did not pass; candidate_hash={candidate_hash}; findings={getattr(result, 'findings', None)!r}"
+    if getattr(result, "candidate_hash", None) != candidate_hash:
+        return False, (
+            "full-stack verification candidate binding mismatch; "
+            f"expected={candidate_hash}; received={getattr(result, 'candidate_hash', None)!r}"
+        )
+    return True, f"full-stack verification passed with matching candidate binding; candidate_hash={candidate_hash}"
+
+
+def _run_semantic_correspondence_verifier(
+    verifier: Any, inputs: Any, candidate_hash: str,
+) -> tuple[dict[str, Any], str]:
+    """Run a source-to-mapping-to-candidate verifier; never infer semantic proof."""
+    if verifier is None:
+        return {}, "semantic correspondence unavailable: verifier not configured"
+    if inputs is None:
+        return {}, "semantic correspondence unavailable: source and mapping inputs missing"
+    if not candidate_hash:
+        return {}, "semantic correspondence unavailable: candidate hash missing"
+    verify = getattr(verifier, "verify_bound", None)
+    if not callable(verify):
+        return {}, "semantic correspondence unavailable: verifier must implement verify_bound(inputs, candidate_hash)"
+    try:
+        result = verify(inputs, candidate_hash)
+    except Exception as exc:
+        return {}, f"semantic correspondence failed closed: {type(exc).__name__}: {exc}"
+    evidence = {
+        "passed": getattr(result, "passed", None) is True,
+        "source_hash": getattr(result, "source_hash", ""),
+        "mapping_hash": getattr(result, "mapping_hash", ""),
+        "candidate_hash": getattr(result, "candidate_hash", ""),
+        "findings": list(getattr(result, "findings", ()) or ()),
+    }
+    if evidence["passed"] is not True:
+        return evidence, f"semantic correspondence did not pass: {getattr(result, 'findings', None)!r}"
+    for key in ("source_hash", "mapping_hash", "candidate_hash"):
+        if not isinstance(evidence[key], str) or not evidence[key].strip():
+            evidence["passed"] = False
+            return evidence, f"semantic correspondence missing {key}"
+    if evidence["candidate_hash"] != candidate_hash:
+        evidence["passed"] = False
+        return evidence, "semantic correspondence candidate binding mismatch"
+    return evidence, "semantic correspondence passed with matching candidate binding"
+
+
+def _unconfigured_stage(stage: TrialStage) -> tuple[bool, str]:
+    """A missing execution adapter is absence of evidence, never a pass."""
+    return False, f"not_configured: no real {stage.value} stage adapter supplied"
+
+
 class CampaignRunner:
     """Orchestrates a single CBC-1 trial: compile → stage pipeline → evidence → verdict.
 
-    Stage implementations are injected; for unit tests, use stub stages.
-    For behavioral CI, use docker_stages.*
+    Execution adapters are injected. Missing build, test, deploy, runtime,
+    destroy, or independent-verification adapters are hard failures.
     """
 
     def __init__(
@@ -47,13 +264,24 @@ class CampaignRunner:
         prober: Any = None,
         destroyer: Any = None,
         verifier: Any = None,
+        full_stack_verifier: Any = None,
+        semantic_correspondence_verifier: Any = None,
     ) -> None:
         self.builder = builder
         self.tester = tester
         self.deployer = deployer
         self.prober = prober
         self.destroyer = destroyer
-        self.verifier = verifier
+        self.verifier = verifier if verifier is not None else _IndependentProcessVerifier()
+        self.full_stack_verifier = (
+            full_stack_verifier if full_stack_verifier is not None
+            else _CanonicalFullStackVerifier()
+        )
+        # Use the production verifier by default. Missing source/mapping inputs
+        # still fail closed in the verifier; no evidence is synthesized.
+        self.semantic_correspondence_verifier = (
+            semantic_correspondence_verifier or SourceBoundSemanticCorrespondenceVerifier()
+        )
 
     def run_trial(
         self,
@@ -69,6 +297,8 @@ class CampaignRunner:
         genome_hash: str = "",
         workload: Any = None,
         artifacts: Any = None,
+        full_stack_inputs: tuple[Any, Any, Any, Any, Any] | None = None,
+        semantic_correspondence_inputs: Any = None,
     ) -> Trial:
         trial_id = str(uuid.uuid4())
         ident: BackendIdentity = backend.identity()
@@ -90,120 +320,316 @@ class CampaignRunner:
         repo = backend.compile(plan)
 
         d = tempfile.mkdtemp(prefix="cbc1-")
-        for p, c in repo.files.items():
-            full = os.path.join(d, p)
-            os.makedirs(os.path.dirname(full), exist_ok=True)
-            with open(full, "w", encoding="utf-8") as f:
-                f.write(c)
+        try:
+            for p, c in repo.files.items():
+                full = _safe_candidate_path(d, p)
+                os.makedirs(os.path.dirname(full), exist_ok=True)
+                with open(full, "w", encoding="utf-8") as f:
+                    f.write(c)
 
-        if not eligible_for_behavioral_certification(ident):
-            _record(TrialStage.STRUCTURAL, False,
-                    f"backend_class={ident.backend_class.value} below behavioral bar")
-            _record(TrialStage.SEMANTIC, False,
-                    f"backend_class={ident.backend_class.value} below behavioral bar")
-            for s in (TrialStage.BUILD, TrialStage.TEST, TrialStage.DEPLOY,
-                      TrialStage.RUNTIME, TrialStage.DESTROY, TrialStage.VERIFY):
-                _record(s, False, "skipped: not eligible")
-            verdict = "NOT_CERTIFIED"
-        else:
-            conf = backend.conformance(plan, repo)
-            _record(TrialStage.STRUCTURAL, conf.passed, f"missing={conf.missing}")
-            _record(TrialStage.SEMANTIC, conf.passed, f"semantic={conf.passed}")
-
-            if self.builder:
+            # Bind every verifier to the canonical generated repository digest.
+            # Source/IR hashes remain separate provenance evidence, not candidate identity.
+            candidate_hash = repo.content_hash
+            if not eligible_for_behavioral_certification(ident):
+                _record(TrialStage.STRUCTURAL, False,
+                        f"backend_class={ident.backend_class.value} below behavioral bar")
+                _record(TrialStage.SEMANTIC, False,
+                        f"backend_class={ident.backend_class.value} below behavioral bar")
+                for s in (TrialStage.BUILD, TrialStage.TEST, TrialStage.DEPLOY,
+                          TrialStage.RUNTIME, TrialStage.DESTROY, TrialStage.VERIFY):
+                    _record(s, False, "skipped: not eligible")
+                verdict = "NOT_CERTIFIED"
+            else:
+                conf = backend.conformance(plan, repo)
+                _record(TrialStage.STRUCTURAL, conf.passed, f"missing={conf.missing}")
+                _record(TrialStage.SEMANTIC, conf.passed, f"semantic={conf.passed}")
+    
                 tag = f"cbc1-{trial_id[:8]}"
-                b_ok, b_hash = self.builder.build(d, tag)
-                _record(TrialStage.BUILD, b_ok, f"build_hash={b_hash}")
-            else:
-                _record(TrialStage.BUILD, True, "stub-build")
-
-            if self.tester and backend_test_cmd:
-                image = f"cbc1-{trial_id[:8]}"
-                t_ok, t_hash = self.tester.run_tests(image, backend_test_cmd)
-                _record(TrialStage.TEST, t_ok, f"test_hash={t_hash}")
-            else:
-                _record(TrialStage.TEST, True, "stub-test")
-
-            cid = ""
-            if self.deployer:
-                d_ok, cid = self.deployer.deploy(f"cbc1-{trial_id[:8]}", 8000 + hash(trial_id) % 1000)
-                _record(TrialStage.DEPLOY, d_ok, f"cid={cid}")
-            else:
-                _record(TrialStage.DEPLOY, True, "stub-deploy")
-
-            if self.prober:
-                port = 8000 + hash(trial_id) % 1000
-                r_ok = self.prober.probe(port)
-                _record(TrialStage.RUNTIME, r_ok, f"runtime_ok={r_ok}")
-            else:
-                _record(TrialStage.RUNTIME, True, "stub-runtime")
-
-            if self.destroyer and cid:
-                x_ok = self.destroyer.destroy(cid)
-                _record(TrialStage.DESTROY, x_ok, f"destroy_ok={x_ok}")
-            else:
-                _record(TrialStage.DESTROY, True, "stub-destroy")
-
-            if self.verifier:
+                # Structural/semantic conformance is a prerequisite for any
+                # expensive or stateful execution. Do not build an invalid
+                # candidate and rely on later gates to reject it.
+                # Initialize explicitly: a prerequisite failure skips the build branch,
+                # but downstream stages must still observe a failed build result.
+                b_ok = False
+                if not (
+                    stage_results.get(TrialStage.STRUCTURAL) is True
+                    and stage_results.get(TrialStage.SEMANTIC) is True
+                ):
+                    b_ok, b_detail = False, (
+                        "skipped: prerequisite failure — structural and semantic conformance must both pass before build"
+                    )
+                    _record(TrialStage.BUILD, b_ok, b_detail)
+                elif self.builder:
+                    try:
+                        build_result = self.builder.build(d, tag)
+                        if (
+                            getattr(build_result, "stage", None) == TrialStage.BUILD
+                            and getattr(build_result, "mode", None) is not None
+                        ):
+                            mode_value = getattr(build_result.mode, "value", None)
+                            b_ok = (
+                                build_result.passed is True
+                                and mode_value == "real_docker"
+                                and bool(build_result.image_digest)
+                            )
+                            b_detail = (
+                                f"mode={mode_value}; image_digest={build_result.image_digest}; "
+                                f"logs_hash={build_result.logs_hash}; failure_class={build_result.failure_class}; "
+                                f"detail={build_result.detail}"
+                            )
+                        else:
+                            b_ok, b_detail = False, (
+                                "invalid build adapter result; real-Docker stage evidence required"
+                            )
+                    except Exception as exc:
+                        b_ok, b_detail = False, (
+                            f"build adapter failed closed: {type(exc).__name__}: {exc}"
+                        )
+                    _record(TrialStage.BUILD, b_ok, b_detail)
+                else:
+                    ok, detail = _unconfigured_stage(TrialStage.BUILD)
+                    _record(TrialStage.BUILD, ok, detail)
+    
+                if not b_ok:
+                    t_ok, t_detail = False, "skipped: build did not produce a verified image"
+                    _record(TrialStage.TEST, t_ok, t_detail)
+                elif self.tester:
+                    image = tag
+                    try:
+                        test_spec = backend.test_spec()
+                        test_result = self.tester.run_tests(image, test_spec, repo_dir=d, tag=tag)
+                        if hasattr(test_result, "stage") and test_result.stage == TrialStage.TEST:
+                            t_ok = test_result.passed is True and test_result.mode.value == "real_docker"
+                            t_detail = (
+                                f"mode={test_result.mode.value}; logs_hash={test_result.logs_hash}; "
+                                f"failure_class={test_result.failure_class}; detail={test_result.detail}"
+                            )
+                        else:
+                            t_ok, t_detail = False, "invalid test adapter result; explicit stage evidence required"
+                    except Exception as exc:
+                        t_ok, t_detail = False, f"test adapter failed closed: {type(exc).__name__}: {exc}"
+                    _record(TrialStage.TEST, t_ok, t_detail)
+                else:
+                    ok, detail = _unconfigured_stage(TrialStage.TEST)
+                    _record(TrialStage.TEST, ok, detail)
+    
+                port = 18000 + int(trial_id.replace("-", "")[:6], 16) % 1000
+                cid = ""
+                if not (b_ok and t_ok):
+                    d_ok, d_detail = False, "skipped: build or test stage failed; deployment not attempted"
+                    _record(TrialStage.DEPLOY, d_ok, d_detail)
+                elif self.deployer:
+                    try:
+                        deploy_result = self.deployer.deploy(tag, port)
+                        if hasattr(deploy_result, "stage") and deploy_result.stage == TrialStage.DEPLOY:
+                            real_docker_result = deploy_result.mode.value == "real_docker"
+                            # Preserve any real container identity even when the
+                            # stage failed its health/acceptance condition, so the
+                            # cleanup stage can still remove the resource.
+                            cid = deploy_result.container_id if real_docker_result else ""
+                            d_ok = deploy_result.passed is True and real_docker_result and bool(cid)
+                            d_detail = (
+                                f"mode={deploy_result.mode.value}; cid={cid}; logs_hash={deploy_result.logs_hash}; "
+                                f"detail={deploy_result.detail}"
+                            )
+                        else:
+                            d_ok, d_detail = False, "invalid deploy adapter result; explicit stage evidence required"
+                    except Exception as exc:
+                        d_ok, d_detail = False, f"deploy adapter failed closed: {type(exc).__name__}: {exc}"
+                    _record(TrialStage.DEPLOY, d_ok, d_detail)
+                else:
+                    ok, detail = _unconfigured_stage(TrialStage.DEPLOY)
+                    _record(TrialStage.DEPLOY, ok, detail)
+    
+                if not cid:
+                    r_ok, r_detail = False, "skipped: deployment produced no container to probe"
+                    _record(TrialStage.RUNTIME, r_ok, r_detail)
+                elif self.prober:
+                    try:
+                        probe_result = self.prober.probe(port, cid)
+                        r_ok = probe_result.passed is True and probe_result.mode.value == "real_docker"
+                        r_detail = (
+                            f"mode={probe_result.mode.value}; logs_hash={probe_result.logs_hash}; "
+                            f"detail={probe_result.detail}"
+                        )
+                    except Exception as exc:
+                        r_ok, r_detail = False, f"runtime adapter failed closed: {type(exc).__name__}: {exc}"
+                    _record(TrialStage.RUNTIME, r_ok, r_detail)
+                else:
+                    ok, detail = _unconfigured_stage(TrialStage.RUNTIME)
+                    _record(TrialStage.RUNTIME, ok, detail)
+    
+                if not cid:
+                    x_ok, x_detail = False, "not_applicable: no container was created; no cleanup target exists"
+                    _record(TrialStage.DESTROY, x_ok, x_detail)
+                elif self.destroyer:
+                    try:
+                        destroy_result = self.destroyer.destroy(cid)
+                        x_ok = destroy_result.passed is True and destroy_result.mode.value == "real_docker"
+                        x_detail = (
+                            f"mode={destroy_result.mode.value}; logs_hash={destroy_result.logs_hash}; "
+                            f"detail={destroy_result.detail}"
+                        )
+                    except Exception as exc:
+                        x_ok, x_detail = False, f"destroy adapter failed closed: {type(exc).__name__}: {exc}"
+                    _record(TrialStage.DESTROY, x_ok, x_detail)
+                else:
+                    ok, detail = _unconfigured_stage(TrialStage.DESTROY)
+                    _record(TrialStage.DESTROY, ok, detail)
+    
+                expected_paths = sorted(set(backend.element_paths(plan).values()))
                 plan_hash = hashlib.sha256(
-                    json.dumps(sorted(backend.element_paths(plan).values())).encode("utf-8")
+                    json.dumps(expected_paths).encode("utf-8")
                 ).hexdigest()
                 plan_path = os.path.join(d, ".plan.json")
-                with open(plan_path, "w") as fp:
-                    json.dump({"expected_paths": list(backend.element_paths(plan).values())}, fp)
-                v_ok = self.verifier.verify(d, plan_hash, plan_path)
-                _record(TrialStage.VERIFY, v_ok, f"verify_ok={v_ok}")
-            else:
-                _record(TrialStage.VERIFY, True, "stub-verify")
+                with open(plan_path, "w", encoding="utf-8") as fp:
+                    json.dump({
+                        "expected_paths": expected_paths,
+                        "candidate_hash": candidate_hash,
+                        "backend_name": ident.name,
+                        "plan": plan.model_dump(mode="json"),
+                    }, fp)
+                independent_ok, independent_detail = _run_independent_verifier(
+                    self.verifier, d, plan_hash, plan_path
+                )
+                # Campaign A supplies authoritative PlanArtifacts. Build the
+                # verifier input from those real artifacts and the exact repository
+                # returned by this backend; never infer the missing architecture map.
+                if semantic_correspondence_inputs is None and artifacts is not None:
+                    try:
+                        from app.engine.source_bound_full_stack import (
+                            source_snapshot_from_plan_artifacts,
+                            produce_architecture_mapping,
+                        )
+                        source_snapshot = source_snapshot_from_plan_artifacts(artifacts)
+                        mapping_result = produce_architecture_mapping(source_snapshot)
+                        canonical_mapping = None
+                        if mapping_result.complete and mapping_result.canonical_ready:
+                            canonical_mapping = dict(mapping_result.canonical_mapping)
+                            canonical_provenance = dict(canonical_mapping["provenance"])
+                            canonical_provenance["candidate_hash"] = candidate_hash
+                            canonical_mapping["provenance"] = canonical_provenance
+                        semantic_correspondence_inputs = {
+                            "source_artifacts": source_snapshot,
+                            # Only a complete canonical five-layer IR contract
+                            # bound to this exact candidate may enter verification.
+                            # Diagnostic inventories are never treated as lowered IR.
+                            "explicit_mapping": canonical_mapping,
+                            "mapping_producer_findings": [
+                                f"{item.code}: {item.message}"
+                                for item in (
+                                    *mapping_result.blockers,
+                                    *mapping_result.canonical_blockers,
+                                )
+                            ],
+                            "candidate_files": dict(repo.files),
+                        }
+                    except Exception as exc:
+                        semantic_correspondence_inputs = None
+                        semantic_input_error = (
+                            f"Campaign A source snapshot construction failed closed: "
+                            f"{type(exc).__name__}: {exc}"
+                        )
+                    else:
+                        semantic_input_error = ""
+                else:
+                    semantic_input_error = ""
+    
+                semantic_evidence, semantic_detail = _run_semantic_correspondence_verifier(
+                    self.semantic_correspondence_verifier,
+                    semantic_correspondence_inputs,
+                    repo.content_hash,
+                )
+                if semantic_input_error:
+                    semantic_evidence = {}
+                    semantic_detail = semantic_input_error
 
-            verdict = compose_verdict(stage_results, evidence_present=True)
-
-        metrics = M.compute(
-            repo_files_count=len(repo.files),
-            stages=stage_results,
-            structural_passed=stage_results.get(TrialStage.STRUCTURAL, False),
-            test_passed=stage_results.get(TrialStage.TEST, False),
-            runtime_passed=stage_results.get(TrialStage.RUNTIME, False),
-            repo_content_hash=repo.content_hash,
-            files=repo.files,
-            stage_evidence=evidence,
-        )
-
-        trial = Trial(
-            trial_id=trial_id,
-            intent=intent,
-            category=category,
-            novelty_class=novelty_class,
-            requirement_graph_hash=requirement_graph_hash,
-            genome_hash=genome_hash,
-            isr_revision_id=revision_id,
-            backend=ident.name,
-            backend_class=ident.backend_class.value,
-            backend_version=ident.version,
-            compiler_version="1.4.0",
-            repo_hash=repo.content_hash,
-            corpus_hash=corpus_hash,
-            stages=evidence,
-            metrics=metrics,
-            verdict=verdict,
-        )
-
-        if artifacts and workload is not None:
-            conformance = backend.conformance(plan, repo)
-            bundle = ProvenanceBundle.emit(
-                trial=trial, plan=artifacts.plan, revision=artifacts.revision,
-                genome=artifacts.genome, requirement_graph=artifacts.requirement_graph,
-                backend_identity=ident, conformance=conformance,
+                # Derive the five canonical IR inputs only after source-to-mapping
+                # correspondence has passed. Never fabricate IR or apply defaults.
+                full_stack_input_error = ""
+                if full_stack_inputs is None and semantic_evidence.get("passed") is True:
+                    try:
+                        from app.engine.source_bound_full_stack import lower_explicit_mapping_to_full_stack_ir
+                        mapping = semantic_correspondence_inputs.get("explicit_mapping")
+                        lowered = lower_explicit_mapping_to_full_stack_ir(mapping)
+                        if not lowered.structurally_valid:
+                            full_stack_input_error = (
+                                "authoritative mapping did not lower to complete canonical IR: "
+                                + "; ".join(lowered.findings)
+                            )
+                        else:
+                            full_stack_inputs = (
+                                lowered.frontend, lowered.api, lowered.backend,
+                                lowered.effects, lowered.consequences,
+                            )
+                    except Exception as exc:
+                        full_stack_input_error = (
+                            f"full-stack IR derivation failed closed: {type(exc).__name__}: {exc}"
+                        )
+                if full_stack_input_error:
+                    full_stack_ok, full_stack_detail = False, full_stack_input_error
+                else:
+                    full_stack_ok, full_stack_detail = _run_candidate_bound_full_stack_verifier(
+                        self.full_stack_verifier, full_stack_inputs, candidate_hash
+                    )
+                verify_ok = independent_ok and full_stack_ok and semantic_evidence.get("passed") is True
+                _record(
+                    TrialStage.VERIFY, verify_ok,
+                    f"independent=[{independent_detail}]; full_stack=[{full_stack_detail}]; "
+                    f"semantic_correspondence=[{semantic_detail}]",
+                )
+    
+                verdict = compose_verdict(stage_results, evidence_present=True)
+    
+            metrics = M.compute(
+                repo_files_count=len(repo.files),
+                stages=stage_results,
+                structural_passed=stage_results.get(TrialStage.STRUCTURAL, False),
+                test_passed=stage_results.get(TrialStage.TEST, False),
+                runtime_passed=stage_results.get(TrialStage.RUNTIME, False),
+                repo_content_hash=repo.content_hash,
+                files=repo.files,
+                stage_evidence=evidence,
             )
-            bhash = ProvenanceBundle.bundle_hash(bundle)
-            trial = trial.model_copy(update={"bundle_hash": bhash})
-            for p, c in {**repo.files, **bundle}.items():
-                full = os.path.join(d, p)
-                os.makedirs(os.path.dirname(full), exist_ok=True)
-                with open(full, "w", encoding="utf-8") as fp:
-                    fp.write(c)
-
-        return trial
+    
+            trial = Trial(
+                trial_id=trial_id,
+                intent=intent,
+                category=category,
+                novelty_class=novelty_class,
+                requirement_graph_hash=requirement_graph_hash,
+                genome_hash=genome_hash,
+                isr_revision_id=revision_id,
+                backend=ident.name,
+                backend_class=ident.backend_class.value,
+                backend_version=ident.version,
+                compiler_version="1.4.0",
+                repo_hash=repo.content_hash,
+                corpus_hash=corpus_hash,
+                stages=evidence,
+                metrics=metrics,
+                verdict=verdict,
+                semantic_correspondence=semantic_evidence if 'semantic_evidence' in locals() else {},
+            )
+    
+            if artifacts and workload is not None:
+                conformance = backend.conformance(plan, repo)
+                bundle = ProvenanceBundle.emit(
+                    trial=trial, plan=artifacts.plan, revision=artifacts.revision,
+                    genome=artifacts.genome, requirement_graph=artifacts.requirement_graph,
+                    backend_identity=ident, conformance=conformance,
+                )
+                bhash = ProvenanceBundle.bundle_hash(bundle)
+                trial = trial.model_copy(update={"bundle_hash": bhash})
+                for p, c in {**repo.files, **bundle}.items():
+                    full = _safe_candidate_path(d, p)
+                    os.makedirs(os.path.dirname(full), exist_ok=True)
+                    with open(full, "w", encoding="utf-8") as fp:
+                        fp.write(c)
+    
+            return trial
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
 
 
 class CampaignAggregator:

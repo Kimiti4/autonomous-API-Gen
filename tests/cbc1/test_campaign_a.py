@@ -289,8 +289,11 @@ def test_campaign_a_runs_all_categories():
     assert summary["total"] == 78
     assert summary["corpus_size"] == 39
     assert summary["total_trials"] == 78
-    assert summary["certified"] == 78
-    assert summary["success_rate"] == 1.0
+    # The campaign has no real execution adapters configured; it must not
+    # certify trials from placeholder stage results.
+    assert summary["certified"] == 0
+    assert summary["not_certified"] == 78
+    assert summary["success_rate"] == 0.0
     assert EvidenceLedger.verify(ledger_path)
     assert EvidenceLedger.count(ledger_path) == 78
 
@@ -301,12 +304,11 @@ def test_campaign_a_success_matrix():
         os.path.join(d, "ledger.jsonl"),
         os.path.join(d, "agg.json"),
     )
+    # The aggregator preserves the corpus dimensions, but every count must
+    # remain zero because no trial was certified.
     matrix = summary["success_matrix"]
-    assert "crud_saas" in matrix
-    assert "banking" in matrix
-    assert "streaming" in matrix
-    for cat in matrix:
-        assert "novel_intent" in matrix[cat]
+    assert len(matrix) == 13
+    assert all(count == 0 for category in matrix.values() for count in category.values())
 
 
 def test_campaign_a_failure_taxonomy_empty():
@@ -315,7 +317,16 @@ def test_campaign_a_failure_taxonomy_empty():
         os.path.join(d, "ledger.jsonl"),
         os.path.join(d, "agg.json"),
     )
-    assert summary["failure_taxonomy"] == {}
+    taxonomy = summary["failure_taxonomy"]
+    # Every execution stage honestly fails 78 times in the adapter-less run.
+    for stage in ("build", "test", "deploy", "runtime", "destroy"):
+        assert taxonomy.get(stage) == 78
+    # Verify is source-bound (semantic + full-stack + independent against the
+    # real generated candidate), not execution-bound: with the corpus
+    # declaring its architecture explicitly, verify passes all 78 trials even
+    # with no execution adapters, so the taxonomy must record no verify
+    # failures rather than fabricate a bucket for a passing stage.
+    assert taxonomy.get("verify") is None
 
 
 def test_campaign_a_corpus_hash_recorded():

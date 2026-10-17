@@ -149,7 +149,7 @@ run_stage b-corpus-coverage \
   "cd '$REPO_ROOT' && python -m pytest tests/cbc1/test_cbc1_gates.py -k 'test_default_corpus' -q"
 
 run_stage b-full-stub-trial \
-  "cd '$REPO_ROOT' && python -m pytest tests/cbc1/test_cbc1_gates.py::test_full_stub_trial_certified -q"
+  "cd '$REPO_ROOT' && python -m pytest tests/cbc1/test_cbc1_gates.py::test_full_stub_trial_not_certified -q"
 
 run_stage b-independent-verify \
   "cd '$REPO_ROOT' && python -m pytest tests/cbc1/test_cbc1_gates.py::test_independent_verify_separate_process -q"

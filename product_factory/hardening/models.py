@@ -177,6 +177,11 @@ class CompilationJob(BaseModel):
 
     status: str = "PENDING"
 
+    # Reported compiler output is not independent verification evidence.
+    execution_mode: str = "unknown"
+    evidence_status: str = "MISSING"
+    planned_artifacts: List[str] = Field(default_factory=list)
+
     artifacts: List[str] = Field(default_factory=list)
 
     logs: List[str] = Field(default_factory=list)

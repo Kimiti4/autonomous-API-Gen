@@ -21,9 +21,7 @@ def run_uber_for_boats(github_token: str = "", ledger: EvolutionLedger | None = 
     # 4. Assemble
     files = assemble(bundle)
     assert "README.md" in files and ".github/workflows/ci.yml" in files
-    # 5. Local validation gates (simulated)
-    for gate in ["build","tests","lint","typecheck","security","dependency audit"]:
-        pass
+    # 5. Local validation gates are not executed by this demonstration.
     # 6. Provider (mock if no token)
     provider = GitHubProvider(token=github_token)
     result = publish_bundle(bundle, provider, ledger, lambda ref: ledger.event_by_ref(ref))
@@ -35,7 +33,6 @@ def run_uber_for_boats(github_token: str = "", ledger: EvolutionLedger | None = 
     provider.configure_security(result.repo_url)
     # 8. Deployment
     deployment = handoff_to_deployment(result.repo_url)
-    assert deployment["health"] == "healthy"
-    # 9. Telemetry + evolution loop
-    ledger.append_event(EvolutionEvent(event_id="telemetry-uber-boats", evolution_id="uber", sequence=0, event_type=EventType.CERTIFICATION, subject_id=artifact_hash, payload={"telemetry": "collecting"}), evolution_id="uber")
-    return {"idea": idea, "bundle": bundle, "files": list(files.keys()), "repo_url": result.repo_url, "ledger_ref": result.ledger_ref, "deployment": deployment, "verified": True}
+    # This demo does not run CI/deployment/health/telemetry probes. Preserve
+    # the publication result, but do not manufacture runtime evidence.
+    return {"idea": idea, "bundle": bundle, "files": list(files.keys()), "repo_url": result.repo_url, "ledger_ref": result.ledger_ref, "deployment": deployment, "verified": False}

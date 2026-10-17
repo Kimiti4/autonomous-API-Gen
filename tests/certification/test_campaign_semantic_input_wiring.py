@@ -17,7 +17,7 @@ def test_campaign_plan_artifacts_produce_canonical_source_snapshot():
     assert snapshot["plan"]
 
 
-def test_campaign_runner_records_real_source_and_candidate_evidence_but_blocks_missing_mapping():
+def test_campaign_runner_verifies_complete_mapping_but_never_certifies_without_docker_stages():
     workload = default_corpus()[0]
     artifacts = build_artifacts_for(workload)
     backend = build_backend_registry().get("python-fastapi")
@@ -38,6 +38,19 @@ def test_campaign_runner_records_real_source_and_candidate_evidence_but_blocks_m
     evidence = trial.semantic_correspondence
     assert evidence.get("source_hash"), "real Campaign A source snapshot was not bound"
     assert evidence.get("candidate_hash") == trial.repo_hash
-    assert evidence.get("passed") is False
-    assert any("explicit_mapping is missing" in finding for finding in evidence.get("findings", ()))
+    # The corpus declares its architecture, so the runner publishes the
+    # explicit mapping and every source-bound verification axis passes
+    # against the real generated candidate with zero findings.
+    assert evidence.get("mapping_hash"), "complete mapping was not published"
+    assert evidence.get("passed") is True, evidence.get("findings")
+    assert evidence.get("findings") == []
+
+    stages = {stage.stage.value: stage for stage in trial.stages}
+    assert stages["structural"].passed
+    assert stages["semantic"].passed
+    assert stages["verify"].passed
+    # This wiring harness supplies no real build/deploy stage adapters
+    # (RealDockerStages provides them in Campaign A CI), so the trial must
+    # still refuse to certify — evidence wiring alone never vacuously passes.
+    assert not stages["build"].passed
     assert trial.verdict == "NOT_CERTIFIED"

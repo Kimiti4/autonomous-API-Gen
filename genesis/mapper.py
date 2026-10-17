@@ -18,6 +18,15 @@ CONSTITUTIONAL_DEFAULTS = (
 )
 
 
+def constitutional_service_responsibility(default: str) -> str:
+    """Canonical responsibility for a constitution baseline service.
+
+    Shared by the genesis mapper (service node) and the campaign contract
+    assembly (backend module) so both sides agree on one exact string.
+    """
+    return f"uphold the {default} baseline for every generated service"
+
+
 @dataclass(frozen=True)
 class GenesisResult:
     graph: ISRGraph
@@ -166,6 +175,7 @@ class ReferenceDeterministicMapper:
                 properties={
                     "label": f"constitutional baseline: {default}",
                     "derivation_ref": f"constitution:{default}",
+                    "responsibility": constitutional_service_responsibility(default),
                 },
             )
 

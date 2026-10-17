@@ -42,6 +42,7 @@ class RustAxumBackend:
             p[sp.policy_id] = "src/core/security.rs"
         p.update({
             "infra:docker": "Dockerfile",
+            "infra:cargo": "Cargo.toml",
             "infra:k8s": "k8s/deployment.yaml",
             "infra:ci": ".github/workflows/ci.yml",
             "infra:readme": "README.md",
@@ -55,20 +56,21 @@ class RustAxumBackend:
         f: dict[str, str] = {}
         for pid, path in self.element_paths(plan).items():
             f[path] = self._emit(pid, plan)
-        f["Cargo.toml"] = (
-            "[package]\nname = \"generated\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n"
-            "[dependencies]\n"
-            "axum = \"0.7\"\n"
-            "tokio = { version = \"1\", features = [\"full\"] }\n"
-            "serde = { version = \"1\", features = [\"derive\"] }\n"
-            "serde_json = \"1\"\n"
-        )
         return build_repository(f)
 
     def conformance(self, plan: CompilationPlan, repo: GeneratedRepository) -> ConformanceReport:
         return CHECKER.check(plan, self.element_paths(plan), repo)
 
     def _emit(self, pid: str, plan: CompilationPlan) -> str:
+        if pid == "infra:cargo":
+            return (
+                "[package]\nname = \"generated\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n"
+                "[dependencies]\n"
+                "axum = \"0.7\"\n"
+                "tokio = { version = \"1\", features = [\"full\"] }\n"
+                "serde = { version = \"1\", features = [\"derive\"] }\n"
+                "serde_json = \"1\"\n"
+            )
         if pid == "infra:docker":
             return (
                 "FROM rust:1.85-slim AS build\n"

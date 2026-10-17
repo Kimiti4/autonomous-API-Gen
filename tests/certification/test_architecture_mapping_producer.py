@@ -1,7 +1,11 @@
 """Production tests for the source-derived architectural mapping producer."""
-from certification.campaign.plan_builder import build_artifacts_for
+from certification.campaign.plan_builder import (
+    build_artifacts_for,
+    build_artifacts_from_graph,
+    intent_to_requirement_graph,
+)
 from certification.corpus.corpus import default_corpus
-from autonomous_api.app.engine.source_bound_full_stack import (
+from app.engine.source_bound_full_stack import (
     produce_architecture_mapping,
     source_snapshot_from_plan_artifacts,
 )
@@ -15,17 +19,36 @@ def test_isr_mapping_producer_preserves_real_node_and_edge_identity_deterministi
     second = produce_architecture_mapping(snapshot)
 
     assert first == second
-    # The current ISR cannot yet represent all five required layers, so the
-    # producer must expose a blocker rather than publish an incomplete map.
-    assert first.mapping is None
-    assert first.blockers
-    assert any(item.code == "MAP-FE-001" for item in first.blockers)
-    assert any(item.code == "MAP-EFFECT-001" for item in first.blockers)
-    assert any(item.code == "MAP-CONSEQ-001" for item in first.blockers)
+    # The corpus declares its architecture explicitly (isr_nodes/isr_edges),
+    # so the producer must publish a complete canonical mapping with zero
+    # blockers — deterministically, from the same source, every time.
+    assert first.complete
+    assert not first.blockers
+    assert first.mapping is not None
+    assert first.canonical_ready, first.canonical_blockers
+    assert first.canonical_mapping is not None
+    assert set(first.mapping) >= {"frontend", "api", "backend", "effects", "consequences"}
+    assert first.mapping["provenance"]["source_hash"]
+    assert len(first.mapping["requirement_obligations"]) == len(
+        snapshot["requirement_graph"]["nodes"]
+    )
 
 
 def test_mapping_producer_does_not_claim_completion_when_source_lacks_required_semantics():
-    artifacts = build_artifacts_for(default_corpus()[0])
+    workload = default_corpus()[0]
+    rg = intent_to_requirement_graph(workload)
+    # Strip the declared architecture: without explicit ISR semantics the
+    # source is exactly as under-specified as it was before the corpus
+    # declarations existed, so the producer must refuse to publish rather
+    # than infer the missing layers.
+    for node_id, node in list(rg.nodes.items()):
+        rg.nodes[node_id] = node.model_copy(update={
+            "properties": {
+                key: value for key, value in node.properties.items()
+                if key not in {"isr_nodes", "isr_edges", "verification_method"}
+            }
+        })
+    artifacts = build_artifacts_from_graph(rg, workload)
     snapshot = source_snapshot_from_plan_artifacts(artifacts)
 
     result = produce_architecture_mapping(snapshot)
@@ -33,6 +56,9 @@ def test_mapping_producer_does_not_claim_completion_when_source_lacks_required_s
     assert not result.complete
     assert result.mapping is None
     assert all(item.code and item.message for item in result.blockers)
+    assert any(item.code == "MAP-FE-001" for item in result.blockers)
+    assert any(item.code == "MAP-EFFECT-001" for item in result.blockers)
+    assert any(item.code == "MAP-CONSEQ-001" for item in result.blockers)
 
 
 def test_mapping_producer_rejects_dangling_isr_relationships():

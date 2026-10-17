@@ -185,6 +185,153 @@ def test_unknown_backend_result_blocks_certification():
     assert "UNKNOWN" in str(exc.value)
 
 
+
+def _full_compilation_result(statement: str, *, include_context: bool = True, include_coverage: bool = False):
+    from types import SimpleNamespace
+
+    from tiannara.application.compiler.source_projection import (
+        create_source_projection_context,
+    )
+    from tiannara.application.intent.prompts import normalize
+    from tiannara.domain.models.requirement_graph import (
+        GraphProvenance,
+        RequirementGraph,
+        RequirementKind,
+        RequirementNode,
+    )
+    from tiannara.domain.models.semantic_resolution import SemanticResolutionRecord
+    from tiannara.domain.models.system_model import BusinessCapability
+
+    normalized = normalize(statement)
+    graph = RequirementGraph(
+        graph_id="phase16-source-bound-graph",
+        nodes=[
+            RequirementNode(
+                id="REQ-order-service",
+                kind=RequirementKind.FUNCTIONAL,
+                statement="Provide an order management service.",
+                acceptance_criteria=["Orders can be created and retrieved."],
+            )
+        ],
+        provenance=GraphProvenance(
+            origin="test-fixture",
+            source_statement_hash=normalized.source_statement_hash,
+        ),
+    )
+    resolution = SemanticResolutionRecord(
+        graph_id=graph.graph_id,
+        graph_hash=graph.content_hash(),
+        required_fields=(),
+        resolutions=(),
+    )
+    model = _clean_model().model_copy(
+        update={
+            "requirements_ref": RequirementsReference(
+                graph_id=graph.graph_id,
+                graph_hash=graph.content_hash(),
+            ),
+            "capabilities": [
+                BusinessCapability(
+                    id="CAP-order-management",
+                    name="Order management",
+                    traced_requirement_ids=["REQ-order-service"],
+                )
+            ],
+        }
+    )
+    result = {
+        "system_id": "phase16-source-bound",
+        "isr": IntermediateSoftwareRepresentation.from_system_model(
+            "phase16-source-bound", model
+        ),
+        "requirement_graph": graph,
+        "call_records": [],
+        "semantic_resolution_record": None,
+        "authorization_semantic_obligations": None,
+    }
+    if include_context:
+        result["source_projection_context"] = create_source_projection_context(
+            source_id="test:phase16-source-bound",
+            source_bytes=statement.encode("utf-8"),
+            graph=graph,
+            semantic_resolution=resolution,
+        )
+    if include_coverage:
+        import hashlib
+        from tiannara.application.compiler.source_coverage import SourceUnit, SourceUnitBinding, verify_source_graph_coverage
+        source_bytes = statement.encode("utf-8")
+        result["source_graph_coverage_report"] = verify_source_graph_coverage(
+            source_bytes=source_bytes,
+            expected_source_sha256=hashlib.sha256(source_bytes).hexdigest(),
+            graph=graph,
+            units=(SourceUnit(unit_id="U-order-service", start_byte=0, end_byte=len(source_bytes), unit_sha256=hashlib.sha256(source_bytes).hexdigest()),),
+            bindings=(SourceUnitBinding(unit_id="U-order-service", graph_node_ids=("REQ-order-service",)),),
+        )
+    return SimpleNamespace(**result)
+
+
+class _FullResultIntentCompiler:
+    def __init__(
+        self,
+        *,
+        include_context: bool = True,
+        include_coverage: bool = False,
+        context_statement: str | None = None,
+    ):
+        self.include_context = include_context
+        self.include_coverage = include_coverage
+        self.context_statement = context_statement
+
+    def compile_full(self, statement, system_id, *, taskflow_semantic_gate=False):
+        return _full_compilation_result(
+            self.context_statement if self.context_statement is not None else statement,
+            include_context=self.include_context,
+            include_coverage=self.include_coverage,
+        )
+
+
+def test_generic_generation_blocks_when_source_context_is_missing():
+    compiler = ProjectCompiler(
+        _FullResultIntentCompiler(include_context=False),
+        _registry_with_fastapi(),
+    )
+    with pytest.raises(ProjectCompilationError, match="no validated source projection context"):
+        compiler.compile_intent("Build an order management service", {})
+
+
+def test_generic_generation_blocks_when_source_coverage_is_missing():
+    statement = "Build an order management service"
+    compiler = ProjectCompiler(
+        _FullResultIntentCompiler(include_context=True),
+        _registry_with_fastapi(),
+    )
+    with pytest.raises(ProjectCompilationError, match="trusted source-unit-to-graph coverage report is missing"):
+        compiler.compile_intent(statement, {})
+
+
+def test_generic_generation_accepts_matching_context_and_explicit_complete_coverage():
+    statement = "Build an order management service"
+    compiler = ProjectCompiler(
+        _FullResultIntentCompiler(include_context=True, include_coverage=True),
+        _registry_with_fastapi(),
+    )
+    report = compiler.compile_intent(statement, {})
+    assert report.ok is True
+    assert report.generation_mode == "no_model_calls"
+
+
+def test_generic_generation_blocks_context_from_another_source_snapshot():
+    statement = "Build an order management service"
+    compiler = ProjectCompiler(
+        _FullResultIntentCompiler(
+            include_context=True,
+            context_statement="Build an unrelated social network",
+        ),
+        _registry_with_fastapi(),
+    )
+    with pytest.raises(ProjectCompilationError, match="exact caller statement bytes"):
+        compiler.compile_intent(statement, {})
+
 def test_taskflow_mode_activates_pre_synthesis_gate_before_backend_planning():
     class _GateIntentCompiler:
         def compile_full(self, statement, system_id, *, taskflow_semantic_gate=False):

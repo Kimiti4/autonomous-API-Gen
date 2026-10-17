@@ -12,7 +12,7 @@ import enum
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .capability_manifest import BundleCapability
+from .capability_manifest import BundleCapability, ToolchainCapabilityManifest
 
 
 class ArtifactKind(str, enum.Enum):
@@ -38,6 +38,9 @@ class BackendCapabilityDeclaration(BaseModel):
     capabilities: list[BundleCapability]
     quality_profile: float = Field(default=0.0, ge=0.0, le=1.0)
     metadata: dict[str, str] = Field(default_factory=dict)
+    # Optional during migration: legacy declarations remain usable for planning,
+    # but a missing manifest cannot establish verified toolchain portability.
+    toolchain_manifest: ToolchainCapabilityManifest | None = None
 
     @property
     def capability_set(self) -> set[BundleCapability]:

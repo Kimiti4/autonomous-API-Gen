@@ -1,0 +1,159 @@
+{
+  "schema_version": "taskflow-semantic-consumer-trace.v1",
+  "status": "BLOCKED",
+  "generation_authorized": false,
+  "certified": false,
+  "interpretation": "A path is consumed only when a native typed destination, source-level consumer, causal mutation test, omission/weakening test, and runtime acceptance evidence are linked. Extension mirroring alone is not consumption evidence.",
+  "fields": [
+    {
+      "semantic_id": "identity.registration_and_authentication",
+      "typed_destination": null,
+      "consumer_source": null,
+      "causal_mutation_test": "NOT_RUN",
+      "omission_weakening_test": "NOT_RUN",
+      "runtime_acceptance_ids": [],
+      "evidence_refs": [],
+      "status": "BLOCKED"
+    },
+    {
+      "semantic_id": "authorization.workspace_membership_scope",
+      "typed_destination": null,
+      "consumer_source": null,
+      "causal_mutation_test": "NOT_RUN",
+      "omission_weakening_test": "NOT_RUN",
+      "runtime_acceptance_ids": [],
+      "evidence_refs": [],
+      "status": "BLOCKED"
+    },
+    {
+      "semantic_id": "authorization.owner_manager_member_permissions",
+      "typed_destination": null,
+      "consumer_source": null,
+      "causal_mutation_test": "NOT_RUN",
+      "omission_weakening_test": "NOT_RUN",
+      "runtime_acceptance_ids": [],
+      "evidence_refs": [],
+      "status": "BLOCKED"
+    },
+    {
+      "semantic_id": "data.workspace_project_task_relationships",
+      "typed_destination": null,
+      "consumer_source": null,
+      "causal_mutation_test": "NOT_RUN",
+      "omission_weakening_test": "NOT_RUN",
+      "runtime_acceptance_ids": [],
+      "evidence_refs": [],
+      "status": "BLOCKED"
+    },
+    {
+      "semantic_id": "data.comments_and_activity_history",
+      "typed_destination": null,
+      "consumer_source": null,
+      "causal_mutation_test": "NOT_RUN",
+      "omission_weakening_test": "NOT_RUN",
+      "runtime_acceptance_ids": [],
+      "evidence_refs": [],
+      "status": "BLOCKED"
+    },
+    {
+      "semantic_id": "tasks.assignment_status_priority_and_due_dates",
+      "typed_destination": null,
+      "consumer_source": null,
+      "causal_mutation_test": "NOT_RUN",
+      "omission_weakening_test": "NOT_RUN",
+      "runtime_acceptance_ids": [],
+      "evidence_refs": [],
+      "status": "BLOCKED"
+    },
+    {
+      "semantic_id": "tasks.archive_visibility",
+      "typed_destination": null,
+      "consumer_source": null,
+      "causal_mutation_test": "NOT_RUN",
+      "omission_weakening_test": "NOT_RUN",
+      "runtime_acceptance_ids": [],
+      "evidence_refs": [],
+      "status": "BLOCKED"
+    },
+    {
+      "semantic_id": "sessions.revocation_and_expiry",
+      "typed_destination": null,
+      "consumer_source": null,
+      "causal_mutation_test": "NOT_RUN",
+      "omission_weakening_test": "NOT_RUN",
+      "runtime_acceptance_ids": [],
+      "evidence_refs": [],
+      "status": "BLOCKED"
+    },
+    {
+      "semantic_id": "api.request_response_and_error_contracts",
+      "typed_destination": null,
+      "consumer_source": null,
+      "causal_mutation_test": "NOT_RUN",
+      "omission_weakening_test": "NOT_RUN",
+      "runtime_acceptance_ids": [],
+      "evidence_refs": [],
+      "status": "BLOCKED"
+    },
+    {
+      "semantic_id": "frontend.required_interactions_and_state_transitions",
+      "typed_destination": null,
+      "consumer_source": null,
+      "causal_mutation_test": "NOT_RUN",
+      "omission_weakening_test": "NOT_RUN",
+      "runtime_acceptance_ids": [],
+      "evidence_refs": [],
+      "status": "BLOCKED"
+    },
+    {
+      "semantic_id": "persistence.consistency_and_atomic_mutations",
+      "typed_destination": null,
+      "consumer_source": null,
+      "causal_mutation_test": "NOT_RUN",
+      "omission_weakening_test": "NOT_RUN",
+      "runtime_acceptance_ids": [],
+      "evidence_refs": [],
+      "status": "BLOCKED"
+    },
+    {
+      "semantic_id": "operations.idempotency_and_unique_effect_identity",
+      "typed_destination": null,
+      "consumer_source": null,
+      "causal_mutation_test": "NOT_RUN",
+      "omission_weakening_test": "NOT_RUN",
+      "runtime_acceptance_ids": [],
+      "evidence_refs": [],
+      "status": "BLOCKED"
+    },
+    {
+      "semantic_id": "operations.health_readiness_and_audit_evidence",
+      "typed_destination": null,
+      "consumer_source": null,
+      "causal_mutation_test": "NOT_RUN",
+      "omission_weakening_test": "NOT_RUN",
+      "runtime_acceptance_ids": [],
+      "evidence_refs": [],
+      "status": "BLOCKED"
+    },
+    {
+      "semantic_id": "deployment.reproducible_execution_environment",
+      "typed_destination": null,
+      "consumer_source": null,
+      "causal_mutation_test": "NOT_RUN",
+      "omission_weakening_test": "NOT_RUN",
+      "runtime_acceptance_ids": [],
+      "evidence_refs": [],
+      "status": "BLOCKED"
+    },
+    {
+      "semantic_id": "verification.required_capability_and_negative_case_mapping",
+      "typed_destination": null,
+      "consumer_source": null,
+      "causal_mutation_test": "NOT_RUN",
+      "omission_weakening_test": "NOT_RUN",
+      "runtime_acceptance_ids": [],
+      "evidence_refs": [],
+      "status": "BLOCKED"
+    }
+  ]
+}

@@ -18,12 +18,20 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from tiannara.domain.models.isr import IntermediateSoftwareRepresentation
+from tiannara.application.compiler.source_projection import create_source_projection_context
 from tiannara.domain.models.requirement_graph import RequirementGraph, RequirementKind
 from tiannara.domain.models.semantic_resolution import (
     SemanticResolutionRecord,
     build_initial_resolution_record,
     require_taskflow_semantics,
     resolutions_by_field,
+)
+from tiannara.domain.models.taskflow_semantic_contract import (
+    validate_taskflow_semantic_contract,
+)
+from tiannara.domain.models.authorization_semantic_obligations import (
+    AuthorizationSemanticObligations,
+    consume_authorization_semantics,
 )
 from tiannara.domain.ports.language_model import LanguageModelProvider
 
@@ -54,16 +62,26 @@ class IntentCompiler:
         config: IntentCompilerConfig | None = None,
         taskflow_semantic_resolver: Callable[[RequirementGraph, SemanticResolutionRecord], SemanticResolutionRecord] | None = None,
         taskflow_semantic_projector: Callable[[RequirementGraph, ElicitationOutput, NormalizedIntent, SemanticResolutionRecord], TaskFlowSemanticProjection] | None = None,
+        taskflow_semantic_gate_required: bool = False,
     ) -> None:
         self._provider = provider
         self._config = config or IntentCompilerConfig()
         self._taskflow_semantic_resolver = taskflow_semantic_resolver
         self._taskflow_semantic_projector = taskflow_semantic_projector
+        # A TaskFlow-scoped compiler instance cannot be downgraded by choosing
+        # the generic port method or passing taskflow_semantic_gate=False.
+        # Generic projects retain the existing default unless they opt into
+        # this explicit profile at composition time.
+        self._taskflow_semantic_gate_required = taskflow_semantic_gate_required
 
     def compile(self, statement: str, hints: dict) -> IntermediateSoftwareRepresentation:
         """Port-compatible entry point (matches the domain IntentCompiler port)."""
         system_id = hints.get("system_id") or derive_system_id(statement)
-        return self.compile_full(statement, system_id).isr
+        return self.compile_full(
+            statement,
+            system_id,
+            taskflow_semantic_gate=self._taskflow_semantic_gate_required,
+        ).isr
 
     def compile_full(
         self,
@@ -72,6 +90,12 @@ class IntentCompiler:
         *,
         taskflow_semantic_gate: bool = False,
     ) -> IntentCompilationResult:
+        # The instance-level profile is authoritative. A caller may enable the
+        # gate for a single call, but cannot disable a gate required by the
+        # composition root.
+        taskflow_semantic_gate = (
+            taskflow_semantic_gate or self._taskflow_semantic_gate_required
+        )
         normalized = normalize(statement)
         records: list = []
 
@@ -122,10 +146,20 @@ class IntentCompiler:
         if issues or graph is None:
             raise RepairBudgetExceeded(issues, iterations)
 
+        # Mandatory source/graph identity check for every project, before any
+        # semantic synthesis or backend-facing SystemModel is created. This
+        # detects stale or substituted graph provenance; it does not by itself
+        # prove semantic extraction fidelity, which remains a separate gate.
+        if graph.provenance.source_statement_hash != normalized.source_statement_hash:
+            raise ValueError(
+                "requirement graph source provenance does not match the active normalized source snapshot"
+            )
+
         # 6. TaskFlow semantic gate must run before SystemModel synthesis.
         # Without a configured native resolver, every mandatory field remains
         # explicitly unresolved and this entry point fails closed.
         semantic_resolution_record = None
+        authorization_obligations: AuthorizationSemanticObligations | None = None
         if taskflow_semantic_gate:
             semantic_resolution_record = build_initial_resolution_record(graph)
             if self._taskflow_semantic_resolver is not None:
@@ -135,6 +169,34 @@ class IntentCompiler:
             if not isinstance(semantic_resolution_record, SemanticResolutionRecord):
                 raise TypeError("TaskFlow semantic resolver must return SemanticResolutionRecord")
             require_taskflow_semantics(graph, semantic_resolution_record)
+            # Resolution alone proves that fields are present, not that each
+            # field carries the minimum structured contract needed by the
+            # TaskFlow projection. Reject malformed/placeholder payloads before
+            # invoking any projector or constructing a SystemModel.
+            validate_taskflow_semantic_contract(semantic_resolution_record)
+            # Consume authorization entries into a typed, graph-bound contract
+            # before projection. This is not runtime enforcement; the downstream
+            # backend/runtime gate remains blocked until it enforces the contract.
+            authorization_obligations = consume_authorization_semantics(
+                semantic_resolution_record
+            )
+
+        # Freeze exact caller source bytes and the canonical requirement graph
+        # before SystemModel synthesis. Generic projects receive an empty
+        # resolution ledger; this preserves UNKNOWN rather than inventing
+        # semantic decisions. TaskFlow carries its reviewed resolution ledger.
+        projection_resolution = semantic_resolution_record or SemanticResolutionRecord(
+            graph_id=graph.graph_id,
+            graph_hash=graph.content_hash(),
+            required_fields=(),
+            resolutions=(),
+        )
+        source_projection_context = create_source_projection_context(
+            source_id=f"intent:{normalized.source_statement_hash}",
+            source_bytes=statement.encode("utf-8"),
+            graph=graph,
+            semantic_resolution=projection_resolution,
+        )
 
         # 7. Synthesis + boundary enforcement. A resolved ledger is not enough:
         # the ordinary heuristic synthesizer does not consume TaskFlow's
@@ -202,4 +264,6 @@ class IntentCompiler:
             repair_iterations=iterations,
             assumption_ids=assumption_ids,
             semantic_resolution_record=semantic_resolution_record,
+            authorization_semantic_obligations=authorization_obligations,
+            source_projection_context=source_projection_context,
         )

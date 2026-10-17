@@ -27,8 +27,8 @@ backends arrive as the ``CompilerBackend`` protocol seam.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Optional
+from dataclasses import dataclass, replace
+from typing import Any, Mapping, Optional
 
 from constitutional_architecture.isr.semantics.projection import canonicalize
 
@@ -59,6 +59,7 @@ GATE_BACKEND_INDEPENDENCE = "E_backend_independence"
 GATE_ROUND_TRIP = "F_round_trip"
 GATE_CONSTITUTIONAL_PRESERVATION = "G_constitutional_preservation"
 GATE_EVIDENCE_BINDING = "H_evidence_binding"
+GATE_OBLIGATION_EVIDENCE = "I_obligation_evidence"
 
 
 @dataclass(frozen=True)
@@ -74,10 +75,27 @@ class CompilationIntegrityVerdict:
 
 
 class CompilationIntegrityGate:
-    """Certifies one ISR -> backend compilation under the eight gates."""
+    """Certifies an ISR -> backend compile only when gates A-I all hold."""
 
-    def __init__(self, ledger: Any = None) -> None:
+    def __init__(
+        self,
+        ledger: Any = None,
+        *,
+        trusted_hmac_keys: Mapping[str, bytes] | None = None,
+        allowed_runner_ids: frozenset[str] = frozenset(),
+        evidence_store: Any = None,
+        obligation_policy: Any = None,
+    ) -> None:
         self._ledger = ledger
+        # Trust roots are injected by trusted application configuration, never
+        # accepted from the per-compilation request.
+        self._trusted_hmac_keys = dict(trusted_hmac_keys or {})
+        self._allowed_runner_ids = frozenset(allowed_runner_ids)
+        # The retrieval adapter is also a trusted startup dependency, not a
+        # per-compilation payload supplied by the caller.
+        self._evidence_store = evidence_store
+        # The required suite and scenario matrix are trusted policy, not caller input.
+        self._obligation_policy = obligation_policy
 
     def verify(
         self,
@@ -86,10 +104,14 @@ class CompilationIntegrityGate:
         backend: CompilerBackend,
         *,
         ledger: Any = None,
+        obligation_suite: Any = None,
     ) -> CompilationIntegrityVerdict:
-        """Run all eight gates. The gate compiles the ISR three times (the
-        primary compile, the determinism twin, and the different-target
-        independence probe) — none of which may touch the ISR."""
+        """Run integrity gates A-H and mandatory trusted-obligation gate I.
+
+        The backend is compiled three times (primary, determinism twin, and
+        alternate target). Gate I is always present; missing trust configuration
+        or a missing source-derived obligation request fails certification closed.
+        """
         before = canonicalize(isr.system)
         primary = backend.compile(isr, target)
         after = canonicalize(isr.system)
@@ -115,14 +137,120 @@ class CompilationIntegrityGate:
             self._gate_f(isr, primary),
             self._gate_g(isr, backend),
         )
-        h_result, event_range = self._gate_h(primary, ledger)
+        active_ledger = ledger if ledger is not None else self._ledger
+        h_result, event_range = self._gate_h(primary, active_ledger)
         gates = gates + (h_result,)
+        # Gate I is unconditional: callers cannot obtain a certified result by
+        # omitting the trusted policy or obligation request.
+        obligation_gate = self._gate_i_obligations(
+            primary, obligation_suite, active_ledger
+        )
+        gates = gates + (obligation_gate,)
+        if event_range is not None and active_ledger is not None:
+            event_range = (event_range[0], active_ledger.latest_event_hash)
         held = all(gate.held for gate in gates)
         return CompilationIntegrityVerdict(
             held,
             gates,
             primary if held else None,
             event_range,
+        )
+
+
+    def _gate_i_obligations(
+        self,
+        result: CompilationResult,
+        request: Any,
+        ledger: Any,
+    ) -> GateResult:
+        """Verify signed scenario evidence and chain-anchor the decision.
+
+        When trusted policy is configured, verify() requires this gate on every
+        compile. Missing request, ledger, store, policy, trusted keys, invalid
+        signatures, stale bindings, replay, or incomplete scenarios fail closed.
+        """
+        from tiannara.application.compiler.trusted_obligation_evidence import (
+            certify_trusted_obligation_suite,
+        )
+
+        active = ledger if ledger is not None else self._ledger
+        if active is None:
+            return GateResult(
+                GATE_OBLIGATION_EVIDENCE,
+                False,
+                "trusted obligation evidence requires an append-only audit ledger",
+            )
+        from tiannara.application.compiler.trusted_obligation_evidence import (
+            TrustedObligationCertificationRequest,
+        )
+        if not isinstance(request, TrustedObligationCertificationRequest):
+            return GateResult(
+                GATE_OBLIGATION_EVIDENCE,
+                False,
+                "trusted obligation evidence requires source-derived obligation records; missing or invalid request",
+            )
+        if self._evidence_store is None:
+            return GateResult(
+                GATE_OBLIGATION_EVIDENCE,
+                False,
+                "trusted obligation evidence requires a configured audited evidence store",
+            )
+        if self._obligation_policy is None:
+            return GateResult(
+                GATE_OBLIGATION_EVIDENCE,
+                False,
+                "trusted obligation evidence requires a reviewed suite policy",
+            )
+
+        previously_used: set[str] = set()
+        for event in active.events():
+            payload = event.payload or {}
+            if event.event_type.value == "certification":
+                previously_used.update(
+                    item for item in payload.get("attestation_ids", [])
+                    if isinstance(item, str)
+                )
+        effective_request = replace(
+            request,
+            previously_used_attestation_ids=frozenset(previously_used),
+        )
+        verdict = certify_trusted_obligation_suite(
+            effective_request,
+            policy=self._obligation_policy,
+            expected_source_graph_hash=result.isr_hash,
+            evidence_store=self._evidence_store,
+            trusted_hmac_keys=self._trusted_hmac_keys,
+            allowed_runner_ids=self._allowed_runner_ids,
+        )
+        event_id = active.record_obligation_certification(
+            verdict,
+            source_graph_hash=result.isr_hash,
+            suite_id=self._obligation_policy.suite_id,
+            obligation_records=tuple(request.records),
+            attestation_ids=verdict.attestation_ids,
+            evidence_audit_ids=verdict.evidence_audit_ids,
+        )
+        chain_ok = active.verify_event_chain()
+        held = verdict.ok and chain_ok
+        return GateResult(
+            GATE_OBLIGATION_EVIDENCE,
+            held,
+            (
+                f"obligation evidence {verdict.disposition.value}; "
+                f"{len(verdict.passed_obligations)}/{len(verdict.required_obligations)} "
+                f"required obligations passed; decision chain-anchored as "
+                f"'{event_id}' and intact"
+                if held
+                else (
+                    f"obligation evidence {verdict.disposition.value}; "
+                    f"passed={list(verdict.passed_obligations)}, "
+                    f"blocked={list(verdict.blocked_obligations)}, "
+                    f"failed={list(verdict.failed_obligations)}, "
+                    f"unknown={list(verdict.unknown_obligations)}; "
+                    f"blockers={list(verdict.blockers)}; "
+                    f"audit_chain_intact={chain_ok}"
+                )
+            ),
         )
 
     # -- the eight gates -------------------------------------------------------

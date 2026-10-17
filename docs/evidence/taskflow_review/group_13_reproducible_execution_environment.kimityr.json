@@ -1,0 +1,57 @@
+{
+  "record_id": "taskflow.group13.deployment.reproducible_execution_environment",
+  "reviewer_id": "Kimityr",
+  "status": "APPROVED_IN_CHAT",
+  "approval_channel": "conversation",
+  "approval_scope": "Complete TaskFlow Group 13 decision record as presented",
+  "decision": {
+    "group": 13,
+    "semantic_group": "deployment.reproducible_execution_environment",
+    "requirements": [
+      {
+        "id": "declared_environment",
+        "decision": "Declare runtime versions, dependencies, configuration, required services, and deployment assumptions. This is a reproducibility requirement, not a mandate to use a particular technology stack."
+      },
+      {
+        "id": "dependency_reproducibility",
+        "decision": "Use pinned dependencies and lockfiles, or equivalent immutable dependency records, so builds do not silently resolve to changing versions."
+      },
+      {
+        "id": "configuration_and_secrets",
+        "decision": "Validate required configuration at startup; inject secrets through protected configuration mechanisms; never commit credentials or leak secrets into logs or evidence."
+      },
+      {
+        "id": "repeatable_builds",
+        "decision": "Document build and start commands, preserve build inputs and integrity records, and make builds deterministic where feasible."
+      },
+      {
+        "id": "persistent_state_and_migrations",
+        "decision": "Document durable storage, migration ordering, backup/recovery expectations, and safe persistence across process or container replacement where persistence is promised."
+      },
+      {
+        "id": "environment_parity",
+        "decision": "Document differences among development, test, and deployment environments. Local-only success does not establish deployment verification."
+      },
+      {
+        "id": "operational_recovery",
+        "decision": "Define startup/shutdown behavior, health/readiness expectations, interruption recovery, and failure handling."
+      },
+      {
+        "id": "independent_verification",
+        "decision": "Independently repeat build and deployment-smoke checks; preserve logs and relevant digests; mark simulated, unexecuted, or otherwise unsupported claims honestly."
+      }
+    ]
+  },
+  "boundaries": {
+    "generation_authorized": false,
+    "implementation_or_runtime_verified": false,
+    "cryptographic_attestation_created": false,
+    "trusted_evidence_envelope_created": false,
+    "notes": [
+      "This record records approval expressed in chat only.",
+      "It is not a cryptographic signature or trusted evidence envelope.",
+      "Approval of requirements does not establish implementation, deployment, runtime behavior, or certification.",
+      "No specific framework, language, database, hosting provider, or deployment stack is mandated by this decision."
+    ]
+  }
+}

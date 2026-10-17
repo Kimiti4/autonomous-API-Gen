@@ -1,0 +1,61 @@
+{
+  "record_id": "taskflow.group14.verification.required_capability_and_negative_case_mapping",
+  "reviewer_id": "Kimityr",
+  "status": "APPROVED_IN_CHAT",
+  "approval_channel": "conversation",
+  "approval_scope": "Complete TaskFlow Group 14 decision record as presented",
+  "decision": {
+    "group": 14,
+    "semantic_group": "verification.required_capability_and_negative_case_mapping",
+    "requirements": [
+      {
+        "id": "complete_traceability",
+        "decision": "Every required capability and quality gate maps to canonical requirements, typed architecture elements, implementation artifacts, and specific verification results."
+      },
+      {
+        "id": "negative_case_coverage",
+        "decision": "Each required security and failure scenario has an explicit test, expected outcome, and evidence reference, including cross-workspace access, unauthorized role changes, invalid authentication, expired or revoked sessions, and duplicate idempotent effects."
+      },
+      {
+        "id": "evidence_quality",
+        "decision": "Static inspection, unit tests, integration tests, contract tests, end-to-end tests, deployment smoke tests, and runtime observations remain distinct evidence types."
+      },
+      {
+        "id": "no_simulated_substitution",
+        "decision": "Fixtures, mock responses, declared capabilities, and simulated runtime results cannot satisfy a requirement that requires real execution."
+      },
+      {
+        "id": "honest_result_states",
+        "decision": "Use PASS, FAIL, UNKNOWN, BLOCKED, or NOT_RUN as appropriate. Missing evidence never becomes a pass by default."
+      },
+      {
+        "id": "failure_propagation",
+        "decision": "Any failed required capability or negative-case test blocks certification; unresolved requirements remain explicit blockers."
+      },
+      {
+        "id": "reproducible_evidence",
+        "decision": "Preserve canonical input and acceptance-suite hashes, test commands, relevant logs, artifact digests, and execution environment for each trial."
+      },
+      {
+        "id": "independent_evaluation",
+        "decision": "The evaluator checks generated artifacts against frozen acceptance criteria without giving the generator a golden implementation or its expected solution."
+      },
+      {
+        "id": "certification_boundary",
+        "decision": "A passing mapping audit is necessary but insufficient: generation, deployment, and runtime claims require their own direct evidence."
+      }
+    ]
+  },
+  "boundaries": {
+    "generation_authorized": false,
+    "implementation_or_runtime_verified": false,
+    "cryptographic_attestation_created": false,
+    "trusted_evidence_envelope_created": false,
+    "notes": [
+      "This record records approval expressed in chat only.",
+      "It is not a cryptographic signature or trusted evidence envelope.",
+      "Approval of verification requirements does not establish that tests have run or passed.",
+      "Certification remains blocked by unresolved implementation, evidence, and runtime gates."
+    ]
+  }
+}

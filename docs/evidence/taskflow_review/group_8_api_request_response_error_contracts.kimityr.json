@@ -1,0 +1,138 @@
+{
+  "schema_version": "tiannara.taskflow.reviewer-decision.chat-record.v1",
+  "record_type": "requirements_reviewer_decision",
+  "decision_group": "api.request_response_and_error_contracts",
+  "reviewer_id": "Kimityr",
+  "approval_status": "APPROVED_IN_CHAT",
+  "approval_method": "explicit_user_confirmation_in_chat",
+  "approved_on": "2026-10-12",
+  "decisions": {
+    "api_style": {
+      "selected": "rest_json",
+      "requirements": [
+        "resource-oriented HTTP API with JSON request and response bodies",
+        "document HTTP methods, status codes, routes, authentication, permissions, schemas, and failure behavior",
+        "ordinary resource operations for creation, retrieval, update, and deletion",
+        "task status changes enforce the approved transition graph on the backend",
+        "workspace identity and server-controlled security boundaries are immutable through ordinary updates",
+        "health and readiness may use separately documented formats without exposing secrets"
+      ]
+    },
+    "success_responses": {
+      "selected": "consistent_envelope",
+      "contract": {
+        "envelope": "consistent data field and optional meta field where appropriate",
+        "collections": "documented pagination metadata",
+        "resources": "consistent representation across retrieval and mutation",
+        "empty_results": "distinguishable from failed requests",
+        "mutation_success": "only report success consistently with committed business state and required audit effects",
+        "exceptions": "operational or protocol-specific exceptions must be explicitly documented",
+        "sensitive_data": "never expose credentials, tokens, secrets, or unauthorized foreign-workspace data"
+      }
+    },
+    "errors": {
+      "selected": "stable_code_message_details",
+      "contract": [
+        "stable machine-readable error codes",
+        "safe human-readable messages and optional structured field details",
+        "appropriate documented HTTP status codes",
+        "clients must not depend on parsing message text",
+        "field details must not disclose unauthorized resources",
+        "no stack traces, secrets, credentials, session tokens, or sensitive implementation details",
+        "validation and authorization failures must not leave partial business mutations or misleading success audit events",
+        "use safe request/correlation identifiers where available; they are not authorization credentials or audit-event identities"
+      ]
+    },
+    "authentication_authorization_errors": {
+      "selected": "generic_sensitive",
+      "rules": [
+        "missing, invalid, expired, or revoked authentication prevents protected operations and returns documented unauthenticated behavior",
+        "authenticated but unauthorized actions are denied",
+        "forbidden responses may be used where disclosing resource existence is safe",
+        "foreign or sensitive inaccessible resources are indistinguishable from nonexistent resources where required to prevent enumeration",
+        "do not disclose foreign resource names, membership details, existence, or unauthorized data",
+        "check current membership, roles, session validity, and resource relationships on every protected operation",
+        "client checks, cached claims, and frontend filtering are not authoritative",
+        "preserve Group 1 verification, mandatory MFA, and session revocation requirements"
+      ]
+    },
+    "pagination": {
+      "selected": "limit_cursor_or_page",
+      "contract": [
+        "each collection endpoint documents its strategy, maximum page size, default ordering, unique tie-breaker, filters, and continuation behavior",
+        "cursor or page/limit pagination may be used as appropriate, but each endpoint's strategy must be explicit and stable within its API version",
+        "enforce server-side maximum page sizes and reject or safely bound invalid parameters",
+        "use deterministic ordering with a unique tie-breaker",
+        "document interaction of filters, pagination, and concurrent changes",
+        "ordinary active lists, search, dashboard counts, and pagination exclude archived resources by default",
+        "explicit archived views require current authorization",
+        "tasks under archived projects must not leak through ordinary active endpoints or search, including direct requests",
+        "search and dashboard results respect workspace isolation, current permissions, and archive visibility"
+      ]
+    },
+    "request_validation": {
+      "selected": "strict_field_validation",
+      "contract": [
+        "validate required and optional fields, types, enums, lengths, formats, ranges, and field-level constraints",
+        "reject unknown fields by default unless a schema explicitly documents an extension mechanism",
+        "perform cross-field and domain validation beyond schema validation",
+        "reject unknown task statuses and priorities and enforce the approved transition graph and priority ordering",
+        "require unambiguous due-date timestamps and normalize stored values consistently",
+        "validate project, task, workspace, membership, and assignee relationships on the backend",
+        "reject cross-workspace relationships, invalid assignments, and unauthorized relationship changes",
+        "enforce archive/restore restrictions, current authorization, and session validity independently of schema validation",
+        "invalid requests fail closed without partial mutation or unauthorized disclosure"
+      ]
+    },
+    "contract_evolution": {
+      "selected": "versioned_compatibility",
+      "contract": [
+        "document compatibility guarantees and breaking-change rules for each API version",
+        "prefer additive backward-compatible changes within an existing version",
+        "changes to field meaning, authorization semantics, required request fields, response structures, or established behavior follow explicit breaking-change/versioning policy",
+        "do not silently reinterpret requests or weaken security/integrity guarantees for compatibility",
+        "maintain contract tests for supported behavior, errors, authorization, and negative cases",
+        "record API contract version and immutable identifier or hash in certification evidence manifest"
+      ]
+    },
+    "idempotency_and_audit_traceability": {
+      "contract": [
+        "explicitly declare which mutations support idempotent retries",
+        "document retry identity, actor/operation scope, conflicting reuse behavior, and deduplication retention",
+        "repeated supported requests with the same idempotency identity do not create duplicate business effects or duplicate logical activity/audit effects",
+        "handle concurrent duplicate requests safely",
+        "idempotency identity is distinct from unique audit-event identity",
+        "required mutations retain unique attributable audit identity and event coverage under Group 4",
+        "document atomicity and recovery behavior for business mutation, deduplication state, and required audit effects",
+        "failed or interrupted requests must not falsely report success or silently lose evidence of a committed effect"
+      ]
+    },
+    "verification_obligations": [
+      "contract schemas and success/error formats",
+      "invalid authentication, unverified-account restrictions, MFA policy, and expired/revoked sessions",
+      "role permissions, cross-workspace reads/writes, and foreign-resource information leakage",
+      "invalid workspace/project/task relationships and foreign/invalid assignees",
+      "invalid status transitions, priorities, due dates, and unknown fields",
+      "archive/restore behavior across lists, direct resource requests, search, dashboards, and pagination",
+      "deterministic pagination and filter behavior",
+      "duplicate and concurrent idempotent requests with stable logical effect identity and no duplicate audit effects",
+      "safe logging, request correlation, and absence of sensitive response details",
+      "contract, integration, end-to-end, and regression tests mapped to canonical TaskFlow acceptance criteria",
+      "reproducible build/deployment, runtime observation, and evidence-manifest traceability"
+    ]
+  },
+  "reviewer_confirmation": {
+    "explicit_confirmation_received": true,
+    "confirmation_scope": "complete Group 8 decision record presented in chat",
+    "cryptographic_signature_present": false,
+    "trusted_hmac_envelope_present": false
+  },
+  "generation_authorized": false,
+  "implementation_or_runtime_verified": false,
+  "limitations": [
+    "This record documents explicit chat approval of requirements intent only.",
+    "It is not a cryptographic signature or trusted evidence envelope.",
+    "It does not authorize generation or satisfy the trusted resolution envelope gate.",
+    "Implementation, typed architectural projection, compiler integration, and runtime behavior remain unverified."
+  ]
+}

@@ -63,3 +63,72 @@ class CapabilityManifest(BaseModel):
 
 class CapabilityContractError(ValueError):
     """Raised when meta-compilation requires a manifest a bundle lacks."""
+
+
+
+class SemanticSupportLevel(str, enum.Enum):
+    """Declared support is a claim to verify, not proof of enforcement."""
+
+    SUPPORTED = "supported"
+    PARTIAL = "partial"
+    UNSUPPORTED = "unsupported"
+    UNKNOWN = "unknown"
+
+
+class ToolOperation(str, enum.Enum):
+    """Operations an adapter can perform through its bounded toolchain."""
+
+    INSPECT = "inspect"
+    GENERATE = "generate"
+    BUILD = "build"
+    FORMAT = "format"
+    LINT = "lint"
+    TYPECHECK = "typecheck"
+    TEST = "test"
+    RUN = "run"
+    PACKAGE = "package"
+    SECURITY_SCAN = "security_scan"
+
+
+class ToolchainCapabilityManifest(BaseModel):
+    """Versioned, language-neutral declaration of an adapter's real toolchain.
+
+    This describes discoverable tools and claimed semantic coverage. It is not
+    evidence that a tool exists on the execution host or that a semantic is
+    correctly enforced; those claims require a conformance run bound to the
+    resolved executable versions and resulting artifact.
+    """
+
+    schema_version: str = "toolchain-capabilities.v1"
+    adapter_id: str = Field(min_length=1, max_length=256)
+    language: str = Field(min_length=1, max_length=128)
+    compiler: str = Field(min_length=1, max_length=256)
+    compiler_version_constraint: str = Field(min_length=1, max_length=128)
+    runtime: str | None = None
+    runtime_version_constraint: str | None = None
+    target_platforms: tuple[str, ...] = ()
+    operations: tuple[ToolOperation, ...] = ()
+    semantic_support: dict[str, SemanticSupportLevel] = Field(default_factory=dict)
+    required_toolchain_digests: dict[str, str] = Field(default_factory=dict)
+
+    model_config = {"frozen": True, "extra": "forbid"}
+
+    @model_validator(mode="after")
+    def validate_manifest(self):
+        if not self.adapter_id.strip() or not self.language.strip() or not self.compiler.strip():
+            raise ValueError("adapter, language, and compiler identifiers must be non-blank")
+        if len(set(self.target_platforms)) != len(self.target_platforms):
+            raise ValueError("target_platforms must be unique")
+        if len(set(self.operations)) != len(self.operations):
+            raise ValueError("operations must be unique")
+        if any(not key.strip() for key in self.semantic_support):
+            raise ValueError("semantic support keys must be non-blank")
+        if any(not key.strip() or not value.strip() for key, value in self.required_toolchain_digests.items()):
+            raise ValueError("toolchain digest names and values must be non-blank")
+        if (self.runtime is None) != (self.runtime_version_constraint is None):
+            raise ValueError("runtime and runtime_version_constraint must be supplied together")
+        return self
+
+    def supports_semantic(self, semantic: str) -> SemanticSupportLevel:
+        """Missing semantics are UNKNOWN, never implicitly supported."""
+        return self.semantic_support.get(semantic, SemanticSupportLevel.UNKNOWN)

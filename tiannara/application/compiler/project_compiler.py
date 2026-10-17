@@ -41,6 +41,13 @@ from tiannara.domain.models.semantic_resolution import (
 )
 from tiannara.domain.ports import IntentCompiler
 from tiannara.application.intent.prompts import derive_system_id
+from tiannara.application.intent.prompts import normalize
+from tiannara.application.compiler.source_projection import SourceProjectionContext
+from tiannara.application.compiler.source_coverage import (
+    SourceGraphCoverageReport,
+    verify_graph_system_model_traceability,
+)
+from tiannara.domain.models.requirement_graph import RequirementGraph
 
 
 class ProjectCompilationError(ValueError):
@@ -126,6 +133,101 @@ class ProjectCompiler:
                 "intent compiler returned a legacy (non-typed) ISR; the pure "
                 "Cap-C pipeline requires a typed SystemModel payload"
             )
+        # Fail closed at the application compiler boundary. The current
+        # capability requirements and backend port do not yet accept typed
+        # authorization obligations, so merely passing the TaskFlow gate must
+        # not authorize backend generation. This guard is intentionally
+        # conservative until a backend/runtime contract consumes and enforces
+        # the obligations and the acceptance suite proves workspace isolation.
+        if self._taskflow_semantic_gate:
+            obligations = getattr(
+                compilation, "authorization_semantic_obligations", None
+            )
+            if obligations is None:
+                raise ProjectCompilationError(
+                    "TaskFlow authorization gate is enabled but typed authorization "
+                    "obligations are missing; backend generation is blocked"
+                )
+            raise ProjectCompilationError(
+                "TaskFlow authorization obligations were resolved by the intent "
+                "compiler, but no registered backend/runtime consumer currently "
+                "proves enforcement; generation remains blocked"
+            )
+        # Mandatory provenance contract for every non-TaskFlow generation path.
+        # A compiler adapter that does not return the frozen source context is
+        # exploratory only; it cannot proceed to backend selection.
+        source_context = getattr(compilation, "source_projection_context", None)
+        graph = getattr(compilation, "requirement_graph", None)
+        if not isinstance(source_context, SourceProjectionContext):
+            raise ProjectCompilationError(
+                "generation blocked: intent compiler returned no validated source projection context"
+            )
+        if not isinstance(graph, RequirementGraph):
+            raise ProjectCompilationError(
+                "generation blocked: intent compiler returned no typed requirement graph"
+            )
+        expected_snapshot_hash = hashlib.sha256(statement.encode("utf-8")).hexdigest()
+        if source_context.snapshot_sha256 != expected_snapshot_hash:
+            raise ProjectCompilationError(
+                "generation blocked: source projection context does not match the exact caller statement bytes"
+            )
+        if (
+            source_context.graph_id != graph.graph_id
+            or source_context.graph_sha256 != graph.content_hash()
+            or graph.provenance.source_statement_hash
+            != normalize(statement).source_statement_hash
+        ):
+            raise ProjectCompilationError(
+                "generation blocked: source-to-graph provenance binding is stale or substituted"
+            )
+
+        # A graph hash binds identity but cannot prove that every requirement-
+        # bearing source unit survived extraction. Until the trusted intake path
+        # supplies a coverage report, generic generation is blocked. Never infer
+        # completeness from a matching source/context/graph hash.
+        coverage = getattr(compilation, "source_graph_coverage_report", None)
+        if not isinstance(coverage, SourceGraphCoverageReport):
+            raise ProjectCompilationError(
+                "generation blocked: trusted source-unit-to-graph coverage report is missing"
+            )
+        if (
+            not coverage.complete
+            or coverage.source_sha256 != source_context.snapshot_sha256
+            or coverage.graph_sha256 != source_context.graph_sha256
+        ):
+            blockers = "; ".join(coverage.blockers) or "source/graph identity mismatch"
+            raise ProjectCompilationError(
+                "generation blocked: source-unit-to-graph coverage is incomplete or stale: "
+                + blockers
+            )
+
+        # Source-to-graph identity and source-unit coverage do not establish
+        # that mandatory graph semantics survived SystemModel/ISR synthesis.
+        # Require explicit typed-ISR trace links before backend selection.
+        traceability = verify_graph_system_model_traceability(
+            graph=graph,
+            system_model=model,
+        )
+        if not traceability.complete:
+            blockers = "; ".join(traceability.blockers) or "mandatory requirement traceability is incomplete"
+            raise ProjectCompilationError(
+                "generation blocked: requirement graph to typed ISR traceability failed: "
+                + blockers
+            )
+
+        # The typed SystemModel must identify the exact same requirement
+        # graph. Matching source and graph hashes alone do not prove that the
+        # model synthesis retained the graph's identity.
+        requirements_ref = getattr(model, "requirements_ref", None)
+        if (
+            requirements_ref is None
+            or requirements_ref.graph_id != graph.graph_id
+            or requirements_ref.graph_hash != graph.content_hash()
+        ):
+            raise ProjectCompilationError(
+                "generation blocked: SystemModel requirement reference does not bind to the active source graph"
+            )
+
         # 3. Derive requirements
         requirements = derive_compilation_requirements(model)
         # 4. Plan (select-all when calibrating, single-best otherwise)

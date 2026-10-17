@@ -37,6 +37,7 @@ from constitutional_architecture.compiler.observability.compiler_events import (
 from constitutional_architecture.compiler.observability.compiler_metrics import CompilerMetrics
 from constitutional_architecture.compiler.pass_manager import PassManager
 from constitutional_architecture.compiler.pass_registry import PassRegistry
+from constitutional_architecture.compiler.source_binding import ConstitutionalSourceBinding
 from constitutional_architecture.isr.model.isr import ISR
 
 
@@ -83,7 +84,13 @@ class CompilerPipeline:
         self._event_bus = event_bus or CompilerEventBus()
         self._metrics = CompilerMetrics()
 
-    def compile(self, isr: ISR, config: Optional[CompilationConfig] = None) -> CompilationResult:
+    def compile(
+        self,
+        isr: ISR,
+        config: Optional[CompilationConfig] = None,
+        *,
+        source_binding: Optional[ConstitutionalSourceBinding] = None,
+    ) -> CompilationResult:
         if config is None:
             config = CompilationConfig(project_name=isr.system.name)
 
@@ -93,8 +100,25 @@ class CompilerPipeline:
             data={"isr_hash": isr.content_hash, "targets": list(config.target_backends)},
         ))
 
+        if config.require_source_binding and source_binding is None:
+            # Do not allow a cached result to bypass the source-binding gate.
+            from constitutional_architecture.compiler.compiler_result import CompilationResult
+            from constitutional_architecture.compiler.quality.diagnostics import Diagnostic, DiagnosticSeverity
+            diagnostic = Diagnostic(
+                code="COMP-SOURCE-BINDING-001",
+                message="Compilation blocked: required source/graph/ISR binding is missing",
+                severity=DiagnosticSeverity.ERROR,
+            )
+            return CompilationResult(
+                isr_hash=isr.content_hash, config_hash=config.config_hash,
+                compiler_version=config.compiler_version, diagnostics=(diagnostic,),
+                error_count=1, targets_compiled=tuple(config.target_backends), success=False,
+            )
+
         cache_key = self._cache.compute_key(isr.content_hash, config.config_hash, config.compiler_version)
-        cached = self._cache.get(cache_key)
+        # Source-bound compilations cannot reuse a result keyed only by ISR/config
+        # hashes: the binding envelope is an independent input to validation.
+        cached = self._cache.get(cache_key) if source_binding is None and not config.require_source_binding else None
         if cached is not None:
             self._metrics.record_cache(hit=True)
             self._event_bus.publish(CompilerEvent(event_type=CompilerEventType.CACHE_HIT))
@@ -102,7 +126,10 @@ class CompilerPipeline:
 
         self._metrics.record_cache(hit=False)
 
-        ctx = CompilerContext(_isr=isr, _config=config, backend_registry=self._backend_registry)
+        ctx = CompilerContext(
+            _isr=isr, _config=config, backend_registry=self._backend_registry,
+            source_binding=source_binding,
+        )
         pass_manager = PassManager(self._pass_registry)
         passes_success = pass_manager.execute_all(ctx)
 
@@ -132,7 +159,7 @@ class CompilerPipeline:
             success=passes_success and not ctx.diagnostics.has_errors,
         )
 
-        if result.success:
+        if result.success and source_binding is None and not config.require_source_binding:
             self._cache.put(cache_key, result)
 
         self._metrics.record_compilation(elapsed_ms, len(ctx.artifacts), len(ctx.diagnostics.errors), len(ctx.diagnostics.warnings))
@@ -142,6 +169,29 @@ class CompilerPipeline:
         ))
 
         return result
+
+    def compile_source_bound(
+        self,
+        isr: ISR,
+        config: Optional[CompilationConfig] = None,
+        *,
+        source_binding: Optional[ConstitutionalSourceBinding] = None,
+    ) -> CompilationResult:
+        """Compile a source-derived ISR with binding enforcement always enabled.
+
+        This entry point prevents callers from inheriting the compatibility
+        default require_source_binding=False. The binding proves structural
+        identity/traceability only, not semantic satisfaction or runtime acceptance.
+        """
+        from dataclasses import replace
+
+        effective_config = config or CompilationConfig(project_name=isr.system.name)
+        effective_config = replace(effective_config, require_source_binding=True)
+        return self.compile(
+            isr,
+            config=effective_config,
+            source_binding=source_binding,
+        )
 
     def register_backend(self, backend) -> None:
         self._backend_registry.register(backend)

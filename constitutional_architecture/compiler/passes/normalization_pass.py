@@ -50,6 +50,22 @@ class NormalizationPass(CompilerPass):
             id=isr.system.id, name=isr.system.name, description=isr.system.description,
             modules=tuple(normalized_modules), deployment=isr.system.deployment,
             metadata=isr.system.metadata, global_policies=tuple(sorted(isr.system.global_policies)),
+            # Normalization may reorder/clean implementation collections, but it
+            # must not erase constitutional semantics carried outside modules.
+            constraints=isr.system.constraints,
+            business_capabilities=isr.system.business_capabilities,
+            reliability_requirements=isr.system.reliability_requirements,
+            architectural_boundaries=isr.system.architectural_boundaries,
+            requirements=isr.system.requirements,
+            acceptance_criteria=isr.system.acceptance_criteria,
+            deployment_intents=isr.system.deployment_intents,
+            testing_anchors=isr.system.testing_anchors,
+            documentation_intents=isr.system.documentation_intents,
+            evolution_objectives=isr.system.evolution_objectives,
+            protected_regions=isr.system.protected_regions,
+            evolution_policies=isr.system.evolution_policies,
+            architectural_decisions=isr.system.architectural_decisions,
+            security_threats=isr.system.security_threats,
         )
 
         normalized_isr = ISR(system=normalized_system, version=isr.version, provenance=isr.provenance)

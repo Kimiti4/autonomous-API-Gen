@@ -1,10 +1,11 @@
-"""Derive compilation requirements from the ISR (v1 rules).
+"""Derive artifact compilation requirements from the typed ISR (v1 rules).
 
-Each rule maps ISR structure to a requirement. Rules are additive and
-ADR-worthy. Selection is then performed over these requirements. v1 covers
-backend services only; frontend, database, infrastructure, deployment, and
-documentation rules arrive together with their backend families — never
-before, never without a matching backend.
+The current rule set covers backend services, frontend applications, database
+migrations, infrastructure provisioning, deployment, and documentation.
+Each rule maps ISR structure to an artifact requirement plus generic declared
+capabilities. These capability requirements do not, by themselves, prove
+business-semantic or runtime enforcement; that requires separate typed
+obligations and conformance evidence.
 
 This layer is pure: it reads the SystemModel and returns requirements. It does
 not touch any backend or registry.
@@ -34,12 +35,6 @@ def derive_compilation_requirements(
     requirements.extend(_infrastructure_requirements(system_model))
     requirements.extend(_deployment_requirements(system_model))
     requirements.extend(_documentation_requirements(system_model))
-    # Future rules (each lands with its backend family):
-    #   _frontend_requirements(system_model)
-    #   _database_requirements(system_model)
-    #   _infrastructure_requirements(system_model)
-    #   _deployment_requirements(system_model)
-    #   _documentation_requirements(system_model)
     return requirements
 
 

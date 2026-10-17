@@ -1,0 +1,127 @@
+{
+  "schema_version": "tiannara.taskflow.reviewer-decision.chat-record.v1",
+  "record_type": "requirements_reviewer_decision",
+  "decision_group": "tasks.assignment_status_priority_and_due_dates",
+  "reviewer_id": "Kimityr",
+  "approval_status": "APPROVED_IN_CHAT",
+  "approval_method": "explicit_user_confirmation_in_chat",
+  "approved_on": "2026-10-12",
+  "decisions": {
+    "canonical_status_values": {
+      "values": [
+        "backlog",
+        "todo",
+        "in_progress",
+        "blocked",
+        "done"
+      ],
+      "consistency_required_across": [
+        "persistence",
+        "api",
+        "frontend",
+        "filters",
+        "tests"
+      ],
+      "unknown_values": "reject_on_backend"
+    },
+    "transition_rules": {
+      "model": "explicit_transition_graph",
+      "allowed_transitions": "must_be_defined_and_enforced",
+      "completion": "done_requires_valid_authorized_transition; no_extra_completion_field",
+      "reopening": "reopening_done_requires_explicit_allowed_transition_to_active_status",
+      "authorization_and_scope": "every_transition_authorized_and_workspace_scoped",
+      "disallowed_transition": "reject_atomically_without_partial_mutation"
+    },
+    "priority_values": {
+      "values": [
+        "low",
+        "normal",
+        "high",
+        "urgent"
+      ],
+      "ordering": [
+        "low",
+        "normal",
+        "high",
+        "urgent"
+      ],
+      "unknown_values": "reject",
+      "consistency_required_across": [
+        "persistence",
+        "api",
+        "frontend",
+        "sorting",
+        "filters"
+      ]
+    },
+    "due_dates": {
+      "representation": "timestamp",
+      "timezone_requirement": "unambiguous_timestamp_or_timestamp_with_timezone_or_offset",
+      "persistence": "normalize_to_a_consistent_format_such_as_UTC",
+      "display": "use_configured_timezone",
+      "invalid_or_ambiguous_values": "reject",
+      "overdue_tasks": "remain_valid"
+    },
+    "assignment_permissions": {
+      "owners_and_managers": "may_assign_or_reassign_within_their_workspace",
+      "members": "may_assign_or_reassign_only_if_authorized_to_edit_the_task_and_assignment_field",
+      "assignee_constraint": "assignee_must_be_a_valid_member_of_the_task_workspace_at_mutation_time",
+      "enforcement": "backend_validation_required; client-side checks are not authoritative",
+      "invalid_removed_or_foreign_assignee": "must_not_remain_assigned",
+      "task_moves": "follow_group_3_rules; authorized_same_workspace_moves_only; relationship_and_assignment_validation_atomic"
+    },
+    "completion_requirements": {
+      "extra_completion_note_or_field_required": false,
+      "done_still_requires": [
+        "valid_transition",
+        "authorization",
+        "activity_evidence"
+      ]
+    },
+    "activity_history": {
+      "changes_requiring_events": [
+        "status",
+        "priority",
+        "due_date",
+        "assignment"
+      ],
+      "event_requirements": [
+        "unique_event_identity",
+        "actor",
+        "timestamp",
+        "event_type",
+        "resource_references",
+        "safe_change_details"
+      ],
+      "secrets": "must_not_be_logged"
+    },
+    "verification_obligations": [
+      "accept_and_reject_all_status_values",
+      "enforce_transition_graph",
+      "verify_explicit_reopening_from_done",
+      "verify_priority_values_and_ordering",
+      "verify_timestamp_normalization_and_timezone_behavior",
+      "verify_overdue_due_dates_remain_valid",
+      "verify_valid_foreign_and_invalid_assignment_cases",
+      "verify_member_removal_and_task_moves_cannot_leave_invalid_assignments",
+      "verify_failed_updates_leave_no_partial_mutation",
+      "verify_successful_changes_have_activity_evidence",
+      "verify_failed_changes_do_not_emit_misleading_success_events",
+      "map_tests_to_acceptance_criteria"
+    ]
+  },
+  "reviewer_confirmation": {
+    "explicit_confirmation_received": true,
+    "confirmation_scope": "complete_group_5_decision_record_presented_in_chat",
+    "cryptographic_signature_present": false,
+    "trusted_hmac_envelope_present": false
+  },
+  "generation_authorized": false,
+  "implementation_or_runtime_verified": false,
+  "limitations": [
+    "This file records the reviewer's explicit chat approval; it is not a cryptographic signature.",
+    "No trusted evidence envelope is present or implied by this approval.",
+    "The record does not authorize generation or satisfy the trusted resolution envelope gate.",
+    "Implementation and runtime behavior remain unverified."
+  ]
+}

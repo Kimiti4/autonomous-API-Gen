@@ -29,6 +29,9 @@ class CompilationConfig:
     capability_hints: dict[str, str] = field(default_factory=dict)
     compiler_version: str = "1.0.0"
     verbose: bool = False
+    # Opt in for callers that compile a source-derived architecture. When true,
+    # validation fails closed unless a source/graph/ISR binding is supplied.
+    require_source_binding: bool = False
 
     def __post_init__(self) -> None:
         if not self.package_name:
@@ -45,5 +48,6 @@ class CompilationConfig:
             "generate_tests": self.generate_tests,
             "generate_docker": self.generate_docker,
             "compiler_version": self.compiler_version,
+            "require_source_binding": self.require_source_binding,
         }, sort_keys=True)
         return hashlib.sha256(canonical.encode()).hexdigest()[:16]

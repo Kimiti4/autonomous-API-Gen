@@ -7,6 +7,7 @@ import shutil
 from tiannara.application.harness.manifest import StratifiedManifest
 from tiannara.application.compiler.composition import build_project_compiler
 from tiannara.application.compiler.project_compiler import ProjectCompilationError
+from tiannara.domain.models.semantic_resolution import UnresolvedSemanticsError
 from tiannara.application.compiler.verification import BundleVerifier
 from tiannara.application.factory import (
     RematerializationRepairProvider,
@@ -57,6 +58,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Bypass verification refusal (override is recorded in the manifest)",
     )
     create.add_argument("--branch", default="main", help="Git branch to commit to (default: main)")
+    create.add_argument(
+        "--taskflow-semantic-gate",
+        action="store_true",
+        help="Require the fail-closed TaskFlow semantic gate; does not authorize generation",
+    )
 
     factory = sub.add_parser(
         "factory", help="Compile, verify, and repair an intent into a materialized repo"
@@ -69,6 +75,11 @@ def main(argv: list[str] | None = None) -> int:
         help="LLM provider mode (default: recorded, hermetic)",
     )
     factory.add_argument("--max-repair-attempts", type=int, default=2)
+    factory.add_argument(
+        "--taskflow-semantic-gate",
+        action="store_true",
+        help="Require the fail-closed TaskFlow semantic gate; does not authorize generation",
+    )
     factory.add_argument(
         "--force", action="store_true",
         help="Bypass verification refusal (recorded in manifest + evidence)",
@@ -133,8 +144,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "create":
         hints = {"system_id": args.system_id} if args.system_id else {}
         try:
-            compiler = build_project_compiler(args.provider, transcript_path=args.transcript)
+            compiler = build_project_compiler(
+                args.provider,
+                transcript_path=args.transcript,
+                taskflow_semantic_gate=args.taskflow_semantic_gate,
+            )
             report = compiler.compile_intent(args.statement, hints)
+        except UnresolvedSemanticsError as exc:
+            print(f"error: TaskFlow semantic gate blocked compilation: {exc}")
+            return 1
         except ProjectCompilationError as exc:
             print(f"error: compilation failed: {exc}")
             return 1
@@ -164,7 +182,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if report.ok else 1
 
     if args.command == "factory":
-        compiler = build_project_compiler(args.provider, transcript_path=args.transcript)
+        compiler = build_project_compiler(
+            args.provider,
+            transcript_path=args.transcript,
+            taskflow_semantic_gate=args.taskflow_semantic_gate,
+        )
         sc_backend = LocalGitBackend() if shutil.which("git") else None
         if sc_backend is None:
             print("note: git not found on PATH; materializing artifact tree without VCS")
@@ -183,6 +205,9 @@ def main(argv: list[str] | None = None) -> int:
         )
         try:
             report = factory.run(args.statement, out_root=args.out, force=args.force)
+        except UnresolvedSemanticsError as exc:
+            print(f"error: TaskFlow semantic gate blocked compilation: {exc}")
+            return 1
         except ProjectCompilationError as exc:
             print(f"error: compilation failed: {exc}")
             return 1

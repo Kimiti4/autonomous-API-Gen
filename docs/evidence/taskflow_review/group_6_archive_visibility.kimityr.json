@@ -1,0 +1,82 @@
+{
+  "schema_version": "tiannara.taskflow.reviewer-decision.chat-record.v1",
+  "record_type": "requirements_reviewer_decision",
+  "decision_group": "tasks.archive_visibility",
+  "reviewer_id": "Kimityr",
+  "approval_status": "APPROVED_IN_CHAT",
+  "approval_method": "explicit_user_confirmation_in_chat",
+  "approved_on": "2026-10-12",
+  "decisions": {
+    "archive_permissions": {
+      "projects": "owners_and_managers_only",
+      "tasks": "owners_and_managers_only",
+      "enforcement": ["backend_authorization", "current_role_and_workspace_checks", "relationship_integrity"]
+    },
+    "restoration_permissions": {
+      "authority": "same_role_authority_as_archiving",
+      "permitted_roles": ["owner", "manager"],
+      "authorization": "recheck_current_authorization_at_restore_time",
+      "invalid_or_cross_workspace_requests": "fail_closed_without_partial_mutation"
+    },
+    "archived_resource_access": {
+      "ordinary_active_views": "exclude_archived_resources",
+      "authorized_archived_views": "allow_only_with_current_workspace_and_resource_authorization",
+      "direct_requests": "must_not_bypass_archive_policy_or_disclose_foreign_workspace_data",
+      "mutability": "read_only_until_restored"
+    },
+    "search_and_filters": {
+      "default": "exclude_archived_resources",
+      "inclusion": "explicit_archived_filter_or_view_required",
+      "surfaces": ["API", "frontend lists", "search", "dashboard counts", "pagination"]
+    },
+    "project_archive_behavior": {
+      "task_archive_state": "preserve_independent_task_archive_state",
+      "active_views": "tasks_under_archived_project_hidden",
+      "ordinary_active_task_endpoints_and_search": "must_not_expose_tasks_under_archived_projects_even_when_directly_requested",
+      "authorized_archived_views": "may_expose_resources_subject_to_authorization",
+      "preserved_data": ["assignments", "relationships", "comments", "activity history"]
+    },
+    "restoration_semantics": {
+      "project_restore": "restore_project_visibility_without_changing_task_archive_states",
+      "previously_active_tasks": "visible_again_in_active_views_after_parent_project_restore",
+      "independently_archived_tasks": "remain_archived",
+      "integrity": "validate_relationships_and_assignment_validity; do_not_revive_invalid_assignments_or_stale_permissions"
+    },
+    "audit_and_integrity": {
+      "archive_restore_events": ["unique_event_identity", "actor", "timestamp", "event_type", "workspace_and_resource_references", "safe_change_details"],
+      "comments_and_activity_history": "preserve_across_archive_and_restore",
+      "secrets": "credentials_tokens_and_secrets_must_not_be_logged",
+      "failed_operations": "no_misleading_success_events_or_partial_mutations",
+      "audit_history": "ordinary_mutations_must_not_rewrite_or_erase_history"
+    },
+    "verification_obligations": [
+      "owners_and_managers_can_archive_and_restore_within_workspace",
+      "unauthorized_members_cannot_archive_or_restore",
+      "cross_workspace_archive_read_and_restore_requests_fail_closed",
+      "active_lists_search_filters_dashboards_and_pagination_exclude_archived_resources_by_default",
+      "explicit_archived_views_return_only_authorized_resources",
+      "project_archiving_preserves_task_archive_states_and_relationships",
+      "archived_project_tasks_hidden_from_ordinary_active_endpoints_and_search_including_direct_requests",
+      "archived_resources_are_read_only_until_restored",
+      "project_restore_does_not_restore_independently_archived_tasks",
+      "previously_active_tasks_visible_after_project_restore",
+      "archive_restore_events_unique_and_traceable_to_successful_mutations",
+      "rejected_operations_leave_consistent_state_and_audit_without_partial_mutation",
+      "map_tests_to_canonical_acceptance_criteria_and_record_evidence"
+    ]
+  },
+  "reviewer_confirmation": {
+    "explicit_confirmation_received": true,
+    "confirmation_scope": "complete_group_6_decision_record_including_all_three_clarifications",
+    "cryptographic_signature_present": false,
+    "trusted_hmac_envelope_present": false
+  },
+  "generation_authorized": false,
+  "implementation_or_runtime_verified": false,
+  "limitations": [
+    "Explicit reviewer chat approval only; not a cryptographic signature.",
+    "No trusted evidence envelope is present or implied.",
+    "Does not authorize generation or satisfy the trusted resolution envelope gate.",
+    "Implementation and runtime behavior remain unverified."
+  ]
+}

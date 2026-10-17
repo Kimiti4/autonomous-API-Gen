@@ -1,0 +1,72 @@
+{
+  "schema_version": "tiannara.taskflow.reviewer-decision.chat-record.v1",
+  "record_type": "requirements_reviewer_decision",
+  "decision_group": "frontend.required_interactions_and_state_transitions",
+  "reviewer_id": "Kimityr",
+  "approval_status": "APPROVED_IN_CHAT",
+  "approval_method": "explicit_user_confirmation_in_chat",
+  "approved_on": "2026-10-12",
+  "decisions": {
+    "navigation_and_workspace_context": [
+      "Provide clear navigation for workspaces, projects, tasks, search/filtering, and the workspace dashboard.",
+      "Display the current workspace context consistently.",
+      "When changing workspaces, reload authorized data and clear or revalidate selections, cached results, and pending UI state.",
+      "A workspace ID supplied by the frontend is never proof of membership or authorization."
+    ],
+    "required_screens_and_interactions": [
+      "Registration, login, email verification, MFA enrollment/authentication, account recovery, and session-expiry handling.",
+      "Workspace creation and workspace membership views subject to Group 2 permissions.",
+      "Project creation, viewing, and authorized editing.",
+      "Task creation and viewing, assignment, status and priority changes, due-date editing, and permitted task movement.",
+      "Task comments and activity history subject to approved authorization and audit requirements.",
+      "Search, filters, archive-aware views, and a useful workspace dashboard."
+    ],
+    "role_aware_interactions": [
+      "Owners, managers, and members are presented with actions appropriate to their current permissions.",
+      "Hidden or disabled controls improve usability but never replace backend authorization.",
+      "A denied mutation must not be presented as successful.",
+      "Membership or role changes take effect according to Group 7; stale frontend state must not preserve access."
+    ],
+    "state_transitions_and_mutation_integrity": [
+      "Task status controls follow the approved transition graph and allowed status values from Group 5.",
+      "Assignment, project movement, archive/restore, and deletion interactions follow approved relationship and authorization rules.",
+      "The UI reflects a mutation as successful only after the server confirms it.",
+      "Failed or interrupted requests must not leave the interface claiming an unconfirmed state change.",
+      "Retry behavior respects the API idempotency contract; the frontend must not invent duplicate-effect guarantees."
+    ],
+    "loading_empty_and_error_states": [
+      "Distinguish loading, successful results, empty results, validation errors, authorization failures, expired sessions, and service failures.",
+      "Preserve safe user input when appropriate after recoverable errors.",
+      "Provide clear recovery actions without revealing foreign-workspace resource details.",
+      "Do not display stale protected data as though it were freshly authorized."
+    ],
+    "search_filters_archive_and_dashboard": [
+      "Search, lists, pagination, and dashboard results respect workspace isolation, current permissions, and archive visibility.",
+      "Archived resources are excluded from ordinary active views.",
+      "Explicit archived views require authorization; archived resources remain read-only until restored.",
+      "Task archive state remains independent of its parent project's archive state.",
+      "Empty results and failed requests remain distinguishable."
+    ],
+    "verification_obligations": [
+      "Test required screens and state transitions end to end.",
+      "Test role-specific controls and attempts to bypass them.",
+      "Test expired/revoked sessions, workspace switching, stale permissions, and cross-workspace data isolation.",
+      "Test validation, status transitions, archive behavior, search/filter consistency, failed mutations, retries, and duplicate effects.",
+      "Map each required interaction and negative case to canonical acceptance criteria and independently verifiable evidence."
+    ]
+  },
+  "reviewer_confirmation": {
+    "explicit_confirmation_received": true,
+    "confirmation_scope": "complete Group 9 decision record presented in chat",
+    "cryptographic_signature_present": false,
+    "trusted_hmac_envelope_present": false
+  },
+  "generation_authorized": false,
+  "implementation_or_runtime_verified": false,
+  "limitations": [
+    "This record documents explicit chat approval of requirements intent only.",
+    "It is not a cryptographic signature or trusted evidence envelope.",
+    "It does not authorize generation or satisfy the trusted resolution envelope gate.",
+    "Frontend implementation, typed architectural projection, compiler integration, and runtime behavior remain unverified."
+  ]
+}

@@ -93,6 +93,54 @@ def _safe_path(path: str) -> bool:
     return not candidate.is_absolute() and all(part not in {"", ".", ".."} for part in path.split("/"))
 
 
+class _FunctionComplexityVisitor(ast.NodeVisitor):
+    """Approximate cyclomatic complexity without counting nested functions."""
+
+    def __init__(self) -> None:
+        self.complexity = 1
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        return
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        return
+
+    def visit_Lambda(self, node: ast.Lambda) -> None:
+        return
+
+    def visit_If(self, node: ast.If) -> None:
+        self.complexity += 1
+        self.generic_visit(node)
+
+    def visit_For(self, node: ast.For) -> None:
+        self.complexity += 1
+        self.generic_visit(node)
+
+    def visit_AsyncFor(self, node: ast.AsyncFor) -> None:
+        self.complexity += 1
+        self.generic_visit(node)
+
+    def visit_While(self, node: ast.While) -> None:
+        self.complexity += 1
+        self.generic_visit(node)
+
+    def visit_IfExp(self, node: ast.IfExp) -> None:
+        self.complexity += 1
+        self.generic_visit(node)
+
+    def visit_ExceptHandler(self, node: ast.ExceptHandler) -> None:
+        self.complexity += 1
+        self.generic_visit(node)
+
+    def visit_BoolOp(self, node: ast.BoolOp) -> None:
+        self.complexity += max(0, len(node.values) - 1)
+        self.generic_visit(node)
+
+    def visit_Match(self, node: ast.Match) -> None:
+        self.complexity += max(0, len(node.cases) - 1)
+        self.generic_visit(node)
+
+
 class _PythonRiskVisitor(ast.NodeVisitor):
     def __init__(self, path: str, findings: list[QualityFinding]) -> None:
         self.path = path
@@ -150,6 +198,41 @@ class _PythonRiskVisitor(ast.NodeVisitor):
                     line=default.lineno,
                     message=f"Mutable default argument in {node.name}() can leak state across calls.",
                 ))
+
+        function_lines = (node.end_lineno or node.lineno) - node.lineno + 1
+        if function_lines > 150:
+            severity = QualitySeverity.ERROR
+        elif function_lines > 80:
+            severity = QualitySeverity.WARNING
+        else:
+            severity = None
+        if severity:
+            self.findings.append(QualityFinding(
+                rule_id="QRY-PY-QUAL-004",
+                severity=severity,
+                path=self.path,
+                line=node.lineno,
+                message=f"Function {node.name} spans {function_lines} lines; split responsibilities into cohesive units.",
+            ))
+
+        complexity = _FunctionComplexityVisitor()
+        for statement in node.body:
+            complexity.visit(statement)
+        if complexity.complexity > 25:
+            severity = QualitySeverity.ERROR
+        elif complexity.complexity > 15:
+            severity = QualitySeverity.WARNING
+        else:
+            severity = None
+        if severity:
+            self.findings.append(QualityFinding(
+                rule_id="QRY-PY-QUAL-005",
+                severity=severity,
+                path=self.path,
+                line=node.lineno,
+                message=f"Function {node.name} has estimated cyclomatic complexity {complexity.complexity}; decompose decision paths.",
+            ))
+
         self.generic_visit(node)
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
@@ -252,6 +335,16 @@ class CodeQualityInspector:
                         line=content.count("\n", 0, match.start()) + 1,
                         message=f"Possible hard-coded {label} detected.",
                     ))
+
+            long_lines = [index for index, line in enumerate(content.splitlines(), start=1) if len(line) > 120]
+            for line_number in long_lines:
+                findings.append(QualityFinding(
+                    rule_id="QRY-QUAL-002",
+                    severity=QualitySeverity.WARNING,
+                    path=path,
+                    line=line_number,
+                    message="Line exceeds 120 characters; consider extracting or reformatting for readability.",
+                ))
 
             suffix = PurePosixPath(path).suffix.lower()
             if suffix not in _SOURCE_SUFFIXES:

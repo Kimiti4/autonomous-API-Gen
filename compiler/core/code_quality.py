@@ -336,6 +336,9 @@ class CodeQualityInspector:
                         message=f"Possible hard-coded {label} detected.",
                     ))
 
+            suffix = PurePosixPath(path).suffix.lower()
+            if suffix not in _SOURCE_SUFFIXES:
+                continue
             long_lines = [index for index, line in enumerate(content.splitlines(), start=1) if len(line) > 120]
             for line_number in long_lines:
                 findings.append(QualityFinding(
@@ -346,9 +349,6 @@ class CodeQualityInspector:
                     message="Line exceeds 120 characters; consider extracting or reformatting for readability.",
                 ))
 
-            suffix = PurePosixPath(path).suffix.lower()
-            if suffix not in _SOURCE_SUFFIXES:
-                continue
             source_files += 1
             language = _LANGUAGE_BY_SUFFIX[suffix]
             languages.add(language)

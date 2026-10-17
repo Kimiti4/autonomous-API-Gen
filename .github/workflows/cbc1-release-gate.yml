@@ -29,6 +29,8 @@ jobs:
       - name: Install platform dependencies
         run: pip install -r autonomous-api/requirements.txt -r autonomous-api/requirements-dev.txt
       - name: Run CBC-1 unit gates
+        env:
+          PYTHONPATH: autonomous-api
         run: pytest tests/cbc1 -q
 
   cbc1-integration-evidence:

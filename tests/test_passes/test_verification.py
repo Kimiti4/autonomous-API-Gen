@@ -135,3 +135,20 @@ class TestVerificationPass:
         result = VerificationPass().execute(ctx)
         assert "verification_checks" in result.metrics
         assert "duration_ms" in result.metrics
+
+    def test_verifier_exception_is_indeterminate_and_blocks_success(self, monkeypatch):
+        from constitutional_architecture.verification.verification_engine import VerificationEngine
+
+        def fail_verification(*args, **kwargs):
+            raise RuntimeError("verifier unavailable")
+
+        monkeypatch.setattr(VerificationEngine, "verify", fail_verification)
+        ctx = _create_context_with_artifacts()
+
+        result = VerificationPass().execute(ctx)
+
+        assert not result.success
+        assert result.metrics["verification_status"] == "INDETERMINATE"
+        assert result.metrics["approved_for_deployment"] is False
+        assert "verifier unavailable" in result.metrics["verification_error"]
+        assert any(d.code == "COMP-VERIFY-001" for d in ctx.diagnostics.diagnostics)

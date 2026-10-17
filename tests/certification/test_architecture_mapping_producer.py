@@ -328,3 +328,29 @@ def test_genesis_preserves_each_authoritative_requirement_in_isr_with_provenance
             and edge.target_id == requirement_ref_id
             for edge in isr_graph.edges.values()
         )
+
+
+
+def test_genesis_requirement_refs_do_not_satisfy_semantic_mapping_without_source_revision_and_typed_bindings():
+    artifacts = build_artifacts_for(default_corpus()[0])
+    snapshot = source_snapshot_from_plan_artifacts(artifacts)
+
+    # Genesis now preserves requirement identity, but it must not fabricate a
+    # singular source locator or source revision from a list of references.
+    requirement_refs = [
+        node for node in snapshot["revision"]["graph"]["nodes"].values()
+        if node.get("type") == "requirement_ref"
+    ]
+    assert requirement_refs
+    assert all(node["properties"].get("requirement_id") for node in requirement_refs)
+    assert all("source_ref" not in node["properties"] for node in requirement_refs)
+    assert all("revision" not in node["properties"] for node in requirement_refs)
+
+    # The semantic consumer must remain fail-closed: preserving provenance is
+    # necessary but is not proof that requirements are implemented correctly.
+    result = produce_architecture_mapping(snapshot)
+    assert not result.complete
+    assert result.mapping is None
+    blocker_codes = {item.code for item in result.blockers}
+    assert "MAP-REQ-003" in blocker_codes
+    assert "MAP-REQ-004" in blocker_codes

@@ -11,7 +11,7 @@ def test_spring_profile_and_generation_are_independent():
     registry=build_compiler_registry()
     p=registry.backend("spring_boot").build_profile("taskflow")
     assert p.language=="java"
-    assert p.build_command==["./mvnw","test"]
+    assert p.build_command==["mvn","test"]
     from tiannara.domain.models.system_model import SystemModel, RequirementsReference, DataModelSpec, FieldSpec, AbstractFieldType
     model=SystemModel(system_name="TaskFlow Spring",problem_statement="A task system",
       requirements_ref=RequirementsReference(graph_id="g",graph_hash="h"),
@@ -21,5 +21,9 @@ def test_spring_profile_and_generation_are_independent():
     result=registry.backend("spring_boot").generate(model)
     source="\n".join(result.files.values()).lower()
     assert "pom.xml" in result.files
+    assert "mvnw" not in result.files
+    assert "MockMvc" in result.files["src/test/java/com/generated/ApplicationTest.java"]
+    assert "mockMvc.perform(get(\"/health\"))" in result.files["src/test/java/com/generated/ApplicationTest.java"]
+    assert "src/main/java/com/generated/domain/Task.java" in result.files
     assert "src/main/java/com/generated/application.java" in {x.lower() for x in result.files}
     assert "fastapi" not in source and "axum" not in source and "nestjs" not in source

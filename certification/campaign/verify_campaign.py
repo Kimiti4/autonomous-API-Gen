@@ -14,6 +14,22 @@ REQUIRED_STAGES = {s.value for s in (
 )}
 
 
+def _semantic_correspondence_problem(trial: dict) -> str | None:
+    """Require candidate-bound semantic evidence before any CERTIFIED verdict."""
+    evidence = trial.get("semantic_correspondence")
+    if not isinstance(evidence, dict):
+        return "missing source-bound semantic correspondence evidence"
+    if evidence.get("passed") is not True:
+        return "source-bound semantic correspondence did not pass"
+    for key in ("source_hash", "mapping_hash", "candidate_hash"):
+        value = evidence.get(key)
+        if not isinstance(value, str) or not value.strip():
+            return f"semantic correspondence missing {key}"
+    if evidence.get("candidate_hash") != trial.get("repo_hash"):
+        return "semantic correspondence candidate hash does not match certified repository hash"
+    return None
+
+
 def verify_campaign(ledger_path: str) -> tuple[bool, dict, dict, list[str]]:
     """Verify the full campaign ledger.
 
@@ -42,6 +58,9 @@ def verify_campaign(ledger_path: str) -> tuple[bool, dict, dict, list[str]]:
                     taxonomy[s["stage"]] += 1
 
             if t.get("verdict") == "CERTIFIED":
+                semantic_problem = _semantic_correspondence_problem(t)
+                if semantic_problem:
+                    problems.append(f"{t.get('trial_id', '?')}: {semantic_problem}")
                 bc = t.get("backend_class", "")
                 if bc not in {c.value for c in BEHAVIORAL_CLASSES}:
                     problems.append(

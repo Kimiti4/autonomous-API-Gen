@@ -1,4 +1,6 @@
 import pytest
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from constitutional_architecture.compiler.artifacts.artifact_model import (
     Artifact,
@@ -135,3 +137,37 @@ class TestVerificationPass:
         result = VerificationPass().execute(ctx)
         assert "verification_checks" in result.metrics
         assert "duration_ms" in result.metrics
+
+    def test_fails_closed_when_verification_engine_raises(self):
+        ctx = _create_context_with_artifacts()
+        with patch(
+            "constitutional_architecture.verification.verification_engine.VerificationEngine.verify",
+            side_effect=RuntimeError("verifier unavailable"),
+        ):
+            result = VerificationPass().execute(ctx)
+
+        assert result.success is False
+        assert result.metrics["verification_blocked"] is True
+        assert result.metrics["verification_approved"] is False
+        assert any(d.code == "COMP-VERIFY-001" for d in ctx.diagnostics.errors)
+
+    def test_fails_closed_when_report_does_not_approve_deployment(self):
+        ctx = _create_context_with_artifacts()
+        report = SimpleNamespace(
+            total_checks=4,
+            passed_checks=3,
+            failed_checks=1,
+            warning_checks=0,
+            approved_for_deployment=False,
+            blocking_failures=(),
+        )
+        with patch(
+            "constitutional_architecture.verification.verification_engine.VerificationEngine.verify",
+            return_value=report,
+        ):
+            result = VerificationPass().execute(ctx)
+
+        assert result.success is False
+        assert result.metrics["verification_blocked"] is True
+        assert any(d.code == "COMP-VERIFY-002" for d in ctx.diagnostics.errors)
+

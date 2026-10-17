@@ -304,14 +304,11 @@ def test_campaign_a_success_matrix():
         os.path.join(d, "ledger.jsonl"),
         os.path.join(d, "agg.json"),
     )
-    # The success matrix counts certified trials only. With no configured
-    # execution adapters, it must remain empty.
-    assert summary["success_matrix"]
-    assert all(
-        count == 0
-        for category_counts in summary["success_matrix"].values()
-        for count in category_counts.values()
-    )
+    # The aggregator preserves the corpus dimensions, but every count must
+    # remain zero because no trial was certified.
+    matrix = summary["success_matrix"]
+    assert len(matrix) == 13
+    assert all(count == 0 for category in matrix.values() for count in category.values())
 
 
 def test_campaign_a_failure_taxonomy_empty():
@@ -321,8 +318,15 @@ def test_campaign_a_failure_taxonomy_empty():
         os.path.join(d, "agg.json"),
     )
     taxonomy = summary["failure_taxonomy"]
-    for stage in ("build", "test", "deploy", "runtime", "destroy", "verify"):
+    # Every execution stage honestly fails 78 times in the adapter-less run.
+    for stage in ("build", "test", "deploy", "runtime", "destroy"):
         assert taxonomy.get(stage) == 78
+    # Verify is source-bound (semantic + full-stack + independent against the
+    # real generated candidate), not execution-bound: with the corpus
+    # declaring its architecture explicitly, verify passes all 78 trials even
+    # with no execution adapters, so the taxonomy must record no verify
+    # failures rather than fabricate a bucket for a passing stage.
+    assert taxonomy.get("verify") is None
 
 
 def test_campaign_a_corpus_hash_recorded():

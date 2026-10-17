@@ -1,0 +1,37 @@
+name: Execution Evidence Truthfulness
+
+on:
+  pull_request:
+    paths:
+      - "product_factory/hardening/compilation.py"
+      - "product_factory/hardening/models.py"
+      - "tests/test_execution_evidence_truthfulness.py"
+      - ".github/workflows/execution-evidence-truthfulness.yml"
+  push:
+    branches:
+      - "hardening/no-fabricated-compilation-deployment-evidence"
+    paths:
+      - "product_factory/hardening/compilation.py"
+      - "product_factory/hardening/models.py"
+      - "tests/test_execution_evidence_truthfulness.py"
+      - ".github/workflows/execution-evidence-truthfulness.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  execution-evidence-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install project test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: Test execution evidence truthfulness
+        run: |
+          python -m pytest -o addopts="" -q tests/test_execution_evidence_truthfulness.py tests/test_product_factory_hardening.py tests/test_deployment_handoff_truthfulness.py

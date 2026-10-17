@@ -6,6 +6,7 @@ is verified independently rather than copied from another frontend target.
 """
 from __future__ import annotations
 from pathlib import Path
+import json
 from tiannara.application.compiler.build_profile import BackendBuildProfile
 from tiannara.application.compiler.writer import write_bundle
 from tiannara.domain.models.backend_declaration import ArtifactKind, BackendCapabilityDeclaration
@@ -22,8 +23,8 @@ class AngularFrontend:
     @property
     def name(self): return self.backend_id
     def build_profile(self,system_name):
-        return BackendBuildProfile(language="typescript",required_files=("package.json","tsconfig.json","src/main.ts"),
-          verifier_kind="angular",build_command=["npm","run","build"],test_command=["npm","test","--","--watch=false"],
+        return BackendBuildProfile(language="typescript",required_files=("package.json","angular.json","tsconfig.json","tsconfig.spec.json","src/index.html","src/main.ts","src/app/app.component.spec.ts"),
+          verifier_kind="angular",build_command=["npm","run","build"],test_command=["npm","test"],
           runtime_image="node:22-alpine",requires_build_phase=True)
     def build_profile_declaration(self):
         return BackendCapabilityDeclaration(backend_id=self.backend_id,artifact_kinds=[ArtifactKind.FRONTEND_APPLICATION],
@@ -39,29 +40,32 @@ class AngularFrontend:
           path=Path(output_dir),artifacts=result.file_paths(),capability_manifest=result.capability_manifest)
     def generate(self,model:SystemModel):
         return CompilationResult(backend_id=self.backend_id,system_name=slugify(model.system_name),files={
-          "package.json":self._package(),"angular.json":self._angular_json(),"tsconfig.json":self._tsconfig(),
-          "src/main.ts":self._main(),"src/app/app.component.ts":self._component(model),
-          "src/app/app.component.html":self._template(model),"src/app/app.component.spec.ts":self._test(),
+          "package.json":self._package(),"angular.json":self._angular_json(),"tsconfig.json":self._tsconfig(),"tsconfig.spec.json":self._tsconfig_spec(),
+          "src/index.html":self._index(model),"src/main.ts":self._main(),"src/app/app.component.ts":self._component(model),
+          "src/app/app.component.html":self._template(model),"src/app/app.component.spec.ts":self._test(model),
           "src/domain.ts":self._domain(model),"README.md":f"# {model.system_name}\n\nGenerated from the technology-neutral ISR.\n"
         },capability_manifest=self._manifest())
     def _package(self):
-        return '{"name":"esap-angular-app","private":true,"version":"0.1.0","scripts":{"build":"ng build","test":"ng test --watch=false --browsers=ChromeHeadless"},"dependencies":{"@angular/common":"^20.0.0","@angular/core":"^20.0.0","@angular/platform-browser":"^20.0.0","rxjs":"^7.8.0","zone.js":"^0.15.0"},"devDependencies":{"@angular/cli":"^20.0.0","@angular/compiler-cli":"^20.0.0","typescript":"^5.8.0"}}'
+        return '{"name":"esap-angular-app","private":true,"version":"0.1.0","scripts":{"build":"ng build","test":"ng test"},"dependencies":{"@angular/common":"^20.0.0","@angular/core":"^20.0.0","@angular/platform-browser":"^20.0.0","rxjs":"^7.8.0","zone.js":"^0.15.0"},"devDependencies":{"@angular/build":"^20.0.0","@angular/cli":"^20.0.0","@angular/compiler-cli":"^20.0.0","typescript":"^5.9.0","vitest":"^3.2.4","jsdom":"^26.1.0"}}'
     def _angular_json(self):
-        return '{"$schema":"./node_modules/@angular/cli/lib/config/schema.json","version":1,"projects":{"app":{"projectType":"application","root":"","sourceRoot":"src","architect":{"build":{"builder":"@angular-devkit/build-angular:application","options":{"browser":"src/main.ts","tsConfig":"tsconfig.json"}},"test":{"builder":"@angular-devkit/build-angular:karma","options":{"tsConfig":"tsconfig.json"}}}}}}'
+        return '{"$schema":"./node_modules/@angular/cli/lib/config/schema.json","version":1,"projects":{"app":{"projectType":"application","root":"","sourceRoot":"src","architect":{"build":{"builder":"@angular/build:application","options":{"browser":"src/main.ts","index":"src/index.html","tsConfig":"tsconfig.json"}},"test":{"builder":"@angular/build:unit-test","options":{"runner":"vitest","buildTarget":"app:build","tsConfig":"tsconfig.spec.json"}}}}}}'
     def _tsconfig(self):
         return '{"compilerOptions":{"target":"ES2022","module":"ES2022","moduleResolution":"bundler","strict":true,"experimentalDecorators":true,"skipLibCheck":true},"angularCompilerOptions":{"strictTemplates":true}}'
+    def _index(self,model):
+        return '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Generated application</title><meta name="viewport" content="width=device-width, initial-scale=1"></head><body><app-root></app-root></body></html>'
+    def _tsconfig_spec(self):
+        return '{"extends":"./tsconfig.json","compilerOptions":{"types":["vitest/globals"]},"include":["src/**/*.spec.ts"]}'
     def _main(self):
         return 'import { bootstrapApplication } from "@angular/platform-browser";\nimport { AppComponent } from "./app/app.component";\nbootstrapApplication(AppComponent).catch(err => console.error(err));\n'
     def _component(self,model):
-        return f'import {{ Component }} from "@angular/core";\n\n@Component({{selector:"app-root",standalone:true,templateUrl:"./app.component.html"}})\nexport class AppComponent {{ readonly title = "{model.system_name}"; }}\n'
+        title = json.dumps(model.system_name, ensure_ascii=True)
+        return f'import {{ Component }} from "@angular/core";\n\n@Component({{selector:"app-root",standalone:true,templateUrl:"./app.component.html"}})\nexport class AppComponent {{ readonly title = {title}; }}\n'
     def _template(self,model):
         return '<main><h1>{{ title }}</h1><p>Generated application</p></main>\n'
-    def _test(self):
-        return 'import { TestBed } from "@angular/core/testing";\nimport { AppComponent } from "./app.component";\ndescribe("AppComponent",()=>{it("creates",async()=>{const fixture=TestBed.createComponent(AppComponent); expect(fixture.componentInstance).toBeTruthy();});});\n'
+    def _test(self,model):
+        title = json.dumps(model.system_name, ensure_ascii=True)
+        return f'import "zone.js";\nimport {{ TestBed }} from "@angular/core/testing";\nimport {{ describe, it, expect }} from "vitest";\nimport {{ AppComponent }} from "./app.component";\ndescribe("AppComponent",()=>{{it("renders the application content",async()=>{{await TestBed.configureTestingModule({{imports:[AppComponent]}}).compileComponents();const fixture=TestBed.createComponent(AppComponent);fixture.detectChanges();expect(fixture.nativeElement.querySelector("h1")?.textContent).toContain({title});expect(fixture.nativeElement.textContent).toContain("Generated application");}});}});\n'
     def _domain(self,model):
         return "\n".join(f"export interface {pascal_case(dm.name)} {{\n"+"".join(f"  {f.name}{'' if f.required else '?'}: unknown;\n" for f in dm.fields)+"}\n" for dm in model.data_models)
     def _manifest(self):
-        return CapabilityManifest(backend_id=self.backend_id,capabilities=[
-          BundleCapability.BUILD,BundleCapability.LINT,BundleCapability.STATIC_ANALYSIS,
-          BundleCapability.TEST,BundleCapability.SECURITY_SCAN,BundleCapability.DOCUMENTATION,
-          BundleCapability.RELEASE],metadata={"language":"typescript","framework":"angular","style":"standalone-components"})
+        return CapabilityManifest(backend_id=self.backend_id,capabilities=[BundleCapability.BUILD, BundleCapability.TEST, BundleCapability.DOCUMENTATION],metadata={"language":"typescript","framework":"angular","style":"standalone-components"})

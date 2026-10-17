@@ -33,9 +33,17 @@ def run_uber_for_boats(github_token: str = "", ledger: EvolutionLedger | None = 
     provider.create_issue(result.repo_url, "Implement boat matching")
     provider.configure_branch_protection(result.repo_url)
     provider.configure_security(result.repo_url)
-    # 8. Deployment
+    # 8. Deployment handoff. No live adapter is configured, so report the
+    # missing evidence instead of converting the placeholder into a success.
     deployment = handoff_to_deployment(result.repo_url)
-    assert deployment["health"] == "healthy"
-    # 9. Telemetry + evolution loop
-    ledger.append_event(EvolutionEvent(event_id="telemetry-uber-boats", evolution_id="uber", sequence=0, event_type=EventType.CERTIFICATION, subject_id=artifact_hash, payload={"telemetry": "collecting"}), evolution_id="uber")
-    return {"idea": idea, "bundle": bundle, "files": list(files.keys()), "repo_url": result.repo_url, "ledger_ref": result.ledger_ref, "deployment": deployment, "verified": True}
+    # Do not append telemetry evidence unless a real telemetry source was read.
+    return {
+        "idea": idea,
+        "bundle": bundle,
+        "files": list(files.keys()),
+        "repo_url": result.repo_url,
+        "ledger_ref": result.ledger_ref,
+        "deployment": deployment,
+        "verified": False,
+        "verification_blockers": list(deployment["blockers"]),
+    }

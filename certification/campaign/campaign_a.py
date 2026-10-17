@@ -11,6 +11,7 @@ from certification.campaign.plan_builder import build_artifacts_for
 from certification.campaign.verify_campaign import verify_campaign
 from certification.campaign.verdict import compose_campaign_verdict, CampaignVerdict
 from compiler.composition import build_backend_registry
+from certification.stages.docker_stages import RealDockerStages
 
 
 BACKENDS = ["python-fastapi", "rust-axum"]
@@ -21,11 +22,32 @@ DEFAULT_AGGREGATE = "release/evidence/cbc1-a-aggregate.json"
 def run_campaign_a(
     ledger_path: str = DEFAULT_LEDGER,
     out_path: str = DEFAULT_AGGREGATE,
+    *,
+    real_stages: bool | None = None,
 ) -> tuple[list, dict]:
     os.makedirs(os.path.dirname(ledger_path) or ".", exist_ok=True)
     reg = build_backend_registry()
     ledger = EvidenceLedger(ledger_path)
-    runner = CampaignRunner()
+    if real_stages is None:
+        real_stages = os.environ.get("CBC1_REAL_DOCKER", "").lower() in {"1", "true", "yes"}
+    if real_stages:
+        # Certification runs use the real Docker-backed stages. If Docker is
+        # unavailable, each stage records an explicit failure; no stub or
+        # synthetic pass is used.
+        docker_stages = RealDockerStages()
+        runner = CampaignRunner(
+            builder=docker_stages,
+            tester=docker_stages,
+            deployer=docker_stages,
+            prober=docker_stages,
+            destroyer=docker_stages,
+        )
+    else:
+        # Unit/contract runs: stages are unconfigured and must fail closed
+        # with no Docker dependency. Real execution is opt-in only via
+        # real_stages=True or CBC1_REAL_DOCKER=1 (the certification entry
+        # point always opts in).
+        runner = CampaignRunner()
     aggregator = CampaignAggregator()
 
     corpus = default_corpus()
@@ -61,6 +83,28 @@ def run_campaign_a(
     summary["corpus_hash"] = ch
     summary["corpus_size"] = len(corpus)
     summary["total_trials"] = len(trials)
+    # The runner attempts source-bound mapping and canonical IR lowering.
+    # Report the actual trial evidence rather than a stale "not configured" flag.
+    semantic_records = [trial.semantic_correspondence for trial in trials]
+    semantic_passed = sum(record.get("passed") is True for record in semantic_records)
+    semantic_blockers = sorted({
+        str(finding)
+        for record in semantic_records
+        for finding in (record.get("findings", ()) or ())
+        if isinstance(finding, str) and finding
+    })
+    all_verify_stages_passed = all(
+        any(stage.stage.value == "verify" and stage.passed is True for stage in trial.stages)
+        for trial in trials
+    )
+    all_trials_certified = bool(trials) and all(trial.verdict == "CERTIFIED" for trial in trials)
+    summary["full_stack_verification"] = {
+        "status": "passed" if bool(trials) and semantic_passed == len(trials) and all_verify_stages_passed else "blocked",
+        "source_bound_trials_passed": semantic_passed,
+        "required_trials": len(trials),
+        "blockers": semantic_blockers[:50],
+        "certification_authorized": all_trials_certified,
+    }
 
     assert EvidenceLedger.verify(ledger_path), "Evidence chain broken"
 
@@ -90,4 +134,4 @@ def run_campaign_a(
 
 
 if __name__ == "__main__":
-    run_campaign_a()
+    run_campaign_a(real_stages=True)

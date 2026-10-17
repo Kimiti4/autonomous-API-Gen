@@ -9,11 +9,13 @@ on:
       - "tiannara/domain/models/backend_declaration.py"
       - "tiannara/domain/models/capability_manifest.py"
       - "tests/certification/test_compiler_matrix_certification.py"
+      - "tests/test_rust_axum_typed_backend.py"
       - ".github/workflows/compiler-certification-matrix.yml"
 
 jobs:
   compiler-matrix:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -26,6 +28,181 @@ jobs:
           pip install pytest
       - name: Resolve compiler matrix
         run: pytest -q tests/certification/test_compiler_matrix_certification.py
+      - name: Set up Node.js for generated frontend execution
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Generate, install, test, and production-build frontend targets
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from tiannara.application.compiler.composition import build_compiler_registry
+          from tiannara.application.compiler.writer import write_bundle
+          from tiannara.domain.models.system_model import RequirementsReference, SystemModel
+
+          registry = build_compiler_registry()
+          model = SystemModel(
+              system_name='ESAP Frontend CI Smoke',
+              problem_statement='Execute generated frontend build and behavior tests',
+              requirements_ref=RequirementsReference(graph_id='ci-frontend', graph_hash='ci-frontend'),
+          )
+          root = Path('/tmp/esap-generated-frontends')
+          for backend_id in ('react_ts', 'vue_ts', 'angular_ts', 'next_ts', 'nuxt_ts', 'svelte_ts'):
+              bundle = registry.backend(backend_id).generate(model)
+              write_bundle(bundle, str(root / backend_id))
+              print(f'Generated {backend_id}: {len(bundle.files)} files')
+          PY
+          set -euo pipefail
+          for target in react_ts vue_ts angular_ts next_ts nuxt_ts svelte_ts; do
+            echo "=== $target: install dependencies ==="
+            cd "/tmp/esap-generated-frontends/$target"
+            if [ "$target" = "nuxt_ts" ]; then
+              # npm's Arborist has a known crash on this Nuxt dependency graph
+              # ("Cannot read properties of null (reading 'edgesOut')"). Retry
+              # only that internal failure with peer auto-resolution disabled;
+              # generated tests and the production build remain mandatory.
+              if ! npm install --no-audit --no-fund --no-progress 2>&1 | tee /tmp/esap-nuxt-npm-install.log; then
+                if grep --fixed-strings --quiet "Cannot read properties of null (reading 'edgesOut')" /tmp/esap-nuxt-npm-install.log; then
+                  npm install --legacy-peer-deps --no-audit --no-fund --no-progress
+                else
+                  exit 1
+                fi
+              fi
+            else
+              npm install --no-audit --no-fund --no-progress
+            fi
+            echo "=== $target: meaningful generated tests ==="
+            npm test
+            echo "=== $target: production build ==="
+            NEXT_TELEMETRY_DISABLED=1 npm run build
+          done
+      - name: Execute generated Express backend and container
+        run: |
+          python - <<'PY'
+          from tiannara.application.compiler.composition import build_compiler_registry
+          from tiannara.application.compiler.writer import write_bundle
+          from tiannara.domain.models.system_model import RequirementsReference, SystemModel
+
+          model = SystemModel(
+              system_name="ESAP Express CI Smoke",
+              problem_statement="Exercise generated Express HTTP behavior",
+              requirements_ref=RequirementsReference(graph_id="ci-express", graph_hash="ci-express"),
+          )
+          bundle = build_compiler_registry().backend("express").generate(model)
+          write_bundle(bundle, "/tmp/esap-generated-express")
+          PY
+          set -euo pipefail
+          cd /tmp/esap-generated-express
+          npm install --no-audit --no-fund --no-progress
+          npm test
+          npm run build
+          docker build --tag esap-generated-express:ci .
+          container_id="$(docker run --detach --publish 127.0.0.1:18088:8000 esap-generated-express:ci)"
+          cleanup() {
+            docker rm --force "$container_id" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          echo "Started container: $container_id"
+          docker inspect --format 'state={{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}}' "$container_id"
+          healthy=0
+          for attempt in $(seq 1 30); do
+            response_file="$(mktemp)"
+            http_status="$(curl --silent --show-error --output "$response_file" --write-out "%{http_code}" --max-time 2 http://127.0.0.1:18088/health 2>/tmp/esap-health-curl.err || true)"
+            response="$(cat "$response_file")"
+            rm -f "$response_file"
+            echo "health attempt=$attempt status=${http_status:-curl-error} body=${response:-<empty>}"
+            if [ "$http_status" = "200" ] && printf '%s' "$response" | grep --fixed-strings --quiet '"status":"ok"'; then
+              healthy=1
+              break
+            fi
+            if [ "$(docker inspect --format '{{.State.Running}}' "$container_id")" != "true" ]; then
+              echo "Container stopped before health check succeeded."
+              break
+            fi
+            sleep 1
+          done
+          if [ "$healthy" -ne 1 ]; then
+            echo "::error::Generated Express container did not pass /health."
+            echo "--- docker inspect ---"
+            docker inspect "$container_id"
+            echo "--- docker logs ---"
+            docker logs "$container_id" 2>&1 || true
+            echo "--- curl diagnostic ---"
+            cat /tmp/esap-health-curl.err 2>/dev/null || true
+            exit 1
+          fi
+          status="$(curl --silent --show-error --output /tmp/esap-unknown-route.body --write-out "%{http_code}" --max-time 5 http://127.0.0.1:18088/not-a-route)"
+          echo "unknown-route status=$status body=$(cat /tmp/esap-unknown-route.body)"
+          test "$status" = "404"
+      - name: Test execution prerequisites, candidate binding, and frontend generation
+        env:
+          PYTHONPATH: autonomous-api
+        run: |
+          pytest -q \
+            tests/cbc1/test_campaign_runner_cleanup.py \
+            tests/cbc1/test_campaign_runner_unconfigured_stages.py \
+            tests/cbc1/test_campaign_runner_verification_gate.py \
+            tests/cbc1/test_candidate_bound_full_stack_gate.py \
+            tests/cbc1/test_source_bound_full_stack_projection.py \
+            tests/certification/test_campaign_semantic_input_wiring.py \
+            tests/test_react_frontend_generation.py \
+            tests/test_frontend_capability_manifests.py \
+            tests/test_vue_frontend.py \
+            tests/test_angular_frontend.py \
+            tests/test_next_frontend.py \
+            tests/test_nuxt_frontend.py \
+            tests/test_svelte_frontend.py \
+            tests/test_express_backend.py
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Generate and execute Rust/Axum application
+        run: |
+          python - <<'PY'
+          from tiannara.application.compiler.rust_axum_backend import RustAxumBackend
+          from tiannara.application.compiler.writer import write_bundle
+          from tiannara.domain.models.system_model import AbstractFieldType, DataModelSpec, FieldSpec, RequirementsReference, SystemModel
+
+          model = SystemModel(
+              system_name="taskflow-rust-check",
+              problem_statement="Exercise generated Rust/Axum HTTP behavior",
+              requirements_ref=RequirementsReference(graph_id="ci", graph_hash="ci"),
+              data_models=[DataModelSpec(
+                  id="task",
+                  name="Task",
+                  owning_service_id="primary",
+                  fields=[
+                      FieldSpec(name="id", type=AbstractFieldType.IDENTIFIER),
+                      FieldSpec(name="itemId", type=AbstractFieldType.IDENTIFIER),
+                      FieldSpec(name="type", type=AbstractFieldType.TEXT),
+                  ],
+              )],
+          )
+          bundle = RustAxumBackend().generate(model)
+          write_bundle(bundle, "/tmp/esap-generated-rust")
+          PY
+          cargo test --manifest-path /tmp/esap-generated-rust/Cargo.toml
+          cargo build --manifest-path /tmp/esap-generated-rust/Cargo.toml --release
+      - name: Build pinned Rust 1.85 container and exercise HTTP behavior
+        run: |
+          # The host Cargo build above uses the runner's stable toolchain.
+          # This Docker build specifically validates the generated rust:1.85-slim stage.
+          docker build --tag esap-generated-rust:ci /tmp/esap-generated-rust
+          container_id="$(docker run --detach --publish 127.0.0.1:18089:8000 esap-generated-rust:ci)"
+          cleanup() {
+            docker rm --force "$container_id" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          healthy=0
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:18089/health | grep --fixed-strings --line-regexp --quiet "ok"; then
+              healthy=1
+              break
+            fi
+            sleep 1
+          done
+          test "$healthy" -eq 1
+          status="$(curl --silent --output /dev/null --write-out "%{http_code}" http://127.0.0.1:18089/not-a-route)"
+          test "$status" = "404"
       - name: Enforce certification boundary
         run: |
           python - <<'PY'

@@ -5,6 +5,7 @@ import pytest
 
 from certification.corpus.corpus import Category, default_corpus, corpus_hash
 from certification.campaign.plan_builder import build_plan_for, intent_to_requirement_graph
+from genesis.mapper import CONSTITUTIONAL_DEFAULTS
 from reqgraph.core.invariants import validate_requirement_graph
 
 
@@ -30,10 +31,19 @@ def test_plan_builder_deterministic():
 
 
 def test_plan_has_services_and_deployment():
+    baseline_names = {f"constitutional baseline: {d}" for d in CONSTITUTIONAL_DEFAULTS}
     for w in default_corpus()[:13]:
         plan, rev, rg, gh = build_plan_for(w)
         assert plan.services
-        assert all(s.data_models for s in plan.services)
+        domain_services = [s for s in plan.services if s.name not in baseline_names]
+        # Every domain service is grounded in at least one data model.
+        assert domain_services
+        assert all(s.data_models for s in domain_services)
+        # Constitutional baseline services are cross-cutting by design and
+        # are preserved by materialization with no domain data model.
+        baseline_services = [s for s in plan.services if s.name in baseline_names]
+        assert {s.name for s in baseline_services} == baseline_names
+        assert all(not s.data_models for s in baseline_services)
 
 
 def test_corpus_hash_deterministic():

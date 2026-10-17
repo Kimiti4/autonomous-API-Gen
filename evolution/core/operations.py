@@ -62,7 +62,11 @@ class ReferenceMutationOperator:
                 else:
                     new_genes[gid] = gene
             new_chroms[fam_key] = Chromosome(family=chrom.family, genes=new_genes)
-        return Genome(system_id=genome.system_id, chromosomes=new_chroms)
+        return Genome(
+            system_id=genome.system_id,
+            chromosomes=new_chroms,
+            source_graph=genome.source_graph,
+        )
 
 
 class ReferenceCrossoverOperator:
@@ -72,6 +76,8 @@ class ReferenceCrossoverOperator:
         self._rng = rng or random.Random()
 
     def crossover(self, parent_a: Genome, parent_b: Genome) -> Genome:
+        if dict(parent_a.source_graph) != dict(parent_b.source_graph):
+            raise ValueError("cannot cross over genomes with different source ISR semantic substrates")
         new_chroms: dict[str, Chromosome] = {}
         all_fams = set(parent_a.chromosomes) | set(parent_b.chromosomes)
         for fam_key in sorted(all_fams):
@@ -101,4 +107,5 @@ class ReferenceCrossoverOperator:
         return Genome(
             system_id=parent_a.system_id or parent_b.system_id,
             chromosomes=new_chroms,
+            source_graph=parent_a.source_graph,
         )

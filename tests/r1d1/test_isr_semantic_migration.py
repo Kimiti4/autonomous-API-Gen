@@ -287,32 +287,53 @@ class TestR1D1ISRRevisionIntegration(unittest.TestCase):
 
 class TestR1D1CanonicalStillSoleAuthority(unittest.TestCase):
     """R1-D.1 invariant: isr/core remains the sole canonical ISR authority.
-    No new ISR types introduced; no constitutional types promoted.
+
+    The sets below are the APPROVED canonical baseline. A new type may only
+    enter isr/core together with a deliberate update of this baseline in the
+    same change; the exact-set assertions keep rejecting unapproved
+    additions (MODULE, SYSTEM, WORKFLOW, POLICY, ...) and constitutional
+    types must never be promoted into isr/core.
+
+    Approved baseline 2026-10-17 (candidate-bound full-stack gate): the
+    source-bound mapping layers frontend_route, frontend_interaction,
+    effect, invariant and consequence became canonical node types, with
+    their cross-layer edges (contains, routes_to, invokes, causes_effect,
+    requires_invariant, consequence_of) and the typed requirement_ref
+    relationship edges (requirement_depends_on, requirement_conflicts_with,
+    requirement_refines, requirement_owned_by).
     """
 
     def test_canonical_node_type_count_unchanged(self):
-        """The canonical ISR still has exactly 9 NodeType values."""
-        self.assertEqual(len(list(NodeType)), 9)
+        """The canonical ISR has exactly the 14 approved NodeType values."""
+        self.assertEqual(len(list(NodeType)), 14)
 
     def test_canonical_edge_type_count_unchanged(self):
-        """The canonical ISR still has exactly 8 EdgeType values."""
-        self.assertEqual(len(list(EdgeType)), 8)
+        """The canonical ISR has exactly the 18 approved EdgeType values."""
+        self.assertEqual(len(list(EdgeType)), 18)
 
     def test_no_new_node_types_introduced(self):
-        """The R1-D.1 migration does NOT introduce new NodeType values
-        (no MODULE, SYSTEM, WORKFLOW, POLICY, etc.)."""
+        """Only approved NodeType values exist (no MODULE, SYSTEM, WORKFLOW,
+        POLICY, etc., and no constitutional type promotions)."""
         type_values = {nt.value for nt in NodeType}
         self.assertEqual(type_values, {
             "domain", "capability", "service", "api",
             "data_model", "event", "security_policy",
             "infrastructure_target", "requirement_ref",
+            "frontend_route", "frontend_interaction", "effect",
+            "invariant", "consequence",
         })
 
     def test_no_new_edge_types_introduced(self):
+        """Only approved EdgeType values exist — any type outside this set
+        must fail until this baseline is deliberately updated."""
         type_values = {et.value for et in EdgeType}
         self.assertEqual(type_values, {
             "satisfies", "implemented_by", "exposes", "persists",
             "publishes", "consumed_by", "depends_on", "secured_by",
+            "contains", "routes_to", "invokes", "causes_effect",
+            "requires_invariant", "consequence_of",
+            "requirement_depends_on", "requirement_conflicts_with",
+            "requirement_refines", "requirement_owned_by",
         })
 
 

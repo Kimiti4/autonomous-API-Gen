@@ -79,6 +79,9 @@ class Trial(BaseModel):
     # derived from.  Defaults keep historical/reference records compatible.
     origin: str = "reference"
     parent_trial_id: str = ""
+    # Explicit source→mapping→candidate evidence; empty means unavailable and
+    # must never be interpreted as semantic correspondence having passed.
+    semantic_correspondence: dict = Field(default_factory=dict)
 
 
 REQUIRED_STAGES = [

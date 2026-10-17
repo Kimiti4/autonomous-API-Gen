@@ -79,7 +79,7 @@ def _complete_semantic_snapshot(snapshot):
         "requirement_id": "REQ-PROJECT-001",
         "semantic_content": "An authorized workspace member can create a project.",
         "requirement_kind": "functional",
-        "source_ref": "taskflow-requirements.md#REQ-PROJECT-001",
+        "source_refs": ["taskflow-requirements.md#REQ-PROJECT-001"],
         "revision": "1",
         "verification_method": "integration_test",
     })

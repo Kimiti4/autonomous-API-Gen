@@ -197,8 +197,12 @@ def test_mapping_producer_emits_canonical_ir_only_when_every_layer_is_explicit()
         "quality_obligation_ids": [], "persistence_targets": ["dm:projects"],
         "event_targets": [], "observability_requirements": [],
         "modules": [{"module_id": "service:projects", "responsibility": "Manage projects", "dependencies": [], "invariants": ["project-name-non-empty"]}],
-        "data_flows": [{"flow_id": "projects-write", "source": "create_project", "destination": "dm:projects", "contract": "project-record", "failure_policy": "rollback"}],
-        "security_boundaries": ["policy:project-owner"], "failure_modes": ["store-unavailable"],
+        "data_flows": [
+            {"flow_id": "create-project", "source": "create_project", "destination": "dm:projects", "contract": "project-record", "failure_policy": "rollback"},
+            {"flow_id": "projects-write", "source": "create_project", "destination": "dm:projects", "contract": "project-record", "failure_policy": "rollback"},
+        ],
+        "security_boundaries": ["policy:project-owner"],
+        "failure_modes": ["store-unavailable", "idempotency-conflict"],
     }
     nodes["ui:route:projects"]["properties"]["frontend_contract"] = frontend_contract
     nodes["api:projects"]["properties"]["api_contract"] = api_contract

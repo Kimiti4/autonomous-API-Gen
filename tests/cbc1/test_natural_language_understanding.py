@@ -41,7 +41,7 @@ def test_provider_is_used_for_complex_language_and_never_self_authorizes():
     provider = FakeProvider({
         "intent": "read",
         "entities": ["items"],
-        "constraints": [{"kind": "authorization_required", "evidence": "only the owner"}],
+            "constraints": [{"kind": "authorization_required", "evidence": "Only the owner"}],
         "ambiguities": [],
         "confidence": 0.99,
     })

@@ -22,20 +22,32 @@ DEFAULT_AGGREGATE = "release/evidence/cbc1-a-aggregate.json"
 def run_campaign_a(
     ledger_path: str = DEFAULT_LEDGER,
     out_path: str = DEFAULT_AGGREGATE,
+    *,
+    real_stages: bool | None = None,
 ) -> tuple[list, dict]:
     os.makedirs(os.path.dirname(ledger_path) or ".", exist_ok=True)
     reg = build_backend_registry()
     ledger = EvidenceLedger(ledger_path)
-    # Campaign A uses the real Docker-backed stages. If Docker is unavailable,
-    # each stage records an explicit failure; no stub or synthetic pass is used.
-    docker_stages = RealDockerStages()
-    runner = CampaignRunner(
-        builder=docker_stages,
-        tester=docker_stages,
-        deployer=docker_stages,
-        prober=docker_stages,
-        destroyer=docker_stages,
-    )
+    if real_stages is None:
+        real_stages = os.environ.get("CBC1_REAL_DOCKER", "").lower() in {"1", "true", "yes"}
+    if real_stages:
+        # Certification runs use the real Docker-backed stages. If Docker is
+        # unavailable, each stage records an explicit failure; no stub or
+        # synthetic pass is used.
+        docker_stages = RealDockerStages()
+        runner = CampaignRunner(
+            builder=docker_stages,
+            tester=docker_stages,
+            deployer=docker_stages,
+            prober=docker_stages,
+            destroyer=docker_stages,
+        )
+    else:
+        # Unit/contract runs: stages are unconfigured and must fail closed
+        # with no Docker dependency. Real execution is opt-in only via
+        # real_stages=True or CBC1_REAL_DOCKER=1 (the certification entry
+        # point always opts in).
+        runner = CampaignRunner()
     aggregator = CampaignAggregator()
 
     corpus = default_corpus()
@@ -122,4 +134,4 @@ def run_campaign_a(
 
 
 if __name__ == "__main__":
-    run_campaign_a()
+    run_campaign_a(real_stages=True)

@@ -1,0 +1,39 @@
+name: Trial Input Snapshot Tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "experiments/taskflow-native/input_snapshot.py"
+      - "experiments/taskflow-native/tests/test_input_snapshot.py"
+      - ".github/workflows/trial-input-snapshot-tests.yml"
+      - "experiments/taskflow-native/TRIAL_CONTRACT.json"
+      - "experiments/taskflow-native/PROBLEM.md"
+      - "golden-projects/taskflow/ACCEPTANCE.json"
+  push:
+    branches:
+      - "hardening/immutable-trial-input-snapshots"
+    paths:
+      - "experiments/taskflow-native/input_snapshot.py"
+      - "experiments/taskflow-native/tests/test_input_snapshot.py"
+      - ".github/workflows/trial-input-snapshot-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot-unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install test dependency
+        run: python -m pip install --disable-pip-version-check pytest
+      - name: Run snapshot unit tests
+        run: python -m pytest -q experiments/taskflow-native/tests/test_input_snapshot.py
+      - name: Capture canonical TaskFlow input snapshot
+        run: python experiments/taskflow-native/input_snapshot.py
+      - name: Verify canonical TaskFlow input snapshot
+        run: python experiments/taskflow-native/input_snapshot.py --verify

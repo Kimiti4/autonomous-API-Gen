@@ -269,11 +269,20 @@ class FieldSpec(BaseModel):
     required: bool = True
     description: str = ""
     enumeration_values: list[str] = Field(default_factory=list)
+    reference_target_model_id: str | None = None
 
     @model_validator(mode="after")
-    def _enumeration_needs_values(self) -> "FieldSpec":
+    def _field_type_needs_semantic_parameters(self) -> "FieldSpec":
         if self.type is AbstractFieldType.ENUMERATION and not self.enumeration_values:
             raise ValueError(f"field '{self.name}': enumeration type requires values")
+        if self.type is AbstractFieldType.REFERENCE and not self.reference_target_model_id:
+            raise ValueError(
+                f"field '{self.name}': reference type requires reference_target_model_id"
+            )
+        if self.type is not AbstractFieldType.REFERENCE and self.reference_target_model_id:
+            raise ValueError(
+                f"field '{self.name}': reference target is only valid for reference fields"
+            )
         return self
 
 

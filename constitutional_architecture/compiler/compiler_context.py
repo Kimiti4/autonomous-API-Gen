@@ -6,6 +6,7 @@ from typing import Any, Optional
 from constitutional_architecture.compiler.compilation_config import CompilationConfig
 from constitutional_architecture.compiler.quality.diagnostics import DiagnosticsCollector
 from constitutional_architecture.isr.model.isr import ISR
+from constitutional_architecture.compiler.source_binding import ConstitutionalSourceBinding
 
 
 @dataclass
@@ -22,6 +23,7 @@ class CompilerContext:
     backend_registry: Optional[Any] = None
     pass_timings: dict[str, float] = field(default_factory=dict)
     pass_metrics: dict[str, dict[str, Any]] = field(default_factory=dict)
+    source_binding: Optional[ConstitutionalSourceBinding] = None
 
     def __post_init__(self) -> None:
         if self._current_isr is None:

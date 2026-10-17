@@ -17,8 +17,20 @@ from constitutional_architecture.isr.semantics.reliability import ReliabilityReq
 from constitutional_architecture.isr.semantics.requirement import (
     AcceptanceCriterion,
     Requirement,
+    RequirementGraphReference,
+    RequirementRelation,
+    RequirementSourceMetadata,
 )
 from constitutional_architecture.isr.semantics.testing_anchor import TestingAnchor
+from constitutional_architecture.isr.semantics.intent_architecture import IntentArchitectureReference
+from constitutional_architecture.isr.semantics.security_posture import SecurityPosture
+from constitutional_architecture.isr.semantics.policy_postures import (
+    DeploymentPosture,
+    DocumentationPosture,
+    InfrastructurePosture,
+    OperationalPosture,
+    TestingPosture,
+)
 from constitutional_architecture.isr.semantics.threat import SecurityThreat
 
 
@@ -51,6 +63,17 @@ class System:
     reliability_requirements: tuple[ReliabilityRequirement, ...] = ()
     architectural_boundaries: tuple[ArchitecturalBoundary, ...] = ()
     requirements: tuple[Requirement, ...] = ()
+    # Loss-aware projection provenance; all records are first-class ISR semantics.
+    requirement_graph_ref: Optional[RequirementGraphReference] = None
+    requirement_source_metadata: tuple[RequirementSourceMetadata, ...] = ()
+    requirement_relations: tuple[RequirementRelation, ...] = ()
+    intent_architecture_ref: Optional[IntentArchitectureReference] = None
+    security_posture: Optional[SecurityPosture] = None
+    infrastructure_posture: Optional[InfrastructurePosture] = None
+    deployment_posture: Optional[DeploymentPosture] = None
+    testing_posture: Optional[TestingPosture] = None
+    documentation_posture: Optional[DocumentationPosture] = None
+    operational_posture: Optional[OperationalPosture] = None
     acceptance_criteria: tuple[AcceptanceCriterion, ...] = ()
     deployment_intents: tuple[DeploymentIntent, ...] = ()
     testing_anchors: tuple[TestingAnchor, ...] = ()

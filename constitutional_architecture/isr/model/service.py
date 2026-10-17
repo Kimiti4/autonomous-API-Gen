@@ -52,8 +52,13 @@ class Service:
     dependencies: tuple[ServiceDependency, ...] = ()
     emitted_events: tuple[str, ...] = ()
     consumed_events: tuple[str, ...] = ()
-    is_stateless: bool = True
+    # None means the source architecture did not declare service-level statefulness.
+    is_stateless: Optional[bool] = None
     metadata: dict[str, str] = field(default_factory=dict)
+    domain_id: Optional[str] = None
+    responsibility_refs: tuple[str, ...] = ()
+    exposed_capability_refs: tuple[str, ...] = ()
+    communication_styles: tuple[str, ...] = ()
 
     def get_operation(self, name: str) -> Optional[Operation]:
         for op in self.operations:

@@ -51,6 +51,43 @@ class CodeGenerationPass(CompilerPass):
         for name in missing:
             ctx.diagnostics.warning("COMP-CODE-004", f"Requested backend '{name}' is not registered")
 
+        # A structurally source-bound ISR is not enough to authorize generated
+        # code. The backend must explicitly declare that it has been certified
+        # to consume source-derived semantics. Existing backends do not yet
+        # satisfy that contract; fail before any backend can emit artifacts.
+        source_graph_ref = getattr(
+            getattr(getattr(ctx, "original_isr", None), "system", None),
+            "requirement_graph_ref",
+            None,
+        )
+        source_bound_compilation = bool(
+            ctx.config.require_source_binding
+            or getattr(ctx, "source_binding", None) is not None
+            or source_graph_ref is not None
+        )
+        if source_bound_compilation:
+            uncertified = [
+                backend.name
+                for backend in backends
+                if getattr(backend, "source_bound_codegen_certified", False) is not True
+            ]
+            if uncertified:
+                names = ", ".join(sorted(uncertified))
+                ctx.diagnostics.fatal(
+                    "COMP-CODE-009",
+                    "Source-bound code generation blocked: backend(s) lack explicit "
+                    f"source-bound semantic certification: {names}",
+                )
+                return PassResult(
+                    success=False,
+                    description="Source-bound backend certification missing",
+                    metrics={
+                        "source_bound_codegen_certified": False,
+                        "uncertified_backends": sorted(uncertified),
+                        "artifacts_generated": 0,
+                    },
+                )
+
         total_artifacts = 0
         backend_metrics: dict[str, dict[str, Any]] = {}
 

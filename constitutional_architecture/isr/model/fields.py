@@ -22,6 +22,7 @@ class FieldType(str, Enum):
     DATETIME = "datetime"
     TIME = "time"
     UUID = "uuid"
+    IDENTIFIER = "identifier"
     EMAIL = "email"
     URL = "url"
     ENUM = "enum"
@@ -65,6 +66,7 @@ class Field:
     is_primary_key: bool = False
     is_indexed: bool = False
     metadata: dict[str, str] = field(default_factory=dict)
+    abstract_source_type: Optional[str] = None
 
     def __post_init__(self) -> None:
         if self.field_type == FieldType.ENUM and not self.enum_values:

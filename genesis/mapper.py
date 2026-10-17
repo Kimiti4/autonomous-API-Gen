@@ -45,6 +45,7 @@ class ReferenceDeterministicMapper:
         nodes: dict[str, Node] = {}
         edges: dict[str, Edge] = {}
         coverage: dict[str, list[str]] = {}
+        architecturally_mapped: set[str] = set()
 
         for n in sorted(req.nodes.values(), key=lambda x: x.id):
             # Keep every authoritative requirement as a first-class ISR node.
@@ -65,7 +66,9 @@ class ReferenceDeterministicMapper:
                     "source_refs": list(n.source_refs),
                 },
             )
-            coverage.setdefault(n.id, []).append(requirement_ref_id)
+            # The reference proves traceability only; it must not by itself
+            # count as architectural coverage. Coverage is established only
+            # when an architectural target can be derived below.
 
             if n.kind is RequirementKind.DOMAIN_CONCEPT:
                 target_type = NodeType.DOMAIN
@@ -91,7 +94,8 @@ class ReferenceDeterministicMapper:
                     "source_refs": list(n.source_refs),
                 },
             )
-            coverage.setdefault(n.id, []).append(node_id)
+            coverage.setdefault(n.id, []).extend((requirement_ref_id, node_id))
+            architecturally_mapped.add(n.id)
 
             if target_type is NodeType.CAPABILITY:
                 edge_id = f"satisfies:{node_id}:{requirement_ref_id}"
@@ -118,7 +122,7 @@ class ReferenceDeterministicMapper:
 
         uncovered = [
             n.id for n in req.nodes.values()
-            if n.id not in coverage
+            if n.id not in architecturally_mapped
         ]
 
         return GenesisResult(

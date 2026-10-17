@@ -1,0 +1,101 @@
+name: TaskFlow Live Snapshot Trial
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/taskflow-live-snapshot-trial.yml"
+      - "experiments/taskflow-native/**"
+      - "golden-projects/taskflow/ACCEPTANCE.json"
+      - "tiannara/infrastructure/llm/openai_compatible_provider.py"
+      - "tiannara/application/intent/**"
+      - "tiannara/application/compiler/**"
+      - "tests/test_openai_compatible_provider.py"
+  workflow_dispatch:
+    inputs:
+      timeout_seconds:
+        description: "Per-provider-call timeout (1-180 seconds)"
+        required: true
+        default: "180"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  live-taskflow-trial:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install repository dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: Configure explicit live provider or bounded local model
+        env:
+          TIANNARA_LLM_BASE_URL: ${{ secrets.TIANNARA_LLM_BASE_URL }}
+          TIANNARA_LLM_MODEL: ${{ secrets.TIANNARA_LLM_MODEL }}
+          TIANNARA_LLM_API_KEY: ${{ secrets.TIANNARA_LLM_API_KEY }}
+        run: |
+          if [ -n "$TIANNARA_LLM_BASE_URL" ] && [ -n "$TIANNARA_LLM_MODEL" ]; then
+            echo "Using explicitly configured live provider."
+            echo "TIANNARA_LLM_BASE_URL=$TIANNARA_LLM_BASE_URL" >> "$GITHUB_ENV"
+            echo "TIANNARA_LLM_MODEL=$TIANNARA_LLM_MODEL" >> "$GITHUB_ENV"
+            if [ -n "$TIANNARA_LLM_API_KEY" ]; then
+              echo "TIANNARA_LLM_API_KEY=$TIANNARA_LLM_API_KEY" >> "$GITHUB_ENV"
+            fi
+          else
+            echo "No provider secrets configured; starting a bounded local Ollama model for this trial."
+            docker run -d --name tiannara-ollama -p 11434:11434 ollama/ollama:latest
+            for i in $(seq 1 60); do
+              if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then break; fi
+              sleep 2
+            done
+            curl -fsS http://127.0.0.1:11434/api/tags >/dev/null
+            docker exec tiannara-ollama ollama pull qwen2.5:1.5b
+            echo "TIANNARA_LLM_BASE_URL=http://127.0.0.1:11434/v1" >> "$GITHUB_ENV"
+            echo "TIANNARA_LLM_MODEL=qwen2.5:1.5b" >> "$GITHUB_ENV"
+          fi
+      - name: Capture canonical immutable inputs
+        run: |
+          python experiments/taskflow-native/input_snapshot.py \
+            --trial-dir "$GITHUB_WORKSPACE" \
+            --contract-name experiments/taskflow-native/TRIAL_CONTRACT.json \
+            --evidence-dir experiments/taskflow-native/out/evidence
+      - name: Verify immutable inputs
+        run: |
+          python experiments/taskflow-native/input_snapshot.py \
+            --trial-dir "$GITHUB_WORKSPACE" \
+            --evidence-dir experiments/taskflow-native/out/evidence \
+            --verify
+      - name: Run bounded live-only generation attempt
+        id: trial
+        continue-on-error: true
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          # Values set by the fallback provider step are already present in GITHUB_ENV.
+          python experiments/taskflow-native/run_snapshot_trial.py \
+            --evidence-dir experiments/taskflow-native/out/evidence \
+            --timeout-seconds "${{ inputs.timeout_seconds || '180' }}"
+      - name: Publish trial evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: taskflow-live-snapshot-trial
+          path: experiments/taskflow-native/out/evidence/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Summarize verdict
+        if: always()
+        run: |
+          if [ -f experiments/taskflow-native/out/evidence/live-attempt.json ]; then
+            cat experiments/taskflow-native/out/evidence/live-attempt.json >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No live-attempt.json was produced; inspect preceding step logs." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "A green workflow is not a certification. Only verified required gates may qualify for certification." >> "$GITHUB_STEP_SUMMARY"

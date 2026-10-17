@@ -74,9 +74,31 @@ class VerificationPass(CompilerPass):
             for failure in report.blocking_failures:
                 ctx.diagnostics.error(f"COMP-VERIFY-BLOCK-{failure.check_id}", f"Blocking failure: {failure.message}")
 
+            # A verifier report is not sufficient merely because the engine
+            # returned. Explicitly block promotion if its verdict is not
+            # approved, or if any check failed, even if the engine omitted a
+            # corresponding blocking_failures entry.
+            if not report.approved_for_deployment:
+                ctx.diagnostics.error(
+                    "COMP-VERIFY-NOT-APPROVED",
+                    "Verification engine did not approve deployment.",
+                )
+            if report.failed_checks:
+                ctx.diagnostics.error(
+                    "COMP-VERIFY-CHECKS-FAILED",
+                    f"Verification reported {report.failed_checks} failed check(s).",
+                )
+
         except Exception as e:
-            ctx.diagnostics.warning("COMP-VERIFY-001", f"Verification Engine failed: {e}")
+            # Verification is a mandatory gate. An exception means the result
+            # is unknown, not that verification may be skipped.
+            ctx.diagnostics.fatal(
+                "COMP-VERIFY-INDETERMINATE",
+                f"Verification engine failed; compilation cannot be approved: {e}",
+            )
             metrics["verification_error"] = str(e)
+            metrics["verification_status"] = "INDETERMINATE"
+            metrics["approved_for_deployment"] = False
 
         duration = (time.perf_counter() - start) * 1000
         metrics["duration_ms"] = duration

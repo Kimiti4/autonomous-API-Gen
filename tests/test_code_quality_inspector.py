@@ -98,3 +98,16 @@ def test_compiler_file_mappings_are_supported_without_backend_coupling():
     assert report.repository_hash == report.declared_repository_hash
     assert not mismatched.passed
     assert any(f.rule_id == "QRY-INT-001" for f in mismatched.findings)
+
+
+
+def test_secret_scan_covers_configuration_and_workflow_artifacts():
+    report = _inspect({
+        ".env": "SERVICE_TOKEN=ghp_" + "B" * 36 + "\n",
+        ".github/workflows/deploy.yml": "name: deploy\n",
+    })
+
+    assert not report.passed
+    finding = next(f for f in report.findings if f.rule_id == "QRY-SEC-003")
+    assert finding.path == ".env"
+    assert finding.severity == QualitySeverity.BLOCKER

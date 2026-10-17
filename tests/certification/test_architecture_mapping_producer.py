@@ -1,6 +1,8 @@
 """Production tests for the source-derived architectural mapping producer."""
 from certification.campaign.plan_builder import build_artifacts_for
 from certification.corpus.corpus import default_corpus
+from genesis.mapper import ReferenceDeterministicMapper
+from reqgraph.core.graph import Priority, RequirementGraph, RequirementKind, RequirementNode
 from autonomous_api.app.engine.source_bound_full_stack import (
     produce_architecture_mapping,
     source_snapshot_from_plan_artifacts,
@@ -354,3 +356,29 @@ def test_genesis_requirement_refs_do_not_satisfy_semantic_mapping_without_source
     blocker_codes = {item.code for item in result.blockers}
     assert "MAP-REQ-003" in blocker_codes
     assert "MAP-REQ-004" in blocker_codes
+
+
+
+def test_requirement_reference_alone_does_not_count_as_architectural_coverage():
+    requirement = RequirementNode(
+        id="STAKEHOLDER-001",
+        kind=RequirementKind.STAKEHOLDER,
+        statement="Payroll administrators need clear approval responsibilities.",
+        priority=Priority.MUST,
+        source_refs=("payroll-tor.md#stakeholders",),
+    )
+    graph = RequirementGraph(
+        schema_version="1",
+        nodes={requirement.id: requirement},
+        edges={},
+    )
+
+    result = ReferenceDeterministicMapper().map(graph, "1")
+
+    # The source requirement remains traceable in ISR, but Genesis must not
+    # confuse a reference node with a derived architectural implementation.
+    assert "requirement_ref:STAKEHOLDER-001" in result.graph.nodes
+    assert "STAKEHOLDER-001" in result.coverage.uncovered
+    assert result.coverage.requirement_to_isr["STAKEHOLDER-001"] == [
+        "requirement_ref:STAKEHOLDER-001"
+    ]

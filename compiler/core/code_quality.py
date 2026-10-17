@@ -13,7 +13,7 @@ import json
 import re
 from enum import Enum
 from pathlib import PurePosixPath
-from typing import Iterable
+from collections.abc import Mapping
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -108,9 +108,6 @@ class _PythonRiskVisitor(ast.NodeVisitor):
                 line=node.lineno,
                 message=f"Dynamic {name}() execution requires explicit security review.",
             ))
-        if name == "subprocess":
-            # subprocess is normally an attribute call, handled below.
-            pass
         if isinstance(node.func, ast.Attribute) and node.func.attr in {"system", "popen"}:
             owner = node.func.value
             if isinstance(owner, ast.Name) and owner.id == "os":
@@ -171,26 +168,44 @@ class CodeQualityInspector:
 
     def inspect(
         self,
-        repository: GeneratedRepository,
+        repository: GeneratedRepository | Mapping[str, str],
         *,
+        declared_content_hash: str | None = None,
         require_complete_language_analysis: bool = False,
     ) -> CodeQualityReport:
-        findings: list[QualityFinding] = []
-        files = repository.files
-        actual_hash = _canonical_hash(files)
+        """Inspect either a canonical repository or any compiler's file mapping.
 
-        if repository.content_hash and repository.content_hash != actual_hash:
-            findings.append(QualityFinding(
-                rule_id="QRY-INT-001",
-                severity=QualitySeverity.BLOCKER,
-                message="Repository content hash does not match the supplied file contents.",
-            ))
-        if not repository.content_hash:
-            findings.append(QualityFinding(
-                rule_id="QRY-INT-002",
-                severity=QualitySeverity.BLOCKER,
-                message="Repository is missing its content hash; quality evidence cannot be bound to an identity.",
-            ))
+        A GeneratedRepository must carry its own correct hash. For compiler
+        outputs that expose only a file mapping, the inspector computes the
+        binding hash from the exact supplied mapping; callers may additionally
+        supply a generator-declared hash to cross-check it.
+        """
+        findings: list[QualityFinding] = []
+        if isinstance(repository, GeneratedRepository):
+            files = repository.files
+            declared_hash = repository.content_hash
+            if declared_hash and declared_hash != _canonical_hash(files):
+                findings.append(QualityFinding(
+                    rule_id="QRY-INT-001",
+                    severity=QualitySeverity.BLOCKER,
+                    message="Repository content hash does not match the supplied file contents.",
+                ))
+            if not declared_hash:
+                findings.append(QualityFinding(
+                    rule_id="QRY-INT-002",
+                    severity=QualitySeverity.BLOCKER,
+                    message="Repository is missing its content hash; quality evidence cannot be bound to an identity.",
+                ))
+        else:
+            files = dict(repository)
+            declared_hash = declared_content_hash or _canonical_hash(files)
+            if declared_content_hash and declared_content_hash != _canonical_hash(files):
+                findings.append(QualityFinding(
+                    rule_id="QRY-INT-001",
+                    severity=QualitySeverity.BLOCKER,
+                    message="Declared compiler-output hash does not match the supplied file contents.",
+                ))
+        actual_hash = _canonical_hash(files)
 
         seen_casefolded: dict[str, str] = {}
         source_files = 0
@@ -298,7 +313,7 @@ class CodeQualityInspector:
         findings.sort(key=lambda f: (f.path, f.line or 0, f.rule_id, f.message))
         return CodeQualityReport(
             repository_hash=actual_hash,
-            declared_repository_hash=repository.content_hash,
+            declared_repository_hash=declared_hash,
             passed=not any(f.severity in _BLOCKING for f in findings),
             file_count=len(files),
             source_file_count=source_files,

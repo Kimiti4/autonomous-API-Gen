@@ -1,10 +1,14 @@
 """Production tests for the source-derived architectural mapping producer."""
+import copy
+
 from certification.campaign.plan_builder import (
     build_artifacts_for,
     build_artifacts_from_graph,
     intent_to_requirement_graph,
 )
 from certification.corpus.corpus import default_corpus
+from genesis.mapper import ReferenceDeterministicMapper
+from reqgraph.core.graph import Priority, RequirementGraph, RequirementKind, RequirementNode
 from app.engine.source_bound_full_stack import (
     produce_architecture_mapping,
     source_snapshot_from_plan_artifacts,
@@ -454,3 +458,95 @@ def test_architecture_without_requirement_references_is_not_publishable():
 
     assert result.mapping is None
     assert any(item.code == "MAP-REQ-000" for item in result.blockers)
+
+
+
+def test_genesis_preserves_each_authoritative_requirement_in_isr_with_provenance():
+    artifacts = build_artifacts_for(default_corpus()[0])
+    requirement_graph = artifacts.requirement_graph
+    isr_graph = artifacts.revision.graph
+
+    for requirement in requirement_graph.nodes.values():
+        ref_id = f"requirement_ref:{requirement.id}"
+        assert ref_id in isr_graph.nodes
+        ref_node = isr_graph.nodes[ref_id]
+        assert ref_node.type.value == "requirement_ref"
+        assert ref_node.properties["requirement_id"] == requirement.id
+        assert ref_node.properties["statement"] == requirement.statement
+        assert ref_node.properties["requirement_kind"] == requirement.kind.value
+        assert ref_node.properties["priority"] == requirement.priority.value
+        assert ref_node.properties["source_refs"] == list(requirement.source_refs)
+        assert ref_node.properties["acceptance_criteria"] == list(requirement.acceptance_criteria)
+
+    for requirement in requirement_graph.nodes.values():
+        if requirement.kind.value != "functional":
+            continue
+        capability_id = f"capability:{requirement.id}"
+        requirement_ref_id = f"requirement_ref:{requirement.id}"
+        assert any(
+            edge.type.value == "satisfies"
+            and edge.source_id == capability_id
+            and edge.target_id == requirement_ref_id
+            for edge in isr_graph.edges.values()
+        )
+
+
+
+def test_genesis_requirement_refs_preserve_identity_without_proving_implementation():
+    artifacts = build_artifacts_for(default_corpus()[0])
+    snapshot = source_snapshot_from_plan_artifacts(artifacts)
+
+    # Genesis preserves requirement identity and provenance, but the ref
+    # node itself never fabricates a singular source locator or revision.
+    requirement_refs = [
+        node for node in snapshot["revision"]["graph"]["nodes"].values()
+        if node.get("type") == "requirement_ref"
+    ]
+    assert requirement_refs
+    assert all(node["properties"].get("requirement_id") for node in requirement_refs)
+    assert all("source_ref" not in node["properties"] for node in requirement_refs)
+    assert all("revision" not in node["properties"] for node in requirement_refs)
+
+    # The semantic consumer must remain fail-closed when the explicit
+    # capability-to-requirement binding is absent: preserving provenance is
+    # necessary but is not proof that requirements are implemented correctly.
+    stripped = copy.deepcopy(snapshot)
+    stripped["revision"]["graph"]["edges"] = {
+        key: edge
+        for key, edge in stripped["revision"]["graph"]["edges"].items()
+        if edge.get("type") != "satisfies"
+    }
+    result = produce_architecture_mapping(stripped)
+    assert not result.complete
+    assert result.mapping is None
+    assert {item.code for item in result.blockers} == {"MAP-REQ-005"}
+
+
+def test_requirement_reference_preserves_traceability_without_fabricated_architecture():
+    requirement = RequirementNode(
+        id="STAKEHOLDER-001",
+        kind=RequirementKind.STAKEHOLDER,
+        statement="Payroll administrators need clear approval responsibilities.",
+        priority=Priority.MUST,
+        source_refs=("payroll-tor.md#stakeholders",),
+    )
+    graph = RequirementGraph(
+        schema_version="1",
+        nodes={requirement.id: requirement},
+        edges={},
+    )
+
+    result = ReferenceDeterministicMapper().map(graph, "1")
+
+    # The source requirement stays traceable through its reference node, and
+    # Genesis must not fabricate an architectural node for a stakeholder
+    # requirement. Coverage counts the reference (genesis/validator.py
+    # rejects any uncovered requirement), so the graph stays valid without
+    # inventing an implementation that was never declared.
+    assert "requirement_ref:STAKEHOLDER-001" in result.graph.nodes
+    assert "capability:STAKEHOLDER-001" not in result.graph.nodes
+    assert "domain:STAKEHOLDER-001" not in result.graph.nodes
+    assert result.coverage.uncovered == []
+    assert result.coverage.requirement_to_isr["STAKEHOLDER-001"] == [
+        "requirement_ref:STAKEHOLDER-001"
+    ]

@@ -35,10 +35,26 @@ from app.engine.source_bound_full_stack import (
 
 
 
-class _IndependentProcessVerifier:
-    """Re-check generated files and compiler conformance in a fresh process."""
+@dataclass(frozen=True)
+class _IndependentVerificationResult:
+    """Explicit verifier verdict plus diagnostics suitable for durable evidence."""
 
-    def verify(self, candidate_dir: str, plan_hash: str, plan_path: str) -> bool:
+    passed: bool
+    detail: str
+    payload: dict[str, Any] | None = None
+
+
+class _IndependentProcessVerifier:
+    """Re-check generated files and compiler conformance in a fresh process.
+
+    Preserve subprocess output on every failure. A diagnostic payload is never
+    treated as proof unless the process exits successfully and every required
+    predicate is explicitly true.
+    """
+
+    def verify(
+        self, candidate_dir: str, plan_hash: str, plan_path: str
+    ) -> _IndependentVerificationResult:
         root = Path(__file__).resolve().parents[2]
         script = root / "certification" / "stages" / "independent_verify.py"
         env = os.environ.copy()
@@ -46,24 +62,47 @@ class _IndependentProcessVerifier:
         env["PYTHONPATH"] = os.pathsep.join(
             value for value in (str(root), existing_pythonpath) if value
         )
-        completed = subprocess.run(
-            [sys.executable, str(script), candidate_dir, plan_hash, plan_path],
-            cwd=str(root), env=env, capture_output=True, text=True,
-            timeout=60, check=False,
-        )
-        if completed.returncode != 0 or not completed.stdout.strip():
-            return False
+        command = [sys.executable, str(script), candidate_dir, plan_hash, plan_path]
         try:
-            result = json.loads(completed.stdout.strip().splitlines()[-1])
-        except (json.JSONDecodeError, IndexError):
-            return False
-        return (
-            result.get("independent") is True
-            and result.get("plan_match") is True
-            and result.get("files_complete") is True
-            and result.get("candidate_match") is True
-            and result.get("conformance_passed") is True
+            completed = subprocess.run(
+                command, cwd=str(root), env=env, capture_output=True, text=True,
+                timeout=60, check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            stdout = exc.stdout.decode("utf-8", errors="replace") if isinstance(exc.stdout, bytes) else (exc.stdout or "")
+            stderr = exc.stderr.decode("utf-8", errors="replace") if isinstance(exc.stderr, bytes) else (exc.stderr or "")
+            return _IndependentVerificationResult(
+                False,
+                f"independent verifier timed out after 60s; stdout={stdout[-3000:]!r}; stderr={stderr[-3000:]!r}",
+            )
+        except OSError as exc:
+            return _IndependentVerificationResult(
+                False, f"independent verifier could not start: {type(exc).__name__}: {exc}"
+            )
+
+        stdout = completed.stdout or ""
+        stderr = completed.stderr or ""
+        payload = None
+        parse_error = ""
+        if stdout.strip():
+            try:
+                parsed = json.loads(stdout.strip().splitlines()[-1])
+                if isinstance(parsed, dict):
+                    payload = parsed
+                else:
+                    parse_error = f"last stdout line decoded to {type(parsed).__name__}, not an object"
+            except (json.JSONDecodeError, IndexError) as exc:
+                parse_error = f"could not parse verifier JSON: {type(exc).__name__}: {exc}"
+
+        required = ("independent", "plan_match", "files_complete", "candidate_match", "conformance_passed")
+        missing = [key for key in required if payload is None or payload.get(key) is not True]
+        passed = completed.returncode == 0 and not missing
+        detail = (
+            f"exit_code={completed.returncode}; required_predicates={dict((key, payload.get(key) if payload else None) for key in required)}; "
+            f"missing_or_false={missing}; parse_error={parse_error or 'none'}; "
+            f"stdout_tail={stdout[-3000:]!r}; stderr_tail={stderr[-3000:]!r}"
         )
+        return _IndependentVerificationResult(passed, detail, payload)
 
 
 def _safe_candidate_path(root: str, relative_path: str) -> str:
@@ -127,9 +166,14 @@ def _run_independent_verifier(verifier: Any, candidate_dir: str,
         result = verifier.verify(candidate_dir, plan_hash, plan_path)
     except Exception as exc:
         return False, f"verification failed closed: {type(exc).__name__}: {exc}"
-    if result is not True:
-        return False, f"verification did not return explicit True (result={result!r})"
-    return True, "independent verification passed"
+    # The production subprocess verifier returns a structured result so
+    # failure diagnostics survive into StageEvidence. Test/custom adapters may
+    # return literal True, but truthy values and malformed result objects never pass.
+    if result is True:
+        return True, "independent verification passed"
+    if isinstance(result, _IndependentVerificationResult):
+        return result.passed is True, result.detail
+    return False, f"verification did not return explicit True or a valid structured result (result={result!r})"
 
 
 def _run_candidate_bound_full_stack_verifier(verifier: Any, inputs: Any, candidate_hash: str) -> tuple[bool, str]:

@@ -121,7 +121,11 @@ def run_campaign_a(
     )
     summary["verdict"] = verdict.value
     summary["verdict_reason"] = reason
-    summary["independent_verify_ok"] = ok
+    # This flag reports the independent ledger/campaign replay, not the
+    # per-trial independent process verifier. Keep the legacy alias for
+    # consumers while exposing the precise name.
+    summary["evidence_ledger_verification_ok"] = ok
+    summary["independent_verify_ok"] = ok  # legacy alias; see precise field above
     summary["independent_verify_problems"] = problems
     summary["category_matrix"] = matrix
     summary["failure_taxonomy_independent"] = taxonomy

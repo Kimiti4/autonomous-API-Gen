@@ -345,10 +345,11 @@ def test_campaign_runner_records_full_stack_gate_against_candidate():
     assert "full-stack verification passed with matching candidate binding" in verify.detail
     assert "candidate_hash=" in verify.detail
     # Independent generated-candidate verification remains mandatory and now
-    # runs by default. With no source/mapping inputs the semantic
+    # runs by default. Its detail carries the structured predicate
+    # diagnostics. With no source/mapping inputs the semantic
     # correspondence gate must still fail closed, so the verify stage as a
     # whole cannot pass and the trial cannot certify.
-    assert "independent=[independent verification passed]" in verify.detail
+    assert "required_predicates={'independent': True" in verify.detail
     assert "semantic correspondence unavailable" in verify.detail
     assert verify.passed is False
     assert trial.verdict == "NOT_CERTIFIED"

@@ -52,6 +52,7 @@ class ReferenceDeterministicMapper:
         self, req: RequirementGraph, mapping_spec_version: str
     ) -> GenesisResult:
         nodes: dict[str, Node] = {}
+        edges: dict[str, Edge] = {}
         coverage: dict[str, list[str]] = {}
 
         for n in sorted(req.nodes.values(), key=lambda x: x.id):
@@ -69,6 +70,7 @@ class ReferenceDeterministicMapper:
                     "requirement_kind": n.kind.value,
                     "priority": n.priority.value,
                     "acceptance_criteria": list(n.acceptance_criteria),
+                    "ambiguity_score": n.ambiguity_score,
                     "source_refs": list(n.source_refs),
                     "resolution_ref": n.resolution_ref,
                     "properties": dict(n.properties),
@@ -86,13 +88,20 @@ class ReferenceDeterministicMapper:
                 # require explicit ISR declarations for any realization.
                 continue
             else:
+                # Stakeholders and any future requirement kinds remain
+                # traceable even when no architectural node is derivable.
                 continue
 
             node_id = f"{target_type.value}:{n.id}"
             nodes[node_id] = Node(
                 id=node_id,
                 type=target_type,
-                properties={"label": n.statement, "priority": n.priority.value},
+                properties={
+                    "label": n.statement,
+                    "priority": n.priority.value,
+                    "requirement_id": n.id,
+                    "source_refs": list(n.source_refs),
+                },
             )
             coverage.setdefault(n.id, []).append(node_id)
 

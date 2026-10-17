@@ -1332,8 +1332,16 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
         if not isinstance(semantic_content, str) or not semantic_content.strip():
             blockers.append(ProjectionBlocker("MAP-REQ-002", f"requirement {requirement_id!r} lacks authoritative semantic content", (requirement["id"],)))
             continue
-        if not isinstance(props.get("source_ref"), str) or not props.get("source_ref"):
-            blockers.append(ProjectionBlocker("MAP-REQ-003", f"requirement {requirement_id!r} lacks source_ref provenance", (requirement["id"],)))
+        source_ref = props.get("source_ref")
+        source_refs = props.get("source_refs")
+        has_source_ref = isinstance(source_ref, str) and bool(source_ref.strip())
+        has_source_refs = (
+            isinstance(source_refs, (list, tuple))
+            and bool(source_refs)
+            and all(isinstance(ref, str) and ref.strip() for ref in source_refs)
+        )
+        if not (has_source_ref or has_source_refs):
+            blockers.append(ProjectionBlocker("MAP-REQ-003", f"requirement {requirement_id!r} lacks valid source reference provenance", (requirement["id"],)))
         if not isinstance(props.get("revision"), (str, int)) or str(props.get("revision")).strip() == "":
             blockers.append(ProjectionBlocker("MAP-REQ-004", f"requirement {requirement_id!r} lacks an authoritative revision", (requirement["id"],)))
 

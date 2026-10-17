@@ -354,8 +354,10 @@ def test_genesis_requirement_refs_do_not_satisfy_semantic_mapping_without_source
     assert not result.complete
     assert result.mapping is None
     blocker_codes = {item.code for item in result.blockers}
-    assert "MAP-REQ-003" in blocker_codes
     assert "MAP-REQ-004" in blocker_codes
+    # Stakeholder requirements have a traceability node but no fabricated
+    # capability-to-requirement edge, so semantic mapping remains incomplete.
+    assert "MAP-REQ-005" in blocker_codes
 
 
 

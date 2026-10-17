@@ -111,3 +111,14 @@ def test_secret_scan_covers_configuration_and_workflow_artifacts():
     finding = next(f for f in report.findings if f.rule_id == "QRY-SEC-003")
     assert finding.path == ".env"
     assert finding.severity == QualitySeverity.BLOCKER
+
+
+
+def test_maintainability_checks_flag_complex_decision_paths_and_long_lines():
+    branches = "".join(f"    if flag_{index}:\n        value += {index}\n" for index in range(17))
+    long_line = "value = " + "'" + ("x" * 130) + "'\n"
+    source = "def complicated(value):\n" + branches + "    return value\n" + long_line
+    report = _inspect({"app/service.py": source})
+
+    assert any(f.rule_id == "QRY-PY-QUAL-005" for f in report.findings)
+    assert any(f.rule_id == "QRY-QUAL-006" for f in report.findings)

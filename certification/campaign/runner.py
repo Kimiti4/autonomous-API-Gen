@@ -71,6 +71,22 @@ class _IndependentProcessVerifier:
         )
 
 
+def _safe_candidate_path(root: str, relative_path: str) -> str:
+    """Resolve a generated path without permitting workspace escape."""
+    if (
+        not isinstance(relative_path, str) or not relative_path
+        or "\x00" in relative_path or "\\" in relative_path
+        or os.path.isabs(relative_path)
+        or any(part == ".." for part in relative_path.split("/"))
+    ):
+        raise ValueError(f"unsafe generated candidate path: {relative_path!r}")
+    root_real = os.path.realpath(root)
+    full_path = os.path.realpath(os.path.join(root_real, relative_path))
+    if os.path.commonpath((root_real, full_path)) != root_real:
+        raise ValueError(f"generated candidate path escapes workspace: {relative_path!r}")
+    return full_path
+
+
 @dataclass(frozen=True)
 class _CandidateBoundFullStackResult:
     passed: bool
@@ -96,23 +112,6 @@ class _CanonicalFullStackVerifier:
         report = verify_full_stack(*inputs)
         findings = tuple(f"{item!r}" for item in report.findings)
         return _CandidateBoundFullStackResult(report.passed is True, candidate_hash, findings)
-
-
-
-def _safe_candidate_path(root: str, relative_path: str) -> str:
-    """Resolve a generated path without permitting workspace escape."""
-    if (
-        not isinstance(relative_path, str) or not relative_path
-        or "\x00" in relative_path or "\\" in relative_path
-        or os.path.isabs(relative_path)
-        or any(part == ".." for part in relative_path.split("/"))
-    ):
-        raise ValueError(f"unsafe generated candidate path: {relative_path!r}")
-    root_real = os.path.realpath(root)
-    full_path = os.path.realpath(os.path.join(root_real, relative_path))
-    if os.path.commonpath((root_real, full_path)) != root_real:
-        raise ValueError(f"generated candidate path escapes workspace: {relative_path!r}")
-    return full_path
 
 
 def _now() -> str:

@@ -69,6 +69,7 @@ class ReferenceDeterministicMapper:
             # The reference proves traceability only; it must not by itself
             # count as architectural coverage. Coverage is established only
             # when an architectural target can be derived below.
+            coverage.setdefault(n.id, []).append(requirement_ref_id)
 
             if n.kind is RequirementKind.DOMAIN_CONCEPT:
                 target_type = NodeType.DOMAIN

@@ -339,7 +339,7 @@ class CodeQualityInspector:
             long_lines = [index for index, line in enumerate(content.splitlines(), start=1) if len(line) > 120]
             for line_number in long_lines:
                 findings.append(QualityFinding(
-                    rule_id="QRY-QUAL-002",
+                    rule_id="QRY-QUAL-006",
                     severity=QualitySeverity.WARNING,
                     path=path,
                     line=line_number,

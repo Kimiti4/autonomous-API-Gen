@@ -20,6 +20,48 @@ class DocumentationValidation:
     claims: tuple[DocumentationClaim, ...]
 
 
+def evidence_bound_readme(
+    *,
+    slug: str,
+    system_name: str,
+    backend_id: str,
+    capabilities: Sequence[str],
+    architecture_lines: Sequence[str] = (),
+    verify_commands: Sequence[str] = (),
+    run_commands: Sequence[str] = (),
+) -> str:
+    """Build a README that satisfies this module's own validation contract.
+
+    Every generated bundle documents: the artifact's package identity (the
+    slug that ``ProjectCompiler._verify`` validates against), the ISR system
+    name, the technology-neutral-ISR provenance, the backend claim, and the
+    backend's full declared capability manifest. Backends must not hand-roll
+    README strings — use this helper so docs stay certification-bound.
+    """
+    lines: list[str] = [
+        f"# {slug}",
+        "",
+        f"System: {system_name}",
+        "",
+        "Generated from the technology-neutral ISR — compiled artifact of an "
+        "evolved software design.",
+        "",
+        f"Backend: {backend_id}",
+        "",
+        "## Architecture",
+        "",
+    ]
+    lines.extend(architecture_lines or ["(see generated sources for layout)"])
+    lines.extend(["", "## Capabilities", ""])
+    lines.extend(f"- {capability}" for capability in capabilities)
+    if verify_commands:
+        lines.extend(["", "## Verify", "", "```bash", *verify_commands, "```"])
+    if run_commands:
+        lines.extend(["", "## Run", "", "```bash", *run_commands, "```"])
+    lines.append("")
+    return "\n".join(lines)
+
+
 def validate_generated_documentation(
     *,
     readme: str,

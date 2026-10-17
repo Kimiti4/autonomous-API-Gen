@@ -57,6 +57,18 @@ def _clean_model() -> SystemModel:
     )
 
 
+class _StubCompilationResult:
+    """Duck-typed IntentCompilationResult for the no-LLM stub."""
+
+    def __init__(self, isr: IntermediateSoftwareRepresentation, system_id: str) -> None:
+        self.system_id = system_id
+        self.isr = isr
+        self.call_records: list = []
+        self.repair_iterations = 0
+        self.assumption_ids: list = []
+        self.semantic_resolution_record = None
+
+
 class _StubIntentCompiler:
     """Implements the IntentCompiler port without an LLM.
 
@@ -67,10 +79,15 @@ class _StubIntentCompiler:
     def __init__(self, model: SystemModel) -> None:
         self._model = model
 
+    def compile_full(
+        self, statement: str, system_id: str, *, taskflow_semantic_gate: bool = False
+    ) -> _StubCompilationResult:
+        isr = IntermediateSoftwareRepresentation.from_system_model(system_id, self._model)
+        return _StubCompilationResult(isr, system_id)
+
     def compile(self, statement: str, hints: dict) -> IntermediateSoftwareRepresentation:
-        return IntermediateSoftwareRepresentation.from_system_model(
-            hints.get("system_id") or "sys-stub", self._model
-        )
+        system_id = hints.get("system_id") or "sys-stub"
+        return self.compile_full(statement, system_id).isr
 
 
 def _registry_with_fastapi() -> CompilerRegistry:
@@ -148,12 +165,18 @@ def test_compile_intent_raises_when_backend_execution_fails():
 
 def test_compile_intent_raises_on_legacy_non_typed_isr():
     class _LegacyIntentCompiler:
-        def compile(self, statement: str, hints: dict) -> IntermediateSoftwareRepresentation:
-            return IntermediateSoftwareRepresentation(
+        def compile_full(
+            self, statement: str, system_id: str, *, taskflow_semantic_gate: bool = False
+        ) -> _StubCompilationResult:
+            isr = IntermediateSoftwareRepresentation(
                 system_id="legacy",
                 system_name="Legacy Service",
                 intent=IntentSpecification(statement=statement, domain="general"),
             )
+            return _StubCompilationResult(isr, "legacy")
+
+        def compile(self, statement: str, hints: dict) -> IntermediateSoftwareRepresentation:
+            return self.compile_full(statement, "legacy").isr
 
     compiler = ProjectCompiler(_LegacyIntentCompiler(), _registry_with_fastapi())
     with pytest.raises(ProjectCompilationError):

@@ -84,8 +84,10 @@ def test_trial_runner_loads_external_ledger_but_still_requires_trusted_envelope(
         TASKFLOW_MANDATORY_FIELDS,
     )
 
-    problem = (TRIAL_DIR / "PROBLEM.md").read_text(encoding="utf-8")
-    acceptance = json.loads((ROOT / "golden-projects" / "taskflow" / "ACCEPTANCE.json").read_text(encoding="utf-8"))
+    # Read bytes then decode (matching build_report) so the graph hash is
+    # identical under CRLF worktrees and LF CI checkouts.
+    problem = (TRIAL_DIR / "PROBLEM.md").read_bytes().decode("utf-8")
+    acceptance = json.loads((ROOT / "golden-projects" / "taskflow" / "ACCEPTANCE.json").read_bytes().decode("utf-8"))
     adapted = run_trial.adapt_taskflow_snapshot(
         problem,
         acceptance,

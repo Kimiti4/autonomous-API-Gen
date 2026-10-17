@@ -170,8 +170,14 @@ class ProjectCompiler:
                     f"compilation failed for {len(failed)} backend(s); "
                     f"first error: {failed[0].error}"
                 )
+            blocked = [
+                o
+                for o in outcomes
+                if o.verification_report is None or not o.verification_report.ok
+            ]
+            first_reason = blocked[0].verification_reason if blocked else "unknown"
             raise ProjectCompilationError(
-                "one or more backends failed verification"
+                f"one or more backends failed verification: {first_reason}"
             )
         return ProjectCompilationReport(
             statement_hash=hashlib.sha256(

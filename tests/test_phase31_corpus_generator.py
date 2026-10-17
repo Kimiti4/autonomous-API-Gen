@@ -19,6 +19,7 @@ from tiannara.application.harness.calibration.generator import (
     generate_corpus,
 )
 from tiannara.application.compiler.fastapi_hexagonal_backend import FastAPIHexagonalBackend
+from tiannara.domain.models.backend_declaration import ArtifactKind
 from tiannara.application.compiler.go_hexagonal_backend import GoHexagonalBackend
 from tiannara.application.harness.calibration.harness import (
     BackendCalibrationHarness,
@@ -107,6 +108,15 @@ def test_every_model_compiles_under_both_backends(backend):
         assert result.backend_id == backend.backend_id
 
 
+def _expected_backend_ids() -> set[str]:
+    """Every backend-service backend the calibration registry certifies."""
+    return {
+        d.backend_id
+        for d in build_calibration_registry().declarations()
+        if ArtifactKind.BACKEND_SERVICE in d.artifact_kinds
+    }
+
+
 def test_all_generated_models_pass_static_verification(tmp_path, monkeypatch):
     _hermetic(monkeypatch)
     harness = BackendCalibrationHarness(
@@ -116,7 +126,7 @@ def test_all_generated_models_pass_static_verification(tmp_path, monkeypatch):
     report = harness.calibrate(corpus=corpus, out_root=tmp_path / "out")
     assert report.success_rate == 1.0
     assert report.passed == report.total == len(corpus) * len(report.backends_tested)
-    assert set(report.backends_tested) == {"fastapi_hexagonal", "go_hexagonal"}
+    assert set(report.backends_tested) == _expected_backend_ids()
     assert JsonlEvidenceLedger(tmp_path / "ev.jsonl").verify_chain()
 
 
@@ -258,7 +268,7 @@ def test_calibrate_cli_generate(tmp_path, monkeypatch):
     assert (tmp_path / "cli-out" / "go_hexagonal").is_dir()
     assert any((tmp_path / "cli-out" / "fastapi_hexagonal").rglob("main.py"))
     ledger = JsonlEvidenceLedger(tmp_path / "cli-evidence.jsonl")
-    assert len(ledger.all()) == 6 * 2  # default 2 backends
+    assert len(ledger.all()) == 6 * len(_expected_backend_ids())  # every registered backend
     assert ledger.verify_chain()
 
 

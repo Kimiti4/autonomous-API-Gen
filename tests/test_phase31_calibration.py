@@ -14,6 +14,7 @@ from __future__ import annotations
 import shutil
 
 from tiannara.application.compiler.go_hexagonal_backend import GoHexagonalBackend
+from tiannara.domain.models.backend_declaration import ArtifactKind
 from tiannara.application.harness.calibration.corpus import DEFAULT_CORPUS
 from tiannara.application.harness.calibration.harness import (
     GATE_SEMANTICS,
@@ -30,6 +31,15 @@ def _hermetic_which(*_args, **_kwargs):
     return None  # simulate no Go (and no git) on PATH
 
 
+def _expected_backend_ids() -> set[str]:
+    """Every backend-service backend the calibration registry certifies."""
+    return {
+        d.backend_id
+        for d in build_calibration_registry().declarations()
+        if ArtifactKind.BACKEND_SERVICE in d.artifact_kinds
+    }
+
+
 def test_harness_compiles_each_isr_to_each_backend(tmp_path, monkeypatch):
     monkeypatch.setattr(shutil, "which", _hermetic_which)
     ledger = JsonlEvidenceLedger(tmp_path / "evidence.jsonl")
@@ -38,7 +48,7 @@ def test_harness_compiles_each_isr_to_each_backend(tmp_path, monkeypatch):
 
     assert isinstance(report, CalibrationReport)
     assert report.corpus_size == len(DEFAULT_CORPUS)
-    assert set(report.backends_tested) == {"fastapi_hexagonal", "go_hexagonal"}
+    assert set(report.backends_tested) == _expected_backend_ids()
     # One outcome per (corpus model x backend).
     assert report.total == len(DEFAULT_CORPUS) * len(report.backends_tested)
     assert report.passed == report.total  # static verification passes for both
@@ -148,5 +158,5 @@ def test_calibrate_cli_subcommand(tmp_path, monkeypatch):
 
 
 def _expected_records() -> int:
-    # 2 calibrated backends (FastAPI + Go) per corpus model.
-    return len(DEFAULT_CORPUS) * 2
+    # Every calibrated backend per corpus model (registry grows with the family).
+    return len(DEFAULT_CORPUS) * len(_expected_backend_ids())

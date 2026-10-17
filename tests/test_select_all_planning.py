@@ -17,12 +17,13 @@ from pathlib import Path
 
 from tiannara.application.compiler.composition import (
     build_project_compiler,
-    build_compiler_registry,
     fastapi_declaration,
 )
 from tiannara.application.compiler.derivation import derive_compilation_requirements
+from tiannara.application.compiler.fastapi_hexagonal_backend import FastAPIHexagonalBackend
 from tiannara.application.compiler.go_hexagonal_backend import GoHexagonalBackend
 from tiannara.application.compiler.project_compiler import ProjectCompiler
+from tiannara.application.compiler.registry import CompilerRegistry
 from tiannara.application.compiler.selector import (
     DEFAULT_SELECTION_POLICY,
     plan_compilation,
@@ -95,7 +96,9 @@ def _seed_transcript(tmp_path: Path) -> Path:
 
 
 def _both_registry():
-    reg = build_compiler_registry()  # FastAPI only (default)
+    """Purpose-built FastAPI + Go registry for the Phase-19 two-backend contract."""
+    reg = CompilerRegistry()
+    reg.register(FastAPIHexagonalBackend(), fastapi_declaration())
     go = GoHexagonalBackend()
     reg.register(go, go.build_profile_declaration())
     return reg

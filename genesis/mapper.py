@@ -95,7 +95,7 @@ class ReferenceDeterministicMapper:
                     "source_refs": list(n.source_refs),
                 },
             )
-            coverage.setdefault(n.id, []).extend((requirement_ref_id, node_id))
+            coverage.setdefault(n.id, []).append(node_id)
             architecturally_mapped.add(n.id)
 
             if target_type is NodeType.CAPABILITY:

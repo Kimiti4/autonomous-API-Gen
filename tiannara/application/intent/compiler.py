@@ -16,6 +16,7 @@ Evolution Engine's first stage.
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Callable
 from tiannara.domain.models.isr import IntermediateSoftwareRepresentation
 from tiannara.domain.models.requirement_graph import RequirementGraph, RequirementKind
@@ -73,6 +74,9 @@ class IntentCompiler:
         taskflow_semantic_gate: bool = False,
     ) -> IntentCompilationResult:
         normalized = normalize(statement)
+        # Keep semantic normalization identity distinct from the exact caller
+        # snapshot used for source provenance and downstream binding.
+        source_snapshot_sha256 = hashlib.sha256(statement.encode("utf-8")).hexdigest()
         records: list = []
 
         # 2. Elicitation
@@ -99,7 +103,7 @@ class IntentCompiler:
             extraction,
             elicitation_output.assumptions,
             tags,
-            normalized.source_statement_hash,
+            source_snapshot_sha256,
         )
         iterations = 0
         while issues and iterations < self._config.max_repair_iterations:
@@ -117,7 +121,7 @@ class IntentCompiler:
                 extraction,
                 elicitation_output.assumptions,
                 tags,
-                normalized.source_statement_hash,
+                source_snapshot_sha256,
             )
         if issues or graph is None:
             raise RepairBudgetExceeded(issues, iterations)

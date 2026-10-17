@@ -86,3 +86,15 @@ def test_python_quality_checks_find_mutable_defaults_and_swallowed_exceptions():
     assert {f.rule_id for f in report.findings} >= {
         "QRY-PY-QUAL-001", "QRY-PY-QUAL-002", "QRY-PY-QUAL-003"
     }
+
+
+
+def test_compiler_file_mappings_are_supported_without_backend_coupling():
+    files = {"frontend/App.tsx": "export default function App() { return <main /> }\n"}
+    report = CodeQualityInspector().inspect(files)
+    mismatched = CodeQualityInspector().inspect(files, declared_content_hash="wrong")
+
+    assert report.passed
+    assert report.repository_hash == report.declared_repository_hash
+    assert not mismatched.passed
+    assert any(f.rule_id == "QRY-INT-001" for f in mismatched.findings)

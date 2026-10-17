@@ -10,10 +10,11 @@ The quality inspector is a deterministic, backend-neutral static evidence layer 
 - Reject missing or inconsistent hashes when a `GeneratedRepository` is supplied; optionally compare a compiler-declared hash for other compiler outputs.
 - Reject unsafe/escaping artifact paths and case-insensitive path collisions.
 - Reject empty source artifacts and Python syntax errors.
-- Flag known high-confidence credential patterns and private-key material.
+- Scan all artifacts (including configuration/workflow files) for known high-confidence credential patterns and private-key material.
 - Flag unresolved implementation markers, including `NotImplementedError`.
 - Flag non-behavioral `assert True` tests.
-- Inspect Python AST for dynamic `eval`/`exec`, shell/process calls, bare exception handlers, silently swallowed exceptions, and mutable default arguments.
+- Inspect Python AST for dynamic `eval`/`exec`, shell/process calls, bare exception handlers, silently swallowed exceptions, mutable default arguments, excessive function length, and high estimated cyclomatic complexity.
+- Flag source lines longer than 120 characters as a maintainability warning.
 - Report which source languages were inspected and which were not parsed.
 
 ## Gate semantics

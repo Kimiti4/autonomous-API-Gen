@@ -5,6 +5,7 @@ import json
 import os
 import tempfile
 import uuid
+from dataclasses import dataclass
 from typing import Any
 
 from compiler.core.plan import CompilationPlan
@@ -21,6 +22,33 @@ from certification.core.trial import (
 )
 from certification.core import metrics as M
 from certification.provenance.bundle import ProvenanceBundle
+
+
+@dataclass(frozen=True)
+class _CandidateBoundFullStackResult:
+    passed: bool
+    candidate_hash: str
+    findings: tuple[str, ...]
+
+
+class _CanonicalFullStackVerifier:
+    """Run the canonical IR coherence checks; source binding is checked separately.
+
+    The semantic-correspondence gate recomputes the candidate digest from the
+    actual generated files and binds the mapping to that digest. This verifier
+    independently evaluates the five lowered IR inputs and returns the digest
+    it was invoked for so the runner can enforce a consistent evidence record.
+    """
+
+    def verify_bound(self, inputs: Any, candidate_hash: str) -> _CandidateBoundFullStackResult:
+        if not isinstance(inputs, tuple) or len(inputs) != 5:
+            return _CandidateBoundFullStackResult(False, candidate_hash, ("five canonical IR inputs are required",))
+        if not isinstance(candidate_hash, str) or not candidate_hash:
+            return _CandidateBoundFullStackResult(False, "", ("candidate hash is required",))
+        from app.engine.full_stack_verification import verify_full_stack
+        report = verify_full_stack(*inputs)
+        findings = tuple(f"{item!r}" for item in report.findings)
+        return _CandidateBoundFullStackResult(report.passed is True, candidate_hash, findings)
 
 
 def _now() -> str:

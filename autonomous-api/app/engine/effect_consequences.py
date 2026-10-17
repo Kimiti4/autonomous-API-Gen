@@ -59,7 +59,7 @@ def verify_effect_consequences(
         if count > 1:
             findings.append(ConsequenceFinding(
                 "EFFECT-CONS-008", effect_id,
-                "multiple consequence records share one effect identity"
+                "multiple consequence records share one effect identity; consequence binding is ambiguous"
             ))
         if effect_id not in effect_ids:
             findings.append(ConsequenceFinding(

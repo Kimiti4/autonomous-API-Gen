@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 
 import {
   EpistemicBadge,
@@ -12,23 +13,20 @@ import {
 import { api } from "@/lib/api";
 import type { KnowledgeMemory } from "@/lib/types";
 
-export default function KnowledgeMemoryPage({
-  params
-}: {
-  params: { subject: string };
-}) {
+export default function KnowledgeMemoryPage() {
+  const { subject } = useParams<{ subject: string }>();
   const [memory, setMemory] = useState<KnowledgeMemory | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      const nextMemory = await api.knowledgeMemory(params.subject);
+      const nextMemory = await api.knowledgeMemory(subject);
       setMemory(nextMemory);
       setError(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unknown error");
     }
-  }, [params.subject]);
+  }, [subject]);
 
   useEffect(() => {
     refresh();

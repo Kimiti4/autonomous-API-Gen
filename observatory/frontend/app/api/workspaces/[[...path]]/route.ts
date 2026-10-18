@@ -5,9 +5,9 @@ import { getSession } from "@/lib/auth";
 export const runtime = "nodejs";
 
 type RouteContext = {
-  params: {
+  params: Promise<{
     path?: string[];
-  };
+  }>;
 };
 
 function proxyEnabled(): boolean {
@@ -22,7 +22,7 @@ async function proxyRequest(request: NextRequest, context: RouteContext) {
     );
   }
 
-  const session = getSession();
+  const session = await getSession();
 
   if (!session) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -33,7 +33,8 @@ async function proxyRequest(request: NextRequest, context: RouteContext) {
     process.env.NEXT_PUBLIC_OBSERVATORY_API_URL ||
     "http://127.0.0.1:8000";
 
-  const subPath = context.params.path?.join("/") ?? "";
+  const { path } = await context.params;
+  const subPath = path?.join("/") ?? "";
   const search = request.nextUrl.search || "";
 
   const target = `${backendUrl}/observatory/workspaces${

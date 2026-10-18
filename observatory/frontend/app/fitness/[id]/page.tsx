@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 
 import {
   EventTimeline,
@@ -53,23 +54,20 @@ function MetricCard({ metric }: { metric: FitnessMetric }) {
   );
 }
 
-export default function FitnessDetailPage({
-  params
-}: {
-  params: { id: string };
-}) {
+export default function FitnessDetailPage() {
+  const { id } = useParams<{ id: string }>();
   const [fitness, setFitness] = useState<FitnessDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      const nextFitness = await api.fitnessDetail(params.id);
+      const nextFitness = await api.fitnessDetail(id);
       setFitness(nextFitness);
       setError(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unknown error");
     }
-  }, [params.id]);
+  }, [id]);
 
   useEffect(() => {
     refresh();

@@ -17,10 +17,9 @@ import type {
   ProvenanceAudit,
   ProvenanceSummary,
   RuntimeState,
-  RepairNotification,
-  RepairState,
   TimelineEntry
 } from "./types";
+import type { RepairNotification, RepairState } from "./repair-types";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_OBSERVATORY_API_URL ?? "http://127.0.0.1:8000";

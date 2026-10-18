@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 
 import {
   KeyValue,
@@ -10,23 +11,20 @@ import {
 import { api } from "@/lib/api";
 import type { EvolutionState } from "@/lib/types";
 
-export default function EvolutionDetailPage({
-  params
-}: {
-  params: { id: string };
-}) {
+export default function EvolutionDetailPage() {
+  const { id } = useParams<{ id: string }>();
   const [evolution, setEvolution] = useState<EvolutionState | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      const nextEvolution = await api.evolution(params.id);
+      const nextEvolution = await api.evolution(id);
       setEvolution(nextEvolution);
       setError(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unknown error");
     }
-  }, [params.id]);
+  }, [id]);
 
   useEffect(() => {
     refresh();

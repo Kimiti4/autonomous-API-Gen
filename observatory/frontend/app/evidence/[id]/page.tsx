@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 
 import {
   EpistemicBadge,
@@ -10,23 +11,20 @@ import {
 import { api } from "@/lib/api";
 import type { EvidenceRecord } from "@/lib/types";
 
-export default function EvidenceDetailPage({
-  params
-}: {
-  params: { id: string };
-}) {
+export default function EvidenceDetailPage() {
+  const { id } = useParams<{ id: string }>();
   const [evidence, setEvidence] = useState<EvidenceRecord | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      const nextEvidence = await api.evidence(params.id);
+      const nextEvidence = await api.evidence(id);
       setEvidence(nextEvidence);
       setError(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unknown error");
     }
-  }, [params.id]);
+  }, [id]);
 
   useEffect(() => {
     refresh();

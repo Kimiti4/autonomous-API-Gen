@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 
 import {
   EventTimeline,
@@ -41,23 +42,20 @@ function GeneRow({ gene }: { gene: GenomeGene }) {
   );
 }
 
-export default function GenomeDetailPage({
-  params
-}: {
-  params: { id: string };
-}) {
+export default function GenomeDetailPage() {
+  const { id } = useParams<{ id: string }>();
   const [genome, setGenome] = useState<GenomeDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      const nextGenome = await api.genomeDetail(params.id);
+      const nextGenome = await api.genomeDetail(id);
       setGenome(nextGenome);
       setError(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unknown error");
     }
-  }, [params.id]);
+  }, [id]);
 
   useEffect(() => {
     refresh();

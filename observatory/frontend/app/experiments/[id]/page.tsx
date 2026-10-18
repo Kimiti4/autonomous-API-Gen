@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 
 import {
   EpistemicBadge,
@@ -26,23 +27,20 @@ function passedStatus(result: ExperimentResult): string {
   return "unknown";
 }
 
-export default function ExperimentDetailPage({
-  params
-}: {
-  params: { id: string };
-}) {
+export default function ExperimentDetailPage() {
+  const { id } = useParams<{ id: string }>();
   const [experiment, setExperiment] = useState<ExperimentDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      const nextExperiment = await api.experiment(params.id);
+      const nextExperiment = await api.experiment(id);
       setExperiment(nextExperiment);
       setError(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unknown error");
     }
-  }, [params.id]);
+  }, [id]);
 
   useEffect(() => {
     refresh();

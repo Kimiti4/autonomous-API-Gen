@@ -239,6 +239,12 @@ class LifecycleObservation(DeployedServerV2):
         self.assertEqual(record["status"], "PASS")
 
     def test_t16_events(self):
+        # Self-contained under pytest-xdist: the workload sequence must have
+        # run on THIS worker (a bare store.json only has _seed state and no
+        # task-created events). Other tests in this class reach it through
+        # _record(); without the guard, t16 fails whenever xdist assigns it
+        # to a different worker than t14.
+        self._ensure_sequence()
         with open(os.path.join(self._store_dir, "store.json"),
                   encoding="utf-8") as f:
             state = json.load(f)

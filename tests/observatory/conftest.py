@@ -7,6 +7,24 @@ config change.
 """
 from __future__ import annotations
 
+import os
+import tempfile
+
+# observatory.backend.main runs `app = create_app()` at module import
+# (main.py:86), which opens stores at the config default path - a
+# cwd-relative "observatory.sqlite3". Every pytest-xdist worker imports
+# this conftest during collection at the same time, so they raced to
+# initialise the SAME database file and a worker could fail with
+# "sqlite3.OperationalError: database is locked", dropping tests from its
+# collection and aborting the run ("Different tests were collected between
+# gw0 and gwN"). Point the import-time default at a per-process directory
+# first; fixtures below still override OBSERVATORY_DB_PATH with tmp_path
+# for actual test apps. os.environ.setdefault respects an outer override.
+os.environ.setdefault(
+    "OBSERVATORY_DB_PATH",
+    os.path.join(tempfile.mkdtemp(prefix="obs-import-"), "import.sqlite3"),
+)
+
 import pytest
 from fastapi.testclient import TestClient
 

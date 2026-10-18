@@ -94,8 +94,8 @@ export function decodeSession(token: string): OperatorSession | null {
   }
 }
 
-export function getSession(): OperatorSession | null {
-  const token = cookies().get(SESSION_COOKIE_NAME)?.value;
+export async function getSession(): Promise<OperatorSession | null> {
+  const token = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
 
   if (!token) {
     return null;

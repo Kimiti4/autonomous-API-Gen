@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const session = getSession();
+  const session = await getSession();
 
   if (!session) {
     return NextResponse.json(

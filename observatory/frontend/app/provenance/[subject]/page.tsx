@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 
 import {
   EventTimeline,
@@ -11,23 +12,20 @@ import {
 import { api } from "@/lib/api";
 import type { ProvenanceAudit } from "@/lib/types";
 
-export default function ProvenanceAuditPage({
-  params
-}: {
-  params: { subject: string };
-}) {
+export default function ProvenanceAuditPage() {
+  const { subject } = useParams<{ subject: string }>();
   const [audit, setAudit] = useState<ProvenanceAudit | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      const nextAudit = await api.provenanceAudit(params.subject);
+      const nextAudit = await api.provenanceAudit(subject);
       setAudit(nextAudit);
       setError(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unknown error");
     }
-  }, [params.subject]);
+  }, [subject]);
 
   useEffect(() => {
     refresh();

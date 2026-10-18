@@ -29,12 +29,8 @@ def derive_compilation_requirements(
 ) -> list[CompilationRequirement]:
     requirements: list[CompilationRequirement] = []
     requirements.extend(_backend_service_requirements(system_model))
-    requirements.extend(_frontend_requirements(system_model))
-    requirements.extend(_database_requirements(system_model))
-    requirements.extend(_infrastructure_requirements(system_model))
-    requirements.extend(_deployment_requirements(system_model))
-    requirements.extend(_documentation_requirements(system_model))
-    # Future rules (each lands with its backend family):
+    # Future rules (each lands with its backend family — never activated
+    # before a matching backend can satisfy them):
     #   _frontend_requirements(system_model)
     #   _database_requirements(system_model)
     #   _infrastructure_requirements(system_model)

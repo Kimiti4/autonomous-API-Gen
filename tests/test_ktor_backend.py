@@ -15,7 +15,9 @@ def test_ktor_is_independent():
     b=build_compiler_registry().backend("ktor")
     result=b.generate(model)
     source="\n".join(result.files.values()).lower()
+    files_lower={x.lower() for x in result.files}
     assert "build.gradle.kts" in result.files
-    assert "application.kt" in {x.lower() for x in result.files}
+    # Ktor nests sources under src/main/kotlin/.
+    assert any(x.endswith("application.kt") for x in files_lower)
     assert "fastapi" not in source and "axum" not in source and "phoenix" not in source
     assert b.build_profile("taskflow").language=="kotlin"

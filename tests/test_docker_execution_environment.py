@@ -19,8 +19,18 @@ from tiannara.application.harness.calibration.harness import (
     BackendCalibrationHarness,
     build_calibration_registry,
 )
+from tiannara.domain.models.backend_declaration import ArtifactKind
 from tiannara.infrastructure.ledger.jsonl_evidence_ledger import JsonlEvidenceLedger
 from tiannara.infrastructure.sandbox.docker_environment import DockerExecutionEnvironment
+
+
+def _backend_ids() -> set[str]:
+    """Backend-service backends the calibration harness actually runs."""
+    return {
+        d.backend_id
+        for d in build_calibration_registry().declarations()
+        if ArtifactKind.BACKEND_SERVICE in d.artifact_kinds
+    }
 
 
 class _FakeBundle:
@@ -72,15 +82,17 @@ def test_calibrate_honest_degrade_when_docker_and_toolchain_absent(tmp_path, mon
     monkeypatch.setattr(DockerExecutionEnvironment, "available", classmethod(lambda cls: False))
     monkeypatch.setattr(sh, "which", lambda *_a, **_k: None)
 
+    registry = build_calibration_registry()
+    corpus = generate_corpus(4, seed=0)
     harness = BackendCalibrationHarness(
-        build_calibration_registry(), JsonlEvidenceLedger(tmp_path / "ev.jsonl")
+        registry, JsonlEvidenceLedger(tmp_path / "ev.jsonl")
     )
-    report = harness.calibrate(corpus=generate_corpus(4, seed=0), out_root=tmp_path / "out")
+    report = harness.calibrate(corpus=corpus, out_root=tmp_path / "out")
     statuses = Counter(o.runtime_status for o in report.outcomes)
-    # No docker + no toolchain on PATH -> both Go and FastAPI degrade honestly.
-    # FastAPI now declares a runtime_image+test_command (R2.4.0a), so it no
-    # longer hit skipped:no_test_command; it degrades to toolchain_absent like Go.
-    assert statuses["skipped:toolchain_absent"] == 8
+    # No docker + no toolchain on PATH -> every backend degrades honestly to
+    # toolchain_absent (all backends now declare runtime_image+test_command).
+    n_backends = len(_backend_ids())
+    assert statuses["skipped:toolchain_absent"] == n_backends * len(corpus)
     assert statuses.get("skipped:no_test_command", 0) == 0
     assert report.runtime_coverage == 0.0
 
@@ -108,13 +120,17 @@ def test_go_runtime_engages_when_docker_present(tmp_path, monkeypatch):
 
     monkeypatch.setattr(de.asyncio, "create_subprocess_exec", fake)
 
+    registry = build_calibration_registry()
+    corpus = generate_corpus(2, seed=0)
     harness = BackendCalibrationHarness(
-        build_calibration_registry(), JsonlEvidenceLedger(tmp_path / "ev.jsonl")
+        registry, JsonlEvidenceLedger(tmp_path / "ev.jsonl")
     )
-    report = harness.calibrate(corpus=generate_corpus(2, seed=0), out_root=tmp_path / "out")
+    report = harness.calibrate(corpus=corpus, out_root=tmp_path / "out")
     by_backend = {o.backend_id: o.runtime_status for o in report.outcomes}
-    assert by_backend == {
-        "go_hexagonal": "ran",          # docker present + runtime_image -> ran
-        "fastapi_hexagonal": "ran",     # docker present + build_phase -> ran
-    }
+    n_backends = len(_backend_ids())
+    # Docker present + every backend declares a runtime image -> all 'ran'.
+    assert len(by_backend) == n_backends
+    assert set(by_backend.values()) == {"ran"}
+    assert by_backend["go_hexagonal"] == "ran"
+    assert by_backend["fastapi_hexagonal"] == "ran"
     assert report.runtime_coverage == 1.0

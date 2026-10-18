@@ -96,13 +96,17 @@ def _load_json(path: str) -> dict[str, Any]:
 
 
 def file_hashes() -> dict[str, str]:
-    """Content hashes of the canonical implementation sources."""
+    """Content hashes of the canonical implementation sources.
+
+    Normalizes CRLF->LF so the hash is line-ending independent (CRLF
+    worktrees hash identically to LF CI checkouts).
+    """
     hashes = {}
     for rel in APP_V3_FILES:
         if not os.path.isfile(rel):
             raise ImplementationError(f"implementation file missing: {rel}")
         with open(rel, "rb") as f:
-            hashes[rel] = hashlib.sha256(f.read()).hexdigest()
+            hashes[rel] = hashlib.sha256(f.read().replace(b"\r\n", b"\n")).hexdigest()
     return hashes
 
 

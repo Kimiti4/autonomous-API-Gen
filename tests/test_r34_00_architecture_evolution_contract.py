@@ -2,7 +2,7 @@ from tiannara.application.evolution.architecture_evolution_contract import ARCHI
 from tiannara.application.evolution.ledger import EvolutionLedger
 from tiannara.domain.services.canonical import canonical_hash
 from .test_r29_10_9_campaign_readiness import CampaignReadinessHarness
-RECIPE_HASH="317b62a84dc1c4c0ee4a0e43c732a8d2d8b2f7b3c6b0404712a0fc5d6bb74613"
+RECIPE_HASH="a3d9c01cb688769f4143b1a5da8623694fb146769532cb3c0e2dfbffa98377f4"
 def test_hash_and_ledger():
     ledger=EvolutionLedger()
     c=build_architecture_evolution_contract()

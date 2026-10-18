@@ -100,6 +100,9 @@ def adapt_taskflow_snapshot(
     """Build a stable native RequirementGraph; fail closed before typed ISR."""
     if not isinstance(problem, str) or not problem.strip():
         raise ValueError("problem must be a non-empty string")
+    # Normalize CRLF->LF so the graph hash is line-ending independent
+    # (CRLF worktrees hash identically to LF CI checkouts).
+    problem = problem.replace("\r\n", "\n")
     if not isinstance(acceptance, Mapping):
         raise TypeError("acceptance must be a JSON object")
 

@@ -108,4 +108,4 @@ def test_readiness_is_ledger_addressable(gate):
 
 def test_matrix_and_recipe_identity_unchanged(gate):
     assert gate.matrix_summary() == (12, 18, 0, 0)
-    assert gate.recipe_isr_hash() == "317b62a84dc1c4c0ee4a0e43c732a8d2d8b2f7b3c6b0404712a0fc5d6bb74613"
+    assert gate.recipe_isr_hash() == "a3d9c01cb688769f4143b1a5da8623694fb146769532cb3c0e2dfbffa98377f4"

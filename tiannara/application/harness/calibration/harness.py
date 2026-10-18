@@ -51,12 +51,7 @@ GATE_SEMANTICS = (
 
 def build_calibration_registry():
     """Registry containing every backend the harness should certify."""
-    reg = build_compiler_registry()  # FastAPI (default production)
-    from tiannara.application.compiler.go_hexagonal_backend import GoHexagonalBackend
-
-    go = GoHexagonalBackend()
-    reg.register(go, go.build_profile_declaration())
-    return reg
+    return build_compiler_registry()
 
 
 class BackendCalibrationHarness:

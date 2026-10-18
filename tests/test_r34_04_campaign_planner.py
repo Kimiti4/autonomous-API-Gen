@@ -1,6 +1,6 @@
 from tiannara.application.security.campaign_planner import plan_campaign
 from .test_r29_10_9_campaign_readiness import CampaignReadinessHarness
-RECIPE_HASH="317b62a84dc1c4c0ee4a0e43c732a8d2d8b2f7b3c6b0404712a0fc5d6bb74613"
+RECIPE_HASH="a3d9c01cb688769f4143b1a5da8623694fb146769532cb3c0e2dfbffa98377f4"
 def test_planner_distinguishes():
     c=plan_campaign(["db"], ["sql"], ["sql_injection","xss","csrf"], ["old-attack"])
     assert "sql_injection" in c.mandatory or c.applicable

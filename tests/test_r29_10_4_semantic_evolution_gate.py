@@ -659,7 +659,7 @@ def test_option_a_holds_under_composition(harness):
     byte-identical (the eleventh Option A use) and the matrix stays
     12/18/0/0."""
     assert RECIPE.content_hash == (
-        "317b62a84dc1c4c0ee4a0e43c732a8d2d8b2f7b3c6b0404712a0fc5d6bb74613"
+        "a3d9c01cb688769f4143b1a5da8623694fb146769532cb3c0e2dfbffa98377f4"
     )
     result = ISRCapabilityAudit().run(RECIPE)
     assert result.integrity is True

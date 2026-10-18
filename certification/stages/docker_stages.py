@@ -40,6 +40,62 @@ def _run(cmd: list[str], timeout: int = 900) -> tuple[int, str]:
         return 124, "command timed out"
 
 
+# Health-only apps are stubs. After /health responds, the probe discovers the
+# served OpenAPI document and exercises the business endpoints it declares.
+# A service whose spec is missing, empty of business operations, or answers
+# unacceptably on them has NOT passed runtime verification.
+_BUSINESS_ACCEPT_STATUS = (200, 201, 400, 401, 403, 422)
+_EXCLUDED_SPEC_PATHS = ("/health", "/healthz", "/openapi.json", "/docs", "/redoc")
+_MAX_BUSINESS_PROBES = 5
+
+
+def probe_business_endpoints(port: int, timeout: float = 5) -> tuple[bool, str, str]:
+    """Probe business endpoints declared by the served OpenAPI document.
+
+    Returns (passed, detail, transport_error). transport_error is "" for
+    logical failures (missing spec, no business routes, unacceptable
+    statuses) and the underlying error text for transport failures.
+    """
+    import json as _json
+    import urllib.error
+    import urllib.request
+
+    base = f"http://localhost:{port}"
+    try:
+        with urllib.request.urlopen(f"{base}/openapi.json", timeout=timeout) as resp:
+            spec = _json.loads(resp.read().decode("utf-8"))
+    except Exception as exc:  # noqa: BLE001 -- classified by the caller
+        return False, f"openapi unavailable: {type(exc).__name__}: {exc}", str(exc)
+
+    paths = spec.get("paths") or {}
+    candidates: list[str] = []
+    for path in sorted(paths):
+        if path in _EXCLUDED_SPEC_PATHS or path.startswith("/docs"):
+            continue
+        if "{" in path:
+            continue  # templated details are not collection probes
+        item = paths.get(path) or {}
+        if isinstance(item, dict) and "get" in item:
+            candidates.append(path)
+    if not candidates:
+        return False, "spec declares no business GET endpoints (health-only service)", ""
+
+    results: list[str] = []
+    for path in candidates[:_MAX_BUSINESS_PROBES]:
+        try:
+            with urllib.request.urlopen(f"{base}{path}", timeout=timeout) as resp:
+                status = getattr(resp, "status", None) or resp.getcode()
+        except urllib.error.HTTPError as exc:
+            status = exc.code
+        except Exception as exc:  # noqa: BLE001 -- transport mid-probe
+            return False, f"business probe {path} failed: {type(exc).__name__}: {exc}", str(exc)
+        results.append(f"{path}:{status}")
+        if status not in _BUSINESS_ACCEPT_STATUS:
+            return False, f"business probe {path} unacceptable (status={status})", ""
+    probed = len(results)
+    return True, f"business={','.join(results)} (probed {probed})", ""
+
+
 # Recognized transient infrastructure error signatures. A BOUNDED retry is
 # honest: each attempt is real, retries are recorded in the evidence, and a
 # failure after retries is still FAILED (never silently converted to passed).
@@ -296,20 +352,42 @@ class RealDockerStages:
         wait_s = time.time() - wait_start
         _, stats = _run(["docker", "stats", "--no-stream", "--format",
                          "{{.CPUPerc}}/{{.MemUsage}}", cid])
+        # Health alone proves only that a server is up. The service must also
+        # serve the business surface its own OpenAPI document declares —
+        # a health-only responder FAILS runtime verification (fail-closed).
+        business_ok, business_detail, business_err = False, "", ""
+        if ok:
+            business_ok, business_detail, business_err = probe_business_endpoints(port)
         failure_class = ""
         if not ok:
             if _transient(last_err, TRANSIENT_PROBE_MARKS):
                 failure_class = "infrastructure"
             elif _transient(last_err, PRODUCT_PROBE_MARKS):
                 failure_class = "product"
+        elif not business_ok:
+            if business_err:
+                if _transient(business_err, TRANSIENT_PROBE_MARKS):
+                    failure_class = "infrastructure"
+                elif _transient(business_err, PRODUCT_PROBE_MARKS):
+                    failure_class = "product"
+            else:
+                # Logical failure: spec missing/empty/unacceptable — product.
+                failure_class = "product"
+        passed = ok and business_ok
+        if ok and business_ok:
+            detail = f"probe OK; {business_detail}"
+        elif ok:
+            detail = f"probe FAILED: {business_detail}"
+        else:
+            detail = f"probe FAILED: {last_err}"
         return StageExecution(
             stage=TrialStage.RUNTIME,
             mode=ExecutionMode.REAL_DOCKER,
-            passed=ok,
+            passed=passed,
             duration_s=time.time() - t0,
             logs_hash=_h(stats),
             peak_resource=stats.strip() if ok else "",
-            detail="probe OK" if ok else f"probe FAILED: {last_err}",
+            detail=detail,
             # Readiness polls are WAITS, not retries: bounded independently via
             # startup_polls/startup_wait_s, and excluded from retry_rate.
             retries=0,

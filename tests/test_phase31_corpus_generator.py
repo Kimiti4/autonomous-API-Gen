@@ -124,8 +124,12 @@ def test_all_generated_models_pass_static_verification(tmp_path, monkeypatch):
     )
     corpus = generate_corpus(16, seed=42)
     report = harness.calibrate(corpus=corpus, out_root=tmp_path / "out")
-    assert report.success_rate == 1.0
-    assert report.passed == report.total == len(corpus) * len(report.backends_tested)
+    # Static verification passes for every (model, backend); the hermetic run
+    # has no runtime evidence, so the fail-closed gate reports zero passes.
+    assert all(o.verification_report.ok for o in report.outcomes)
+    assert report.passed == 0
+    assert report.success_rate == 0.0
+    assert report.total == len(corpus) * len(report.backends_tested)
     assert set(report.backends_tested) == _expected_backend_ids()
     assert JsonlEvidenceLedger(tmp_path / "ev.jsonl").verify_chain()
 
@@ -264,7 +268,8 @@ def test_calibrate_cli_generate(tmp_path, monkeypatch):
             "--ledger", str(tmp_path / "cli-evidence.jsonl"),
         ]
     )
-    assert rc == 0
+    # Fail-closed: hermetic run (no runtime evidence) reports gate failure.
+    assert rc == 1
     assert (tmp_path / "cli-out" / "go_hexagonal").is_dir()
     assert any((tmp_path / "cli-out" / "fastapi_hexagonal").rglob("main.py"))
     ledger = JsonlEvidenceLedger(tmp_path / "cli-evidence.jsonl")
@@ -287,6 +292,7 @@ def test_calibrate_cli_generate_dumps_corpus_when_asked(tmp_path, monkeypatch):
             "--ledger", str(tmp_path / "cli-evidence.jsonl"),
         ]
     )
-    assert rc == 0
+    # Fail-closed: hermetic run (no runtime evidence) reports gate failure.
+    assert rc == 1
     loaded = load_corpus(corpus_path)
     assert len(loaded) == 4

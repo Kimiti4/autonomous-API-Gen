@@ -14,6 +14,13 @@ import os
 import sys
 from pathlib import Path
 
+# Self-contained path bootstrap: the verifier must import the workspace
+# packages regardless of the caller's cwd or PYTHONPATH (it is invoked as a
+# plain script from campaign runners and tests alike).
+_WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
+if str(_WORKSPACE_ROOT) not in sys.path:
+    sys.path.insert(0, str(_WORKSPACE_ROOT))
+
 
 def main() -> None:
     if len(sys.argv) != 4:

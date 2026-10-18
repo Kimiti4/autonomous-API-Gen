@@ -32,9 +32,20 @@ def _lint_score(files: dict[str, str]) -> float:
     return 1.0 if bad == 0 else max(0.0, 1.0 - 0.25 * bad)
 
 
+def _meaningful_doc(content: str) -> bool:
+    """A doc file counts only with real substance: beyond headings/title
+    lines it must carry >= 120 characters of actual prose or code."""
+    body_lines = [
+        line.strip()
+        for line in content.splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+    return len("".join(body_lines)) >= 120
+
+
 def _doc_completeness(files: dict[str, str]) -> float:
     need = ["README.md", "docs/architecture.md"]
-    have = sum(1 for n in need if n in files)
+    have = sum(1 for n in need if n in files and _meaningful_doc(files[n]))
     return have / len(need) if need else 1.0
 
 

@@ -477,7 +477,11 @@ class CampaignRunner:
                     ok, detail = _unconfigured_stage(TrialStage.DESTROY)
                     _record(TrialStage.DESTROY, ok, detail)
     
-                expected_paths = sorted(set(backend.element_paths(plan).values()))
+                # Candidate identity is the exact repository the backend
+                # compiled: every emitted file (including glue/aggregate modules
+                # that map to no plan element, e.g. Rust mod.rs wiring) must be
+                # present, so the canonical subset hash matches repo.content_hash.
+                expected_paths = sorted(repo.files)
                 plan_hash = hashlib.sha256(
                     json.dumps(expected_paths).encode("utf-8")
                 ).hexdigest()

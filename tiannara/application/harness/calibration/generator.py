@@ -369,7 +369,11 @@ class SystemModelCorpusGenerator:
                     owning_service_id=secondary_svc,
                     fields=[
                         FieldSpec(name="id", type=AbstractFieldType.IDENTIFIER),
-                        FieldSpec(name="reference_id", type=AbstractFieldType.REFERENCE),
+                        FieldSpec(
+                            name="reference_id",
+                            type=AbstractFieldType.REFERENCE,
+                            reference_target_model_id=f"dm-{slug}",
+                        ),
                     ],
                     consistency=stratum["consistency"],
                 )
@@ -468,6 +472,14 @@ class SystemModelCorpusGenerator:
         if field_type is AbstractFieldType.TIMESTAMP:
             return FieldSpec(
                 name=name, type=field_type, required=True, description=f"point in time for {name}"
+            )
+        if field_type is AbstractFieldType.REFERENCE:
+            return FieldSpec(
+                name=name,
+                type=field_type,
+                required=bool((index + pos) % 2 == 0),
+                description=f"value for {name}",
+                reference_target_model_id="dm-owner",
             )
         return FieldSpec(
             name=name,

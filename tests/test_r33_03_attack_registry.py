@@ -2,7 +2,7 @@ import pytest
 from tiannara.application.security.attack_registry import AttackRegistry
 from tiannara.application.security.attack_taxonomy import AttackDefinition, Criticality
 from .test_r29_10_9_campaign_readiness import CampaignReadinessHarness
-RECIPE_HASH = "317b62a84dc1c4c0ee4a0e43c732a8d2d8b2f7b3c6b0404712a0fc5d6bb74613"
+RECIPE_HASH = "a3d9c01cb688769f4143b1a5da8623694fb146769532cb3c0e2dfbffa98377f4"
 def test_duplicate_rejected():
     a = AttackDefinition("dup", "sql_injection", "union", "1.0.0", "db", ("DB_INTERFACE",), Criticality.CRITICAL, (), (), (), ())
     with pytest.raises(ValueError):

@@ -1,6 +1,6 @@
 from tiannara.application.evolution.architecture_constraint_detector import detect_constraints
 from .test_r29_10_9_campaign_readiness import CampaignReadinessHarness
-RECIPE_HASH="317b62a84dc1c4c0ee4a0e43c732a8d2d8b2f7b3c6b0404712a0fc5d6bb74613"
+RECIPE_HASH="a3d9c01cb688769f4143b1a5da8623694fb146769532cb3c0e2dfbffa98377f4"
 def test_detects_from_observation():
     assert "throughput_violation" in detect_constraints({"throughput": 50, "required_throughput": 100})
     assert "latency_violation" in detect_constraints({"latency": 300, "required_latency": 200})

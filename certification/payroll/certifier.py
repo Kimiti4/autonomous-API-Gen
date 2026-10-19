@@ -29,6 +29,7 @@ from reqgraph.core.graph import Priority, RequirementGraph
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 PAYROLL_BEHAVIORAL_FEATURES = frozenset({
     SemanticFeature.TYPED_FIELDS,
+    SemanticFeature.FIELD_CONSTRAINTS,
     SemanticFeature.EXPRESSIONS,
     SemanticFeature.BUSINESS_RULES,
     SemanticFeature.STATE_TRANSITIONS,

@@ -516,6 +516,27 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
                     f"        transitions = json.loads({json.dumps(transitions)!r})",
                     "        return apply_transition(transitions, transition_id, current_state, context)",
                 ]
+        if svc:
+            semantic_service = next((item for item in plan.services if _slug(item.name) == svc["mod"]), None)
+            if semantic_service is not None and semantic_service.effects:
+                effect_specs = []
+                for effect in semantic_service.effects:
+                    if effect.behavior is None:
+                        raise UnsupportedSemanticsError(
+                            f"Service {semantic_service.id!r} has an effect without typed semantics"
+                        )
+                    effect_specs.append({"id": effect.id, **effect.behavior.model_dump(mode="json")})
+                lines[2:2] = ["import json", "from app.core.behavior import apply_effect"]
+                lines += [
+                    "",
+                    "    def execute_effect(self, effect_id: str, idempotency_key: str | None, execute, ledger: dict) -> object:",
+                    f"        effects = json.loads({json.dumps(effect_specs)!r})",
+                    "        effect = next((item for item in effects if item['id'] == effect_id), None)",
+                    "        if effect is None:",
+                    "            raise ValueError('unknown effect')",
+                    "        return apply_effect(effect, idempotency_key, execute, ledger)",
+                    "",
+                ]
         return "\n".join(lines).rstrip("\n") + "\n"
 
     def _event(self, path: str, plan: CompilationPlan) -> str:

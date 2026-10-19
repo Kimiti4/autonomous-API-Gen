@@ -44,6 +44,15 @@ PAYROLL_BEHAVIORAL_FEATURES = frozenset({
 
 
 @dataclass(frozen=True)
+class TORReviewEvidence:
+    candidate_id: str
+    disposition: str
+    reviewed_by: str
+    rationale: str
+    requirement_id: str | None = None
+
+
+@dataclass(frozen=True)
 class StatutoryEvidence:
     scheme: str
     source_ref: str
@@ -215,6 +224,10 @@ def compute_payroll_candidate_hash(
     tor_source_sha256: str,
     tor_candidate_count: int,
     reviewed_tor_candidate_count: int,
+    tor_candidate_ids: Sequence[str],
+    tor_review_records: Sequence[TORReviewEvidence],
+    tor_review_ledger_sha256: str,
+    tor_review_ledger_ref: str,
     backend_artifact_hashes: Mapping[str, str],
     frontend_artifact_sha256: str,
 ) -> str:
@@ -242,6 +255,19 @@ def compute_payroll_candidate_hash(
         "tor_source_sha256": tor_source_sha256,
         "tor_candidate_count": tor_candidate_count,
         "reviewed_tor_candidate_count": reviewed_tor_candidate_count,
+        "tor_candidate_ids": sorted(tor_candidate_ids),
+        "tor_review_records": [
+            {
+                "candidate_id": record.candidate_id,
+                "disposition": record.disposition,
+                "reviewed_by": record.reviewed_by,
+                "rationale": record.rationale,
+                "requirement_id": record.requirement_id,
+            }
+            for record in sorted(tor_review_records, key=lambda item: item.candidate_id)
+        ],
+        "tor_review_ledger_sha256": tor_review_ledger_sha256,
+        "tor_review_ledger_ref": tor_review_ledger_ref,
     }
     canonical = json.dumps(manifest, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
@@ -257,6 +283,10 @@ def certify_payroll_candidate(
     tor_source_sha256: str,
     tor_candidate_count: int,
     reviewed_tor_candidate_count: int,
+    tor_candidate_ids: Sequence[str],
+    tor_review_records: Sequence[TORReviewEvidence],
+    tor_review_ledger_sha256: str,
+    tor_review_ledger_ref: str,
     backend_artifact_hashes: Mapping[str, str],
     frontend_artifact_sha256: str,
     payroll_period_start: str,
@@ -294,6 +324,37 @@ def certify_payroll_candidate(
         findings.append(
             f"TOR review incomplete: {reviewed_tor_candidate_count}/{tor_candidate_count} candidates reviewed"
         )
+    candidate_ids = list(tor_candidate_ids)
+    if len(candidate_ids) != len(set(candidate_ids)):
+        findings.append("TOR candidate ID list contains duplicates")
+    if tor_candidate_count != len(candidate_ids):
+        findings.append("TOR candidate count does not match extracted candidate IDs")
+    review_by_id: dict[str, TORReviewEvidence] = {}
+    for record in tor_review_records:
+        if record.candidate_id in review_by_id:
+            findings.append(f"duplicate TOR review record: {record.candidate_id}")
+        review_by_id[record.candidate_id] = record
+    if set(review_by_id) - set(candidate_ids):
+        findings.append("TOR review ledger contains unknown candidate IDs")
+    if set(review_by_id) != set(candidate_ids):
+        findings.append("TOR review ledger does not contain a disposition for every extracted candidate")
+    if reviewed_tor_candidate_count != len(review_by_id):
+        findings.append("reviewed TOR count does not match review-ledger records")
+    if not _valid_hash(tor_review_ledger_sha256) or not tor_review_ledger_ref.strip():
+        findings.append("TOR review ledger provenance is missing or invalid")
+    approved_candidate_ids: set[str] = set()
+    for record in tor_review_records:
+        if not record.reviewed_by.strip() or not record.rationale.strip():
+            findings.append(f"TOR review record lacks reviewer or rationale: {record.candidate_id}")
+        if record.disposition == "approved_requirement":
+            if not record.requirement_id:
+                findings.append(f"approved TOR candidate lacks requirement ID: {record.candidate_id}")
+            approved_candidate_ids.add(record.candidate_id)
+        elif record.disposition == "rejected_not_requirement":
+            if record.requirement_id:
+                findings.append(f"rejected TOR candidate must not bind a requirement ID: {record.candidate_id}")
+        else:
+            findings.append(f"unsupported TOR review disposition: {record.disposition}")
     if plan.isr_id != revision.system_id:
         findings.append("compilation plan is bound to a different ISR system ID")
     if plan.plan_id != f"plan:{revision.content_hash[:16]}":
@@ -313,6 +374,10 @@ def certify_payroll_candidate(
         tor_source_sha256=tor_source_sha256,
         tor_candidate_count=tor_candidate_count,
         reviewed_tor_candidate_count=reviewed_tor_candidate_count,
+        tor_candidate_ids=tor_candidate_ids,
+        tor_review_records=tor_review_records,
+        tor_review_ledger_sha256=tor_review_ledger_sha256,
+        tor_review_ledger_ref=tor_review_ledger_ref,
         backend_artifact_hashes=backend_artifact_hashes,
         frontend_artifact_sha256=frontend_artifact_sha256,
     )
@@ -323,6 +388,26 @@ def certify_payroll_candidate(
     period_end = _iso_date(payroll_period_end, "payroll period end", findings)
     if period_start and period_end and period_end < period_start:
         findings.append("payroll period end precedes payroll period start")
+
+    graph_candidate_ids: set[str] = set()
+    for node in requirement_graph.nodes.values():
+        candidate_id = str(node.properties.get("candidate_id", ""))
+        if not candidate_id:
+            findings.append(f"reviewed requirement lacks TOR candidate provenance: {node.id}")
+            continue
+        graph_candidate_ids.add(candidate_id)
+        if node.properties.get("review_status") != "approved":
+            findings.append(f"requirement is not explicitly approved: {node.id}")
+        if node.properties.get("source_text_sha256") != tor_source_sha256:
+            findings.append(f"requirement source hash does not match TOR source: {node.id}")
+    if graph_candidate_ids != approved_candidate_ids:
+        findings.append("approved TOR review dispositions do not match requirements in the graph")
+    for candidate_id in approved_candidate_ids:
+        record = review_by_id.get(candidate_id)
+        if record is None or record.requirement_id not in requirement_graph.nodes:
+            findings.append(f"approved TOR candidate does not map to a requirement node: {candidate_id}")
+        elif requirement_graph.nodes[record.requirement_id].properties.get("candidate_id") != candidate_id:
+            findings.append(f"TOR review requirement binding mismatch: {candidate_id}")
 
     mandatory_ids = {
         node.id for node in requirement_graph.nodes.values()

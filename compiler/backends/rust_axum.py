@@ -519,10 +519,11 @@ mod tests {
     def _application(self, path: str, plan: CompilationPlan) -> str:
         stem = path.rsplit("/", 1)[-1][: -len(".rs")]
         svc = next((s for s in plan_services(plan) if s["mod"] == stem), None)
+        service = next((item for item in plan.services if _slug(item.name) == stem), None)
         name = svc["name"] if svc else stem
         owned = svc["owned"] if svc else []
         lines = [
-            f"//! Application validation for service {name} (generated).",
+            f"//! Application behavior for service {name} (generated from ISR).",
             "use serde_json::Value;",
             "",
             "pub fn service_name() -> &'static str {",
@@ -532,17 +533,55 @@ mod tests {
         ]
         for mod_e in owned:
             fn = mod_e.lower()
+            model = next((item for item in plan.data_models if _slug(item.entity_name) == mod_e), None)
+            if model is not None and model.behavior is not None:
+                schema_json = json.dumps([field.model_dump(mode="json") for field in model.behavior.fields])
+                schema_literal = json.dumps(schema_json)
+                lines += [
+                    f"pub fn validate_{fn}(payload: &Value) -> Result<(), String> {{",
+                    f"    let fields: Value = serde_json::from_str({schema_literal}).map_err(|e| e.to_string())?;",
+                    "    crate::core::behavior::validate_fields(&fields, payload)",
+                    "}",
+                    "",
+                ]
+            else:
+                lines += [
+                    f"pub fn validate_{fn}(payload: &Value) -> Result<(), String> {{",
+                    '    let name = payload.get("name").and_then(|v| v.as_str()).unwrap_or("");',
+                    '    if name.is_empty() { return Err("name must be a non-empty string".to_string()); }',
+                    "    Ok(())",
+                    "}",
+                    "",
+                ]
+        if service is not None and service.behavior is not None:
+            rules = [item.model_dump(mode="json") for item in service.behavior.rules]
+            transitions = [item.model_dump(mode="json") for item in service.behavior.transitions]
+            rules_literal = json.dumps(json.dumps(rules))
+            transitions_literal = json.dumps(json.dumps(transitions))
             lines += [
-                f"pub fn validate_{fn}(payload: &Value) -> Result<(), &'static str> {{",
-                '    let name = payload.get("name").and_then(|v| v.as_str()).unwrap_or("");',
-                '    if name.is_empty() {',
-                '        return Err("name must be a non-empty string");',
-                "    }",
-                "    Ok(())",
+                f"pub fn evaluate_rule(rule_id: &str, context: &Value) -> Result<Value, String> {{",
+                f"    let rules: Value = serde_json::from_str({rules_literal}).map_err(|e| e.to_string())?;",
+                "    let rule = rules.as_array().and_then(|items| items.iter().find(|item| item.get(\"rule_id\").and_then(Value::as_str) == Some(rule_id))).ok_or(\"unknown business rule\")?;",
+                "    crate::core::behavior::evaluate_expression(&rule[\"expression\"], context)",
+                "}",
+                "",
+                "pub fn apply_transition(transition_id: &str, current_state: &str, context: &Value) -> Result<String, String> {",
+                f"    let transitions: Value = serde_json::from_str({transitions_literal}).map_err(|e| e.to_string())?;",
+                "    crate::core::behavior::apply_transition(&transitions, transition_id, current_state, context)",
                 "}",
                 "",
             ]
-        return "\n".join(lines)
+        if service is not None and service.security_policies:
+            policies = [policy.behavior.model_dump(mode="json") if policy.behavior is not None else {"rules": []} for policy in service.security_policies]
+            policies_literal = json.dumps(json.dumps(policies))
+            lines += [
+                "pub fn authorize(role: &str, action: &str, resource: &str, attributes: &Value) -> bool {",
+                f"    let policies: Value = serde_json::from_str({policies_literal}).expect(\"validated ISR security policy\");",
+                "    crate::core::behavior::authorize(&policies, role, action, resource, attributes)",
+                "}",
+                "",
+            ]
+        return "\\n".join(lines) + "\\n"
 
     def _event(self, path: str, plan: CompilationPlan) -> str:
         stem = path.rsplit("/", 1)[-1][: -len(".rs")]

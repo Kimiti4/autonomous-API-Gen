@@ -166,7 +166,7 @@ class RustAxumBackend:
             'axum = "0.7"\n'
             'tokio = { version = "1", features = ["full"] }\n'
             'serde = { version = "1", features = ["derive"] }\n'
-            'serde_json = "1"\n'
+            'serde_json = "1"\n'            'rust_decimal = { version = "1", features = ["serde"] }\n'
         )
 
     def _repositories(self) -> str:

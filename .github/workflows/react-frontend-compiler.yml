@@ -10,6 +10,9 @@ on:
       - "isr/core/behavior.py"
       - "isr/core/behavior_validation.py"
       - "tests/test_react_frontend_compiler.py"
+      - "tests/test_behavioral_isr_contract.py"
+      - "tests/test_behavioral_isr_projection.py"
+      - "tests/test_behavioral_backend_emission.py"
       - "tests/integration/test_react_frontend_build.py"
       - "reqgraph/ingestion/tor_extractor.py"
       - "reqgraph/adapters/isr_projection.py"
@@ -38,6 +41,6 @@ jobs:
       - name: Install Python test dependencies
         run: python -m pip install "pydantic>=2.7,<3" pytest
       - name: Verify ISR projection and fail-closed frontend gates
-        run: python -m pytest tests/test_react_frontend_compiler.py tests/test_tor_ingestion_and_isr_projection.py tests/payroll/test_payroll_readiness.py -q
+        run: python -m pytest tests/test_behavioral_isr_contract.py tests/test_behavioral_isr_projection.py tests/test_behavioral_backend_emission.py tests/test_react_frontend_compiler.py tests/test_tor_ingestion_and_isr_projection.py tests/payroll/test_payroll_readiness.py -q
       - name: Install generated app dependencies, run interaction tests, and build
         run: python -m pytest tests/integration/test_react_frontend_build.py -q

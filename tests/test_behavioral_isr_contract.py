@@ -15,7 +15,7 @@ from isr.core.behavior import (
     expression_field_refs,
 )
 from isr.core.behavior_validation import BehavioralContractViolation
-from isr.core.graph import Edge, EdgeType, ISRGraph, Node, NodeType
+from isr.core.graph import ISRGraph, Node, NodeType
 from isr.core.identity import Provenance, compute_content_hash
 from isr.core.revision import ISRRevision
 

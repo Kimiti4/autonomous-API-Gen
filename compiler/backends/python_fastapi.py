@@ -8,6 +8,8 @@ CRUD surface, the OpenAPI document, and auth.
 """
 from __future__ import annotations
 
+import json
+
 from compiler.core.plan import CompilationPlan
 from compiler.core.capabilities import assert_plan_supported, structural_only
 from compiler.core.repository import GeneratedRepository, build_repository
@@ -457,6 +459,25 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
                 f'        return repository_for("{mod_e}").delete(item_id)',
                 "",
             ]
+        if svc:
+            semantic_service = next((item for item in plan.services if item.id == svc["id"]), None)
+            if semantic_service is not None and semantic_service.behavior is not None:
+                rules = [item.model_dump(mode="json") for item in semantic_service.behavior.rules]
+                transitions = [item.model_dump(mode="json") for item in semantic_service.behavior.transitions]
+                lines[2:2] = ["import json", "from app.core.behavior import evaluate_expression, apply_transition"]
+                lines += [
+                    "",
+                    "    def evaluate_rule(self, rule_id: str, context: dict) -> object:",
+                    f"        rules = json.loads({json.dumps(rules)!r})",
+                    "        rule = next((item for item in rules if item['rule_id'] == rule_id), None)",
+                    "        if rule is None:",
+                    "            raise ValueError('unknown business rule')",
+                    "        return evaluate_expression(rule['expression'], context)",
+                    "",
+                    "    def apply_transition(self, transition_id: str, current_state: str, context: dict) -> str:",
+                    f"        transitions = json.loads({json.dumps(transitions)!r})",
+                    "        return apply_transition(transitions, transition_id, current_state, context)",
+                ]
         return "\n".join(lines).rstrip("\n") + "\n"
 
     def _event(self, path: str, plan: CompilationPlan) -> str:

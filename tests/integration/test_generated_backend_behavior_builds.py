@@ -23,6 +23,10 @@ def _plan():
                 {"name": "allowances", "value_type": "money", "precision": 12, "scale": 2},
             ]},
         }),
+        "effect:bank-transfer": Node(id="effect:bank-transfer", type=NodeType.EFFECT, properties={
+            "label": "BankTransfer",
+            "behavior": {"effect_kind": "bank_transfer", "idempotent": True, "idempotency_key_required": True},
+        }),
         "service:payroll": Node(id="service:payroll", type=NodeType.SERVICE, properties={
             "label": "Payroll",
             "behavior": {
@@ -48,6 +52,7 @@ def _plan():
     }
     edges = {
         "persist": Edge(id="persist", type=EdgeType.PERSISTS, source_id="service:payroll", target_id="data:employee"),
+        "effect": Edge(id="effect", type=EdgeType.CAUSES_EFFECT, source_id="service:payroll", target_id="effect:bank-transfer"),
     }
     revision = ISRRevision.create(
         "generated-behavior-build",

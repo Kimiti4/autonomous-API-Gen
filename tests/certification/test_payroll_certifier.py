@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from compiler.core.capabilities import BackendCapabilities
-from compiler.core.plan import CompilationPlan
+from compiler.core.plan import ApiOperation, CompilationPlan
+from isr.core.behavior import ApiBehavior
 from isr.core.graph import ISRGraph, Node, NodeType
 from isr.core.identity import Provenance
 from isr.core.revision import ISRRevision
@@ -100,6 +101,19 @@ def test_payroll_certifier_rejects_malformed_candidate_hash():
 
 def test_payroll_certifier_rejects_backend_without_required_behavioral_capabilities():
     requirements, revision, plan, caps = _inputs()
+    plan = CompilationPlan(
+        plan_id=plan.plan_id,
+        isr_id=plan.isr_id,
+        apis=[ApiOperation(
+            id="api:submit",
+            name="submit",
+            behavior=ApiBehavior(
+                operation_id="payroll.submit",
+                method="POST",
+                path="/payroll-runs/submit",
+            ),
+        )],
+    )
     report = certify_payroll_candidate(
         requirement_graph=requirements,
         revision=revision,

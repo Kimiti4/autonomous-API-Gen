@@ -246,6 +246,15 @@ def _number(value: Any) -> Decimal:
         raise BehaviorError("arithmetic operand is not numeric") from exc
 
 
+def _comparison_values(left: Any, right: Any) -> tuple[Any, Any]:
+    if isinstance(left, bool) or isinstance(right, bool):
+        return left, right
+    try:
+        return _number(left), _number(right)
+    except BehaviorError:
+        return left, right
+
+
 def evaluate_expression(expression: dict[str, Any], context: dict[str, Any]) -> Any:
     op = expression.get("op")
     raw_args = expression.get("args", [])
@@ -272,18 +281,19 @@ def evaluate_expression(expression: dict[str, Any], context: dict[str, Any]) -> 
         if divisor == 0:
             raise BehaviorError("division by zero")
         return _number(args[0]) / divisor
-    if op == "equal":
-        return args[0] == args[1]
-    if op == "not_equal":
-        return args[0] != args[1]
-    if op == "less_than":
-        return args[0] < args[1]
-    if op == "less_or_equal":
-        return args[0] <= args[1]
-    if op == "greater_than":
-        return args[0] > args[1]
-    if op == "greater_or_equal":
-        return args[0] >= args[1]
+    if op in ("equal", "not_equal", "less_than", "less_or_equal", "greater_than", "greater_or_equal"):
+        left, right = _comparison_values(args[0], args[1])
+        if op == "equal":
+            return left == right
+        if op == "not_equal":
+            return left != right
+        if op == "less_than":
+            return left < right
+        if op == "less_or_equal":
+            return left <= right
+        if op == "greater_than":
+            return left > right
+        return left >= right
     if op == "not":
         return not bool(args[0])
     raise BehaviorError(f"unsupported expression operator: {op!r}")

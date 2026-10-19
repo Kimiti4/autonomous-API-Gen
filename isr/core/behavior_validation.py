@@ -7,6 +7,8 @@ from isr.core.behavior import (
     EventBehavior,
     InvariantSpec,
     Expression,
+    FrontendInteractionBehavior,
+    FrontendRouteBehavior,
     ServiceBehavior,
     expression_field_refs,
     validate_behavior_payload,
@@ -53,6 +55,61 @@ def validate_behavioral_graph(graph: ISRGraph) -> None:
                 for field in payload.fields:
                     all_field_refs.add(f"{label}.{field.name}")
                     simple_names[field.name] = simple_names.get(field.name, 0) + 1
+
+    route_paths: dict[str, str] = {}
+    for node_id, payload in parsed.items():
+        if isinstance(payload, FrontendRouteBehavior):
+            previous = route_paths.get(payload.path)
+            if previous is not None:
+                raise BehavioralContractViolation(
+                    f"Duplicate frontend route path {payload.path!r} on {previous!r} and {node_id!r}"
+                )
+            route_paths[payload.path] = node_id
+        elif isinstance(payload, FrontendInteractionBehavior):
+            owner_routes = [
+                edge.source_id for edge in graph.edges.values()
+                if edge.type.value == "contains" and edge.target_id == node_id
+                and edge.source_id in graph.nodes
+                and graph.nodes[edge.source_id].type == NodeType.FRONTEND_ROUTE
+            ]
+            if len(owner_routes) != 1:
+                raise BehavioralContractViolation(
+                    f"Frontend interaction {node_id!r} must belong to exactly one frontend route"
+                )
+            targets = [
+                edge.target_id for edge in graph.edges.values()
+                if edge.type.value == "invokes" and edge.source_id == node_id
+            ]
+            if payload.action in {"submit", "refresh", "delete"}:
+                if len(targets) != 1 or targets[0] not in graph.nodes:
+                    raise BehavioralContractViolation(
+                        f"Frontend interaction {node_id!r} requires exactly one API target"
+                    )
+                target_node = graph.nodes[targets[0]]
+                if target_node.type != NodeType.API or "behavior" not in target_node.properties:
+                    raise BehavioralContractViolation(
+                        f"Frontend interaction {node_id!r} must invoke an API with an explicit contract"
+                    )
+                try:
+                    api = validate_behavior_payload("api", target_node.properties["behavior"])
+                except Exception as exc:
+                    raise BehavioralContractViolation(
+                        f"Frontend interaction {node_id!r} invokes an invalid API contract: {exc}"
+                    ) from exc
+                expected_methods = {
+                    "submit": {"POST", "PUT", "PATCH"},
+                    "refresh": {"GET"},
+                    "delete": {"DELETE"},
+                }[payload.action]
+                if api.method not in expected_methods:
+                    raise BehavioralContractViolation(
+                        f"Frontend interaction {node_id!r} action {payload.action!r} "
+                        f"is incompatible with API method {api.method!r}"
+                    )
+            elif targets:
+                raise BehavioralContractViolation(
+                    f"Frontend toggle interaction {node_id!r} must not invoke an API in v1"
+                )
 
     valid_refs = all_field_refs | {
         name for name, count in simple_names.items() if count == 1

@@ -49,7 +49,7 @@ def test_real_backend_compile_fails_closed_for_unimplemented_semantics(backend):
             id="dm:employee",
             entity_name="Employee",
             behavior=DataModelBehavior.model_validate({
-                "fields": [{"name": "salary", "value_type": "money", "precision": 12, "scale": 2}]
+                "fields": [{"name": "salary", "value_type": "money", "precision": 12, "scale": 2, "constraints": [{"operator": "unique"}]}]
             }),
         )],
     )

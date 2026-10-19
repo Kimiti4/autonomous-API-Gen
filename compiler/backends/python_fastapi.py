@@ -245,15 +245,28 @@ def _number(value: Any) -> Decimal:
         raise BehaviorError("arithmetic operand is not numeric") from exc
 
 
+def _boolean(value: Any) -> bool:
+    if not isinstance(value, bool):
+        raise BehaviorError("boolean operand required")
+    return value
+
+
+def _compare(left: Any, right: Any) -> int:
+    if isinstance(left, str) and isinstance(right, str):
+        return (left > right) - (left < right)
+    left_number, right_number = _number(left), _number(right)
+    return (left_number > right_number) - (left_number < right_number)
+
+
 def evaluate_expression(expression: dict[str, Any], context: dict[str, Any]) -> Any:
     op = expression.get("op")
     raw_args = expression.get("args", [])
     if op == "and":
-        return bool(evaluate_expression(raw_args[0], context)) and bool(evaluate_expression(raw_args[1], context))
+        return _boolean(evaluate_expression(raw_args[0], context)) and _boolean(evaluate_expression(raw_args[1], context))
     if op == "or":
-        return bool(evaluate_expression(raw_args[0], context)) or bool(evaluate_expression(raw_args[1], context))
+        return _boolean(evaluate_expression(raw_args[0], context)) or _boolean(evaluate_expression(raw_args[1], context))
     if op == "if_else":
-        condition = bool(evaluate_expression(raw_args[0], context))
+        condition = _boolean(evaluate_expression(raw_args[0], context))
         return evaluate_expression(raw_args[1] if condition else raw_args[2], context)
     args = [evaluate_expression(arg, context) for arg in raw_args]
     if op == "literal":
@@ -272,19 +285,24 @@ def evaluate_expression(expression: dict[str, Any], context: dict[str, Any]) -> 
             raise BehaviorError("division by zero")
         return _number(args[0]) / divisor
     if op == "equal":
-        return args[0] == args[1]
+        if isinstance(args[0], str) and isinstance(args[1], str):
+            return args[0] == args[1]
+        try:
+            return _number(args[0]) == _number(args[1])
+        except BehaviorError:
+            return args[0] == args[1]
     if op == "not_equal":
-        return args[0] != args[1]
+        return not evaluate_expression({"op": "equal", "args": raw_args}, context)
     if op == "less_than":
-        return args[0] < args[1]
+        return _compare(args[0], args[1]) < 0
     if op == "less_or_equal":
-        return args[0] <= args[1]
+        return _compare(args[0], args[1]) <= 0
     if op == "greater_than":
-        return args[0] > args[1]
+        return _compare(args[0], args[1]) > 0
     if op == "greater_or_equal":
-        return args[0] >= args[1]
+        return _compare(args[0], args[1]) >= 0
     if op == "not":
-        return not bool(args[0])
+        return not _boolean(args[0])
     raise BehaviorError(f"unsupported expression operator: {op!r}")
 
 

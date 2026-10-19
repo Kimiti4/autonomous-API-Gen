@@ -67,6 +67,8 @@ class TORExtractionDraft(BaseModel):
         approvals: Mapping[str, HumanApproval],
     ) -> RequirementGraph:
         """Build a validated graph only when every extracted item is approved."""
+        if not self.candidates:
+            raise ValueError("cannot approve a TOR extraction with zero requirement candidates")
         candidate_ids = {candidate.requirement_id for candidate in self.candidates}
         missing = sorted(candidate_ids - set(approvals))
         extra = sorted(set(approvals) - candidate_ids)
@@ -244,6 +246,9 @@ def extract_tor_text(source_text: str, source_name: str) -> TORExtractionDraft:
             source_start_line=line_number,
             source_end_line=line_number,
         ))
+
+    if not candidates:
+        raise ValueError("no requirement candidates found; provide a clearer TOR or explicit obligation statements")
 
     return TORExtractionDraft(
         source_name=source_name,

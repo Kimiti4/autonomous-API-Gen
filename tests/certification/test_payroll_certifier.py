@@ -7,7 +7,7 @@ from isr.core.graph import ISRGraph, Node, NodeType
 from isr.core.identity import Provenance
 from isr.core.revision import ISRRevision
 from reqgraph.core.graph import Priority, RequirementGraph, RequirementKind, RequirementNode
-from certification.payroll.certifier import certify_payroll_candidate
+from certification.payroll.certifier import StatutoryEvidence, certify_payroll_candidate
 
 
 def _inputs():
@@ -128,3 +128,35 @@ def test_payroll_certifier_rejects_backend_without_required_behavioral_capabilit
     )
     assert any("missing API operation contracts" in finding for finding in report.findings)
     assert any("cannot implement this payroll plan" in finding for finding in report.findings)
+
+
+
+def test_payroll_certifier_rejects_statutory_source_that_covers_only_part_of_period():
+    requirements, revision, plan, caps = _inputs()
+    candidate_hash = "a" * 64
+    report = certify_payroll_candidate(
+        requirement_graph=requirements,
+        revision=revision,
+        plan=plan,
+        candidate_sha256=candidate_hash,
+        payroll_period_start="2026-10-01",
+        payroll_period_end="2026-10-31",
+        required_statutory_schemes=("income_tax",),
+        required_oracle_categories=(),
+        backend_capabilities=caps,
+        required_backends=("python-fastapi", "rust-axum"),
+        statutory_evidence=(StatutoryEvidence(
+            scheme="income_tax",
+            source_ref="official-source#effective-2026-10",
+            source_sha256="b" * 64,
+            effective_from="2026-10-01",
+            effective_to="2026-10-14",
+            verified_by="independent-reviewer",
+            candidate_sha256=candidate_hash,
+            test_cases=2,
+            passed_cases=2,
+            failed_cases=0,
+        ),),
+    )
+    assert not report.certified
+    assert any("does not cover the full payroll period" in finding for finding in report.findings)

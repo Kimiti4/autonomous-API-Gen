@@ -128,7 +128,7 @@ _MODAL = re.compile(r"\b(?:shall|must|should|required to|needs to|will provide|m
 _ACTION = re.compile(
     r"\b(?:provide|support|allow|include|generate|maintain|ensure|automate|"
     r"integrate|track|calculate|process|manage|secure|backup|recover|"
-    r"distribute|access|update|download|allocate|record|retain|demonstrate)\b",
+    r"distribute|access|update|download|allocate|record|retain|demonstrate|submit|deliver|disclose|conduct|apply|view|retrieve|import|export)\b",
     re.I,
 )
 _VAGUE = (

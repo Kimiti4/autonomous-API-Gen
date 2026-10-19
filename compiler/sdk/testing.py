@@ -6,6 +6,7 @@ Every compiler backend should pass these contract tests before certification.
 
 from __future__ import annotations
 
+import ast
 from typing import Any, Optional
 
 from ..ids import deterministic_id, sha256_hex
@@ -98,6 +99,124 @@ def _hash_output(output) -> tuple[tuple[str, str], ...]:
             for artifact in output.artifacts
         )
     )
+
+
+_ROUTE_DECORATOR_METHODS = {"get"}
+_EXCLUDED_BUSINESS_PREFIXES = ("/health", "/docs", "/redoc", "/openapi.json")
+
+
+def _join_route_path(base: str, rel: str) -> str:
+    if not rel:
+        return base or "/"
+    if not rel.startswith("/"):
+        rel = "/" + rel
+    if not base:
+        return rel
+    return base.rstrip("/") + rel
+
+
+def _module_business_get_paths(tree: ast.AST) -> set[str]:
+    """Resolve GET route paths in a FastAPI module, honouring APIRouter
+    prefixes and include_router nesting (relative paths count only through
+    their router's prefix)."""
+    router_prefix: dict[str, list[str]] = {}
+    include_extra: dict[str, list[str]] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(
+            node.targets[0], ast.Name
+        ):
+            target = node.targets[0].id
+            value = node.value
+            if isinstance(value, ast.Call):
+                fname = getattr(value.func, "id", None) or getattr(
+                    value.func, "attr", None
+                )
+                if fname == "APIRouter":
+                    base = ""
+                    for kw in value.keywords:
+                        if kw.arg == "prefix" and isinstance(
+                            kw.value, ast.Constant
+                        ) and isinstance(kw.value.value, str):
+                            base = kw.value.value
+                    router_prefix.setdefault(target, []).append(base)
+        if (
+            isinstance(node, ast.Call)
+            and getattr(node.func, "attr", None) == "include_router"
+            and node.args
+            and isinstance(node.args[0], ast.Name)
+        ):
+            extra = ""
+            for kw in node.keywords:
+                if kw.arg == "prefix" and isinstance(kw.value, ast.Constant) and isinstance(
+                    kw.value.value, str
+                ):
+                    extra = kw.value.value
+            include_extra.setdefault(node.args[0].id, []).append(extra)
+
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for dec in node.decorator_list:
+            if not isinstance(dec, ast.Call) or not isinstance(dec.func, ast.Attribute):
+                continue
+            if dec.func.attr not in _ROUTE_DECORATOR_METHODS:
+                continue
+            if not dec.args or not isinstance(dec.args[0], ast.Constant):
+                continue
+            if not isinstance(dec.args[0].value, str):
+                continue
+            rel = dec.args[0].value
+            receiver = dec.func.value.id if isinstance(dec.func.value, ast.Name) else None
+            bases = list(router_prefix.get(receiver, [])) if receiver in router_prefix else [""]
+            extras = list(include_extra.get(receiver, [])) if receiver in include_extra else [""]
+            for base in bases:
+                for extra in extras:
+                    found.add(_join_route_path(base.rstrip("/") + extra, rel))
+    return found
+
+
+def _python_sources_parse(artifacts: list) -> tuple[bool, str]:
+    bad: list[str] = []
+    for artifact in artifacts:
+        if not artifact.path.endswith(".py"):
+            continue
+        try:
+            ast.parse(artifact.content)
+        except SyntaxError as exc:
+            bad.append(f"{artifact.path}:{exc.msg}")
+    return (not bad), "; ".join(bad)
+
+
+def _business_routes_present(artifacts: list) -> tuple[bool, str]:
+    py_artifacts = [a for a in artifacts if a.path.endswith(".py")]
+    framework_y = any(
+        "FastAPI(" in a.content or "APIRouter(" in a.content for a in py_artifacts
+    )
+    if not framework_y:
+        return True, "no FastAPI application in output"
+    paths: set[str] = set()
+    unparsed: list[str] = []
+    for artifact in py_artifacts:
+        try:
+            tree = ast.parse(artifact.content)
+        except SyntaxError as exc:
+            unparsed.append(f"{artifact.path}:{exc.msg}")
+            continue
+        paths |= _module_business_get_paths(tree)
+    business = sorted(
+        p
+        for p in paths
+        if p
+        and p != "/"
+        and not any(p == x or p.startswith(x) for x in _EXCLUDED_BUSINESS_PREFIXES)
+    )
+    if not business:
+        detail = "no non-health GET routes"
+        if unparsed:
+            detail += f" (unparsed: {', '.join(unparsed)})"
+        return False, detail
+    return True, f"business GET routes: {', '.join(business)}"
 
 
 def run_backend_contract_tests(
@@ -237,6 +356,34 @@ def run_backend_contract_tests(
             ),
         )
     )
+
+    # ------------------------------------------------------------------
+    # Generated Python sources must parse (fail-closed syntax gate)
+    # ------------------------------------------------------------------
+
+    if sample_output is not None:
+        parse_ok, parse_detail = _python_sources_parse(sample_output.artifacts)
+        results.append(
+            ContractTestResult(
+                name="sources_parse",
+                passed=parse_ok,
+                message="" if parse_ok else f"Python source does not parse: {parse_detail}",
+            )
+        )
+
+        # ------------------------------------------------------------------
+        # FastAPI applications must expose business routes — a service that
+        # only answers /health has not demonstrated any working capability.
+        # ------------------------------------------------------------------
+
+        routes_ok, routes_detail = _business_routes_present(sample_output.artifacts)
+        results.append(
+            ContractTestResult(
+                name="business_routes_present",
+                passed=routes_ok,
+                message="" if routes_ok else routes_detail,
+            )
+        )
 
     # ------------------------------------------------------------------
     # Invalid ISR must fail explicitly

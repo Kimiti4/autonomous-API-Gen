@@ -814,19 +814,37 @@ def test_runs_in_build_cargo_assertion_is_product(monkeypatch):
 
 
 def test_probe_records_connect_retries(monkeypatch):
+    import json as _json
+
     import certification.stages.docker_stages as ds
     import urllib.request
-    attempts = {"n": 0}
+    health = {"n": 0}
+    business = {"spec": 0, "get": 0}
 
     class _FakeResp:
+        def __init__(self, payload: bytes = b""):
+            self._payload = payload
+
         def __enter__(self): return self
         def __exit__(self, *a): return False
+        def read(self): return self._payload
+        def getcode(self): return 200
+
+    spec = {"paths": {"/health": {"get": {}}, "/api/orders": {"get": {}}}}
 
     def fake_urlopen(url, timeout=5):
-        attempts["n"] += 1
-        if attempts["n"] < 3:
-            raise ConnectionError("timed out")
-        return _FakeResp()
+        if url.endswith("/health"):
+            health["n"] += 1
+            if health["n"] < 3:
+                raise ConnectionError("timed out")
+            return _FakeResp(b'{"status": "ok"}')
+        if url.endswith("/openapi.json"):
+            business["spec"] += 1
+            return _FakeResp(_json.dumps(spec).encode("utf-8"))
+        if url.endswith("/api/orders"):
+            business["get"] += 1
+            return _FakeResp(b"[]")
+        raise AssertionError(f"unexpected URL probed: {url}")
 
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
     monkeypatch.setattr(ds, "_run", lambda cmd, timeout=900: (0, "0.1%/1MB"))
@@ -838,8 +856,13 @@ def test_probe_records_connect_retries(monkeypatch):
     assert se.retries == 0
     assert se.startup_polls == 2
     assert se.startup_wait_s > 0
-    # Dump used dict-traversal path via model_dump compatibility check
-    assert attempts["n"] == 3
+    # Only /health connect attempts count on the health counter (2 failures +
+    # 1 success); the probe must ALSO have exercised the business surface —
+    # a 200 on /health alone can never pass.
+    assert health["n"] == 3
+    assert business == {"spec": 1, "get": 1}
+    assert "business=" in se.detail
+    assert se.failure_class == ""
 
 
 def test_deploy_classifier_exact_windows_exclusion_is_infrastructure():

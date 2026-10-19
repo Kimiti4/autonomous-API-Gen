@@ -1,14 +1,25 @@
 """PythonFastAPIBackend — reference Python/FastAPI backend (ADR-012 + runnability upgrade).
 
-Emits a runnable minimal FastAPI application: health endpoint, per-service
-CRUD, Pydantic domain models, event handlers, a working Dockerfile, and
-a real TestClient test that passes.
+Emits a genuinely runnable FastAPI application: health endpoint, per-entity
+CRUD routers wired through application services and an in-memory repository,
+Pydantic domain models, event handlers, API-key authorization (fail-closed),
+working Kubernetes/CI manifests, and a real TestClient suite exercising the
+CRUD surface, the OpenAPI document, and auth.
 """
 from __future__ import annotations
+
 from compiler.core.plan import CompilationPlan
 from compiler.core.repository import GeneratedRepository, build_repository
 from compiler.core.conformance import CHECKER, ConformanceReport
 from compiler.core.protocol import BackendClass, BackendIdentity, TestSpec
+from compiler.backends._naming import (
+    cls_name as _cls,
+    plan_entities,
+    plan_events,
+    plan_services,
+    plural as _plural,
+    slug as _slug,
+)
 
 
 class PythonFastAPIBackend:
@@ -26,15 +37,17 @@ class PythonFastAPIBackend:
     def test_spec(self) -> TestSpec:
         return TestSpec(command=["python", "-m", "pytest", "-q"], runs_in="runtime")
 
+    # -- plan layout -------------------------------------------------------
+
     def element_paths(self, plan: CompilationPlan) -> dict[str, str]:
         p: dict[str, str] = {}
         for s in plan.services:
-            n = s.name
+            n = _slug(s.name)
             p[s.id] = f"app/application/{n}.py"
             for mp in s.data_models:
-                p[mp.id] = f"app/domain/{mp.entity_name}.py"
+                p[mp.id] = f"app/domain/{_slug(mp.entity_name)}.py"
             for ev in s.published_events + s.consumed_events:
-                p[ev.id] = f"app/events/{ev.name}.py"
+                p[ev.id] = f"app/events/{_slug(ev.name)}.py"
         for sp in plan.security:
             p[sp.policy_id] = "app/core/security.py"
         p.update({
@@ -52,87 +65,525 @@ class PythonFastAPIBackend:
 
     def compile(self, plan: CompilationPlan) -> GeneratedRepository:
         f: dict[str, str] = {}
-        for pid, path in self.element_paths(plan).items():
-            f[path] = self._emit(pid, plan)
+        for path in dict.fromkeys(self.element_paths(plan).values()):
+            f[path] = self._emit(path, plan)
         return build_repository(f)
 
     def conformance(self, plan: CompilationPlan, repo: GeneratedRepository) -> ConformanceReport:
         return CHECKER.check(plan, self.element_paths(plan), repo)
 
-    def _svc_name(self, pid: str) -> str:
-        return pid.split(":", 1)[-1].replace("-", "_")
+    # -- plan-derived indexes ---------------------------------------------
 
-    def _cls_name(self, pid: str) -> str:
-        return self._svc_name(pid).title().replace("_", "")
+    def _entities(self, plan: CompilationPlan) -> list[dict]:
+        return plan_entities(plan)
 
-    def _emit(self, pid: str, plan: CompilationPlan) -> str:
-        if pid == "infra:docker":
-            return (
-                "FROM python:3.12-slim\n"
-                "WORKDIR /app\n"
-                "COPY requirements.txt .\n"
-                "RUN pip install --no-cache-dir -r requirements.txt\n"
-                "COPY . .\n"
-                "EXPOSE 8000\n"
-                'CMD ["uvicorn","app.main:app","--host","0.0.0.0","--port","8000"]\n'
-            )
-        if pid == "infra:requirements":
+    def _services(self, plan: CompilationPlan) -> list[dict]:
+        return plan_services(plan)
+
+    def _events(self, plan: CompilationPlan) -> list[dict]:
+        return plan_events(plan)
+
+    def _secured(self, plan: CompilationPlan) -> bool:
+        return bool(plan.security)
+
+    # -- emitters ----------------------------------------------------------
+
+    def _emit(self, path: str, plan: CompilationPlan) -> str:
+        if path == "Dockerfile":
+            return self._dockerfile()
+        if path == "requirements.txt":
             return "fastapi\nuvicorn[standard]\npydantic\nhttpx\npytest\n"
-        if pid == "infra:main":
-            return (
-                "from fastapi import FastAPI\n\n"
-                "app = FastAPI()\n\n\n"
-                "@app.get('/health')\n"
-                "def health():\n"
-                "    return {'status': 'ok'}\n"
+        if path == "app/main.py":
+            return self._main(plan)
+        if path == "tests/test_app.py":
+            return self._tests(plan)
+        if path == "k8s/deployment.yaml":
+            return self._k8s()
+        if path == ".github/workflows/ci.yml":
+            return self._ci()
+        if path == "README.md":
+            return self._readme(plan)
+        if path == "docs/architecture.md":
+            return self._docs(plan)
+        if path == "app/infrastructure/repositories.py":
+            return self._repositories()
+        if path == "app/core/security.py":
+            return self._security()
+        if path.startswith("app/domain/"):
+            return self._domain(path)
+        if path.startswith("app/application/"):
+            return self._service(path, plan)
+        if path.startswith("app/events/"):
+            return self._event(path, plan)
+        return f"# unrecognised element path: {path}\n"
+
+    def _dockerfile(self) -> str:
+        return (
+            "FROM python:3.12-slim\n"
+            "WORKDIR /app\n"
+            "COPY requirements.txt .\n"
+            "RUN pip install --no-cache-dir -r requirements.txt\n"
+            "COPY . .\n"
+            "EXPOSE 8000\n"
+            "ENV GENERATED_API_KEY=generated-dev-key\n"
+            'CMD ["uvicorn","app.main:app","--host","0.0.0.0","--port","8000"]\n'
+        )
+
+    def _repositories(self) -> str:
+        return (
+            '"""In-memory repository layer for the generated application."""\n'
+            "from __future__ import annotations\n"
+            "import threading\n\n\n"
+            "class InMemoryRepository:\n"
+            '    """Thread-safe key/value store with full CRUD semantics."""\n\n'
+            "    def __init__(self) -> None:\n"
+            "        self._items: dict[str, dict] = {}\n"
+            "        self._lock = threading.Lock()\n"
+            "        self._seq = 0\n\n"
+            "    def create(self, payload: dict) -> dict:\n"
+            "        with self._lock:\n"
+            "            record = dict(payload)\n"
+            '            if not record.get("id"):\n'
+            "                self._seq += 1\n"
+            '                record["id"] = str(self._seq)\n'
+            '            self._items[record["id"]] = record\n'
+            "            return record\n\n"
+            "    def list(self) -> list[dict]:\n"
+            "        with self._lock:\n"
+            "            return [dict(v) for k, v in sorted(self._items.items())]\n\n"
+            "    def get(self, item_id: str) -> dict | None:\n"
+            "        with self._lock:\n"
+            "            item = self._items.get(item_id)\n"
+            "            return dict(item) if item is not None else None\n\n"
+            "    def update(self, item_id: str, payload: dict) -> dict | None:\n"
+            "        with self._lock:\n"
+            "            if item_id not in self._items:\n"
+            "                return None\n"
+            "            record = dict(payload)\n"
+            '            record["id"] = item_id\n'
+            '            self._items[item_id] = record\n'
+            "            return dict(record)\n\n"
+            "    def delete(self, item_id: str) -> bool:\n"
+            "        with self._lock:\n"
+            "            return self._items.pop(item_id, None) is not None\n\n\n"
+            "_REPOSITORIES: dict[str, InMemoryRepository] = {}\n"
+            "_LOCK = threading.Lock()\n\n\n"
+            "def repository_for(name: str) -> InMemoryRepository:\n"
+            "    with _LOCK:\n"
+            "        return _REPOSITORIES.setdefault(name, InMemoryRepository())\n"
+        )
+
+    def _security(self) -> str:
+        return (
+            '"""API-key authorization (fail-closed when unconfigured)."""\n'
+            "from __future__ import annotations\n"
+            "import os\n"
+            "import secrets\n\n"
+            "from fastapi import Header, HTTPException\n\n\n"
+            "def require_api_key(x_api_key: str | None = Header(default=None)) -> None:\n"
+            '    """Admit only requests presenting the configured API key.\n\n'
+            "    An unset key is a deployment error: the dependency refuses every\n"
+            "    request (503) instead of silently admitting all of them.\n"
+            '    """\n'
+            '    expected = os.environ.get("GENERATED_API_KEY", "")\n'
+            "    if not expected:\n"
+            "        raise HTTPException(\n"
+            '            status_code=503, detail="GENERATED_API_KEY is not configured"\n'
+            "        )\n"
+            "    if not x_api_key or not secrets.compare_digest(x_api_key, expected):\n"
+            '        raise HTTPException(status_code=401, detail="invalid API key")\n'
+        )
+
+    def _domain(self, path: str) -> str:
+        mod = path.rsplit("/", 1)[-1][: -len(".py")]
+        cls = _cls(mod)
+        return (
+            f'"""Domain model {cls} (generated)."""\n'
+            "from pydantic import BaseModel\n\n\n"
+            f"class {cls}(BaseModel):\n"
+            "    id: str | None = None\n"
+            "    name: str = ''\n"
+        )
+
+    def _service(self, path: str, plan: CompilationPlan) -> str:
+        mod = path.rsplit("/", 1)[-1][: -len(".py")]
+        svc = next((s for s in self._services(plan) if s["mod"] == mod), None)
+        cls = _cls(mod)
+        name = svc["name"] if svc else mod
+        owned = svc["owned"] if svc else []
+        lines = [
+            f'"""Application service for {name} (generated, wired to repositories)."""',
+            "from __future__ import annotations",
+            "",
+            "from app.infrastructure.repositories import repository_for",
+            "",
+            "",
+            f"class {cls}Service:",
+            "    def __init__(self) -> None:",
+            "        self._repos = {}",
+            "",
+            "    def catalog(self) -> dict:",
+            f'        return {{"service": "{name}", "entities": {owned!r}}}',
+            "",
+        ]
+        for mod_e in owned:
+            lines += [
+                f"    def create_{mod_e}(self, payload: dict) -> dict:",
+                f'        return repository_for("{mod_e}").create(payload)',
+                "",
+                f"    def list_{mod_e}(self) -> list[dict]:",
+                f'        return repository_for("{mod_e}").list()',
+                "",
+                f"    def get_{mod_e}(self, item_id: str) -> dict | None:",
+                f'        return repository_for("{mod_e}").get(item_id)',
+                "",
+                f"    def update_{mod_e}(self, item_id: str, payload: dict) -> dict | None:",
+                f'        return repository_for("{mod_e}").update(item_id, payload)',
+                "",
+                f"    def delete_{mod_e}(self, item_id: str) -> bool:",
+                f'        return repository_for("{mod_e}").delete(item_id)',
+                "",
+            ]
+        return "\n".join(lines).rstrip("\n") + "\n"
+
+    def _event(self, path: str, plan: CompilationPlan) -> str:
+        mod = path.rsplit("/", 1)[-1][: -len(".py")]
+        ev = next((e for e in self._events(plan) if e["mod"] == mod), None)
+        name = ev["name"] if ev else mod
+        return (
+            f'"""Event handler for {name} (generated, validated)."""\n'
+            "from __future__ import annotations\n"
+            "\n\n"
+            f"def handle_{mod}(payload: dict) -> dict:\n"
+            f'    """Validate and wrap an incoming {name} event."""\n'
+            "    if not isinstance(payload, dict):\n"
+            '        raise TypeError("event payload must be a mapping")\n'
+            f'    return {{"type": "{name}", "payload": payload}}\n'
+        )
+
+    def _main(self, plan: CompilationPlan) -> str:
+        entities = self._entities(plan)
+        services = self._services(plan)
+        secured = self._secured(plan)
+        title = plan.isr_id or "generated-service"
+
+        imports = ["from fastapi import APIRouter, FastAPI, HTTPException"]
+        if secured:
+            imports[0] = "from fastapi import APIRouter, Depends, FastAPI, HTTPException"
+            imports.append("from app.core.security import require_api_key")
+        for e in entities:
+            imports.append(f"from app.domain.{e['mod']} import {e['cls']}")
+        for s in services:
+            imports.append(
+                f"from app.application.{s['mod']} import {s['cls']}Service"
             )
-        if pid == "infra:test":
-            return (
-                "from fastapi.testclient import TestClient\n\n"
-                "from app.main import app\n\n\n"
-                "client = TestClient(app)\n\n\n"
-                "def test_health():\n"
-                "    r = client.get('/health')\n"
-                "    assert r.status_code == 200\n"
-                "    assert r.json() == {'status': 'ok'}\n"
+
+        lines = [
+            '"""Generated FastAPI application — wired CRUD, health, OpenAPI."""',
+            "from __future__ import annotations",
+            "",
+            *imports,
+            "",
+            "",
+            f'app = FastAPI(title="{title}")',
+            "",
+            "",
+            "@app.get('/health')",
+            "def health():",
+            "    return {'status': 'ok'}",
+            "",
+            "",
+        ]
+        if secured:
+            lines += [
+                'router = APIRouter(dependencies=[Depends(require_api_key)])',
+            ]
+        else:
+            lines += ["router = APIRouter()"]
+        lines.append("")
+
+        # service singletons
+        for s in services:
+            lines += [
+                f"_{s['mod']}_service = {s['cls']}Service()",
+            ]
+        if services:
+            svc_vars = ", ".join(f"_{s['mod']}_service" for s in services)
+            lines += ["", f"SERVICES = [{svc_vars}]"]
+        else:
+            lines += ["", "SERVICES: list = []"]
+        lines.append("")
+
+        # business routes
+        for e in entities:
+            svc_var = f"_{e['service_mod']}_service"
+            lines += [
+                f"@router.get('/api/{e['plural']}')",
+                f"def list_{e['plural']}() -> list[dict]:",
+                f"    return {svc_var}.list_{e['mod']}()",
+                "",
+                f"@router.post('/api/{e['plural']}', status_code=201)",
+                f"def create_{e['mod']}(payload: {e['cls']}) -> dict:",
+                f"    return {svc_var}.create_{e['mod']}(payload.model_dump())",
+                "",
+                f"@router.get('/api/{e['plural']}/{{item_id}}')",
+                f"def get_{e['mod']}(item_id: str) -> dict:",
+                f"    item = {svc_var}.get_{e['mod']}(item_id)",
+                "    if item is None:",
+                f'        raise HTTPException(status_code=404, detail="{e["plural"]} not found")',
+                "    return item",
+                "",
+                f"@router.put('/api/{e['plural']}/{{item_id}}')",
+                f"def update_{e['mod']}(item_id: str, payload: {e['cls']}) -> dict:",
+                f"    item = {svc_var}.update_{e['mod']}(item_id, payload.model_dump())",
+                "    if item is None:",
+                f'        raise HTTPException(status_code=404, detail="{e["plural"]} not found")',
+                "    return item",
+                "",
+                f"@router.delete('/api/{e['plural']}/{{item_id}}')",
+                f"def delete_{e['mod']}(item_id: str) -> dict:",
+                f"    if not {svc_var}.delete_{e['mod']}(item_id):",
+                f'        raise HTTPException(status_code=404, detail="{e["plural"]} not found")',
+                f'    return {{"deleted": item_id}}',
+                "",
+            ]
+        lines += [
+            "@router.get('/api/services')",
+            "def list_services() -> list[dict]:",
+            "    return [svc.catalog() for svc in SERVICES]",
+            "",
+            "",
+            "app.include_router(router)",
+            "",
+        ]
+        return "\n".join(lines)
+
+    def _tests(self, plan: CompilationPlan) -> str:
+        entities = self._entities(plan)
+        events = self._events(plan)
+        secured = self._secured(plan)
+        lines = [
+            "import os",
+            "",
+            'os.environ.setdefault("GENERATED_API_KEY", "generated-dev-key")',
+            'API_KEY = os.environ["GENERATED_API_KEY"]',
+            "",
+            "from fastapi.testclient import TestClient",
+            "",
+            "from app.main import app",
+            "",
+            "",
+            "client = TestClient(app)",
+            f"HEADERS = {{'X-API-Key': API_KEY}} if {secured} else {{}}",
+            "",
+            "",
+            "def test_health():",
+            "    r = client.get('/health')",
+            "    assert r.status_code == 200",
+            "    assert r.json() == {'status': 'ok'}",
+            "",
+            "",
+            "def test_openapi_exposes_business_routes():",
+            "    spec = client.get('/openapi.json').json()",
+            "    paths = spec.get('paths', {})",
+            "    business = [p for p in paths if not p.startswith('/health')]",
+            "    assert business, 'openapi declares no business endpoints'",
+            "",
+            "",
+            "def test_services_catalog():",
+            "    r = client.get('/api/services', headers=HEADERS)",
+            "    assert r.status_code == 200",
+            "    assert isinstance(r.json(), list)",
+            "",
+        ]
+        for e in entities:
+            lines += [
+                f"def test_crud_{e['plural']}():",
+                f"    created = client.post('/api/{e['plural']}', json={{'name': 'alpha'}}, headers=HEADERS)",
+                "    assert created.status_code == 201",
+                "    item_id = created.json()['id']",
+                f"    listed = client.get('/api/{e['plural']}', headers=HEADERS)",
+                f"    assert item_id in [i['id'] for i in listed.json()]",
+                f"    fetched = client.get(f'/api/{e['plural']}/{{item_id}}', headers=HEADERS)",
+                "    assert fetched.status_code == 200",
+                "    assert fetched.json()['name'] == 'alpha'",
+                f"    updated = client.put(f'/api/{e['plural']}/{{item_id}}', json={{'name': 'beta'}}, headers=HEADERS)",
+                "    assert updated.status_code == 200",
+                "    assert updated.json()['name'] == 'beta'",
+                f"    deleted = client.delete(f'/api/{e['plural']}/{{item_id}}', headers=HEADERS)",
+                "    assert deleted.status_code == 200",
+                f"    gone = client.get(f'/api/{e['plural']}/{{item_id}}', headers=HEADERS)",
+                "    assert gone.status_code == 404",
+                "",
+            ]
+        if secured and entities:
+            first = entities[0]["plural"]
+            lines += [
+                "def test_business_routes_require_api_key():",
+                f"    r = client.get('/api/{first}')",
+                "    assert r.status_code == 401",
+                "",
+            ]
+        for ev in events:
+            lines += [
+                f"def test_event_handler_{ev['mod']}():",
+                f"    from app.events.{ev['mod']} import handle_{ev['mod']}",
+                f"    out = handle_{ev['mod']}({{'k': 1}})",
+                f"    assert out['type'] == '{ev['name']}'",
+                f"    assert out['payload'] == {{'k': 1}}",
+                f"    try:",
+                f"        handle_{ev['mod']}(['not', 'a', 'mapping'])",
+                f"        raise AssertionError('invalid payload accepted')",
+                "    except TypeError:",
+                "        pass",
+                "",
+            ]
+        return "\n".join(lines)
+
+    def _k8s(self) -> str:
+        return (
+            "apiVersion: apps/v1\n"
+            "kind: Deployment\n"
+            "metadata:\n"
+            "  name: generated-app\n"
+            "  labels:\n"
+            "    app: generated-app\n"
+            "spec:\n"
+            "  replicas: 1\n"
+            "  selector:\n"
+            "    matchLabels:\n"
+            "      app: generated-app\n"
+            "  template:\n"
+            "    metadata:\n"
+            "      labels:\n"
+            "        app: generated-app\n"
+            "    spec:\n"
+            "      containers:\n"
+            "        - name: app\n"
+            "          image: generated-app:latest\n"
+            "          ports:\n"
+            "            - containerPort: 8000\n"
+            "          env:\n"
+            "            - name: GENERATED_API_KEY\n"
+            "              value: generated-dev-key\n"
+            "          readinessProbe:\n"
+            "            httpGet:\n"
+            "              path: /health\n"
+            "              port: 8000\n"
+            "            initialDelaySeconds: 3\n"
+            "            periodSeconds: 5\n"
+            "---\n"
+            "apiVersion: v1\n"
+            "kind: Service\n"
+            "metadata:\n"
+            "  name: generated-app\n"
+            "spec:\n"
+            "  selector:\n"
+            "    app: generated-app\n"
+            "  ports:\n"
+            "    - port: 80\n"
+            "      targetPort: 8000\n"
+        )
+
+    def _ci(self) -> str:
+        return (
+            "name: ci\n"
+            "on: [push, pull_request]\n"
+            "jobs:\n"
+            "  test:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - uses: actions/checkout@v4\n"
+            "      - uses: actions/setup-python@v5\n"
+            "        with:\n"
+            '          python-version: "3.12"\n'
+            "      - run: pip install -r requirements.txt\n"
+            "      - run: python -m pytest -q\n"
+        )
+
+    def _readme(self, plan: CompilationPlan) -> str:
+        entities = self._entities(plan)
+        services = self._services(plan)
+        events = self._events(plan)
+        secured = self._secured(plan)
+        lines = [f"# {plan.isr_id or 'generated-service'}", ""]
+        lines.append("Generated Python/FastAPI service produced from the ISR compilation plan.")
+        lines.append("")
+        lines.append("## Services")
+        for s in services:
+            owned = ", ".join(s["owned"]) or "(no data models)"
+            lines.append(f"- `{s['name']}` — entities: {owned}")
+        if not services:
+            lines.append("- (plan contains no services)")
+        lines.append("")
+        lines.append("## HTTP surface")
+        lines.append("- `GET /health` — liveness")
+        lines.append("- `GET /api/services` — service catalog")
+        for e in entities:
+            lines.append(
+                f"- `/api/{e['plural']}` — CRUD for `{e['entity']}` "
+                "(GET, POST, GET/PUT/DELETE by id)"
             )
-        if pid == "infra:k8s":
-            return "apiVersion: apps/v1\nkind: Deployment\n"
-        if pid == "infra:ci":
-            return "name: ci\non: [push]\n"
-        if pid == "infra:readme":
-            return "# generated python-fastapi\n"
-        if pid == "infra:repositories":
-            return "# repository pattern\n"
-        if pid == "infra:docs":
-            return "# ISR-derived architecture\n"
-        if pid.startswith("domain:") or pid.startswith("dm:"):
-            entity = pid.split(":", 1)[-1].replace("-", "_").title().replace("_", "")
-            return (
-                "from pydantic import BaseModel\n\n\n"
-                f"class {entity}(BaseModel):\n"
-                "    id: str | None = None\n"
-                "    name: str = ''\n"
-            )
-        if pid.startswith("event:"):
-            name = self._svc_name(pid)
-            return (
-                f"def handle_{name}(payload: dict) -> dict:\n"
-                "    return payload\n"
-            )
-        if pid.startswith("sec:"):
-            return "# oauth2 / least-privilege\n"
-        if pid.startswith("service:") or pid.startswith("api:"):
-            name = self._svc_name(pid)
-            cls = self._cls_name(pid)
-            return (
-                f"class {cls}Service:\n"
-                "    def __init__(self):\n"
-                "        self._store: list[dict] = []\n\n"
-                "    def create(self, payload: dict) -> dict:\n"
-                "        self._store.append(payload)\n"
-                "        return payload\n\n"
-                "    def list(self) -> list[dict]:\n"
-                "        return self._store\n"
-            )
-        return f"# {pid}\n"
+        if not entities:
+            lines.append("- (plan contains no data models)")
+        lines.append("")
+        if events:
+            lines.append("## Events")
+            for ev in events:
+                lines.append(f"- `{ev['name']}` — handler `app.events.{ev['mod']}`")
+            lines.append("")
+        lines.append("## Run")
+        lines.append("```bash")
+        lines.append("pip install -r requirements.txt")
+        lines.append("uvicorn app.main:app --host 0.0.0.0 --port 8000")
+        lines.append("```")
+        if secured:
+            lines.append("")
+            lines.append("Authorization: set `GENERATED_API_KEY` and send `X-API-Key` on every")
+            lines.append("business request. Missing configuration refuses requests (fail-closed).")
+        lines.append("")
+        lines.append("## Test")
+        lines.append("```bash")
+        lines.append("python -m pytest -q")
+        lines.append("```")
+        lines.append("")
+        return "\n".join(lines)
+
+    def _docs(self, plan: CompilationPlan) -> str:
+        entities = self._entities(plan)
+        services = self._services(plan)
+        events = self._events(plan)
+        lines = [f"# Architecture — {plan.isr_id or 'generated-service'}", ""]
+        lines.append("Derived deterministically from the ISR compilation plan.")
+        lines.append("")
+        lines.append("## Layering")
+        lines.append("- `app/main.py` — FastAPI app, health, routers")
+        lines.append("- `app/application/` — application services (use-case orchestration)")
+        lines.append("- `app/domain/` — Pydantic domain models")
+        lines.append("- `app/infrastructure/` — in-memory repository (thread-safe CRUD)")
+        lines.append("- `app/events/` — validated event handlers")
+        if self._secured(plan):
+            lines.append("- `app/core/security.py` — API-key authorization (fail-closed)")
+        lines.append("")
+        lines.append("## Services and persisted entities")
+        for s in services:
+            lines.append(f"- `{s['name']}` persists {s['owned'] or 'nothing'}")
+        if not services:
+            lines.append("- (plan contains no services)")
+        lines.append("")
+        lines.append("## Request flow")
+        lines.append("1. Router resolves the endpoint under `/api/...`.")
+        if self._secured(plan):
+            lines.append("2. `require_api_key` admits or rejects the caller (401/503).")
+            start = 3
+        else:
+            start = 2
+        lines.append(f"{start}. The application service delegates to the repository.")
+        lines.append(f"{start + 1}. The repository persists the record; the model serializes the response.")
+        lines.append("")
+        if events:
+            lines.append("## Domain events")
+            for ev in events:
+                lines.append(f"- `{ev['name']}` validated by `handle_{ev['mod']}`")
+            lines.append("")
+        return "\n".join(lines)

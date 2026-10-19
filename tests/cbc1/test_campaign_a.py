@@ -231,7 +231,9 @@ def test_metrics_richer_engineering_quality():
     files = {
         "app/main.py": "from fastapi import FastAPI\napp = FastAPI()\n",
         "app/service.py": "class S:\n    pass\n",
-        "README.md": "# Test\n",
+        # Documentation completeness counts only files with real prose: a
+        # title-only README does not count as documentation (content floor).
+        "README.md": "# Test\n\n" + "Real documentation prose. " * 8 + "\n",
     }
     m = compute(
         repo_files_count=3,

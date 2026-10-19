@@ -42,9 +42,10 @@ from tiannara.infrastructure.sandbox.docker_environment import DockerExecutionEn
 
 GATE_SEMANTICS = (
     "successful generation = static-verification pass (go.mod/well-formedness + "
-    "required files + inward-import direction); runtime-verify is additional "
-    "evidence, RUN only when the backend's own toolchain is present on PATH, "
-    "otherwise 'skipped:toolchain_absent' (pass-with-evidence and recorded). "
+    "required files + inward-import direction) AND runtime-verify pass; runtime "
+    "RUN requires the backend's own toolchain (PATH or container), otherwise "
+    "'skipped:toolchain_absent' — a skip is recorded honestly and FAILS the "
+    "gate (runtime unverified can never count as passed). "
     "Repair is not applied in this calibration slice."
 )
 
@@ -143,10 +144,13 @@ class BackendCalibrationHarness:
         runtime_status, test_run = self._run_runtime(profile, backend_id, slug, bundle_dir, result)
 
         static_ok = bool(verification_report.ok)
+        # Fail-closed: runtime confidence requires runtime evidence. A skip
+        # (toolchain absent, no test command, runtime error) means the runtime
+        # was NOT verified — it can never count as a pass.
         runtime_ok = (
             bool(getattr(test_run, "passed", True))
             if runtime_status.startswith("ran")
-            else True
+            else False
         )
         ok = static_ok and runtime_ok
 

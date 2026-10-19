@@ -188,9 +188,10 @@ class CampaignBRunner:
         se_destroy = self.stages.destroy(cid)
         _record_execution(se_destroy)
 
-        # Independent verification (separate subprocess)
+        # Independent verification (separate subprocess, real verifier against
+        # the materialized candidate workspace — never an in-process theater).
         v_ok, v_out = _run_independent_verify(
-            repo, plan, ident, conf,
+            repo, plan, ident, conf, repo_dir=d,
         )
         stage_results[TrialStage.VERIFY] = v_ok
         evidence.append(StageEvidence(
@@ -275,33 +276,63 @@ class CampaignBRunner:
 
 def _run_independent_verify(
     repo: Any, plan: Any, ident: BackendIdentity, conf: Any,
+    repo_dir: str | None = None,
 ) -> tuple[bool, str]:
-    """Run independent verification in a subprocess."""
-    verify_script = (
-        "import json, sys, hashlib; "
-        f"files = {json.dumps(dict(list(repo.files.items())[:5]))}; "
-        "h = hashlib.sha256(json.dumps(sorted(files.keys())).encode()).hexdigest(); "
-        f"print('verify_hash=' + h); "
-        f"print('conformance_passed={conf.passed}'); "
-        "sys.exit(0)"
-    )
+    """Run the REAL independent verifier in a subprocess.
+
+    certification/stages/independent_verify.py re-reads every expected file
+    from the materialized candidate workspace, recomputes the canonical
+    repository digest, validates the path-set digest, reconstructs the typed
+    plan, and re-runs the backend's conformance checker — all in a separate
+    process. It exits nonzero on any mismatch, so a corrupted, incomplete,
+    or content-tampered candidate can never pass verification.
+    """
+    if not repo_dir:
+        return False, "verify FAILED: no materialized candidate workspace"
     try:
-        # CREATE_NO_WINDOW on Windows so the host does not see a brief console
-        # window for every trial's independent-verification subprocess.  Each
-        # B3 trial would otherwise produce ~6 visible console windows per run
-        # (build, test, deploy, runtime, destroy, verify) — a 936-trial wave
-        # would flash 5000+ windows in 12 hours.  The subprocess output is
-        # captured; the window is noise.
+        import hashlib as _hashlib
         import subprocess as _sp
         import sys as _sys
-        _popen_kw = {"creationflags": _sp.CREATE_NO_WINDOW} if _sys.platform == "win32" else {}
-        p = _sp.run(
-            ["python", "-c", verify_script],
-            capture_output=True, text=True, timeout=30, **_popen_kw,
+        import tempfile as _tempfile
+
+        script = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "stages", "independent_verify.py",
         )
-        return p.returncode == 0, p.stdout + p.stderr
+        expected_paths = sorted(repo.files)
+        plan_hash = _hashlib.sha256(
+            json.dumps(expected_paths).encode("utf-8")
+        ).hexdigest()
+        plan_record = {
+            "expected_paths": expected_paths,
+            "candidate_hash": repo.content_hash,
+            "backend_name": ident.name,
+            "plan": plan.model_dump(mode="json"),
+        }
+        tmp_path = ""
+        try:
+            with _tempfile.NamedTemporaryFile(
+                "w", suffix=".json", delete=False, encoding="utf-8",
+            ) as handle:
+                json.dump(plan_record, handle)
+                tmp_path = handle.name
+            _popen_kw = (
+                {"creationflags": _sp.CREATE_NO_WINDOW}
+                if _sys.platform == "win32" else {}
+            )
+            p = _sp.run(
+                [_sys.executable, script, repo_dir, plan_hash, tmp_path],
+                capture_output=True, text=True, timeout=60, **_popen_kw,
+            )
+            return p.returncode == 0, p.stdout + p.stderr
+        finally:
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
     except Exception as e:
-        return False, str(e)
+        return False, f"verify FAILED: {type(e).__name__}: {e}"
 
 
 def certify_docker_substrate(runner: CampaignBRunner) -> SubstrateReport:

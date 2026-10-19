@@ -1,5 +1,6 @@
 """ConformanceReport and backend-agnostic ConformanceChecker (ADR-012)."""
 from __future__ import annotations
+import ast
 from pydantic import BaseModel, ConfigDict, Field
 from compiler.core.plan import CompilationPlan
 from compiler.core.repository import GeneratedRepository
@@ -29,9 +30,43 @@ def plan_element_ids(plan: CompilationPlan) -> list[str]:
     return ids
 
 
+_COMMENT_PREFIXES = ("#", "//", "--", ";", "<!--")
+
+
+def hollow_finding(path: str, content: str) -> str | None:
+    """Content floor: a present-but-hollow file is a conformance finding.
+
+    Path presence alone certified stubs. A file counts as materialised only
+    when it has real (non-comment) content, Python sources parse, and text
+    bodies carry a minimal amount of substance. Returns a finding string or
+    None when the content is substantive.
+    """
+    stripped = content.strip()
+    if not stripped:
+        return f"hollow:{path}:empty"
+    code_lines: list[str] = []
+    for line in stripped.splitlines():
+        s = line.strip()
+        if not s or s.startswith(_COMMENT_PREFIXES):
+            continue
+        code_lines.append(s)
+    if not code_lines:
+        return f"hollow:{path}:comment-only"
+    if path.endswith(".py"):
+        try:
+            ast.parse(stripped)
+        except SyntaxError as exc:
+            return f"syntax:{path}:{exc.msg}"
+    body = "\n".join(code_lines)
+    if len(body) < 40:
+        return f"hollow:{path}:too-sparse"
+    return None
+
+
 class ConformanceChecker:
     """Backend-agnostic: verifies every plan element is (a) mapped to a path by
-    the backend's own layout and (b) present in the generated repository.
+    the backend's own layout, (b) present in the generated repository, and
+    (c) carries substantive content (never a comment/placeholder stub).
     It never assumes a language or directory convention."""
 
     def check(
@@ -47,6 +82,10 @@ class ConformanceChecker:
                 missing.append(f"unmapped:{eid}")
             elif path not in repo.files:
                 missing.append(path)
+            else:
+                finding = hollow_finding(path, repo.files[path])
+                if finding is not None:
+                    missing.append(finding)
         return ConformanceReport(passed=not missing, missing=missing)
 
 

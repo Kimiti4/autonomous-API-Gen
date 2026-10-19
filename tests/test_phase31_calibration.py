@@ -51,8 +51,11 @@ def test_harness_compiles_each_isr_to_each_backend(tmp_path, monkeypatch):
     assert set(report.backends_tested) == _expected_backend_ids()
     # One outcome per (corpus model x backend).
     assert report.total == len(DEFAULT_CORPUS) * len(report.backends_tested)
-    assert report.passed == report.total  # static verification passes for both
-    assert report.success_rate == 1.0
+    # Static verification passes for every outcome, but the hermetic run has
+    # no runtime evidence: fail-closed, a skipped runtime is never a pass.
+    assert all(o.verification_report.ok for o in report.outcomes)
+    assert report.passed == 0
+    assert report.success_rate == 0.0
 
 
 def test_harness_namespaces_bundles_per_backend(tmp_path, monkeypatch):
@@ -83,7 +86,8 @@ def test_harness_records_tamper_evident_evidence(tmp_path, monkeypatch):
         assert outcome.evidence.genome_id.startswith("pre-evolution:")
         assert outcome.evidence.isr_hash == outcome.isr_hash
         assert outcome.evidence.backend_name == outcome.backend_id
-        assert outcome.evidence.verdict is Verdict.PASS
+        # Hermetic run: runtime unverified -> fail-closed verdict.
+        assert outcome.evidence.verdict is Verdict.FAIL
 
 
 def test_harness_runtime_degrades_when_toolchain_absent(tmp_path, monkeypatch):
@@ -97,8 +101,9 @@ def test_harness_runtime_degrades_when_toolchain_absent(tmp_path, monkeypatch):
         if outcome.backend_id == "go_hexagonal":
             assert outcome.runtime_status == "skipped:toolchain_absent"
             assert outcome.test_run is None
-            # Static pass still holds despite skipped runtime.
-            assert outcome.ok is True
+            # Fail-closed: a skipped runtime is not a pass (runtime evidence
+            # is required for `ok`).
+            assert outcome.ok is False
         else:
             # FastAPI now declares a runtime_image+test_command (R2.4.0a), so it
             # degrades to the same honest skip as Go -- never a fake "ran".
@@ -150,7 +155,9 @@ def test_calibrate_cli_subcommand(tmp_path, monkeypatch):
             str(tmp_path / "cli-evidence.jsonl"),
         ]
     )
-    assert rc == 0
+    # Fail-closed: a hermetic run has no runtime evidence, so the gate verdict
+    # is "nothing passed" and the CLI reports failure honestly.
+    assert rc == 1
     assert (tmp_path / "cli-out" / "go_hexagonal" / "go.mod").exists()
     ledger = JsonlEvidenceLedger(tmp_path / "cli-evidence.jsonl")
     assert len(ledger.all()) == _expected_records()

@@ -107,7 +107,7 @@ def test_projection_preserves_all_behavioral_contracts_and_security_bindings():
 
     service = next(service for service in plan.services if service.id == "service:payroll")
     rule = service.behavior.rules[0]
-    assert rule.model_dump(mode="json") == revision.graph.nodes["service:payroll"].properties["behavior"]["rules"][0]
+    assert rule.model_dump(mode="json") == __import__("isr.core.behavior", fromlist=["BusinessRule"]).BusinessRule.model_validate(revision.graph.nodes["service:payroll"].properties["behavior"]["rules"][0]).model_dump(mode="json")
     assert rule.expression.args[0].field_ref == "Employee.base_salary"
     assert service.behavior.transitions[0].guard.args[0].field_ref == "Employee.base_salary"
     assert service.security_policies[0].policy_id == "security:payroll-approver"

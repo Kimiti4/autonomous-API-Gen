@@ -106,3 +106,28 @@ def test_dast_event_ids_are_unique_for_duplicate_inputs():
     assert len(refs) == 2
     assert refs[0] != refs[1]
     assert ledger.verify_event_chain() is True
+
+
+def test_tier3_campaign_requires_injected_client():
+    from tiannara.application.security.tier3_campaign import Tier3Campaign
+
+    ledger = EvolutionLedger()
+    campaign = Tier3Campaign(ledger)
+
+    with pytest.raises(DASTNotConfigured):
+        campaign.run(["art"], ["atk"])
+
+    assert ledger.event_count == 0
+
+
+def test_tier3_campaign_passes_client_through():
+    from tiannara.application.security.tier3_campaign import Tier3Campaign
+
+    ledger = EvolutionLedger()
+    campaign = Tier3Campaign(ledger, dast_client=_Scanner({("art", "atk0"): True}))
+
+    result = campaign.run(["art"], ["atk0"])
+
+    assert result.dast_results[0].blocked is True
+    assert result.dast_results[0].ledger_ref
+    assert ledger.verify_event_chain() is True

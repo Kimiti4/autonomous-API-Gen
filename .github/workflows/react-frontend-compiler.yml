@@ -7,6 +7,7 @@ on:
       - "compiler/backends/python_fastapi.py"
       - "compiler/backends/rust_axum.py"
       - "compiler/core/capabilities.py"
+      - "compiler/core/behavior_oracle.py"
       - "compiler/core/lowering.py"
       - "compiler/core/plan.py"
       - "isr/core/behavior.py"

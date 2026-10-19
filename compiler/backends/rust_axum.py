@@ -325,6 +325,23 @@ pub fn evaluate_expression(expression: &Value, context: &Value) -> Result<Value,
         let path = expression.get("field_ref").and_then(Value::as_str).ok_or("missing field_ref")?;
         return field_value(path, context);
     }
+    if op == "and" {
+        let left = evaluate_expression(args.get(0).ok_or("missing left operand")?, context)?;
+        if !left.as_bool().unwrap_or(false) { return Ok(Value::Bool(false)); }
+        let right = evaluate_expression(args.get(1).ok_or("missing right operand")?, context)?;
+        return Ok(Value::Bool(right.as_bool().unwrap_or(false)));
+    }
+    if op == "or" {
+        let left = evaluate_expression(args.get(0).ok_or("missing left operand")?, context)?;
+        if left.as_bool().unwrap_or(false) { return Ok(Value::Bool(true)); }
+        let right = evaluate_expression(args.get(1).ok_or("missing right operand")?, context)?;
+        return Ok(Value::Bool(right.as_bool().unwrap_or(false)));
+    }
+    if op == "if_else" {
+        let condition = evaluate_expression(args.get(0).ok_or("missing condition")?, context)?;
+        let branch = if condition.as_bool().unwrap_or(false) { args.get(1) } else { args.get(2) };
+        return evaluate_expression(branch.ok_or("missing conditional branch")?, context);
+    }
     let values: Result<Vec<Value>, String> = args.iter().map(|arg| evaluate_expression(arg, context)).collect();
     let values = values?;
     match op {
@@ -342,10 +359,7 @@ pub fn evaluate_expression(expression: &Value, context: &Value) -> Result<Value,
         "less_or_equal" => Ok(Value::Bool(decimal(&values[0])? <= decimal(&values[1])?)),
         "greater_than" => Ok(Value::Bool(decimal(&values[0])? > decimal(&values[1])?)),
         "greater_or_equal" => Ok(Value::Bool(decimal(&values[0])? >= decimal(&values[1])?)),
-        "and" => Ok(Value::Bool(values[0].as_bool().unwrap_or(false) && values[1].as_bool().unwrap_or(false))),
-        "or" => Ok(Value::Bool(values[0].as_bool().unwrap_or(false) || values[1].as_bool().unwrap_or(false))),
         "not" => Ok(Value::Bool(!values[0].as_bool().unwrap_or(false))),
-        "if_else" => Ok(if values[0].as_bool().unwrap_or(false) { values[1].clone() } else { values[2].clone() }),
         _ => Err(format!("unsupported expression operator: {op}")),
     }
 }

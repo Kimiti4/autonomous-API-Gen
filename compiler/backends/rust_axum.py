@@ -499,9 +499,13 @@ mod tests {
     fn effect_idempotency_returns_prior_result() {
         let effect = json!({"effect_kind":"bank_transfer","idempotent":true,"idempotency_key_required":true});
         let mut ledger = HashMap::new();
-        assert_eq!(apply_effect(&effect, Some("run-1"), json!({"status":"queued"}), &mut ledger).unwrap(), json!({"status":"queued"}));
-        assert_eq!(apply_effect(&effect, Some("run-1"), json!({"status":"duplicate"}), &mut ledger).unwrap(), json!({"status":"queued"}));
-        assert!(apply_effect(&effect, None, json!({}), &mut ledger).is_err());
+        let mut calls = 0;
+        let first = apply_effect(&effect, Some("run-1"), || { calls += 1; Ok(json!({"status":"queued"})) }, &mut ledger).unwrap();
+        let retry = apply_effect(&effect, Some("run-1"), || { calls += 1; Ok(json!({"status":"duplicate"})) }, &mut ledger).unwrap();
+        assert_eq!(first, json!({"status":"queued"}));
+        assert_eq!(retry, first);
+        assert_eq!(calls, 1);
+        assert!(apply_effect(&effect, None, || Ok(json!({})), &mut ledger).is_err());
     }
 
     #[test]

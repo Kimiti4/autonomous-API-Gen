@@ -334,6 +334,17 @@ fn equal_values(left: &Value, right: &Value) -> bool {
     }
 }
 
+fn compare_values(left: &Value, right: &Value) -> Result<std::cmp::Ordering, String> {
+    if let (Ok(a), Ok(b)) = (decimal(left), decimal(right)) {
+        return Ok(a.cmp(&b));
+    }
+    match (left, right) {
+        (Value::String(a), Value::String(b)) => Ok(a.cmp(b)),
+        (Value::Bool(a), Value::Bool(b)) => Ok(a.cmp(b)),
+        _ => Err("incompatible comparison types".to_string()),
+    }
+}
+
 pub fn evaluate_expression(expression: &Value, context: &Value) -> Result<Value, String> {
     let op = expression.get("op").and_then(Value::as_str).ok_or("missing expression operator")?;
     let args = expression.get("args").and_then(Value::as_array).cloned().unwrap_or_default();
@@ -372,10 +383,10 @@ pub fn evaluate_expression(expression: &Value, context: &Value) -> Result<Value,
         },
         "equal" => Ok(Value::Bool(equal_values(&values[0], &values[1]))),
         "not_equal" => Ok(Value::Bool(!equal_values(&values[0], &values[1]))),
-        "less_than" => Ok(Value::Bool(decimal(&values[0])? < decimal(&values[1])?)),
-        "less_or_equal" => Ok(Value::Bool(decimal(&values[0])? <= decimal(&values[1])?)),
-        "greater_than" => Ok(Value::Bool(decimal(&values[0])? > decimal(&values[1])?)),
-        "greater_or_equal" => Ok(Value::Bool(decimal(&values[0])? >= decimal(&values[1])?)),
+        "less_than" => Ok(Value::Bool(compare_values(&values[0], &values[1])? == std::cmp::Ordering::Less)),
+        "less_or_equal" => Ok(Value::Bool(compare_values(&values[0], &values[1])? != std::cmp::Ordering::Greater)),
+        "greater_than" => Ok(Value::Bool(compare_values(&values[0], &values[1])? == std::cmp::Ordering::Greater)),
+        "greater_or_equal" => Ok(Value::Bool(compare_values(&values[0], &values[1])? != std::cmp::Ordering::Less)),
         "not" => Ok(Value::Bool(!values[0].as_bool().unwrap_or(false))),
         _ => Err(format!("unsupported expression operator: {op}")),
     }

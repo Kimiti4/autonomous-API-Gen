@@ -78,6 +78,8 @@ class CompilationPlan(BaseModel):
     plan_id: str = Field(min_length=1)
     isr_id: str = Field(min_length=1)
     services: list[Service] = Field(default_factory=list)
+    data_models: list[DataModel] = Field(default_factory=list)
+    events: list[Event] = Field(default_factory=list)
     security: list[SecurityPolicy] = Field(default_factory=list)
     apis: list[ApiOperation] = Field(default_factory=list)
     effects: list[Effect] = Field(default_factory=list)

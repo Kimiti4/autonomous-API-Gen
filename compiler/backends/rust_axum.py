@@ -1211,6 +1211,34 @@ mod tests {
                         f'        assert!(application::{service_module}::apply_transition({json.dumps(transition.transition_id)}, {json.dumps(transition.source_state)}, &rejected).is_err());',
                     ]
                 l += ["    }", ""]
+            for effect in service.effects:
+                if effect.behavior is None:
+                    continue
+                if effect.behavior.idempotent:
+                    l += [
+                        "    #[test]",
+                        f"    fn generated_effect_{_slug(effect.id)}_is_idempotent() {{",
+                        "        let mut ledger = std::collections::HashMap::new();",
+                        "        let mut executions = 0;",
+                        f'        let first = application::{service_module}::execute_effect({json.dumps(effect.id)}, Some("key-1"), &mut ledger, || {{ executions += 1; Ok(json!({{"transfer_id":"tx-1"}})) }}).expect("first effect");',
+                        f'        let replay = application::{service_module}::execute_effect({json.dumps(effect.id)}, Some("key-1"), &mut ledger, || {{ executions += 1; Ok(json!({{"transfer_id":"tx-2"}})) }}).expect("replay");',
+                        '        assert_eq!(first, json!({"transfer_id":"tx-1"}));',
+                        "        assert_eq!(replay, first);",
+                        "        assert_eq!(executions, 1);",
+                        f'        assert!(application::{service_module}::execute_effect({json.dumps(effect.id)}, None, &mut ledger, || Ok(json!({{"transfer_id":"missing-key"}}))).is_err());',
+                        "    }",
+                        "",
+                    ]
+                else:
+                    l += [
+                        "    #[test]",
+                        f"    fn generated_effect_{_slug(effect.id)}_executes_without_deduplication_key() {{",
+                        "        let mut ledger = std::collections::HashMap::new();",
+                        f'        let result = application::{service_module}::execute_effect({json.dumps(effect.id)}, None, &mut ledger, || Ok(json!({{"ok":true}}))).expect("effect");',
+                        '        assert_eq!(result, json!({"ok":true}));',
+                        "    }",
+                        "",
+                    ]
         l.append("}")
         return "\n".join(l) + "\n"
 

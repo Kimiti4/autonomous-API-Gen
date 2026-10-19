@@ -74,6 +74,7 @@ def test_behavioral_features_are_explicit_and_supported_by_reference_backends():
     required = required_features(plan)
     assert required == frozenset({
         SemanticFeature.TYPED_FIELDS,
+        SemanticFeature.DECIMAL_SHAPE,
         SemanticFeature.EXPRESSIONS,
         SemanticFeature.BUSINESS_RULES,
         SemanticFeature.STATE_TRANSITIONS,

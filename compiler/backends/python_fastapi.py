@@ -460,7 +460,7 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
                 "",
             ]
         if svc:
-            semantic_service = next((item for item in plan.services if item.id == svc["id"]), None)
+            semantic_service = next((item for item in plan.services if _slug(item.name) == svc["mod"]), None)
             if semantic_service is not None and semantic_service.behavior is not None:
                 rules = [item.model_dump(mode="json") for item in semantic_service.behavior.rules]
                 transitions = [item.model_dump(mode="json") for item in semantic_service.behavior.transitions]

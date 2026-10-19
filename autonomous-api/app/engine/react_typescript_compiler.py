@@ -186,7 +186,7 @@ createRoot(root).render(<StrictMode><App /></StrictMode>);
                 None,
             )
             if first_binding is not None:
-                unit_test = f"""import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+                unit_test = """import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 
@@ -198,15 +198,15 @@ describe('generated frontend interaction', () => {
     vi.stubGlobal('fetch', fetchMock);
     window.history.replaceState({}, '', '/');
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: ${json.dumps(first_action)} }));
+    fireEvent.click(screen.getByRole('button', { name: __ACTION__ }));
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Request completed: 200'));
     expect(fetchMock).toHaveBeenCalledWith(
-      ${json.dumps(first_binding.path)},
-      expect.objectContaining({ method: ${json.dumps(first_binding.method.upper())} }),
+      __PATH__,
+      expect.objectContaining({ method: __METHOD__ }),
     );
   });
 });
-"""
+""".replace("__ACTION__", json.dumps(first_action)).replace("__PATH__", json.dumps(first_binding.path)).replace("__METHOD__", json.dumps(first_binding.method.upper()))
             else:
                 unit_test = """import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';

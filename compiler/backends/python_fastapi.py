@@ -737,7 +737,7 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
             if service.behavior is None:
                 continue
             service_module = _slug(service.name)
-            service_class = _cls_name(service_module) + "Service"
+            service_class = _cls(service_module) + "Service"
             for rule in service.behavior.rules:
                 context = sample_context(rule.expression, plan)
                 expected = reference_evaluate(rule.expression, context)

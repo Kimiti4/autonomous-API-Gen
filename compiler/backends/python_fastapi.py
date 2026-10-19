@@ -13,7 +13,7 @@ from decimal import Decimal
 
 from compiler.core.plan import CompilationPlan
 from compiler.core.behavior_oracle import reference_evaluate, sample_context
-from compiler.core.capabilities import BackendCapabilities, SemanticFeature, assert_plan_supported
+from compiler.core.capabilities import BackendCapabilities, SemanticFeature, UnsupportedSemanticsError, assert_plan_supported
 from compiler.core.repository import GeneratedRepository, build_repository
 from compiler.core.conformance import CHECKER, ConformanceReport
 from compiler.core.protocol import BackendClass, BackendIdentity, TestSpec

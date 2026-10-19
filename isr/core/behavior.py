@@ -182,7 +182,7 @@ class ApiBehavior(BaseModel):
 
     @model_validator(mode="after")
     def validate_path_parameters(self) -> "ApiBehavior":
-        placeholders = set(re.findall(r"\\{([^{}]+)\\}", self.path))
+        placeholders = set(re.findall(r"\{([^{}]+)\}", self.path))
         field_names = {field.name for field in self.request_fields}
         missing = sorted(placeholders - field_names)
         if missing:

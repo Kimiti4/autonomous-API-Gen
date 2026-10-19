@@ -4,6 +4,7 @@ from __future__ import annotations
 from isr.core.behavior import (
     ApiBehavior,
     DataModelBehavior,
+    InvariantSpec,
     Expression,
     ServiceBehavior,
     expression_field_refs,
@@ -61,6 +62,8 @@ def validate_behavioral_graph(graph: ISRGraph) -> None:
         elif isinstance(payload, ServiceBehavior):
             expressions.extend(item.expression for item in payload.rules)
             expressions.extend(item.guard for item in payload.transitions if item.guard is not None)
+        elif isinstance(payload, InvariantSpec):
+            expressions.append(payload.expression)
         elif isinstance(payload, ApiBehavior):
             missing = sorted(set(payload.authorization_policy_ids) - policy_ids)
             if missing:

@@ -58,6 +58,7 @@ class PythonFastAPIBackend:
             "infra:readme": "README.md",
             "infra:main": "app/main.py",
             "infra:repositories": "app/infrastructure/repositories.py",
+            "infra:behavior": "app/core/behavior.py",
             "infra:docs": "docs/architecture.md",
             "infra:requirements": "requirements.txt",
             "infra:test": "tests/test_app.py",
@@ -111,6 +112,8 @@ class PythonFastAPIBackend:
             return self._repositories()
         if path == "app/core/security.py":
             return self._security()
+        if path == "app/core/behavior.py":
+            return self._behavior_runtime()
         if path.startswith("app/domain/"):
             return self._domain(path)
         if path.startswith("app/application/"):
@@ -195,6 +198,175 @@ class PythonFastAPIBackend:
             "    if not x_api_key or not secrets.compare_digest(x_api_key, expected):\n"
             '        raise HTTPException(status_code=401, detail="invalid API key")\n'
         )
+
+
+    def _behavior_runtime(self) -> str:
+        return '''"""Generated deterministic behavioral runtime; no dynamic code execution."""
+from __future__ import annotations
+
+import re
+from decimal import Decimal
+from typing import Any
+
+
+class BehaviorError(ValueError):
+    pass
+
+
+def _resolve(path: str, context: dict[str, Any]) -> Any:
+    if path in context:
+        return context[path]
+    current: Any = context
+    for part in path.split("."):
+        if not isinstance(current, dict) or part not in current:
+            raise BehaviorError(f"missing expression field: {path}")
+        current = current[part]
+    return current
+
+
+def _number(value: Any) -> Decimal:
+    if isinstance(value, bool) or not isinstance(value, (int, float, Decimal, str)):
+        raise BehaviorError("arithmetic operand is not numeric")
+    try:
+        return Decimal(str(value))
+    except Exception as exc:
+        raise BehaviorError("arithmetic operand is not numeric") from exc
+
+
+def evaluate_expression(expression: dict[str, Any], context: dict[str, Any]) -> Any:
+    op = expression.get("op")
+    args = [evaluate_expression(arg, context) for arg in expression.get("args", [])]
+    if op == "literal":
+        return expression["value"]
+    if op == "field":
+        return _resolve(expression["field_ref"], context)
+    if op == "add":
+        return _number(args[0]) + _number(args[1])
+    if op == "subtract":
+        return _number(args[0]) - _number(args[1])
+    if op == "multiply":
+        return _number(args[0]) * _number(args[1])
+    if op == "divide":
+        divisor = _number(args[1])
+        if divisor == 0:
+            raise BehaviorError("division by zero")
+        return _number(args[0]) / divisor
+    if op == "equal":
+        return args[0] == args[1]
+    if op == "not_equal":
+        return args[0] != args[1]
+    if op == "less_than":
+        return args[0] < args[1]
+    if op == "less_or_equal":
+        return args[0] <= args[1]
+    if op == "greater_than":
+        return args[0] > args[1]
+    if op == "greater_or_equal":
+        return args[0] >= args[1]
+    if op == "and":
+        return bool(args[0]) and bool(args[1])
+    if op == "or":
+        return bool(args[0]) or bool(args[1])
+    if op == "not":
+        return not bool(args[0])
+    if op == "if_else":
+        return args[1] if bool(args[0]) else args[2]
+    raise BehaviorError(f"unsupported expression operator: {op!r}")
+
+
+def validate_fields(fields: list[dict[str, Any]], payload: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise BehaviorError("record must be an object")
+    declared = {field["name"]: field for field in fields}
+    unknown = sorted(set(payload) - set(declared))
+    if unknown:
+        raise BehaviorError(f"unknown fields: {unknown}")
+    for name, spec in declared.items():
+        if name not in payload:
+            if spec.get("required", True):
+                raise BehaviorError(f"missing required field: {name}")
+            continue
+        value = payload[name]
+        if value is None:
+            if not spec.get("nullable", False):
+                raise BehaviorError(f"field cannot be null: {name}")
+            continue
+        kind = spec["value_type"]
+        valid = (
+            isinstance(value, str) if kind in ("string", "identifier", "date", "datetime")
+            else isinstance(value, bool) if kind == "boolean"
+            else isinstance(value, int) and not isinstance(value, bool) if kind == "integer"
+            else isinstance(value, (int, float, Decimal)) and not isinstance(value, bool) if kind in ("decimal", "money")
+            else True
+        )
+        if not valid:
+            raise BehaviorError(f"invalid type for field: {name}")
+        for constraint in spec.get("constraints", []):
+            op, bound = constraint["operator"], constraint.get("value")
+            if op == "min" and value < bound:
+                raise BehaviorError(f"{name} is below minimum")
+            if op == "max" and value > bound:
+                raise BehaviorError(f"{name} is above maximum")
+            if op == "min_length" and len(value) < bound:
+                raise BehaviorError(f"{name} is too short")
+            if op == "max_length" and len(value) > bound:
+                raise BehaviorError(f"{name} is too long")
+            if op == "pattern" and re.fullmatch(str(bound), str(value)) is None:
+                raise BehaviorError(f"{name} does not match pattern")
+            if op == "one_of" and value not in bound:
+                raise BehaviorError(f"{name} is not an allowed value")
+    return dict(payload)
+
+
+def authorize(policies: list[dict[str, Any]], role: str, action: str, resource: str,
+              attributes: dict[str, Any] | None = None) -> bool:
+    attributes = attributes or {}
+    matched_allow = False
+    for policy in policies:
+        for rule in policy.get("rules", []):
+            if role not in rule.get("roles", []) or action not in rule.get("actions", []):
+                continue
+            if rule.get("resource") not in (resource, "*"):
+                continue
+            conditions = rule.get("conditions", {})
+            if any(attributes.get(key) != expected for key, expected in conditions.items()):
+                continue
+            if rule.get("effect") == "deny":
+                return False
+            if rule.get("effect") == "allow":
+                matched_allow = True
+    return matched_allow
+
+
+def apply_effect(effect: dict[str, Any], idempotency_key: str | None, payload: Any,
+                 ledger: dict[str, Any]) -> Any:
+    if effect.get("idempotency_key_required") and not idempotency_key:
+        raise BehaviorError("idempotency key required")
+    if effect.get("idempotent"):
+        if not idempotency_key:
+            raise BehaviorError("idempotent effect requires a key")
+        key = f"{effect.get('effect_kind')}:{idempotency_key}"
+        if key in ledger:
+            return ledger[key]
+        ledger[key] = payload
+        return payload
+    if idempotency_key:
+        raise BehaviorError("non-idempotent effect cannot claim keyed deduplication")
+    return payload
+
+
+def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
+                    current_state: str, context: dict[str, Any]) -> str:
+    transition = next((item for item in transitions if item.get("transition_id") == transition_id), None)
+    if transition is None:
+        raise BehaviorError("unknown transition")
+    if transition.get("source_state") != current_state:
+        raise BehaviorError("transition source state mismatch")
+    guard = transition.get("guard")
+    if guard is not None and not bool(evaluate_expression(guard, context)):
+        raise BehaviorError("transition guard rejected")
+    return transition["target_state"]
+'''
 
     def _domain(self, path: str) -> str:
         mod = path.rsplit("/", 1)[-1][: -len(".py")]

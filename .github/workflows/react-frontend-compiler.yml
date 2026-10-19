@@ -1,0 +1,37 @@
+name: React Frontend Compiler Certification
+
+on:
+  pull_request:
+    paths:
+      - "compiler/backends/react_frontend.py"
+      - "compiler/core/capabilities.py"
+      - "compiler/core/lowering.py"
+      - "compiler/core/plan.py"
+      - "isr/core/behavior.py"
+      - "isr/core/behavior_validation.py"
+      - "tests/test_react_frontend_compiler.py"
+      - "tests/integration/test_react_frontend_build.py"
+      - ".github/workflows/react-frontend-compiler.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generated-frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Python test dependencies
+        run: python -m pip install "pydantic>=2.7,<3" pytest
+      - name: Verify ISR projection and fail-closed frontend gates
+        run: python -m pytest tests/test_react_frontend_compiler.py -q
+      - name: Install generated app dependencies, run interaction tests, and build
+        run: python -m pytest tests/integration/test_react_frontend_build.py -q

@@ -19,6 +19,8 @@ class SemanticFeature(str, Enum):
     EFFECT_SEMANTICS = "effect_semantics"
     INVARIANTS = "invariants"
     TYPED_EVENTS = "typed_events"
+    FRONTEND_ROUTES = "frontend_routes"
+    FRONTEND_INTERACTIONS = "frontend_interactions"
 
 
 class BackendCapabilities(BaseModel):
@@ -81,6 +83,37 @@ def required_features(plan: CompilationPlan) -> frozenset[SemanticFeature]:
             required.update({SemanticFeature.INVARIANTS, SemanticFeature.EXPRESSIONS})
 
     return frozenset(required)
+
+
+def required_frontend_features(plan: CompilationPlan) -> frozenset[SemanticFeature]:
+    """Return only the frontend compiler obligations in a shared plan."""
+    required: set[SemanticFeature] = set()
+    if plan.frontend_routes:
+        required.add(SemanticFeature.FRONTEND_ROUTES)
+    if plan.frontend_interactions:
+        required.add(SemanticFeature.FRONTEND_INTERACTIONS)
+    if any(
+        api.behavior is not None
+        for route in plan.frontend_routes
+        for api in route.api_operations
+    ):
+        required.add(SemanticFeature.API_CONTRACTS)
+    return frozenset(required)
+
+
+def assert_frontend_plan_supported(
+    plan: CompilationPlan,
+    capabilities: BackendCapabilities,
+) -> None:
+    unsupported = sorted(
+        feature.value
+        for feature in required_frontend_features(plan) - capabilities.supported_features
+    )
+    if unsupported:
+        raise UnsupportedSemanticsError(
+            f"Frontend backend {capabilities.backend_id}@{capabilities.version} cannot compile "
+            f"declared ISR semantics; unsupported features: {', '.join(unsupported)}"
+        )
 
 
 def assert_plan_supported(plan: CompilationPlan, capabilities: BackendCapabilities) -> None:

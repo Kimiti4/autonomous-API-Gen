@@ -695,19 +695,53 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
             "",
         ]
         for e in entities:
+            model = next((item for item in plan.data_models if _slug(item.entity_name) == e["mod"]), None)
+            if model is not None and model.behavior is not None:
+                payload = {}
+                updated_payload = {}
+                for field in model.behavior.fields:
+                    kind = field.value_type.value
+                    if kind == "integer":
+                        value, updated = 1, 2
+                    elif kind in ("decimal", "money"):
+                        value, updated = "10.00", "20.00"
+                    elif kind == "boolean":
+                        value, updated = True, False
+                    elif kind == "date":
+                        value, updated = "2026-01-01", "2026-01-02"
+                    elif kind == "datetime":
+                        value, updated = "2026-01-01T00:00:00Z", "2026-01-02T00:00:00Z"
+                    elif kind == "identifier":
+                        value, updated = f"{field.name}-alpha", f"{field.name}-beta"
+                    else:
+                        value, updated = "alpha", "beta"
+                    payload[field.name] = value
+                    updated_payload[field.name] = updated
+                tested_field = model.behavior.fields[0].name
+                expected_created = repr(payload[tested_field])
+                expected_updated = repr(updated_payload[tested_field])
+                payload_json = json.dumps(payload, sort_keys=True)
+                updated_json = json.dumps(updated_payload, sort_keys=True)
+            else:
+                tested_field = "name"
+                expected_created = repr("alpha")
+                expected_updated = repr("beta")
+                payload_json = json.dumps({"name": "alpha"})
+                updated_json = json.dumps({"name": "beta"})
             lines += [
                 f"def test_crud_{e['plural']}():",
-                f"    created = client.post('/api/{e['plural']}', json={{'name': 'alpha'}}, headers=HEADERS)",
+                f"    created = client.post('/api/{e['plural']}', json={payload_json}, headers=HEADERS)",
                 "    assert created.status_code == 201",
                 "    item_id = created.json()['id']",
+                f"    assert created.json()[{tested_field!r}] == {expected_created}",
                 f"    listed = client.get('/api/{e['plural']}', headers=HEADERS)",
                 f"    assert item_id in [i['id'] for i in listed.json()]",
                 f"    fetched = client.get(f'/api/{e['plural']}/{{item_id}}', headers=HEADERS)",
                 "    assert fetched.status_code == 200",
-                "    assert fetched.json()['name'] == 'alpha'",
-                f"    updated = client.put(f'/api/{e['plural']}/{{item_id}}', json={{'name': 'beta'}}, headers=HEADERS)",
+                f"    assert fetched.json()[{tested_field!r}] == {expected_created}",
+                f"    updated = client.put(f'/api/{e['plural']}/{{item_id}}', json={updated_json}, headers=HEADERS)",
                 "    assert updated.status_code == 200",
-                "    assert updated.json()['name'] == 'beta'",
+                f"    assert updated.json()[{tested_field!r}] == {expected_updated}",
                 f"    deleted = client.delete(f'/api/{e['plural']}/{{item_id}}', headers=HEADERS)",
                 "    assert deleted.status_code == 200",
                 f"    gone = client.get(f'/api/{e['plural']}/{{item_id}}', headers=HEADERS)",

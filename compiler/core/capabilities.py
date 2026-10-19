@@ -10,6 +10,7 @@ from compiler.core.plan import CompilationPlan
 
 class SemanticFeature(str, Enum):
     TYPED_FIELDS = "typed_fields"
+    DECIMAL_SHAPE = "decimal_shape"
     FIELD_CONSTRAINTS = "field_constraints"
     EXPRESSIONS = "expressions"
     BUSINESS_RULES = "business_rules"
@@ -44,6 +45,8 @@ def required_features(plan: CompilationPlan) -> frozenset[SemanticFeature]:
         if behavior is None:
             continue
         required.add(SemanticFeature.TYPED_FIELDS)
+        if any(field.precision is not None or field.scale is not None for field in behavior.fields):
+            required.add(SemanticFeature.DECIMAL_SHAPE)
         if any(field.constraints for field in behavior.fields):
             required.add(SemanticFeature.FIELD_CONSTRAINTS)
         if behavior.invariants:

@@ -403,6 +403,20 @@ pub fn validate_fields(fields: &Value, payload: &Value) -> Result<(), String> {
             _ => false,
         };
         if !valid { return Err(format!("invalid type for field: {name}")); }
+        if kind == "decimal" || kind == "money" {
+            let amount = decimal(value)?;
+            if let Some(scale) = spec.get("scale").and_then(Value::as_u64) {
+                if amount.scale() as u64 > scale {
+                    return Err(format!("{name} exceeds declared decimal scale"));
+                }
+            }
+            if let Some(precision) = spec.get("precision").and_then(Value::as_u64) {
+                let digits = amount.mantissa().unsigned_abs().to_string().len() as u64;
+                if digits > precision {
+                    return Err(format!("{name} exceeds declared decimal precision"));
+                }
+            }
+        }
         if let Some(constraints) = spec.get("constraints").and_then(Value::as_array) {
             for constraint in constraints {
                 let operator = constraint.get("operator").and_then(Value::as_str).unwrap_or("");

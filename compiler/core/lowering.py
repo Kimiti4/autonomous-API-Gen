@@ -9,6 +9,7 @@ from compiler.core.plan import (
     Event,
     SecurityPolicy,
     Service,
+    ApiOperation,
 )
 
 

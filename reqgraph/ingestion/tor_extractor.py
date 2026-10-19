@@ -201,7 +201,7 @@ def extract_tor_text(source_text: str, source_name: str) -> TORExtractionDraft:
         stripped = raw.strip()
         if not stripped or stripped.startswith(">"):
             continue
-        heading_text = re.sub(r"^#{1,6}\\s*", "", stripped)
+        heading_text = re.sub(r"^#{1,6}\s*", "", stripped)
         if _HEADING.match(heading_text):
             section = heading_text.strip(" .:")
             in_requirement_section = bool(re.search(

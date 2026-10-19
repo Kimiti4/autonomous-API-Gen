@@ -199,7 +199,7 @@ def extract_tor_text(source_text: str, source_name: str) -> TORExtractionDraft:
 
     for line_number, raw in enumerate(lines, start=1):
         stripped = raw.strip()
-        if not stripped:
+        if not stripped or stripped.startswith(">"):
             continue
         if _HEADING.match(stripped):
             section = stripped.strip(" .:")

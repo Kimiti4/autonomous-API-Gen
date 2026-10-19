@@ -292,16 +292,21 @@ def test_duplicate_defect_is_rejected() -> None:
 def test_known_defect_baseline_is_honest() -> None:
     by_id = {defect.id: defect for defect in DEFECTS}
     assert by_id["D01"].status is DefectStatus.VERIFIED
-    assert by_id["D02"].status is DefectStatus.FIXED_UNVERIFIED
+    assert by_id["D02"].status is DefectStatus.VERIFIED
     assert by_id["D03"].status is DefectStatus.VERIFIED
     for defect_id in ("D04", "D05", "D06", "D07", "D08"):
         assert by_id[defect_id].status is DefectStatus.OPEN
 
 
-def test_certification_claim_is_gated_by_open_compiler_gateway_defect() -> None:
+def test_certification_claim_is_gated_by_open_simulation_defects() -> None:
     by_id = {package.id: package for package in WORK_PACKAGES}
     defects = {defect.id: defect for defect in DEFECTS}
-    if defects["D02"].status is not DefectStatus.VERIFIED:
+    open_defects = {
+        defect_id
+        for defect_id, defect in defects.items()
+        if defect.status is DefectStatus.OPEN
+    }
+    if open_defects & {"D04", "D05", "D06", "D07", "D08"}:
         assert by_id["W16"].status is not Status.VERIFIED
 
 

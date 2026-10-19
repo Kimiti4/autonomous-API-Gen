@@ -196,6 +196,7 @@ def validate_behavior_payload(node_type: str, payload: Any) -> BaseModel:
         "api": ApiBehavior,
         "effect": EffectBehavior,
         "security_policy": SecurityBehavior,
+        "invariant": InvariantSpec,
     }
     schema = schemas.get(node_type)
     if schema is None:

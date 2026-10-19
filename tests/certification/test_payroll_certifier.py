@@ -10,6 +10,8 @@ from reqgraph.core.graph import Priority, RequirementGraph, RequirementKind, Req
 from certification.payroll.certifier import (
     StatutoryEvidence,
     certify_payroll_candidate,
+    derive_required_oracle_categories,
+    derive_required_statutory_schemes,
     compute_payroll_candidate_hash,
 )
 
@@ -186,3 +188,35 @@ def test_payroll_certifier_blocks_unreviewed_tor_candidates():
     report = certify_payroll_candidate(**args)
     assert not report.certified
     assert any("TOR review incomplete: 9/14" in finding for finding in report.findings)
+
+
+
+def test_required_statutory_schemes_and_oracles_are_derived_from_tor_statements():
+    graph = RequirementGraph(
+        schema_version="1.0",
+        nodes={
+            "REQ-TAX-001": RequirementNode(
+                id="REQ-TAX-001",
+                kind=RequirementKind.CONSTRAINT,
+                statement="The system shall calculate income tax, social security, pension and health insurance deductions.",
+                priority=Priority.MUST,
+                acceptance_criteria=("each deduction matches the approved effective-dated table",),
+                source_refs=("tor#L10-L10",),
+            ),
+            "REQ-PAY-002": RequirementNode(
+                id="REQ-PAY-002",
+                kind=RequirementKind.FUNCTIONAL,
+                statement="The system shall calculate salary, overtime, arrears and allocate cost centers.",
+                priority=Priority.MUST,
+                acceptance_criteria=("salary and arrears match independently computed expected values",),
+                source_refs=("tor#L20-L20",),
+            ),
+        },
+    )
+    assert derive_required_statutory_schemes(graph) == {
+        "income_tax", "social_security", "pension", "health_insurance"
+    }
+    assert {
+        "gross_to_net", "rounding_boundaries", "negative_and_boundary_cases",
+        "statutory_deductions", "overtime", "arrears_backpay", "cost_allocation",
+    } <= derive_required_oracle_categories(graph)

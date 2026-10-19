@@ -190,3 +190,16 @@ def test_payroll_backend_compilers_fail_closed_on_unimplemented_semantics():
             assert "authorization_policies" in str(exc)
         else:
             raise AssertionError(f"{backend.name} accepted unsupported payroll semantics")
+
+
+
+def test_world_concern_tor_fixture_extracts_reviewable_candidates_not_approved_requirements():
+    from pathlib import Path
+    from reqgraph.ingestion.tor_extractor import ReviewStatus
+
+    source = Path(__file__).resolve().parents[2] / "examples" / "payroll" / "world_concern_tor.md"
+    draft = extract_tor_text(source.read_text(encoding="utf-8"), source.name)
+    assert len(draft.candidates) >= 25
+    assert all(candidate.status is ReviewStatus.NEEDS_REVIEW for candidate in draft.candidates)
+    assert any("salary and benefits across multiple cost centers" in candidate.statement for candidate in draft.candidates)
+    assert any("not later than 28 October 2026" in candidate.statement for candidate in draft.candidates)

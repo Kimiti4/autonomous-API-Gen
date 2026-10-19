@@ -391,11 +391,11 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
         cls = _cls(mod)
         if model is None or model.behavior is None:
             return (
-                f'"""Domain model {cls} (generated)."""\\n'
-                "from pydantic import BaseModel\\n\\n\\n"
-                f"class {cls}(BaseModel):\\n"
-                "    id: str | None = None\\n"
-                "    name: str = ''\\n"
+                f'"""Domain model {cls} (generated)."""\n'
+                "from pydantic import BaseModel\n\n\n"
+                f"class {cls}(BaseModel):\n"
+                "    id: str | None = None\n"
+                "    name: str = ''\n"
             )
         type_names = {
             "string": "str", "identifier": "str", "date": "str", "datetime": "str",
@@ -432,7 +432,7 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
                 elif constraint.operator.value == "pattern":
                     args.append(f"pattern={str(constraint.value)!r}")
             lines.append(f"    {field.name}: {annotation} = Field({', '.join(args)})")
-        return "\\n".join(lines) + "\\n"
+        return "\n".join(lines) + "\n"
 
     def _service(self, path: str, plan: CompilationPlan) -> str:
         mod = path.rsplit("/", 1)[-1][: -len(".py")]

@@ -17,6 +17,14 @@ def _revision() -> ISRRevision:
                 {"name": "allowances", "value_type": "money", "precision": 12, "scale": 2},
             ]},
         }),
+        "dm:orphan": Node(id="dm:orphan", type=NodeType.DATA_MODEL, properties={
+            "label": "Standalone",
+            "behavior": {"fields": [{"name": "reference", "value_type": "identifier"}]},
+        }),
+        "event:unlinked": Node(id="event:unlinked", type=NodeType.EVENT, properties={
+            "label": "UnlinkedEvent",
+            "behavior": {"fields": [{"name": "event_id", "value_type": "identifier"}]},
+        }),
         "event:payroll-calculated": Node(id="event:payroll-calculated", type=NodeType.EVENT, properties={
             "label": "PayrollCalculated",
             "behavior": {"fields": [
@@ -104,6 +112,8 @@ def test_projection_preserves_all_behavioral_contracts_and_security_bindings():
     plan = isr_to_plan(revision)
 
     employee = next(model for service in plan.services for model in service.data_models)
+    assert next(model for model in plan.data_models if model.id == "dm:orphan").behavior.fields[0].name == "reference"
+    assert next(event for event in plan.events if event.id == "event:unlinked").behavior.fields[0].name == "event_id"
     assert [field.name for field in employee.behavior.fields] == ["base_salary", "allowances"]
 
     service = next(service for service in plan.services if service.id == "service:payroll")

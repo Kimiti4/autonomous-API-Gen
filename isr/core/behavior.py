@@ -8,6 +8,7 @@ behaviorally complete.
 from __future__ import annotations
 
 from enum import Enum
+import re
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -178,6 +179,15 @@ class ApiBehavior(BaseModel):
     request_fields: tuple[FieldSpec, ...] = ()
     response_fields: tuple[FieldSpec, ...] = ()
     authorization_policy_ids: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def validate_path_parameters(self) -> "ApiBehavior":
+        placeholders = set(re.findall(r"\\{([^{}]+)\\}", self.path))
+        field_names = {field.name for field in self.request_fields}
+        missing = sorted(placeholders - field_names)
+        if missing:
+            raise ValueError(f"path parameters missing from request_fields: {missing}")
+        return self
 
 
 class EffectBehavior(BaseModel):

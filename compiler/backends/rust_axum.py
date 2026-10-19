@@ -404,11 +404,21 @@ pub fn validate_fields(fields: &Value, payload: &Value) -> Result<(), String> {
                 let operator = constraint.get("operator").and_then(Value::as_str).unwrap_or("");
                 let bound = constraint.get("value").ok_or("constraint value missing")?;
                 match operator {
-                    "min" if decimal(value)? < decimal(bound)? => return Err(format!("{name} is below minimum")),
-                    "max" if decimal(value)? > decimal(bound)? => return Err(format!("{name} is above maximum")),
-                    "min_length" if value.as_str().map(str::len).unwrap_or(0) < bound.as_u64().unwrap_or(0) as usize => return Err(format!("{name} is too short")),
-                    "max_length" if value.as_str().map(str::len).unwrap_or(usize::MAX) > bound.as_u64().unwrap_or(usize::MAX as u64) as usize => return Err(format!("{name} is too long")),
-                    "one_of" if !bound.as_array().map(|choices| choices.contains(value)).unwrap_or(false) => return Err(format!("{name} is not an allowed value")),
+                    "min" => {
+                        if decimal(value)? < decimal(bound)? { return Err(format!("{name} is below minimum")); }
+                    },
+                    "max" => {
+                        if decimal(value)? > decimal(bound)? { return Err(format!("{name} is above maximum")); }
+                    },
+                    "min_length" => {
+                        if value.as_str().map(str::len).unwrap_or(0) < bound.as_u64().unwrap_or(0) as usize { return Err(format!("{name} is too short")); }
+                    },
+                    "max_length" => {
+                        if value.as_str().map(str::len).unwrap_or(usize::MAX) > bound.as_u64().unwrap_or(usize::MAX as u64) as usize { return Err(format!("{name} is too long")); }
+                    },
+                    "one_of" => {
+                        if !bound.as_array().map(|choices| choices.contains(value)).unwrap_or(false) { return Err(format!("{name} is not an allowed value")); }
+                    },
                     _ => return Err(format!("unsupported field constraint: {operator}")),
                 }
             }

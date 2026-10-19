@@ -143,6 +143,11 @@ class DataModelBehavior(BaseModel):
     invariants: tuple[InvariantSpec, ...] = ()
 
 
+class EventBehavior(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    fields: tuple[FieldSpec, ...] = ()
+
+
 class ServiceBehavior(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     rules: tuple[BusinessRule, ...] = ()
@@ -192,6 +197,7 @@ def validate_behavior_payload(node_type: str, payload: Any) -> BaseModel:
     """Parse behavior payload according to its owning ISR node kind."""
     schemas: dict[str, type[BaseModel]] = {
         "data_model": DataModelBehavior,
+        "event": EventBehavior,
         "service": ServiceBehavior,
         "api": ApiBehavior,
         "effect": EffectBehavior,

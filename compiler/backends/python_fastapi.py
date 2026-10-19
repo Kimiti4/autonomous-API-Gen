@@ -353,8 +353,10 @@ def authorize(policies: list[dict[str, Any]], role: str, action: str, resource: 
     return matched_allow
 
 
-def apply_effect(effect: dict[str, Any], idempotency_key: str | None, payload: Any,
+def apply_effect(effect: dict[str, Any], idempotency_key: str | None, execute,
                  ledger: dict[str, Any]) -> Any:
+    if not callable(execute):
+        raise BehaviorError("effect executor is required")
     if effect.get("idempotency_key_required") and not idempotency_key:
         raise BehaviorError("idempotency key required")
     if effect.get("idempotent"):
@@ -363,12 +365,12 @@ def apply_effect(effect: dict[str, Any], idempotency_key: str | None, payload: A
         key = f"{effect.get('effect_kind')}:{idempotency_key}"
         if key in ledger:
             return ledger[key]
-        ledger[key] = payload
-        return payload
+        result = execute()
+        ledger[key] = result
+        return result
     if idempotency_key:
         raise BehaviorError("non-idempotent effect cannot claim keyed deduplication")
-    return payload
-
+    return execute()
 
 def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
                     current_state: str, context: dict[str, Any]) -> str:
@@ -775,8 +777,8 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
             "import json\\n"
             "from app.core.behavior import apply_effect\\n\\n"
             f"EFFECT = json.loads({spec_json!r})\\n\\n"
-            "def apply(payload, idempotency_key, ledger):\\n"
-            "    return apply_effect(EFFECT, idempotency_key, payload, ledger)\\n"
+            "def apply(executor, idempotency_key, ledger):\\n"
+            "    return apply_effect(EFFECT, idempotency_key, executor, ledger)\\n"
         )
 
     def _k8s(self) -> str:

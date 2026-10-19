@@ -64,6 +64,8 @@ class RustAxumBackend:
                 p[ev.id] = f"src/events/{_slug(ev.name)}.rs"
         for sp in plan.security:
             p[sp.policy_id] = "src/core/security.rs"
+        for effect in plan.effects:
+            p[effect.id] = f"src/effects/{_slug(effect.name)}.rs"
         p.update({
             "infra:docker": "Dockerfile",
             "infra:cargo": "Cargo.toml",
@@ -130,6 +132,8 @@ class RustAxumBackend:
             return self._security()
         if path == "src/core/behavior.rs":
             return self._behavior_runtime()
+        if path.startswith("src/effects/") and path != "src/effects/mod.rs":
+            return self._effect(path, plan)
         if path == "k8s/deployment.yaml":
             return self._k8s()
         if path == ".github/workflows/ci.yml":
@@ -500,6 +504,53 @@ mod tests {
 }
 '''
 
+    def _effect(self, path: str, plan: CompilationPlan) -> str:
+        stem = path.rsplit("/", 1)[-1][: -len(".rs")]
+        effect = next((item for item in plan.effects if _slug(item.name) == stem), None)
+        if effect is None or effect.behavior is None:
+            return "//! Effect contract unavailable; this module is not executable.\\n"
+        spec_json = json.dumps(effect.behavior.model_dump(mode="json"))
+        spec_literal = json.dumps(spec_json)
+        lines = [
+            "//! Generated effect adapter with explicit idempotency semantics.",
+            "use serde_json::Value;",
+            "use std::collections::HashMap;",
+            "",
+            f"const EFFECT_JSON: &str = {spec_literal};",
+            "",
+            "pub fn apply(payload: Value, idempotency_key: Option<&str>, ledger: &mut HashMap<String, Value>) -> Result<Value, String> {",
+            "    let effect: Value = serde_json::from_str(EFFECT_JSON).map_err(|e| e.to_string())?;",
+            "    crate::core::behavior::apply_effect(&effect, idempotency_key, payload, ledger)",
+            "}",
+        ]
+        if effect.behavior.idempotent:
+            lines += [
+                "",
+                "#[cfg(test)]",
+                "mod tests {",
+                "    use super::*;",
+                "    use serde_json::json;",
+                "",
+                "    #[test]",
+                "    fn retries_return_the_original_result() {",
+                "        let mut ledger = HashMap::new();",
+                '        let first = apply(json!({"status":"queued"}), Some("same-key"), &mut ledger).unwrap();',
+                '        let retry = apply(json!({"status":"duplicate"}), Some("same-key"), &mut ledger).unwrap();',
+                "        assert_eq!(first, retry);",
+                "    }",
+            ]
+            if effect.behavior.idempotency_key_required:
+                lines += [
+                    "",
+                    "    #[test]",
+                    "    fn required_key_is_enforced() {",
+                    "        let mut ledger = HashMap::new();",
+                    "        assert!(apply(json!({}), None, &mut ledger).is_err());",
+                    "    }",
+                ]
+            lines.append("}")
+        return "\\n".join(lines) + "\\n"
+
     def _domain(self, path: str, plan: CompilationPlan) -> str:
         stem = path.rsplit("/", 1)[-1][: -len(".rs")]
         entities = plan_entities(plan)
@@ -673,6 +724,7 @@ mod tests {
             "pub mod domain;",
             "pub mod events;",
             "pub mod infrastructure;",
+            "pub mod effects;"
         ]
         l.append("pub mod core;")
         l.append("")

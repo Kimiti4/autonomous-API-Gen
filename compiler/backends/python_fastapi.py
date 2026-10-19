@@ -676,10 +676,13 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
             "def test_behavior_effect_idempotency_returns_prior_result():",
             "    effect = {'effect_kind': 'bank_transfer', 'idempotent': True, 'idempotency_key_required': True}",
             "    ledger = {}",
-            "    assert apply_effect(effect, 'run-1', {'status': 'queued'}, ledger) == {'status': 'queued'}",
-            "    assert apply_effect(effect, 'run-1', {'status': 'duplicate'}, ledger) == {'status': 'queued'}",
+            "    calls = []",
+            "    first = apply_effect(effect, 'run-1', lambda: calls.append('first') or {'status': 'queued'}, ledger)",
+            "    retry = apply_effect(effect, 'run-1', lambda: calls.append('retry') or {'status': 'duplicate'}, ledger)",
+            "    assert first == retry == {'status': 'queued'}",
+            "    assert calls == ['first']",
             "    with pytest.raises(BehaviorError, match='idempotency key required'):",
-            "        apply_effect(effect, None, {}, ledger)",
+            "        apply_effect(effect, None, lambda: {}, ledger)",
             "",
             "",
             "def test_behavior_state_transition_checks_guard_and_source():",
@@ -743,9 +746,11 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
                     f"def test_effect_{effect_mod}_deduplicates_retries():",
                     f"    from app.effects.{effect_mod} import apply",
                     "    ledger = {}",
-                    "    first = apply({'status': 'queued'}, 'same-key', ledger)",
-                    "    retry = apply({'status': 'duplicate'}, 'same-key', ledger)",
+                    "    calls = []",
+                    "    first = apply(lambda: calls.append('first') or {'status': 'queued'}, 'same-key', ledger)",
+                    "    retry = apply(lambda: calls.append('retry') or {'status': 'duplicate'}, 'same-key', ledger)",
                     "    assert first == retry",
+                    "    assert calls == ['first']",
                     "",
                 ]
                 if effect.behavior.idempotency_key_required:
@@ -753,16 +758,17 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
                         f"def test_effect_{effect_mod}_requires_idempotency_key():",
                         f"    from app.effects.{effect_mod} import apply",
                         "    with pytest.raises(BehaviorError, match='idempotency key required'):",
-                        "        apply({}, None, {})",
+                        "        apply(lambda: {}, None, {})",
                         "",
                     ]
             else:
                 lines += [
                     f"def test_effect_{effect_mod}_returns_payload():",
                     f"    from app.effects.{effect_mod} import apply",
-                    "    assert apply({'status': 'queued'}, None, {}) == {'status': 'queued'}",
+                    "    assert apply(lambda: {'status': 'queued'}, None, {}) == {'status': 'queued'}",
                     "",
                 ]
+
         return "\n".join(lines)
 
     def _effect(self, path: str, plan: CompilationPlan) -> str:

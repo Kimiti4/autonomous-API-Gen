@@ -123,3 +123,53 @@ def test_ambiguous_candidate_requires_resolution_reference():
                 approved_by="authorized-reviewer",
             )
         })
+
+
+
+def test_explicitly_approved_architecture_declarations_flow_through_genesis():
+    extraction = extract_tor(TOR, "world-concern-payroll-tor")
+    functional = next(candidate for candidate in extraction.candidates if "calculate salary" in candidate.statement)
+    review = RequirementReview(
+        candidate_id=functional.candidate_id,
+        kind=RequirementKind.FUNCTIONAL,
+        priority=Priority.MUST,
+        acceptance_criteria=("gross pay equals base salary plus declared allowances",),
+        approved_by="authorized-reviewer",
+        isr_nodes=({
+            "id": "service:payroll",
+            "type": "service",
+            "properties": {
+                "label": "Payroll",
+                "source_requirement_ids": [functional.candidate_id],
+            },
+        },),
+    )
+    mapped = map_reviewed_tor_to_isr(
+        extraction,
+        {functional.candidate_id: review},
+        system_id="world-concern-payroll",
+        revision_id="tor-rev-architecture-1",
+        created_at="2026-10-19T10:00:00Z",
+    )
+    assert "service:payroll" in mapped.revision.graph.nodes
+    assert mapped.revision.graph.nodes["service:payroll"].properties["source_requirement_ids"] == [functional.candidate_id]
+
+
+def test_architecture_declarations_cannot_omit_source_requirement_binding():
+    extraction = extract_tor(TOR, "world-concern-payroll-tor")
+    functional = next(candidate for candidate in extraction.candidates if "calculate salary" in candidate.statement)
+    with pytest.raises(ValueError, match="source_requirement_ids"):
+        reviewed_requirements_to_graph(extraction, {
+            functional.candidate_id: RequirementReview(
+                candidate_id=functional.candidate_id,
+                kind=RequirementKind.FUNCTIONAL,
+                priority=Priority.MUST,
+                acceptance_criteria=("gross pay equals base salary plus declared allowances",),
+                approved_by="authorized-reviewer",
+                isr_nodes=({
+                    "id": "service:payroll",
+                    "type": "service",
+                    "properties": {"label": "Payroll", "source_requirement_ids": []},
+                },),
+            )
+        })

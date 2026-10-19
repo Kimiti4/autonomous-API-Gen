@@ -172,3 +172,26 @@ def test_payroll_certifier_rejects_statutory_source_that_covers_only_part_of_per
     )
     assert not report.certified
     assert any("does not cover the full payroll period" in finding for finding in report.findings)
+
+
+
+def test_payroll_certifier_blocks_unreviewed_tor_candidates():
+    requirements, revision, plan, caps = _inputs()
+    report = certify_payroll_candidate(
+        requirement_graph=requirements,
+        revision=revision,
+        plan=plan,
+        candidate_sha256="a" * 64,
+        tor_source_id="world-concern-payroll-tor",
+        tor_source_sha256="c" * 64,
+        tor_candidate_count=14,
+        reviewed_tor_candidate_count=9,
+        payroll_period_start="2026-10-01",
+        payroll_period_end="2026-10-31",
+        required_statutory_schemes=(),
+        required_oracle_categories=(),
+        backend_capabilities=caps,
+        required_backends=("python-fastapi", "rust-axum"),
+    )
+    assert not report.certified
+    assert any("TOR review incomplete: 9/14" in finding for finding in report.findings)

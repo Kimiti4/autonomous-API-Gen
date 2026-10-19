@@ -1,6 +1,5 @@
 """isr_to_plan — lower an ISRRevision into a CompilationPlan."""
 from __future__ import annotations
-from isr.core.behavior import validate_behavior_payload
 from isr.core.revision import ISRRevision
 from isr.core.graph import NodeType, EdgeType
 from compiler.core.plan import (
@@ -9,9 +8,6 @@ from compiler.core.plan import (
     Event,
     SecurityPolicy,
     Service,
-    ApiOperation,
-    Effect as PlanEffect,
-    Invariant as PlanInvariant,
 )
 
 

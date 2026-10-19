@@ -36,6 +36,13 @@ class SecurityPolicy(BaseModel):
     behavior: SecurityBehavior | None = None
 
 
+class Effect(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    id: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    behavior: EffectBehavior | None = None
+
+
 class Service(BaseModel):
     model_config = ConfigDict(frozen=True)
     id: str = Field(min_length=1)
@@ -71,13 +78,6 @@ class FrontendRoute(BaseModel):
     behavior: FrontendRouteBehavior | None = None
     api_operations: list[ApiOperation] = Field(default_factory=list)
     interactions: list[FrontendInteraction] = Field(default_factory=list)
-
-
-class Effect(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    id: str = Field(min_length=1)
-    name: str = Field(min_length=1)
-    behavior: EffectBehavior | None = None
 
 
 class Invariant(BaseModel):

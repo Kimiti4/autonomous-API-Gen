@@ -79,14 +79,23 @@ def validate_frontend_ir(ir: FrontendProjectIR) -> tuple[str, ...]:
         findings.append("missing application_id")
     if not ir.api_contract_version:
         findings.append("missing api_contract_version")
+    if not ir.screens:
+        findings.append("frontend IR has no screens")
     seen: set[str] = set()
+    seen_routes: set[str] = set()
     for screen in ir.screens:
         if not screen.screen_id:
             findings.append("screen missing screen_id")
         if screen.screen_id in seen:
             findings.append(f"duplicate screen_id: {screen.screen_id}")
         seen.add(screen.screen_id)
+        if screen.route in seen_routes:
+            findings.append(f"duplicate screen route: {screen.route}")
+        seen_routes.add(screen.route)
+        if len(screen.actions) != len(set(screen.actions)):
+            findings.append(f"duplicate action ID on screen: {screen.screen_id}")
         if not screen.route.startswith("/"):
+
             findings.append(f"screen route must start with '/': {screen.screen_id}")
         if not screen.title:
             findings.append(f"screen missing title: {screen.screen_id}")

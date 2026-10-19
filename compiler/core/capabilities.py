@@ -59,7 +59,7 @@ def required_features(plan: CompilationPlan) -> frozenset[SemanticFeature]:
                 required.add(SemanticFeature.STATE_TRANSITIONS)
                 if any(transition.guard is not None for transition in behavior.transitions):
                     required.add(SemanticFeature.EXPRESSIONS)
-        if service.security_policies:
+        if any(policy.behavior is not None for policy in service.security_policies):
             required.add(SemanticFeature.AUTHORIZATION_POLICIES)
 
     for api in plan.apis:

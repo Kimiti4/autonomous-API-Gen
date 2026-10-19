@@ -93,7 +93,7 @@ def test_generated_rust_app_passes_cargo_tests(tmp_path: Path):
     root = tmp_path / "rust-app"
     _write_repo(root, repo.files)
     subprocess.run(
-        ["cargo", "test", "--locked"],
+        ["cargo", "test"],
         cwd=root,
         check=True,
         timeout=900,

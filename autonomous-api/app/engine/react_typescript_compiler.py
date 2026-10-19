@@ -178,21 +178,61 @@ const root = document.getElementById('root');
 if (!root) throw new Error('root element is missing');
 createRoot(root).render(<StrictMode><App /></StrictMode>);
 """
-        unit_test = """import { fireEvent, render, screen } from '@testing-library/react';
+        if ir.screens and ir.screens[0].actions:
+            first_screen = ir.screens[0]
+            first_action = first_screen.actions[0]
+            first_binding = next(
+                (binding for binding in first_screen.action_bindings if binding.action_id == first_action),
+                None,
+            )
+            if first_binding is not None:
+                unit_test = f"""import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import App from './App';
+
+afterEach(() => vi.unstubAllGlobals());
+
+describe('generated frontend interaction', () => {
+  it('sends a bound action to its declared API path and reports the response', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+    vi.stubGlobal('fetch', fetchMock);
+    window.history.replaceState({}, '', '/');
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: ${json.dumps(first_action)} }));
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Request completed: 200'));
+    expect(fetchMock).toHaveBeenCalledWith(
+      ${json.dumps(first_binding.path)},
+      expect.objectContaining({ method: ${json.dumps(first_binding.method.upper())} }),
+    );
+  });
+});
+"""
+            else:
+                unit_test = """import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import App from './App';
 
 describe('generated frontend interaction', () => {
-  it('renders the screen and reports an unbound action without claiming success', () => {
+  it('does not claim success for an action without an API binding', () => {
     window.history.replaceState({}, '', '/');
     render(<App />);
-    expect(screen.getByRole('heading')).toBeTruthy();
     const button = screen.queryByRole('button');
     if (button) {
       fireEvent.click(button);
-      expect(screen.getByRole('status').textContent).toContain('Action requested:');
       expect(screen.getByRole('status').textContent).toContain('no API binding configured');
     }
+  });
+});
+"""
+        else:
+            unit_test = """import { render, screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+import App from './App';
+
+describe('generated frontend', () => {
+  it('renders an explicit empty-route state', () => {
+    render(<App />);
+    expect(screen.getByRole('heading', { name: 'No route configured' })).toBeTruthy();
   });
 });
 """

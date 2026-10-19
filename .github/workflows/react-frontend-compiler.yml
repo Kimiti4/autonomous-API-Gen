@@ -11,6 +11,10 @@ on:
       - "isr/core/behavior_validation.py"
       - "tests/test_react_frontend_compiler.py"
       - "tests/integration/test_react_frontend_build.py"
+      - "reqgraph/ingestion/tor_extractor.py"
+      - "reqgraph/adapters/isr_projection.py"
+      - "tests/test_tor_ingestion_and_isr_projection.py"
+      - "docs/architecture/CONTROLLED_TOR_INGESTION.md"
       - ".github/workflows/react-frontend-compiler.yml"
   workflow_dispatch:
 
@@ -32,6 +36,6 @@ jobs:
       - name: Install Python test dependencies
         run: python -m pip install "pydantic>=2.7,<3" pytest
       - name: Verify ISR projection and fail-closed frontend gates
-        run: python -m pytest tests/test_react_frontend_compiler.py -q
+        run: python -m pytest tests/test_react_frontend_compiler.py tests/test_tor_ingestion_and_isr_projection.py -q
       - name: Install generated app dependencies, run interaction tests, and build
         run: python -m pytest tests/integration/test_react_frontend_build.py -q

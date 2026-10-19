@@ -12,8 +12,8 @@ from compiler.core.capabilities import (
     assert_plan_supported,
     required_features,
 )
-from compiler.core.plan import CompilationPlan, DataModel
-from isr.core.behavior import DataModelBehavior
+from compiler.core.plan import ApiOperation, CompilationPlan, DataModel, Effect
+from isr.core.behavior import ApiBehavior, DataModelBehavior, EffectBehavior
 
 
 def test_structural_plan_requires_no_behavioral_features():
@@ -103,3 +103,41 @@ def test_supported_behavioral_subset_is_emitted_by_both_backends():
             assert "evaluate_rule" in repo.files["src/application/payroll.rs"]
             assert "pub fn evaluate_expression" in repo.files["src/core/behavior.rs"]
             assert "base_salary" in repo.files["src/domain/employee.rs"]
+
+
+@pytest.mark.parametrize(
+    "plan",
+    [
+        CompilationPlan(
+            plan_id="api-plan", isr_id="system",
+            apis=[ApiOperation(
+                id="api:submit", name="submit",
+                behavior=ApiBehavior(
+                    operation_id="submit", method="POST", path="/submit"
+                ),
+            )],
+        ),
+        CompilationPlan(
+            plan_id="effect-plan", isr_id="system",
+            effects=[Effect(
+                id="effect:transfer", name="transfer",
+                behavior=EffectBehavior(
+                    effect_kind="bank_transfer", idempotent=True, idempotency_key_required=True
+                ),
+            )],
+        ),
+    ],
+)
+def test_api_and_effect_semantics_are_not_silently_claimed_supported(plan):
+    from compiler.core.capabilities import BackendCapabilities, assert_plan_supported
+
+    for backend in (PythonFastAPIBackend(), RustAxumBackend()):
+        with pytest.raises(UnsupportedSemanticsError):
+            assert_plan_supported(
+                plan,
+                BackendCapabilities(
+                    backend_id=backend.name,
+                    version=backend.version,
+                    supported_features=backend.supported_features,
+                ),
+            )

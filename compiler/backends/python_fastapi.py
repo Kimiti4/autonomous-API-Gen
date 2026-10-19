@@ -793,6 +793,33 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
                         f"        {service_class}().apply_transition({transition.transition_id!r}, {transition.source_state!r}, context)",
                     ]
                 lines.append("")
+            for effect in service.effects:
+                if effect.behavior is None:
+                    continue
+                if effect.behavior.idempotent:
+                    lines += [
+                        f"def test_generated_effect_{_slug(effect.id)}_is_idempotent():",
+                        f"    from app.application.{service_module} import {service_class}",
+                        "    ledger = {}",
+                        "    executions = []",
+                        "    service = " + service_class + "()",
+                        f"    first = service.execute_effect({effect.id!r}, 'key-1', lambda: executions.append('first') or {{'transfer_id': 'tx-1'}}, ledger)",
+                        f"    replay = service.execute_effect({effect.id!r}, 'key-1', lambda: executions.append('replay') or {{'transfer_id': 'tx-2'}}, ledger)",
+                        "    assert first == {'transfer_id': 'tx-1'}",
+                        "    assert replay == first",
+                        "    assert executions == ['first']",
+                        "    with pytest.raises(ValueError, match='idempotency key required'):",
+                        f"        service.execute_effect({effect.id!r}, None, lambda: {{'transfer_id': 'missing-key'}}, {{}})",
+                        "",
+                    ]
+                else:
+                    lines += [
+                        f"def test_generated_effect_{_slug(effect.id)}_executes_without_deduplication_key():",
+                        f"    from app.application.{service_module} import {service_class}",
+                        "    service = " + service_class + "()",
+                        f"    assert service.execute_effect({effect.id!r}, None, lambda: {{'ok': True}}, {{}}) == {{'ok': True}}",
+                        "",
+                    ]
         for e in entities:
             model = next((item for item in plan.data_models if _slug(item.entity_name) == e["mod"]), None)
             if model is not None and model.behavior is not None:

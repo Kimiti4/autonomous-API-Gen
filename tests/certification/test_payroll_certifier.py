@@ -67,10 +67,11 @@ def _inputs():
     return requirements, revision, plan, caps
 
 
-def _candidate_manifest(revision, plan, *, total=1, reviewed=1):
+def _candidate_manifest(requirements, revision, plan, *, total=1, reviewed=1):
     backend_hashes = {"python-fastapi": "d" * 64, "rust-axum": "e" * 64}
     frontend_hash = "f" * 64
     candidate_hash = compute_payroll_candidate_hash(
+        requirement_graph=requirements,
         revision=revision,
         plan=plan,
         tor_source_id=TOR_ID,
@@ -106,7 +107,7 @@ def _common(requirements, revision, plan, caps, candidate_hash, backend_hashes, 
 
 def test_payroll_candidate_is_not_certified_without_behavioral_and_runtime_evidence():
     requirements, revision, plan, caps = _inputs()
-    candidate_hash, backend_hashes, frontend_hash = _candidate_manifest(revision, plan)
+    candidate_hash, backend_hashes, frontend_hash = _candidate_manifest(requirements, revision, plan)
     args = _common(requirements, revision, plan, caps, candidate_hash, backend_hashes, frontend_hash)
     args["required_statutory_schemes"] = ("income_tax", "social_security", "health_insurance")
     args["required_oracle_categories"] = ("gross_to_net", "statutory_deductions", "arrears_backpay", "cost_allocation")
@@ -177,7 +178,7 @@ def test_payroll_certifier_rejects_statutory_source_that_covers_only_part_of_per
 
 def test_payroll_certifier_blocks_unreviewed_tor_candidates():
     requirements, revision, plan, caps = _inputs()
-    candidate_hash, backend_hashes, frontend_hash = _candidate_manifest(revision, plan, total=14, reviewed=9)
+    candidate_hash, backend_hashes, frontend_hash = _candidate_manifest(requirements, revision, plan, total=14, reviewed=9)
     args = _common(
         requirements, revision, plan, caps, candidate_hash, backend_hashes, frontend_hash,
         total=14, reviewed=9,

@@ -9,6 +9,7 @@ CRUD surface, the OpenAPI document, and auth.
 from __future__ import annotations
 
 from compiler.core.plan import CompilationPlan
+from compiler.core.capabilities import assert_plan_supported, structural_only
 from compiler.core.repository import GeneratedRepository, build_repository
 from compiler.core.conformance import CHECKER, ConformanceReport
 from compiler.core.protocol import BackendClass, BackendIdentity, TestSpec
@@ -64,6 +65,7 @@ class PythonFastAPIBackend:
         return p
 
     def compile(self, plan: CompilationPlan) -> GeneratedRepository:
+        assert_plan_supported(plan, structural_only(self.name, self.version))
         f: dict[str, str] = {}
         for path in dict.fromkeys(self.element_paths(plan).values()):
             f[path] = self._emit(path, plan)

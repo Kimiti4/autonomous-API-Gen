@@ -126,6 +126,22 @@ class StateTransition(BaseModel):
     guard: Expression | None = None
 
 
+class FrontendRouteBehavior(BaseModel):
+    """Technology-neutral route and page semantics for a generated UI."""
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    path: str = Field(pattern=r"^/")
+    title: str = Field(min_length=1)
+    requires_auth: bool = False
+
+
+class FrontendInteractionBehavior(BaseModel):
+    """A named UI action connected to an API or service through ISR edges."""
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    label: str = Field(min_length=1)
+    action: Literal["submit", "refresh", "delete", "toggle"]
+    success_message: str | None = None
+
+
 class AuthorizationRule(BaseModel):
     """Technology-neutral allow/deny rule; absent rules never imply access."""
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -203,6 +219,8 @@ def validate_behavior_payload(node_type: str, payload: Any) -> BaseModel:
         "effect": EffectBehavior,
         "security_policy": SecurityBehavior,
         "invariant": InvariantSpec,
+        "frontend_route": FrontendRouteBehavior,
+        "frontend_interaction": FrontendInteractionBehavior,
     }
     schema = schemas.get(node_type)
     if schema is None:

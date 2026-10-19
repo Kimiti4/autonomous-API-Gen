@@ -98,6 +98,8 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
         plan_id=f"plan:{revision.content_hash[:16]}",
         isr_id=revision.system_id,
         services=services,
+        data_models=list(dm_by_id.values()),
+        events=list(ev_by_id.values()),
         security=list(sec_by_id.values()),
         apis=apis,
         effects=effects,

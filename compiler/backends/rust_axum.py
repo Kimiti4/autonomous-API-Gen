@@ -525,15 +525,18 @@ mod tests {
         spec_json = json.dumps(effect.behavior.model_dump(mode="json"))
         spec_literal = json.dumps(spec_json)
         lines = [
-            "//! Generated effect adapter with explicit idempotency semantics.",
+            "//! Generated effect adapter with explicit executor and idempotency contract.",
             "use serde_json::Value;",
             "use std::collections::HashMap;",
             "",
             f"const EFFECT_JSON: &str = {spec_literal};",
             "",
-            "pub fn apply(payload: Value, idempotency_key: Option<&str>, ledger: &mut HashMap<String, Value>) -> Result<Value, String> {",
+            "pub fn apply<F>(idempotency_key: Option<&str>, ledger: &mut HashMap<String, Value>, executor: F) -> Result<Value, String>",
+            "where",
+            "    F: FnOnce() -> Result<Value, String>,",
+            "{",
             "    let effect: Value = serde_json::from_str(EFFECT_JSON).map_err(|e| e.to_string())?;",
-            "    crate::core::behavior::apply_effect(&effect, idempotency_key, payload, ledger)",
+            "    crate::core::behavior::apply_effect(&effect, idempotency_key, executor, ledger)",
             "}",
         ]
         if effect.behavior.idempotent:
@@ -545,11 +548,13 @@ mod tests {
                 "    use serde_json::json;",
                 "",
                 "    #[test]",
-                "    fn retries_return_the_original_result() {",
+                "    fn retries_return_the_original_result_without_reexecuting_handler() {",
                 "        let mut ledger = HashMap::new();",
-                '        let first = apply(json!({"status":"queued"}), Some("same-key"), &mut ledger).unwrap();',
-                '        let retry = apply(json!({"status":"duplicate"}), Some("same-key"), &mut ledger).unwrap();',
+                "        let mut calls = 0;",
+                '        let first = apply(Some("same-key"), &mut ledger, || { calls += 1; Ok(json!({"status":"queued"})) }).unwrap();',
+                '        let retry = apply(Some("same-key"), &mut ledger, || { calls += 1; Ok(json!({"status":"duplicate"})) }).unwrap();',
                 "        assert_eq!(first, retry);",
+                "        assert_eq!(calls, 1);",
                 "    }",
             ]
             if effect.behavior.idempotency_key_required:
@@ -558,7 +563,7 @@ mod tests {
                     "    #[test]",
                     "    fn required_key_is_enforced() {",
                     "        let mut ledger = HashMap::new();",
-                    "        assert!(apply(json!({}), None, &mut ledger).is_err());",
+                    "        assert!(apply(None, &mut ledger, || Ok(json!({}))).is_err());",
                     "    }",
                 ]
             lines.append("}")

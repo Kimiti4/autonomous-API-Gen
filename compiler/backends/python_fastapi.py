@@ -9,8 +9,10 @@ CRUD surface, the OpenAPI document, and auth.
 from __future__ import annotations
 
 import json
+from decimal import Decimal
 
 from compiler.core.plan import CompilationPlan
+from compiler.core.behavior_oracle import reference_evaluate, sample_context
 from compiler.core.capabilities import BackendCapabilities, SemanticFeature, assert_plan_supported
 from compiler.core.repository import GeneratedRepository, build_repository
 from compiler.core.conformance import CHECKER, ConformanceReport
@@ -731,6 +733,42 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
             "",
             "",
         ]
+        for service in plan.services:
+            if service.behavior is None:
+                continue
+            service_module = _slug(service.name)
+            service_class = _cls_name(service_module) + "Service"
+            for rule in service.behavior.rules:
+                context = sample_context(rule.expression, plan)
+                expected = reference_evaluate(rule.expression, context)
+                lines += [
+                    f"def test_generated_rule_{_slug(rule.rule_id)}():",
+                    f"    from app.application.{service_module} import {service_class}",
+                    f"    context = {context!r}",
+                    f"    actual = {service_class}().evaluate_rule({rule.rule_id!r}, context)",
+                    f"    assert actual == {expected!r}",
+                    "",
+                ]
+            for transition in service.behavior.transitions:
+                if transition.guard is None:
+                    continue
+                context = sample_context(transition.guard, plan)
+                accepted = bool(reference_evaluate(transition.guard, context))
+                lines += [
+                    f"def test_generated_transition_{_slug(transition.transition_id)}():",
+                    f"    from app.application.{service_module} import {service_class}",
+                    f"    context = {context!r}",
+                ]
+                if accepted:
+                    lines.append(
+                        f"    assert {service_class}().apply_transition({transition.transition_id!r}, {transition.source_state!r}, context) == {transition.target_state!r}"
+                    )
+                else:
+                    lines += [
+                        "    with pytest.raises(ValueError):",
+                        f"        {service_class}().apply_transition({transition.transition_id!r}, {transition.source_state!r}, context)",
+                    ]
+                lines.append("")
         for e in entities:
             model = next((item for item in plan.data_models if _slug(item.entity_name) == e["mod"]), None)
             if model is not None and model.behavior is not None:

@@ -155,8 +155,60 @@ def _require_behavioral_completeness(plan: CompilationPlan, findings: list[str])
         findings.append("payroll behavioral plan is missing required features: " + ", ".join(missing))
 
 
+def derive_required_statutory_schemes(requirement_graph: RequirementGraph) -> frozenset[str]:
+    """Derive statutory schemes from reviewed TOR requirement text, not caller defaults."""
+    schemes: set[str] = set()
+    for node in requirement_graph.nodes.values():
+        text = node.statement.lower()
+        if "income tax" in text or "paye" in text:
+            schemes.add("income_tax")
+        if "social security" in text or "nssf" in text:
+            schemes.add("social_security")
+        if "pension" in text:
+            schemes.add("pension")
+        if "health insurance" in text or "medical insurance" in text or "shif" in text:
+            schemes.add("health_insurance")
+        if "other statutory deduction" in text or "other statutory deductions" in text:
+            schemes.add("other_statutory")
+    return frozenset(schemes)
+
+
+def derive_required_oracle_categories(requirement_graph: RequirementGraph) -> frozenset[str]:
+    """Derive independent oracle categories from approved payroll requirements."""
+    categories: set[str] = set()
+    for node in requirement_graph.nodes.values():
+        text = node.statement.lower()
+        if any(term in text for term in ("gross pay", "gross-to-net", "salary calculation", "calculate salary", "payroll calculation")):
+            categories.add("gross_to_net")
+            categories.update({"rounding_boundaries", "negative_and_boundary_cases"})
+        if any(term in text for term in ("income tax", "social security", "health insurance", "pension", "statutory deduction")):
+            categories.add("statutory_deductions")
+        if "arrears" in text or "back-pay" in text or "back pay" in text:
+            categories.add("arrears_backpay")
+        if "leave deduction" in text:
+            categories.add("leave_deductions")
+        if "cost allocation" in text or "cost center" in text or "cost centre" in text:
+            categories.add("cost_allocation")
+        if "overtime" in text:
+            categories.add("overtime")
+        if "pay frequency" in text or "weekly" in text or "bi-weekly" in text or "biweekly" in text:
+            categories.add("pay_frequency")
+        if "loan" in text or "advance" in text:
+            categories.add("loans_advances")
+        if "allowance" in text or "benefit" in text:
+            categories.add("allowances_benefits")
+        if "bonus" in text or "incentive" in text:
+            categories.add("bonus_incentives")
+        if "bank transfer" in text or "bank details" in text:
+            categories.add("bank_transfers")
+        if "leave balance" in text or "apply for leave" in text:
+            categories.add("leave_balances")
+    return frozenset(categories)
+
+
 def compute_payroll_candidate_hash(
     *,
+    requirement_graph: RequirementGraph,
     revision: ISRRevision,
     plan: CompilationPlan,
     tor_source_id: str,
@@ -169,6 +221,19 @@ def compute_payroll_candidate_hash(
     """Hash the ISR, lowered plan, exact emitted backend/frontend artifacts, and TOR review state."""
     manifest = {
         "isr_content_hash": revision.content_hash,
+        "reviewed_requirements": [
+            {
+                "id": node.id,
+                "kind": node.kind.value,
+                "statement": node.statement,
+                "priority": node.priority.value,
+                "acceptance_criteria": list(node.acceptance_criteria),
+                "source_refs": list(node.source_refs),
+            }
+            for node in sorted(requirement_graph.nodes.values(), key=lambda item: item.id)
+        ],
+        "derived_statutory_schemes": sorted(derive_required_statutory_schemes(requirement_graph)),
+        "derived_oracle_categories": sorted(derive_required_oracle_categories(requirement_graph)),
         "system_id": revision.system_id,
         "plan": plan.model_dump(mode="json"),
         "backend_artifact_hashes": dict(sorted(backend_artifact_hashes.items())),
@@ -241,6 +306,7 @@ def certify_payroll_candidate(
     if not _valid_hash(frontend_artifact_sha256):
         findings.append("frontend artifact SHA-256 is missing or malformed")
     expected_candidate_hash = compute_payroll_candidate_hash(
+        requirement_graph=requirement_graph,
         revision=revision,
         plan=plan,
         tor_source_id=tor_source_id,
@@ -283,10 +349,12 @@ def certify_payroll_candidate(
         except UnsupportedSemanticsError as exc:
             findings.append(f"backend {backend_id} cannot implement this payroll plan: {exc}")
 
+    effective_statutory_schemes = set(required_statutory_schemes) | set(derive_required_statutory_schemes(requirement_graph))
+    effective_oracle_categories = set(required_oracle_categories) | set(derive_required_oracle_categories(requirement_graph))
     schemes: dict[str, list[StatutoryEvidence]] = {}
     for evidence in statutory_evidence:
         schemes.setdefault(evidence.scheme, []).append(evidence)
-    for scheme in sorted(set(required_statutory_schemes)):
+    for scheme in sorted(effective_statutory_schemes):
         evidence_items = schemes.get(scheme, [])
         if not evidence_items:
             findings.append(f"missing statutory evidence for scheme: {scheme}")
@@ -341,7 +409,7 @@ def certify_payroll_candidate(
 
     requirement_ids = set(requirement_graph.nodes)
     oracles = {item.category: item for item in oracle_evidence}
-    for category in sorted(set(required_oracle_categories)):
+    for category in sorted(effective_oracle_categories):
         evidence = oracles.get(category)
         if evidence is None:
             findings.append(f"missing independent payroll oracle category: {category}")

@@ -485,15 +485,36 @@ mod tests {
         entities = plan_entities(plan)
         entity = next((e for e in entities if e["mod"] == stem), None)
         cls = entity["cls"] if entity else _cls(stem)
-        return (
-            f"//! Domain model {cls} (generated).\n"
-            "#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]\n"
-            "#[serde(default)]\n"
-            f"pub struct {cls} {{\n"
-            "    pub id: Option<String>,\n"
-            "    pub name: String,\n"
-            "}\n"
-        )
+        model = next((item for item in plan.data_models if _slug(item.entity_name) == stem), None)
+        if model is None or model.behavior is None:
+            return (
+                f"//! Domain model {cls} (generated).\\n"
+                "#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]\\n"
+                "#[serde(default)]\\n"
+                f"pub struct {cls} {{\\n"
+                "    pub id: Option<String>,\\n"
+                "    pub name: String,\\n"
+                "}\\n"
+            )
+        type_names = {
+            "string": "String", "identifier": "String", "date": "String", "datetime": "String",
+            "integer": "i64", "decimal": "rust_decimal::Decimal", "money": "rust_decimal::Decimal",
+            "boolean": "bool",
+        }
+        lines = [
+            f"//! Typed domain model {cls} (generated from ISR).",
+            "#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]",
+            f"pub struct {cls} {{",
+        ]
+        for field in model.behavior.fields:
+            annotation = type_names[field.value_type.value]
+            optional = field.nullable or not field.required
+            if optional:
+                annotation = f"Option<{annotation}>"
+                lines.append("    #[serde(default)]")
+            lines.append(f"    pub {field.name}: {annotation},")
+        lines.append("}")
+        return "\\n".join(lines) + "\\n"
 
     def _application(self, path: str, plan: CompilationPlan) -> str:
         stem = path.rsplit("/", 1)[-1][: -len(".rs")]

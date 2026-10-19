@@ -365,7 +365,8 @@ class PythonFastAPIBackend:
         lines = [
             "import os",
             "",
-            'os.environ.setdefault("GENERATED_API_KEY", "contract-test-key")',
+            'os.environ.setdefault("GENERATED_API_KEY", "generated-dev-key")',
+            'API_KEY = os.environ["GENERATED_API_KEY"]',
             "",
             "from fastapi.testclient import TestClient",
             "",
@@ -373,7 +374,7 @@ class PythonFastAPIBackend:
             "",
             "",
             "client = TestClient(app)",
-            f"HEADERS = {({'X-API-Key': 'contract-test-key'} if secured else {})}",
+            f"HEADERS = {{'X-API-Key': API_KEY}} if {secured} else {{}}",
             "",
             "",
             "def test_health():",

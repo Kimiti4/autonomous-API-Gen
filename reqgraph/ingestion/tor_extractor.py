@@ -75,6 +75,8 @@ class TORExtractionDraft(BaseModel):
         approvals: Mapping[str, HumanApproval],
     ) -> RequirementGraph:
         """Build a validated graph only when every extracted item is approved."""
+        if hashlib.sha256(self.source_text.encode("utf-8")).hexdigest() != self.source_sha256:
+            raise ValueError("TOR source changed after extraction; re-extract and re-review")
         if not self.candidates:
             raise ValueError("cannot approve a TOR extraction with zero requirement candidates")
         candidate_ids = {candidate.requirement_id for candidate in self.candidates}

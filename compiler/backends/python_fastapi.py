@@ -808,16 +808,16 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
         mod = path.rsplit("/", 1)[-1][: -len(".py")]
         effect = next((item for item in plan.effects if _slug(item.name) == mod), None)
         if effect is None or effect.behavior is None:
-            return '"""Effect contract unavailable; this module is not executable."""\\n'
+            return '"""Effect contract unavailable; this module is not executable."""\n'
         spec = effect.behavior.model_dump(mode="json")
         spec_json = json.dumps(spec)
         return (
-            '"""Generated effect adapter with explicit idempotency semantics."""\\n'
-            "import json\\n"
-            "from app.core.behavior import apply_effect\\n\\n"
-            f"EFFECT = json.loads({spec_json!r})\\n\\n"
-            "def apply(executor, idempotency_key, ledger):\\n"
-            "    return apply_effect(EFFECT, idempotency_key, executor, ledger)\\n"
+            '"""Generated effect adapter with explicit idempotency semantics."""\n'
+            "import json\n"
+            "from app.core.behavior import apply_effect\n\n"
+            f"EFFECT = json.loads({spec_json!r})\n\n"
+            "def apply(executor, idempotency_key, ledger):\n"
+            "    return apply_effect(EFFECT, idempotency_key, executor, ledger)\n"
         )
 
     def _k8s(self) -> str:

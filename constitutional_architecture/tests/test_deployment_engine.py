@@ -194,13 +194,49 @@ class TestPipeline:
 # TARGETS
 # ---------------------------------------------------------------------------
 
+class _FakeTargetExecutor:
+    def __init__(self, endpoint: str = "https://runtime.example/app") -> None:
+        self.endpoint = endpoint
+        self.cleaned = False
+        self.health_result = HealthCheckResult(
+            endpoint=endpoint + "/health",
+            status="healthy",
+            response_time_ms=1.0,
+            details="Executed by test adapter",
+        )
+
+    def deploy(self, artifact):
+        return TargetResult(
+            success=True,
+            endpoint=self.endpoint,
+            deployed_artifacts=(artifact,),
+            health=self.health_result,
+        )
+
+    def health_check(self):
+        return self.health_result
+
+    def cleanup(self):
+        self.cleaned = True
+
+
 class TestTargets:
-    def test_docker_deploy(self):
+    def test_docker_deploy_requires_executor(self):
         target = DockerTarget()
+        artifact = DeploymentArtifact(artifact_type="container_image", name="img:latest", location="reg/img")
+        result = target.deploy(artifact)
+        assert not result.success
+        assert result.endpoint == ""
+        assert "executor" in result.error.lower()
+
+    def test_docker_deploy_with_executor(self):
+        executor = _FakeTargetExecutor("http://localhost:8080")
+        target = DockerTarget(executor=executor)
         artifact = DeploymentArtifact(artifact_type="container_image", name="img:latest", location="reg/img")
         result = target.deploy(artifact)
         assert result.success
         assert "localhost" in result.endpoint
+        assert result.deployed_artifacts == (artifact,)
 
     def test_docker_rejects_non_container(self):
         target = DockerTarget()
@@ -208,21 +244,46 @@ class TestTargets:
         result = target.deploy(artifact)
         assert not result.success
 
-    def test_kubernetes_deploy(self):
+    def test_kubernetes_deploy_requires_executor(self):
         target = KubernetesTarget()
+        artifact = DeploymentArtifact(artifact_type="container_image", name="img:stable", location="reg/img")
+        result = target.deploy(artifact)
+        assert not result.success
+        assert result.endpoint == ""
+        assert "executor" in result.error.lower()
+
+    def test_kubernetes_deploy_with_executor(self):
+        executor = _FakeTargetExecutor("https://k8s.example.com/app")
+        target = KubernetesTarget(executor=executor)
         artifact = DeploymentArtifact(artifact_type="container_image", name="img:stable", location="reg/img")
         result = target.deploy(artifact)
         assert result.success
         assert "k8s" in result.endpoint
 
-    def test_local_deploy(self):
+    def test_local_deploy_requires_executor(self):
         target = LocalTarget()
         artifact = DeploymentArtifact(artifact_type="build", name="local-app", location="./out")
         result = target.deploy(artifact)
-        assert result.success
+        assert not result.success
+        assert "executor" in result.error.lower()
 
-    def test_health_check(self):
+    def test_local_deploy_with_executor(self):
+        executor = _FakeTargetExecutor("http://localhost:5000")
+        target = LocalTarget(executor=executor)
+        artifact = DeploymentArtifact(artifact_type="build", name="local-app", location="./out")
+        result = target.deploy(artifact)
+        assert result.success
+        assert "localhost" in result.endpoint
+
+    def test_health_check_without_executor_is_unknown(self):
         target = DockerTarget()
+        hc = target.health_check()
+        assert hc.status == "unknown"
+        assert hc.response_time_ms >= 0
+
+    def test_health_check_with_executor(self):
+        executor = _FakeTargetExecutor()
+        target = DockerTarget(executor=executor)
         hc = target.health_check()
         assert hc.status == "healthy"
         assert hc.response_time_ms >= 0

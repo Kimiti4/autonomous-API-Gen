@@ -568,6 +568,7 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
             _test("tests/test_no_passing_stubs.py"),
             _test("tests/test_passes/test_verification.py"),
             _test("tests/test_execution_evidence_truthfulness.py"),
+            _test("tests/test_deployment_targets_fail_closed.py"),
             _workflow(".github/workflows/cbc1-campaign-a.yml"),
             _artifact("cbc1-a-evidence", "78/78 CERTIFIED at d8f2a88e, chain valid"),
         ),
@@ -582,7 +583,6 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         ),
         limitations=(
             "The phase-31 minimal backend still writes assert-True smoke tests (D07).",
-            "Deployment targets still fabricate synthetic success (D04).",
         ),
     ),
     WorkPackage(
@@ -626,6 +626,7 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
             _code("certification/stages/docker_stages.py"),
             _test("tests/test_docker_execution_environment.py"),
             _test("tests/test_deployment_handoff_truthfulness.py"),
+            _test("tests/test_deployment_targets_fail_closed.py"),
         ),
         closure_gate=(
             "A clean runner builds the candidate, deploys to a real test environment, "
@@ -633,7 +634,8 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         ),
         claimed_tiers=(CertificationTier.BUILD, CertificationTier.OPERATIONAL),
         limitations=(
-            "Deployment targets fabricate synthetic success (D04).",
+            "No runtime executor is shipped for the deployment targets; they fail "
+            "closed until a real cluster/container adapter is injected.",
             "Generated CI and deploy workflows are not executed.",
         ),
     ),
@@ -775,11 +777,16 @@ DEFECTS: tuple[Defect, ...] = (
     ),
     Defect(
         id="D04",
-        title="Kubernetes deployment target returns synthetic success and health",
+        title="Deployment targets returned synthetic success and health",
         location="constitutional_architecture/deployment/targets/kubernetes_target.py",
-        status=DefectStatus.OPEN,
+        status=DefectStatus.VERIFIED,
         severity="high",
-        note="Hardcoded endpoint and healthy status; no real cluster call.",
+        regression_test="tests/test_deployment_targets_fail_closed.py",
+        note=(
+            "Kubernetes, Docker and local targets now require an injected "
+            "TargetExecutor; without one they fail and health is unknown. An "
+            "executor reporting success without an endpoint is rejected."
+        ),
     ),
     Defect(
         id="D05",

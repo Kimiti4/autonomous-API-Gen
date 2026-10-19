@@ -243,7 +243,15 @@ def _number(value: Any) -> Decimal:
 
 def evaluate_expression(expression: dict[str, Any], context: dict[str, Any]) -> Any:
     op = expression.get("op")
-    args = [evaluate_expression(arg, context) for arg in expression.get("args", [])]
+    raw_args = expression.get("args", [])
+    if op == "and":
+        return bool(evaluate_expression(raw_args[0], context)) and bool(evaluate_expression(raw_args[1], context))
+    if op == "or":
+        return bool(evaluate_expression(raw_args[0], context)) or bool(evaluate_expression(raw_args[1], context))
+    if op == "if_else":
+        condition = bool(evaluate_expression(raw_args[0], context))
+        return evaluate_expression(raw_args[1] if condition else raw_args[2], context)
+    args = [evaluate_expression(arg, context) for arg in raw_args]
     if op == "literal":
         return expression["value"]
     if op == "field":
@@ -271,14 +279,8 @@ def evaluate_expression(expression: dict[str, Any], context: dict[str, Any]) -> 
         return args[0] > args[1]
     if op == "greater_or_equal":
         return args[0] >= args[1]
-    if op == "and":
-        return bool(args[0]) and bool(args[1])
-    if op == "or":
-        return bool(args[0]) or bool(args[1])
     if op == "not":
         return not bool(args[0])
-    if op == "if_else":
-        return args[1] if bool(args[0]) else args[2]
     raise BehaviorError(f"unsupported expression operator: {op!r}")
 
 

@@ -166,7 +166,8 @@ class RustAxumBackend:
             'axum = "0.7"\n'
             'tokio = { version = "1", features = ["full"] }\n'
             'serde = { version = "1", features = ["derive"] }\n'
-            'serde_json = "1"\n'            'rust_decimal = { version = "1", features = ["serde"] }\n'
+            'serde_json = "1"\n'
+            'rust_decimal = { version = "1", features = ["serde"] }\n'
         )
 
     def _repositories(self) -> str:
@@ -326,7 +327,7 @@ pub fn evaluate_expression(expression: &Value, context: &Value) -> Result<Value,
         "multiply" => Ok(decimal_value(decimal(&values[0])? * decimal(&values[1])?)),
         "divide" => {
             let divisor = decimal(&values[1])?;
-            if divisor.is_zero() { return Err("division by zero".to_string()); }
+            if divisor == Decimal::ZERO { return Err("division by zero".to_string()); }
             Ok(decimal_value(decimal(&values[0])? / divisor))
         },
         "equal" => Ok(Value::Bool(values[0] == values[1])),
@@ -384,7 +385,7 @@ pub fn validate_fields(fields: &Value, payload: &Value) -> Result<(), String> {
                     "min_length" if value.as_str().map(str::len).unwrap_or(0) < bound.as_u64().unwrap_or(0) as usize => return Err(format!("{name} is too short")),
                     "max_length" if value.as_str().map(str::len).unwrap_or(usize::MAX) > bound.as_u64().unwrap_or(usize::MAX as u64) as usize => return Err(format!("{name} is too long")),
                     "one_of" if !bound.as_array().map(|choices| choices.contains(value)).unwrap_or(false) => return Err(format!("{name} is not an allowed value")),
-                    _ => {},
+                    _ => return Err(format!("unsupported field constraint: {operator}")),
                 }
             }
         }

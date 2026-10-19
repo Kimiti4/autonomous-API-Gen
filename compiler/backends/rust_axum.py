@@ -736,6 +736,33 @@ mod tests {
                 "}",
                 "",
             ]
+        if service is not None and service.effects:
+            lines[1] = "use serde_json::{json, Value};"
+            lines.insert(2, "use std::collections::HashMap;")
+            effect_arms = []
+            for effect in service.effects:
+                if effect.behavior is None:
+                    raise UnsupportedSemanticsError(
+                        f"Service {service.id!r} has an effect without typed semantics"
+                    )
+                spec = effect.behavior.model_dump(mode="json")
+                effect_arms.append(
+                    f"            {json.dumps(effect.id)} => json!({json.dumps(spec)}),"
+                )
+            lines += [
+                "",
+                "pub fn execute_effect<F>(effect_id: &str, idempotency_key: Option<&str>, ledger: &mut HashMap<String, Value>, execute: F) -> Result<Value, String>",
+                "where",
+                "    F: FnOnce() -> Result<Value, String>,",
+                "{",
+                "    let effect = match effect_id {",
+                *effect_arms,
+                '        _ => return Err("unknown effect".to_string()),',
+                "    };",
+                "    crate::core::behavior::apply_effect(&effect, idempotency_key, ledger, execute)",
+                "}",
+                "",
+            ]
         return "\n".join(lines) + "\n"
 
     def _event(self, path: str, plan: CompilationPlan) -> str:

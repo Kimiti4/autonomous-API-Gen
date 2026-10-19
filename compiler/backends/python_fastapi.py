@@ -59,6 +59,8 @@ class PythonFastAPIBackend:
                 p[ev.id] = f"app/events/{_slug(ev.name)}.py"
         for sp in plan.security:
             p[sp.policy_id] = "app/core/security.py"
+        for effect in plan.effects:
+            p[effect.id] = f"app/effects/{_slug(effect.name)}.py"
         p.update({
             "infra:docker": "Dockerfile",
             "infra:k8s": "k8s/deployment.yaml",
@@ -128,6 +130,8 @@ class PythonFastAPIBackend:
             return self._service(path, plan)
         if path.startswith("app/events/"):
             return self._event(path, plan)
+        if path.startswith("app/effects/"):
+            return self._effect(path, plan)
         return f"# unrecognised element path: {path}\n"
 
     def _dockerfile(self) -> str:
@@ -728,6 +732,22 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
                 "",
             ]
         return "\n".join(lines)
+
+    def _effect(self, path: str, plan: CompilationPlan) -> str:
+        mod = path.rsplit("/", 1)[-1][: -len(".py")]
+        effect = next((item for item in plan.effects if _slug(item.name) == mod), None)
+        if effect is None or effect.behavior is None:
+            return '"""Effect contract unavailable; this module is not executable."""\\n'
+        spec = effect.behavior.model_dump(mode="json")
+        spec_json = json.dumps(spec)
+        return (
+            '"""Generated effect adapter with explicit idempotency semantics."""\\n'
+            "import json\\n"
+            "from app.core.behavior import apply_effect\\n\\n"
+            f"EFFECT = json.loads({spec_json!r})\\n\\n"
+            "def apply(payload, idempotency_key, ledger):\\n"
+            "    return apply_effect(EFFECT, idempotency_key, payload, ledger)\\n"
+        )
 
     def _k8s(self) -> str:
         return (

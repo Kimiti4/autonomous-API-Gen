@@ -68,6 +68,8 @@ class RequirementReview:
     ambiguity_score: float = 0.0
     resolution_ref: str | None = None
     approved_by: str = ""
+    isr_nodes: tuple[dict[str, object], ...] = ()
+    isr_edges: tuple[dict[str, object], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -239,6 +241,28 @@ def reviewed_requirements_to_graph(
         node_id = candidate.explicit_id or candidate.candidate_id
         if node_id in nodes:
             raise ValueError(f"duplicate reviewed requirement ID: {node_id}")
+        properties: dict[str, object] = {
+            "tor_extraction_version": extraction.extraction_version,
+            "source_id": extraction.source_id,
+            "source_section": candidate.section,
+            "source_line_start": candidate.line_start,
+            "source_line_end": candidate.line_end,
+            "source_text_sha256": candidate.source_sha256,
+            "candidate_id": candidate.candidate_id,
+            "review_status": "approved",
+            "reviewer": review.approved_by,
+            "extraction_rule": candidate.extraction_rule,
+        }
+        for label, declarations in (("isr_nodes", review.isr_nodes), ("isr_edges", review.isr_edges)):
+            if declarations:
+                for declaration in declarations:
+                    if not isinstance(declaration, dict):
+                        raise ValueError(f"{label} declarations must be mappings")
+                    raw_properties = declaration.get("properties", {})
+                    source_ids = raw_properties.get("source_requirement_ids") if isinstance(raw_properties, dict) else None
+                    if not isinstance(source_ids, (list, tuple)) or node_id not in source_ids:
+                        raise ValueError(f"{label} declaration must cite source_requirement_ids including {node_id!r}")
+                properties[label] = list(declarations)
         nodes[node_id] = RequirementNode(
             id=node_id,
             kind=review.kind,
@@ -251,18 +275,7 @@ def reviewed_requirements_to_graph(
                 candidate.source_ref,
                 f"sha256:{candidate.source_sha256}",
             ),
-            properties={
-                "tor_extraction_version": extraction.extraction_version,
-                "source_id": extraction.source_id,
-                "source_section": candidate.section,
-                "source_line_start": candidate.line_start,
-                "source_line_end": candidate.line_end,
-                "source_text_sha256": candidate.source_sha256,
-                "candidate_id": candidate.candidate_id,
-                "review_status": "approved",
-                "reviewer": review.approved_by,
-                "extraction_rule": candidate.extraction_rule,
-            },
+            properties=properties,
         )
     graph = RequirementGraph(schema_version=schema_version, nodes=nodes, edges={})
     validate_requirement_graph(graph)

@@ -74,7 +74,8 @@ def test_unbound_action_never_claims_an_api_operation_succeeded():
     files = {artifact.path: artifact.content for artifact in compilation.artifacts}
     app = files["src/App.tsx"]
     assert "no API binding configured" in app
-    assert "await fetch" not in app
+    assert "actionBindings = []" in app
+    assert "/api/payroll-runs" not in app
     assert "no API binding configured" in files["e2e/generated-app.spec.ts"]
 
 

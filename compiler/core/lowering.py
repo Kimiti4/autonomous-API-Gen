@@ -10,6 +10,8 @@ from compiler.core.plan import (
     SecurityPolicy,
     Service,
     ApiOperation,
+    Effect as PlanEffect,
+    Invariant as PlanInvariant,
 )
 
 

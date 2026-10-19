@@ -567,6 +567,7 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
             _code("certification/campaign/runner.py"),
             _test("tests/test_no_passing_stubs.py"),
             _test("tests/test_passes/test_verification.py"),
+            _test("tests/test_execution_evidence_truthfulness.py"),
             _workflow(".github/workflows/cbc1-campaign-a.yml"),
             _artifact("cbc1-a-evidence", "78/78 CERTIFIED at d8f2a88e, chain valid"),
         ),
@@ -580,8 +581,6 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
             CertificationTier.RUNTIME,
         ),
         limitations=(
-            "The fail-closed compiler-gateway default has no canonical regression test "
-            "(D02).",
             "The phase-31 minimal backend still writes assert-True smoke tests (D07).",
             "Deployment targets still fabricate synthetic success (D04).",
         ),
@@ -757,9 +756,14 @@ DEFECTS: tuple[Defect, ...] = (
         id="D02",
         title="Dry-run compiler gateway was the default and fabricated artifact paths",
         location="product_factory/hardening/compilation.py",
-        status=DefectStatus.FIXED_UNVERIFIED,
+        status=DefectStatus.VERIFIED,
         severity="critical",
-        note="Default is now UnconfiguredCompilerGateway; no canonical regression test yet.",
+        regression_test="tests/test_product_factory_hardening.py",
+        note=(
+            "Default is now UnconfiguredCompilerGateway; the canonical regression "
+            "proves the default fails closed, dry-run artifacts stay empty, and "
+            "gateway self-reports cannot satisfy required backends."
+        ),
     ),
     Defect(
         id="D03",

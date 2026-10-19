@@ -42,6 +42,7 @@ class Service(BaseModel):
     published_events: list[Event] = Field(default_factory=list)
     consumed_events: list[Event] = Field(default_factory=list)
     behavior: ServiceBehavior | None = None
+    security_policies: list[SecurityPolicy] = Field(default_factory=list)
 
 
 class ApiOperation(BaseModel):
@@ -49,6 +50,7 @@ class ApiOperation(BaseModel):
     id: str = Field(min_length=1)
     name: str = Field(min_length=1)
     behavior: ApiBehavior | None = None
+    security_policies: list[SecurityPolicy] = Field(default_factory=list)
 
 
 class Effect(BaseModel):

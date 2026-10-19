@@ -35,6 +35,7 @@ class PythonFastAPIBackend:
         SemanticFeature.EXPRESSIONS,
         SemanticFeature.BUSINESS_RULES,
         SemanticFeature.STATE_TRANSITIONS,
+        SemanticFeature.EFFECT_SEMANTICS,
     })
 
     def identity(self) -> BackendIdentity:

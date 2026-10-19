@@ -1,4 +1,6 @@
-# World Concern Development Organization — Payroll Software TOR
+# Normalized TOR fixture derived from the supplied World Concern payroll TOR
+
+> This is a structured test fixture for the generic ingestion pipeline, not a verbatim copy of the source document. Requirements and clarification notes must be checked against the original TOR by an authorized reviewer before approval.
 
 ## BACKGROUND
 

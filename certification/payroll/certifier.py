@@ -220,26 +220,61 @@ def certify_payroll_candidate(
         except UnsupportedSemanticsError as exc:
             findings.append(f"backend {backend_id} cannot implement this payroll plan: {exc}")
 
-    schemes = {item.scheme: item for item in statutory_evidence}
+    schemes: dict[str, list[StatutoryEvidence]] = {}
+    for evidence in statutory_evidence:
+        schemes.setdefault(evidence.scheme, []).append(evidence)
     for scheme in sorted(set(required_statutory_schemes)):
-        evidence = schemes.get(scheme)
-        if evidence is None:
+        evidence_items = schemes.get(scheme, [])
+        if not evidence_items:
             findings.append(f"missing statutory evidence for scheme: {scheme}")
             continue
-        if not evidence.source_ref.strip() or not _valid_hash(evidence.source_sha256):
-            findings.append(f"statutory source provenance is invalid for scheme: {scheme}")
-        if evidence.candidate_sha256 != candidate_sha256:
-            findings.append(f"statutory test evidence is bound to a different candidate: {scheme}")
-        if not evidence.verified_by.strip():
-            findings.append(f"statutory source lacks reviewer approval: {scheme}")
-        effective_from = _iso_date(evidence.effective_from, f"{scheme} effective_from", findings)
-        effective_to = _iso_date(evidence.effective_to, f"{scheme} effective_to", findings) if evidence.effective_to else None
-        if period_start and period_end and effective_from and effective_from > period_start:
-            findings.append(f"{scheme} source is not effective at the start of the payroll period")
-        if period_end and effective_to and effective_to < period_end:
-            findings.append(f"{scheme} source expires before the payroll period ends")
-        if evidence.test_cases <= 0 or evidence.passed_cases != evidence.test_cases or evidence.failed_cases != 0:
-            findings.append(f"{scheme} statutory test vectors are incomplete or failing")
+        intervals: list[tuple[date, date | None, StatutoryEvidence]] = []
+        for evidence in evidence_items:
+            if not evidence.source_ref.strip() or not _valid_hash(evidence.source_sha256):
+                findings.append(f"statutory source provenance is invalid for scheme: {scheme}")
+            if evidence.candidate_sha256 != candidate_sha256:
+                findings.append(f"statutory test evidence is bound to a different candidate: {scheme}")
+            if not evidence.verified_by.strip():
+                findings.append(f"statutory source lacks reviewer approval: {scheme}")
+            effective_from = _iso_date(evidence.effective_from, f"{scheme} effective_from", findings)
+            effective_to = _iso_date(evidence.effective_to, f"{scheme} effective_to", findings) if evidence.effective_to else None
+            if effective_from and effective_to and effective_to < effective_from:
+                findings.append(f"{scheme} statutory effective interval is inverted")
+            if evidence.test_cases <= 0 or evidence.passed_cases != evidence.test_cases or evidence.failed_cases != 0:
+                findings.append(f"{scheme} statutory test vectors are incomplete or failing")
+            if effective_from and (effective_to is None or effective_to >= effective_from):
+                intervals.append((effective_from, effective_to, evidence))
+
+        if period_start and period_end:
+            relevant = sorted(
+                (
+                    (start_date, end_date, evidence)
+                    for start_date, end_date, evidence in intervals
+                    if start_date <= period_end and (end_date is None or end_date >= period_start)
+                ),
+                key=lambda item: item[0],
+            )
+            cursor = period_start
+            covered = False
+            previous_end: date | None = None
+            for start_date, end_date, evidence in relevant:
+                clipped_start = max(start_date, period_start)
+                clipped_end = min(end_date or period_end, period_end)
+                if previous_end is not None and clipped_start <= previous_end:
+                    findings.append(f"{scheme} has overlapping statutory source intervals")
+                    continue
+                if clipped_start > cursor:
+                    findings.append(f"{scheme} statutory source coverage has a gap starting {cursor.isoformat()}")
+                    cursor = clipped_start
+                if clipped_start > cursor:
+                    continue
+                previous_end = clipped_end
+                cursor = clipped_end.fromordinal(clipped_end.toordinal() + 1)
+                if clipped_end >= period_end:
+                    covered = True
+                    break
+            if not covered:
+                findings.append(f"{scheme} statutory evidence does not cover the full payroll period")
 
     requirement_ids = set(requirement_graph.nodes)
     oracles = {item.category: item for item in oracle_evidence}

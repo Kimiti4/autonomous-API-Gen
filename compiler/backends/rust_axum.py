@@ -986,30 +986,61 @@ mod tests {
             e = entities[0]
             fn = e["mod"].lower()
             plural = _plural(fn)
+            model = next((item for item in plan.data_models if _slug(item.entity_name) == e["mod"]), None)
+            if model is not None and model.behavior is not None:
+                payload = {}
+                updated_payload = {}
+                for field in model.behavior.fields:
+                    kind = field.value_type.value
+                    if kind == "integer":
+                        value, updated = 1, 2
+                    elif kind in ("decimal", "money"):
+                        value, updated = "10.00", "20.00"
+                    elif kind == "boolean":
+                        value, updated = True, False
+                    elif kind == "date":
+                        value, updated = "2026-01-01", "2026-01-02"
+                    elif kind == "datetime":
+                        value, updated = "2026-01-01T00:00:00Z", "2026-01-02T00:00:00Z"
+                    elif kind == "identifier":
+                        value, updated = f"{field.name}-alpha", f"{field.name}-beta"
+                    else:
+                        value, updated = "alpha", "beta"
+                    payload[field.name] = value
+                    updated_payload[field.name] = updated
+                tested_field = model.behavior.fields[0].name
+            else:
+                payload = {"name": "alpha"}
+                updated_payload = {"name": "beta"}
+                tested_field = "name"
+            payload_json = json.dumps(payload, sort_keys=True)
+            updated_json = json.dumps(updated_payload, sort_keys=True)
+            expected_created = json.dumps(payload[tested_field])
+            expected_updated = json.dumps(updated_payload[tested_field])
             l += [
                 "    #[tokio::test]",
                 f"    async fn crud_roundtrip_{plural}() {{",
                 "        let state = new_state();",
-                f"        let created = create_{fn}(State(state.clone()), Json(json!({{\"name\": \"alpha\"}})))",
+                f"        let created = create_{fn}(State(state.clone()), Json(json!({payload_json})))",
                 '            .await',
                 '            .expect("create");',
-                f"        assert_eq!(created.0, StatusCode::CREATED);",
-                f'        assert_eq!(created.1.0["name"], json!("alpha"));',
+                "        assert_eq!(created.0, StatusCode::CREATED);",
+                f'        assert_eq!(created.1.0[{json.dumps(tested_field)}], json!({expected_created}));',
                 f'        let item_id = created.1.0["id"].as_str().expect("id").to_string();',
                 f"        let listed = list_{plural}(State(state.clone())).await;",
                 "        assert_eq!(listed.0.len(), 1);",
                 f"        let fetched = get_{fn}(State(state.clone()), Path(item_id.clone()))",
                 '            .await',
                 '            .expect("get");',
-                f'        assert_eq!(fetched.0["name"], json!("alpha"));',
+                f'        assert_eq!(fetched.0[{json.dumps(tested_field)}], json!({expected_created}));',
                 f"        let updated = update_{fn}(",
                 "            State(state.clone()),",
                 "            Path(item_id.clone()),",
-                '            Json(json!({"name": "beta"})),',
+                f"            Json(json!({updated_json})),",
                 "        )",
                 "        .await",
                 '        .expect("update");',
-                f'        assert_eq!(updated.0["name"], json!("beta"));',
+                f'        assert_eq!(updated.0[{json.dumps(tested_field)}], json!({expected_updated}));',
                 f"        let deleted = delete_{fn}(State(state.clone()), Path(item_id))",
                 '            .await',
                 '            .expect("delete");',

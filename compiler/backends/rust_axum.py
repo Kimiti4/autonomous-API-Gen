@@ -325,6 +325,13 @@ fn decimal_value(value: Decimal) -> Value {
     Value::String(value.normalize().to_string())
 }
 
+fn equal_values(left: &Value, right: &Value) -> bool {
+    match (decimal(left), decimal(right)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => left == right,
+    }
+}
+
 pub fn evaluate_expression(expression: &Value, context: &Value) -> Result<Value, String> {
     let op = expression.get("op").and_then(Value::as_str).ok_or("missing expression operator")?;
     let args = expression.get("args").and_then(Value::as_array).cloned().unwrap_or_default();
@@ -361,8 +368,8 @@ pub fn evaluate_expression(expression: &Value, context: &Value) -> Result<Value,
             if divisor == Decimal::ZERO { return Err("division by zero".to_string()); }
             Ok(decimal_value(decimal(&values[0])? / divisor))
         },
-        "equal" => Ok(Value::Bool(values[0] == values[1])),
-        "not_equal" => Ok(Value::Bool(values[0] != values[1])),
+        "equal" => Ok(Value::Bool(equal_values(&values[0], &values[1]))),
+        "not_equal" => Ok(Value::Bool(!equal_values(&values[0], &values[1]))),
         "less_than" => Ok(Value::Bool(decimal(&values[0])? < decimal(&values[1])?)),
         "less_or_equal" => Ok(Value::Bool(decimal(&values[0])? <= decimal(&values[1])?)),
         "greater_than" => Ok(Value::Bool(decimal(&values[0])? > decimal(&values[1])?)),

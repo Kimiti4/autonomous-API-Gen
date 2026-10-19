@@ -316,6 +316,16 @@ def validate_fields(fields: list[dict[str, Any]], payload: dict[str, Any]) -> di
         )
         if not valid:
             raise BehaviorError(f"invalid type for field: {name}")
+        if kind in ("decimal", "money"):
+            number = _number(value)
+            precision = spec.get("precision")
+            scale = spec.get("scale")
+            decimal_tuple = number.as_tuple()
+            actual_scale = max(0, -decimal_tuple.exponent)
+            if scale is not None and actual_scale > scale:
+                raise BehaviorError(f"{name} exceeds declared decimal scale")
+            if precision is not None and len(decimal_tuple.digits) > precision:
+                raise BehaviorError(f"{name} exceeds declared decimal precision")
         for constraint in spec.get("constraints", []):
             op, bound = constraint["operator"], constraint.get("value")
             if op == "min" and value < bound:

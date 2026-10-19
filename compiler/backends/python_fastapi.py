@@ -115,7 +115,7 @@ class PythonFastAPIBackend:
         if path == "app/core/behavior.py":
             return self._behavior_runtime()
         if path.startswith("app/domain/"):
-            return self._domain(path)
+            return self._domain(path, plan)
         if path.startswith("app/application/"):
             return self._service(path, plan)
         if path.startswith("app/events/"):
@@ -368,16 +368,55 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
     return transition["target_state"]
 '''
 
-    def _domain(self, path: str) -> str:
+    def _domain(self, path: str, plan: CompilationPlan) -> str:
         mod = path.rsplit("/", 1)[-1][: -len(".py")]
+        entity = next((item for item in self._entities(plan) if item["mod"] == mod), None)
+        model = next((item for item in plan.data_models if _slug(item.entity_name) == mod), None)
         cls = _cls(mod)
-        return (
-            f'"""Domain model {cls} (generated)."""\n'
-            "from pydantic import BaseModel\n\n\n"
-            f"class {cls}(BaseModel):\n"
-            "    id: str | None = None\n"
-            "    name: str = ''\n"
-        )
+        if model is None or model.behavior is None:
+            return (
+                f'"""Domain model {cls} (generated)."""\\n'
+                "from pydantic import BaseModel\\n\\n\\n"
+                f"class {cls}(BaseModel):\\n"
+                "    id: str | None = None\\n"
+                "    name: str = ''\\n"
+            )
+        type_names = {
+            "string": "str", "identifier": "str", "date": "str", "datetime": "str",
+            "integer": "int", "decimal": "Decimal", "money": "Decimal", "boolean": "bool",
+        }
+        lines = [
+            f'"""Typed domain model {cls} (generated from ISR)."""',
+            "from decimal import Decimal",
+            "from pydantic import BaseModel, ConfigDict, Field",
+            "",
+            "",
+            f"class {cls}(BaseModel):",
+            "    model_config = ConfigDict(extra='forbid')",
+        ]
+        for field in model.behavior.fields:
+            annotation = type_names[field.value_type.value]
+            default = "..." if field.required else "None"
+            if field.nullable and not field.required:
+                annotation += " | None"
+            args = [default]
+            if field.precision is not None and field.value_type.value in ("decimal", "money"):
+                args.append(f"max_digits={field.precision}")
+            if field.scale is not None and field.value_type.value in ("decimal", "money"):
+                args.append(f"decimal_places={field.scale}")
+            for constraint in field.constraints:
+                if constraint.operator.value == "min":
+                    args.append(f"ge={constraint.value!r}")
+                elif constraint.operator.value == "max":
+                    args.append(f"le={constraint.value!r}")
+                elif constraint.operator.value == "min_length":
+                    args.append(f"min_length={int(constraint.value)}")
+                elif constraint.operator.value == "max_length":
+                    args.append(f"max_length={int(constraint.value)}")
+                elif constraint.operator.value == "pattern":
+                    args.append(f"pattern={str(constraint.value)!r}")
+            lines.append(f"    {field.name}: {annotation} = Field({', '.join(args)})")
+        return "\\n".join(lines) + "\\n"
 
     def _service(self, path: str, plan: CompilationPlan) -> str:
         mod = path.rsplit("/", 1)[-1][: -len(".py")]

@@ -1,12 +1,20 @@
-"""Technology-neutral frontend IR.
-
-The frontend compiler boundary is deliberately separate from React, mobile
-toolkits, or native UI frameworks. It models screens, navigation, data
-contracts, actions, authorization and accessibility obligations.
-"""
+"""Technology-neutral frontend IR with explicit API action bindings."""
 from __future__ import annotations
+
 from dataclasses import dataclass
+import re
 from typing import Any
+
+
+@dataclass(frozen=True)
+class FrontendActionBinding:
+    """An explicit UI action → API operation binding; no name-based inference."""
+    action_id: str
+    api_operation_id: str
+    method: str
+    path: str
+    request_fields: tuple[str, ...] = ()
+    authorization_policy: str | None = None
 
 
 @dataclass(frozen=True)
@@ -18,6 +26,7 @@ class FrontendScreen:
     authorization_policy: str | None = None
     actions: tuple[str, ...] = ()
     accessibility_requirements: tuple[str, ...] = ()
+    action_bindings: tuple[FrontendActionBinding, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -36,15 +45,26 @@ class FrontendProjectIR:
             "api_contract_version": self.api_contract_version,
             "screens": [
                 {
-                    "screen_id": s.screen_id,
-                    "route": s.route,
-                    "title": s.title,
-                    "data_contract": s.data_contract,
-                    "authorization_policy": s.authorization_policy,
-                    "actions": list(s.actions),
-                    "accessibility_requirements": list(s.accessibility_requirements),
+                    "screen_id": screen.screen_id,
+                    "route": screen.route,
+                    "title": screen.title,
+                    "data_contract": screen.data_contract,
+                    "authorization_policy": screen.authorization_policy,
+                    "actions": list(screen.actions),
+                    "accessibility_requirements": list(screen.accessibility_requirements),
+                    "action_bindings": [
+                        {
+                            "action_id": binding.action_id,
+                            "api_operation_id": binding.api_operation_id,
+                            "method": binding.method,
+                            "path": binding.path,
+                            "request_fields": list(binding.request_fields),
+                            "authorization_policy": binding.authorization_policy,
+                        }
+                        for binding in screen.action_bindings
+                    ],
                 }
-                for s in self.screens
+                for screen in self.screens
             ],
             "platform_requirements": list(self.platform_requirements),
             "configuration_keys": list(self.configuration_keys),
@@ -70,4 +90,25 @@ def validate_frontend_ir(ir: FrontendProjectIR) -> tuple[str, ...]:
             findings.append(f"screen route must start with '/': {screen.screen_id}")
         if not screen.title:
             findings.append(f"screen missing title: {screen.screen_id}")
+        binding_ids: set[str] = set()
+        for binding in screen.action_bindings:
+            if binding.action_id not in screen.actions:
+                findings.append(f"action binding references undeclared action: {binding.action_id}")
+            if binding.action_id in binding_ids:
+                findings.append(f"duplicate action binding: {binding.action_id}")
+            binding_ids.add(binding.action_id)
+            if not binding.api_operation_id:
+                findings.append(f"action binding missing API operation ID: {binding.action_id}")
+            if binding.method.upper() not in {"GET", "POST", "PUT", "PATCH", "DELETE"}:
+                findings.append(f"unsupported API method for action: {binding.action_id}")
+            if not binding.path.startswith("/"):
+                findings.append(f"action API path must start with '/': {binding.action_id}")
+            if len(binding.request_fields) != len(set(binding.request_fields)):
+                findings.append(f"duplicate request field in action binding: {binding.action_id}")
+            for field in binding.request_fields:
+                if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,127}", field):
+                    findings.append(f"invalid request field name in action binding: {field}")
+    for key in ir.configuration_keys:
+        if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,127}", key):
+            findings.append(f"invalid configuration key: {key}")
     return tuple(findings)

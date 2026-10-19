@@ -522,6 +522,14 @@ mod tests {
     }
 
     #[test]
+    fn boolean_operators_reject_non_boolean_values_and_strings_compare_lexically() {
+        let invalid = json!({"op":"not","args":[{"op":"literal","value":1}]});
+        assert!(evaluate_expression(&invalid, &json!({})).is_err());
+        let comparison = json!({"op":"less_than","args":[{"op":"literal","value":"A"},{"op":"literal","value":"B"}]});
+        assert_eq!(evaluate_expression(&comparison, &json!({})).unwrap(), json!(true));
+    }
+
+    #[test]
     fn validation_rejects_unknown_and_invalid_fields() {
         let fields = json!([{"name":"amount","value_type":"money","required":true,"nullable":false,"constraints":[{"operator":"min","value":0}]}]);
         assert!(validate_fields(&fields, &json!({"amount":"10.00"})).is_ok());

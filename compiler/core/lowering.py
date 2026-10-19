@@ -38,6 +38,7 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
     svc_pub_events: dict[str, list[Event]] = {}
     svc_cons_events: dict[str, list[Event]] = {}
     svc_security: dict[str, list[SecurityPolicy]] = {}
+    svc_effects: dict[str, list[Effect]] = {}
     api_security: dict[str, list[SecurityPolicy]] = {}
     services: list[Service] = []
     apis: list[ApiOperation] = []
@@ -70,8 +71,12 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
         elif node.type == NodeType.INVARIANT:
             invariants.append(Invariant(id=node_id, name=label, behavior=_behavior(node)))
 
+    effects_by_id = {effect.id: effect for effect in effects}
+
     for edge in graph.edges.values():
-        if edge.type == EdgeType.PERSISTS and edge.target_id in dm_by_id:
+        if edge.type == EdgeType.CAUSES_EFFECT and edge.target_id in effects_by_id:
+            svc_effects.setdefault(edge.source_id, []).append(effects_by_id[edge.target_id])
+        elif edge.type == EdgeType.PERSISTS and edge.target_id in dm_by_id:
             svc_data_models.setdefault(edge.source_id, []).append(dm_by_id[edge.target_id])
         elif edge.type == EdgeType.PUBLISHES and edge.target_id in ev_by_id:
             svc_pub_events.setdefault(edge.source_id, []).append(ev_by_id[edge.target_id])
@@ -134,6 +139,7 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
                 data_models=svc_data_models.get(node_id, []),
                 published_events=svc_pub_events.get(node_id, []),
                 consumed_events=svc_cons_events.get(node_id, []),
+                effects=svc_effects.get(node_id, []),
                 behavior=_behavior(node),
                 security_policies=svc_security.get(node_id, []),
             ))

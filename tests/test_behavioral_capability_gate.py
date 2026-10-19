@@ -12,7 +12,7 @@ from compiler.core.capabilities import (
     assert_plan_supported,
     required_features,
 )
-from compiler.core.plan import ApiOperation, CompilationPlan, DataModel, Effect
+from compiler.core.plan import ApiOperation, CompilationPlan, DataModel, Effect, SecurityPolicy, Service
 from isr.core.behavior import ApiBehavior, DataModelBehavior, EffectBehavior
 
 
@@ -135,3 +135,17 @@ def test_effect_semantics_are_emitted_with_idempotency_contract():
         else:
             assert "apply_effect(&effect" in repo.files["src/effects/transfer.rs"]
             assert "retries_return_the_original_result" in repo.files["src/effects/transfer.rs"]
+
+
+
+def test_legacy_structural_security_edge_does_not_claim_behavioral_auth():
+    policy = SecurityPolicy(policy_id="security:legacy", behavior=None)
+    service = Service(
+        id="service:legacy",
+        name="Legacy",
+        security_policies=[policy],
+    )
+    plan = CompilationPlan(plan_id="legacy-plan", isr_id="legacy-system", services=[service], security=[policy])
+    assert SemanticFeature.AUTHORIZATION_POLICIES not in required_features(plan)
+    for backend in (PythonFastAPIBackend(), RustAxumBackend()):
+        backend.compile(plan)

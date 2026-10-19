@@ -28,6 +28,7 @@ def test_tor_extraction_is_deterministic_and_keeps_candidates_unapproved():
     first = extract_tor_text(TOR, "world-concern-tor.txt")
     second = extract_tor_text(TOR, "world-concern-tor.txt")
     assert first.source_sha256 == second.source_sha256
+    assert first.source_text == TOR
     assert [item.requirement_id for item in first.candidates] == [
         item.requirement_id for item in second.candidates
     ]
@@ -35,6 +36,21 @@ def test_tor_extraction_is_deterministic_and_keeps_candidates_unapproved():
     assert all(item.source_ref.startswith("world-concern-tor.txt#L") for item in first.candidates)
     assert any("Automate payroll calculations" in item.statement for item in first.candidates)
     assert any(item.proposed_kind is RequirementKind.NON_FUNCTIONAL for item in first.candidates)
+
+
+def test_source_mutation_invalidates_approval():
+    draft = extract_tor_text(TOR, "world-concern-tor.txt")
+    mutated = draft.model_copy(update={"source_text": TOR + "\\nchanged"})
+    approvals = {
+        candidate.requirement_id: HumanApproval(
+            reviewer_id="reviewer",
+            approval_ref=f"decision:{candidate.requirement_id}",
+            acceptance_criteria=("An independently authored test verifies this requirement.",),
+        )
+        for candidate in draft.candidates
+    }
+    with pytest.raises(ValueError, match="source changed"):
+        mutated.approve(approvals)
 
 
 def test_tor_candidates_cannot_be_promoted_without_human_approval():

@@ -5,6 +5,7 @@ from isr.core.behavior import (
     ApiBehavior,
     DataModelBehavior,
     EventBehavior,
+    EffectBehavior,
     InvariantSpec,
     Expression,
     FrontendInteractionBehavior,
@@ -79,6 +80,17 @@ def validate_behavioral_graph(graph: ISRGraph) -> None:
                     raise BehavioralContractViolation(
                         f"Frontend route {node_id!r} references an invalid API contract: {exc}"
                     ) from exc
+        elif isinstance(payload, EffectBehavior):
+            owners = [
+                edge.source_id for edge in graph.edges.values()
+                if edge.type == EdgeType.CAUSES_EFFECT and edge.target_id == node_id
+                and edge.source_id in graph.nodes
+                and graph.nodes[edge.source_id].type == NodeType.SERVICE
+            ]
+            if not owners:
+                raise BehavioralContractViolation(
+                    f"Effect {node_id!r} must be linked to a service through CAUSES_EFFECT"
+                )
         elif isinstance(payload, FrontendInteractionBehavior):
             owner_routes = [
                 edge.source_id for edge in graph.edges.values()

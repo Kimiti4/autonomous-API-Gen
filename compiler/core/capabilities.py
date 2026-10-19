@@ -21,6 +21,7 @@ class SemanticFeature(str, Enum):
     TYPED_EVENTS = "typed_events"
     FRONTEND_ROUTES = "frontend_routes"
     FRONTEND_INTERACTIONS = "frontend_interactions"
+    FRONTEND_AUTH = "frontend_auth"
 
 
 class BackendCapabilities(BaseModel):
@@ -92,12 +93,10 @@ def required_frontend_features(plan: CompilationPlan) -> frozenset[SemanticFeatu
         required.add(SemanticFeature.FRONTEND_ROUTES)
     if plan.frontend_interactions:
         required.add(SemanticFeature.FRONTEND_INTERACTIONS)
-    if any(
-        api.behavior is not None
-        for route in plan.frontend_routes
-        for api in route.api_operations
-    ):
+    if any(route.api_operations for route in plan.frontend_routes):
         required.add(SemanticFeature.API_CONTRACTS)
+    if any(route.behavior is not None and route.behavior.requires_auth for route in plan.frontend_routes):
+        required.add(SemanticFeature.FRONTEND_AUTH)
     return frozenset(required)
 
 

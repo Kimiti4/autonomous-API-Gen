@@ -296,7 +296,7 @@ class RustAxumBackend:
     def _behavior_runtime(self) -> str:
         return r'''//! Deterministic runtime for the bounded ISR expression language.
 use rust_decimal::Decimal;
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::collections::HashMap;
 use std::str::FromStr;
 
@@ -438,7 +438,10 @@ pub fn authorize(policies: &Value, role: &str, action: &str, resource: &str, att
     allowed
 }
 
-pub fn apply_effect(effect: &Value, key: Option<&str>, payload: Value, ledger: &mut HashMap<String, Value>) -> Result<Value, String> {
+pub fn apply_effect<F>(effect: &Value, key: Option<&str>, execute: F, ledger: &mut HashMap<String, Value>) -> Result<Value, String>
+where
+    F: FnOnce() -> Result<Value, String>,
+{
     let idempotent = effect.get("idempotent").and_then(Value::as_bool).unwrap_or(false);
     let key_required = effect.get("idempotency_key_required").and_then(Value::as_bool).unwrap_or(false);
     if key_required && key.is_none() { return Err("idempotency key required".to_string()); }
@@ -447,9 +450,14 @@ pub fn apply_effect(effect: &Value, key: Option<&str>, payload: Value, ledger: &
         let effect_kind = effect.get("effect_kind").and_then(Value::as_str).unwrap_or("effect");
         let identity = format!("{effect_kind}:{key}");
         if let Some(previous) = ledger.get(&identity) { return Ok(previous.clone()); }
-        ledger.insert(identity, payload.clone());
+        let result = execute()?;
+        ledger.insert(identity, result.clone());
+        return Ok(result);
     }
-    Ok(payload)
+    if key.is_some() {
+        return Err("non-idempotent effect cannot claim keyed deduplication".to_string());
+    }
+    execute()
 }
 
 pub fn apply_transition(transitions: &Value, transition_id: &str, current_state: &str, context: &Value) -> Result<String, String> {

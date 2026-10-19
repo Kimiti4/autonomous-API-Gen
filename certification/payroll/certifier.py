@@ -69,6 +69,7 @@ class IndependentOracleEvidence:
 
 @dataclass(frozen=True)
 class FrontendRunEvidence:
+    candidate_sha256: str
     artifact_sha256: str
     build_log_sha256: str
     unit_log_sha256: str
@@ -261,6 +262,8 @@ def certify_payroll_candidate(
     if frontend_evidence is None:
         findings.append("missing real frontend build/unit/E2E evidence")
     else:
+        if frontend_evidence.candidate_sha256 != candidate_sha256:
+            findings.append("frontend evidence is bound to a different candidate")
         if not _valid_hash(frontend_evidence.artifact_sha256):
             findings.append("frontend artifact hash is invalid")
         for label, passed in (

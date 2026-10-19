@@ -123,7 +123,7 @@ def test_payroll_candidate_is_not_certified_without_behavioral_and_runtime_evide
 
 def test_payroll_certifier_rejects_malformed_candidate_hash():
     requirements, revision, plan, caps = _inputs()
-    candidate_hash, backend_hashes, frontend_hash = _candidate_manifest(revision, plan)
+    candidate_hash, backend_hashes, frontend_hash = _candidate_manifest(requirements, revision, plan)
     args = _common(requirements, revision, plan, caps, candidate_hash, backend_hashes, frontend_hash)
     args["candidate_sha256"] = "not-a-sha"
     report = certify_payroll_candidate(**args)
@@ -147,7 +147,7 @@ def test_payroll_certifier_rejects_backend_without_required_behavioral_capabilit
             ),
         )],
     )
-    candidate_hash, backend_hashes, frontend_hash = _candidate_manifest(revision, plan)
+    candidate_hash, backend_hashes, frontend_hash = _candidate_manifest(requirements, revision, plan)
     args = _common(requirements, revision, plan, caps, candidate_hash, backend_hashes, frontend_hash)
     report = certify_payroll_candidate(**args)
     assert any("missing API operation contracts" in finding for finding in report.findings)
@@ -156,7 +156,7 @@ def test_payroll_certifier_rejects_backend_without_required_behavioral_capabilit
 
 def test_payroll_certifier_rejects_statutory_source_that_covers_only_part_of_period():
     requirements, revision, plan, caps = _inputs()
-    candidate_hash, backend_hashes, frontend_hash = _candidate_manifest(revision, plan)
+    candidate_hash, backend_hashes, frontend_hash = _candidate_manifest(requirements, revision, plan)
     args = _common(requirements, revision, plan, caps, candidate_hash, backend_hashes, frontend_hash)
     args["required_statutory_schemes"] = ("income_tax",)
     args["statutory_evidence"] = (StatutoryEvidence(

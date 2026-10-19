@@ -159,6 +159,10 @@ def certify_payroll_candidate(
     revision: ISRRevision,
     plan: CompilationPlan,
     candidate_sha256: str,
+    tor_source_id: str,
+    tor_source_sha256: str,
+    tor_candidate_count: int,
+    reviewed_tor_candidate_count: int,
     payroll_period_start: str,
     payroll_period_end: str,
     required_statutory_schemes: Sequence[str],
@@ -186,6 +190,14 @@ def certify_payroll_candidate(
 
     if not _valid_hash(candidate_sha256):
         findings.append("candidate SHA-256 is missing or malformed")
+    if not tor_source_id.strip() or not _valid_hash(tor_source_sha256):
+        findings.append("TOR source identity or SHA-256 is missing or malformed")
+    if tor_candidate_count <= 0:
+        findings.append("TOR extraction contains no reviewable candidates")
+    if reviewed_tor_candidate_count != tor_candidate_count:
+        findings.append(
+            f"TOR review incomplete: {reviewed_tor_candidate_count}/{tor_candidate_count} candidates reviewed"
+        )
     if plan.isr_id != revision.system_id:
         findings.append("compilation plan is bound to a different ISR system ID")
     if plan.plan_id != f"plan:{revision.content_hash[:16]}":

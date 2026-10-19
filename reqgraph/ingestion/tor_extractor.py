@@ -12,7 +12,7 @@ import re
 from enum import Enum
 from typing import Mapping
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from reqgraph.core.graph import (
     Priority,
@@ -59,8 +59,16 @@ class TORExtractionDraft(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     source_name: str = Field(min_length=1)
     source_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    source_text: str = Field(min_length=1)
     schema_version: str = "1.0"
     candidates: tuple[TORCandidate, ...] = ()
+
+    @model_validator(mode="after")
+    def validate_source_digest(self) -> "TORExtractionDraft":
+        actual = hashlib.sha256(self.source_text.encode("utf-8")).hexdigest()
+        if actual != self.source_sha256:
+            raise ValueError("source_sha256 does not match preserved source_text")
+        return self
 
     def approve(
         self,
@@ -254,5 +262,6 @@ def extract_tor_text(source_text: str, source_name: str) -> TORExtractionDraft:
     return TORExtractionDraft(
         source_name=source_name,
         source_sha256=source_hash,
+        source_text=source_text,
         candidates=tuple(candidates),
     )

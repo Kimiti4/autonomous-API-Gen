@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+import hashlib
+import json
 import re
 from typing import Mapping, Sequence
 
@@ -153,6 +155,33 @@ def _require_behavioral_completeness(plan: CompilationPlan, findings: list[str])
         findings.append("payroll behavioral plan is missing required features: " + ", ".join(missing))
 
 
+def compute_payroll_candidate_hash(
+    *,
+    revision: ISRRevision,
+    plan: CompilationPlan,
+    tor_source_id: str,
+    tor_source_sha256: str,
+    tor_candidate_count: int,
+    reviewed_tor_candidate_count: int,
+    backend_artifact_hashes: Mapping[str, str],
+    frontend_artifact_sha256: str,
+) -> str:
+    """Hash the ISR, lowered plan, exact emitted backend/frontend artifacts, and TOR review state."""
+    manifest = {
+        "isr_content_hash": revision.content_hash,
+        "system_id": revision.system_id,
+        "plan": plan.model_dump(mode="json"),
+        "backend_artifact_hashes": dict(sorted(backend_artifact_hashes.items())),
+        "frontend_artifact_sha256": frontend_artifact_sha256,
+        "tor_source_id": tor_source_id,
+        "tor_source_sha256": tor_source_sha256,
+        "tor_candidate_count": tor_candidate_count,
+        "reviewed_tor_candidate_count": reviewed_tor_candidate_count,
+    }
+    canonical = json.dumps(manifest, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def certify_payroll_candidate(
     *,
     requirement_graph: RequirementGraph,
@@ -163,6 +192,8 @@ def certify_payroll_candidate(
     tor_source_sha256: str,
     tor_candidate_count: int,
     reviewed_tor_candidate_count: int,
+    backend_artifact_hashes: Mapping[str, str],
+    frontend_artifact_sha256: str,
     payroll_period_start: str,
     payroll_period_end: str,
     required_statutory_schemes: Sequence[str],
@@ -202,6 +233,25 @@ def certify_payroll_candidate(
         findings.append("compilation plan is bound to a different ISR system ID")
     if plan.plan_id != f"plan:{revision.content_hash[:16]}":
         findings.append("compilation plan ID is not bound to the supplied ISR revision")
+    if set(backend_artifact_hashes) != set(required_backends):
+        findings.append("backend artifact manifest does not exactly match required backends")
+    for backend_id in required_backends:
+        if not _valid_hash(backend_artifact_hashes.get(backend_id, "")):
+            findings.append(f"missing or invalid emitted artifact hash for backend: {backend_id}")
+    if not _valid_hash(frontend_artifact_sha256):
+        findings.append("frontend artifact SHA-256 is missing or malformed")
+    expected_candidate_hash = compute_payroll_candidate_hash(
+        revision=revision,
+        plan=plan,
+        tor_source_id=tor_source_id,
+        tor_source_sha256=tor_source_sha256,
+        tor_candidate_count=tor_candidate_count,
+        reviewed_tor_candidate_count=reviewed_tor_candidate_count,
+        backend_artifact_hashes=backend_artifact_hashes,
+        frontend_artifact_sha256=frontend_artifact_sha256,
+    )
+    if candidate_sha256 != expected_candidate_hash:
+        findings.append("candidate SHA-256 does not match the ISR/plan/backend/frontend/TOR artifact manifest")
 
     period_start = _iso_date(payroll_period_start, "payroll period start", findings)
     period_end = _iso_date(payroll_period_end, "payroll period end", findings)
@@ -314,6 +364,8 @@ def certify_payroll_candidate(
             findings.append("frontend evidence is bound to a different candidate")
         if not _valid_hash(frontend_evidence.artifact_sha256):
             findings.append("frontend artifact hash is invalid")
+        if frontend_evidence.artifact_sha256 != frontend_artifact_sha256:
+            findings.append("frontend execution evidence does not match the declared frontend artifact hash")
         for label, passed in (
             ("frontend build", frontend_evidence.build_passed),
             ("frontend unit tests", frontend_evidence.unit_tests_passed),

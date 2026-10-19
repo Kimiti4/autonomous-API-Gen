@@ -33,6 +33,7 @@ class RustAxumBackend:
     version = "1.4.0"
     supported_features = frozenset({
         SemanticFeature.TYPED_FIELDS,
+        SemanticFeature.DECIMAL_SHAPE,
         SemanticFeature.EXPRESSIONS,
         SemanticFeature.BUSINESS_RULES,
         SemanticFeature.STATE_TRANSITIONS,

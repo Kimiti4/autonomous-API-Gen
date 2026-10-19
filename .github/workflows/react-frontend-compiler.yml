@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "compiler/backends/react_frontend.py"
+      - "compiler/backends/python_fastapi.py"
+      - "compiler/backends/rust_axum.py"
       - "compiler/core/capabilities.py"
       - "compiler/core/lowering.py"
       - "compiler/core/plan.py"
@@ -16,6 +18,8 @@ on:
       - "tests/integration/test_react_frontend_build.py"
       - "reqgraph/ingestion/tor_extractor.py"
       - "reqgraph/adapters/isr_projection.py"
+      - "reqgraph/core/graph.py"
+      - "reqgraph/core/invariants.py"
       - "tests/test_tor_ingestion_and_isr_projection.py"
       - "tests/payroll/test_payroll_readiness.py"
       - "certification/payroll/readiness.py"

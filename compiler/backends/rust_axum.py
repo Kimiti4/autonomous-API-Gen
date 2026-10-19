@@ -523,6 +523,14 @@ mod tests {
     }
 
     #[test]
+    fn numeric_comparisons_accept_money_strings() {
+        let greater = json!({"op":"greater_than","args":[{"op":"field","field_ref":"Employee.base_salary"},{"op":"literal","value":0}]});
+        let equal = json!({"op":"equal","args":[{"op":"field","field_ref":"amount"},{"op":"literal","value":100}]});
+        assert_eq!(evaluate_expression(&greater, &json!({"Employee.base_salary":"100.00"})).unwrap(), json!(true));
+        assert_eq!(evaluate_expression(&equal, &json!({"amount":"100.00"})).unwrap(), json!(true));
+    }
+
+    #[test]
     fn money_precision_and_scale_are_enforced() {
         let fields = json!([{"name":"amount","value_type":"money","required":true,"nullable":false,"precision":5,"scale":2}]);
         assert!(validate_fields(&fields, &json!({"amount":"999.99"})).is_ok());

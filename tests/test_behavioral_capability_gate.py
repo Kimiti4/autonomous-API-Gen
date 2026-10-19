@@ -118,7 +118,7 @@ def test_api_contracts_are_not_silently_claimed_supported():
             backend.compile(plan)
 
 
-def test_effect_semantics_are_emitted_with_idempotency_contract():
+def test_external_effect_semantics_remain_blocked_until_durable_execution_is_bound():
     effect = Effect(
         id="effect:transfer", name="transfer",
         behavior=EffectBehavior(
@@ -128,14 +128,8 @@ def test_effect_semantics_are_emitted_with_idempotency_contract():
     plan = CompilationPlan(plan_id="effect-plan", isr_id="system", effects=[effect])
     assert SemanticFeature.EFFECT_SEMANTICS in required_features(plan)
     for backend in (PythonFastAPIBackend(), RustAxumBackend()):
-        repo = backend.compile(plan)
-        if backend.name == "python-fastapi":
-            assert "apply_effect(EFFECT" in repo.files["app/effects/transfer.py"]
-            assert "test_effect_transfer_deduplicates_retries" in repo.files["tests/test_app.py"]
-        else:
-            assert "apply_effect(&effect" in repo.files["src/effects/transfer.rs"]
-            assert "retries_return_the_original_result" in repo.files["src/effects/transfer.rs"]
-
+        with pytest.raises(UnsupportedSemanticsError, match="effect_semantics"):
+            backend.compile(plan)
 
 
 def test_legacy_structural_security_edge_does_not_claim_behavioral_auth():

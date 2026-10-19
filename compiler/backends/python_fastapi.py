@@ -731,6 +731,35 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
                 "        pass",
                 "",
             ]
+        for effect in plan.effects:
+            if effect.behavior is None:
+                continue
+            effect_mod = _slug(effect.name)
+            if effect.behavior.idempotent:
+                lines += [
+                    f"def test_effect_{effect_mod}_deduplicates_retries():",
+                    f"    from app.effects.{effect_mod} import apply",
+                    "    ledger = {}",
+                    "    first = apply({'status': 'queued'}, 'same-key', ledger)",
+                    "    retry = apply({'status': 'duplicate'}, 'same-key', ledger)",
+                    "    assert first == retry",
+                    "",
+                ]
+                if effect.behavior.idempotency_key_required:
+                    lines += [
+                        f"def test_effect_{effect_mod}_requires_idempotency_key():",
+                        f"    from app.effects.{effect_mod} import apply",
+                        "    with pytest.raises(BehaviorError, match='idempotency key required'):",
+                        "        apply({}, None, {})",
+                        "",
+                    ]
+            else:
+                lines += [
+                    f"def test_effect_{effect_mod}_returns_payload():",
+                    f"    from app.effects.{effect_mod} import apply",
+                    "    assert apply({'status': 'queued'}, None, {}) == {'status': 'queued'}",
+                    "",
+                ]
         return "\n".join(lines)
 
     def _effect(self, path: str, plan: CompilationPlan) -> str:

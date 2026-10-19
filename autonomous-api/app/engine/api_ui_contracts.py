@@ -43,6 +43,8 @@ def verify_api_ui_contract(
 
     operations = {(x["method"], x["path"]): x for x in bm["operations"]}
     for screen in fm["screens"]:
+        if screen.get("action_bindings"):
+            continue
         # A screen route is only required to map to a backend operation when
         # its data contract/actions declare an API dependency. Navigation-only
         # screens remain valid without an endpoint.

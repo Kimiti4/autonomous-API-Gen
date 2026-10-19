@@ -148,3 +148,40 @@ def test_projection_is_deterministic_for_same_content_revision():
     first = isr_to_plan(revision).model_dump(mode="json")
     second = isr_to_plan(revision).model_dump(mode="json")
     assert first == second
+
+
+
+def test_behavioral_plan_does_not_cross_backend_gate_with_unimplemented_api_effect_or_authz():
+    from compiler.core.capabilities import (
+        BackendCapabilities,
+        SemanticFeature,
+        UnsupportedSemanticsError,
+        assert_plan_supported,
+        required_features,
+    )
+    from compiler.backends.python_fastapi import PythonFastAPIBackend
+    from compiler.backends.rust_axum import RustAxumBackend
+
+    plan = isr_to_plan(_revision())
+    required = required_features(plan)
+    assert SemanticFeature.API_CONTRACTS in required
+    assert SemanticFeature.AUTHORIZATION_POLICIES in required
+    assert SemanticFeature.EFFECT_SEMANTICS in required
+    assert SemanticFeature.INVARIANTS in required
+
+    for backend in (PythonFastAPIBackend(), RustAxumBackend()):
+        try:
+            assert_plan_supported(
+                plan,
+                BackendCapabilities(
+                    backend_id=backend.name,
+                    version=backend.version,
+                    supported_features=backend.supported_features,
+                ),
+            )
+        except UnsupportedSemanticsError as exc:
+            assert "api_contracts" in str(exc)
+            assert "authorization_policies" in str(exc)
+            assert "effect_semantics" in str(exc)
+        else:
+            raise AssertionError(f"{backend.name} accepted unsupported semantic obligations")

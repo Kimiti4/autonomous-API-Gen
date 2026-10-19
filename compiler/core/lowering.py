@@ -79,6 +79,8 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
         elif edge.type == EdgeType.SECURED_BY and edge.target_id in sec_by_id:
             svc_security.setdefault(edge.source_id, []).append(sec_by_id[edge.target_id])
 
+    apis = [api.model_copy(update={"security_policies": api_security.get(api.id, [])}) for api in apis]
+
     for node_id, node in graph.nodes.items():
         if node.type == NodeType.SERVICE:
             label = node.properties.get("label", node_id.split(":", 1)[-1])

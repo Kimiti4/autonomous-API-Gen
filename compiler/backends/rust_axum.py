@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 
 from compiler.core.plan import CompilationPlan
-from compiler.core.capabilities import assert_plan_supported, structural_only
+from compiler.core.capabilities import BackendCapabilities, SemanticFeature, assert_plan_supported
 from compiler.core.repository import GeneratedRepository, build_repository
 from compiler.core.conformance import CHECKER, ConformanceReport
 from compiler.core.protocol import BackendClass, BackendIdentity, TestSpec
@@ -31,6 +31,12 @@ class RustAxumBackend:
     language = "rust"
     framework = "axum"
     version = "1.4.0"
+    supported_features = frozenset({
+        SemanticFeature.TYPED_FIELDS,
+        SemanticFeature.EXPRESSIONS,
+        SemanticFeature.BUSINESS_RULES,
+        SemanticFeature.STATE_TRANSITIONS,
+    })
 
     def identity(self) -> BackendIdentity:
         return BackendIdentity(
@@ -73,7 +79,7 @@ class RustAxumBackend:
         return p
 
     def compile(self, plan: CompilationPlan) -> GeneratedRepository:
-        assert_plan_supported(plan, structural_only(self.name, self.version))
+        assert_plan_supported(plan, BackendCapabilities(backend_id=self.name, version=self.version, supported_features=self.supported_features))
         f: dict[str, str] = {}
         for path in dict.fromkeys(self.element_paths(plan).values()):
             f[path] = self._emit(path, plan)

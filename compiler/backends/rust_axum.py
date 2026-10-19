@@ -10,8 +10,10 @@ placeholder modules.
 """
 from __future__ import annotations
 import json
+from decimal import Decimal
 
 from compiler.core.plan import CompilationPlan
+from compiler.core.behavior_oracle import reference_evaluate, sample_context
 from compiler.core.capabilities import BackendCapabilities, SemanticFeature, assert_plan_supported
 from compiler.core.repository import GeneratedRepository, build_repository
 from compiler.core.conformance import CHECKER, ConformanceReport
@@ -1126,6 +1128,48 @@ mod tests {
                 "    }",
                 "",
             ]
+        for service in plan.services:
+            if service.behavior is None:
+                continue
+            service_module = _slug(service.name)
+            for rule in service.behavior.rules:
+                context = sample_context(rule.expression, plan)
+                expected = reference_evaluate(rule.expression, context)
+                expected_json = format(expected.normalize(), "f") if isinstance(expected, Decimal) else expected
+                l += [
+                    "    #[test]",
+                    f"    fn generated_rule_{_slug(rule.rule_id)}() {{",
+                    f"        let context = json!({json.dumps(context, sort_keys=True)});",
+                    f'        let actual = application::{service_module}::evaluate_rule({json.dumps(rule.rule_id)}, &context).expect("rule");',
+                    f"        assert_eq!(actual, json!({json.dumps(expected_json)}));",
+                    "    }",
+                    "",
+                ]
+            for transition in service.behavior.transitions:
+                if transition.guard is None:
+                    continue
+                context = sample_context(transition.guard, plan)
+                if not bool(reference_evaluate(transition.guard, context)):
+                    continue
+                zero_context = {
+                    key: ("0" if isinstance(value, str) and value.replace(".", "", 1).isdigit()
+                          else 0 if isinstance(value, int) and not isinstance(value, bool)
+                          else False if isinstance(value, bool) else value)
+                    for key, value in context.items()
+                }
+                rejected = not bool(reference_evaluate(transition.guard, zero_context))
+                l += [
+                    "    #[test]",
+                    f"    fn generated_transition_{_slug(transition.transition_id)}() {{",
+                    f"        let context = json!({json.dumps(context, sort_keys=True)});",
+                    f'        assert_eq!(application::{service_module}::apply_transition({json.dumps(transition.transition_id)}, {json.dumps(transition.source_state)}, &context).expect("transition"), {json.dumps(transition.target_state)});',
+                ]
+                if rejected:
+                    l += [
+                        f"        let rejected = json!({json.dumps(zero_context, sort_keys=True)});",
+                        f'        assert!(application::{service_module}::apply_transition({json.dumps(transition.transition_id)}, {json.dumps(transition.source_state)}, &rejected).is_err());',
+                    ]
+                l += ["    }", ""]
         l.append("}")
         return "\n".join(l) + "\n"
 

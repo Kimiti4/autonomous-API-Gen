@@ -530,7 +530,7 @@ mod tests {
         stem = path.rsplit("/", 1)[-1][: -len(".rs")]
         effect = next((item for item in plan.effects if _slug(item.name) == stem), None)
         if effect is None or effect.behavior is None:
-            return "//! Effect contract unavailable; this module is not executable.\\n"
+            return "//! Effect contract unavailable; this module is not executable.\n"
         spec_json = json.dumps(effect.behavior.model_dump(mode="json"))
         spec_literal = json.dumps(spec_json)
         lines = [
@@ -576,7 +576,7 @@ mod tests {
                     "    }",
                 ]
             lines.append("}")
-        return "\\n".join(lines) + "\\n"
+        return "\n".join(lines) + "\n"
 
     def _domain(self, path: str, plan: CompilationPlan) -> str:
         stem = path.rsplit("/", 1)[-1][: -len(".rs")]
@@ -586,13 +586,13 @@ mod tests {
         model = next((item for item in plan.data_models if _slug(item.entity_name) == stem), None)
         if model is None or model.behavior is None:
             return (
-                f"//! Domain model {cls} (generated).\\n"
-                "#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]\\n"
-                "#[serde(default)]\\n"
-                f"pub struct {cls} {{\\n"
-                "    pub id: Option<String>,\\n"
-                "    pub name: String,\\n"
-                "}\\n"
+                f"//! Domain model {cls} (generated).\n"
+                "#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]\n"
+                "#[serde(default)]\n"
+                f"pub struct {cls} {{\n"
+                "    pub id: Option<String>,\n"
+                "    pub name: String,\n"
+                "}\n"
             )
         type_names = {
             "string": "String", "identifier": "String", "date": "String", "datetime": "String",
@@ -612,7 +612,7 @@ mod tests {
                 lines.append("    #[serde(default)]")
             lines.append(f"    pub {field.name}: {annotation},")
         lines.append("}")
-        return "\\n".join(lines) + "\\n"
+        return "\n".join(lines) + "\n"
 
     def _application(self, path: str, plan: CompilationPlan) -> str:
         stem = path.rsplit("/", 1)[-1][: -len(".rs")]
@@ -679,7 +679,7 @@ mod tests {
                 "}",
                 "",
             ]
-        return "\\n".join(lines) + "\\n"
+        return "\n".join(lines) + "\n"
 
     def _event(self, path: str, plan: CompilationPlan) -> str:
         stem = path.rsplit("/", 1)[-1][: -len(".rs")]

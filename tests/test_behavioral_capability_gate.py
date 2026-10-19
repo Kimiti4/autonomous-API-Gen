@@ -105,39 +105,33 @@ def test_supported_behavioral_subset_is_emitted_by_both_backends():
             assert "base_salary" in repo.files["src/domain/employee.rs"]
 
 
-@pytest.mark.parametrize(
-    "plan",
-    [
-        CompilationPlan(
-            plan_id="api-plan", isr_id="system",
-            apis=[ApiOperation(
-                id="api:submit", name="submit",
-                behavior=ApiBehavior(
-                    operation_id="submit", method="POST", path="/submit"
-                ),
-            )],
-        ),
-        CompilationPlan(
-            plan_id="effect-plan", isr_id="system",
-            effects=[Effect(
-                id="effect:transfer", name="transfer",
-                behavior=EffectBehavior(
-                    effect_kind="bank_transfer", idempotent=True, idempotency_key_required=True
-                ),
-            )],
-        ),
-    ],
-)
-def test_api_and_effect_semantics_are_not_silently_claimed_supported(plan):
-    from compiler.core.capabilities import BackendCapabilities, assert_plan_supported
-
+def test_api_contracts_are_not_silently_claimed_supported():
+    plan = CompilationPlan(
+        plan_id="api-plan", isr_id="system",
+        apis=[ApiOperation(
+            id="api:submit", name="submit",
+            behavior=ApiBehavior(operation_id="submit", method="POST", path="/submit"),
+        )],
+    )
     for backend in (PythonFastAPIBackend(), RustAxumBackend()):
-        with pytest.raises(UnsupportedSemanticsError):
-            assert_plan_supported(
-                plan,
-                BackendCapabilities(
-                    backend_id=backend.name,
-                    version=backend.version,
-                    supported_features=backend.supported_features,
-                ),
-            )
+        with pytest.raises(UnsupportedSemanticsError, match="api_contracts"):
+            backend.compile(plan)
+
+
+def test_effect_semantics_are_emitted_with_idempotency_contract():
+    effect = Effect(
+        id="effect:transfer", name="transfer",
+        behavior=EffectBehavior(
+            effect_kind="bank_transfer", idempotent=True, idempotency_key_required=True
+        ),
+    )
+    plan = CompilationPlan(plan_id="effect-plan", isr_id="system", effects=[effect])
+    assert SemanticFeature.EFFECT_SEMANTICS in required_features(plan)
+    for backend in (PythonFastAPIBackend(), RustAxumBackend()):
+        repo = backend.compile(plan)
+        if backend.name == "python-fastapi":
+            assert "apply_effect(EFFECT" in repo.files["app/effects/transfer.py"]
+            assert "test_effect_transfer_deduplicates_retries" in repo.files["tests/test_app.py"]
+        else:
+            assert "apply_effect(&effect" in repo.files["src/effects/transfer.rs"]
+            assert "retries_return_the_original_result" in repo.files["src/effects/transfer.rs"]

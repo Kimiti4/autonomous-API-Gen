@@ -168,7 +168,7 @@ def extract_tor(text: str, source_id: str) -> TORExtraction:
             statement,
             re.I,
         )
-        if not normative and not has_list_action:
+        if not normative and not has_list_action and segmentation_rule != "list-item":
             ignored.append({
                 "section": section,
                 "line_start": start,

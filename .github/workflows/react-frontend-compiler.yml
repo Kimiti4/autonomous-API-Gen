@@ -23,6 +23,7 @@ on:
       - "tests/test_tor_ingestion_and_isr_projection.py"
       - "tests/payroll/test_payroll_readiness.py"
       - "certification/payroll/readiness.py"
+      - "examples/payroll/world_concern_tor.md"
       - "docs/architecture/CONTROLLED_TOR_INGESTION.md"
       - ".github/workflows/react-frontend-compiler.yml"
   workflow_dispatch:

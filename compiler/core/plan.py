@@ -43,6 +43,7 @@ class Service(BaseModel):
     data_models: list[DataModel] = Field(default_factory=list)
     published_events: list[Event] = Field(default_factory=list)
     consumed_events: list[Event] = Field(default_factory=list)
+    effects: list[Effect] = Field(default_factory=list)
     behavior: ServiceBehavior | None = None
     security_policies: list[SecurityPolicy] = Field(default_factory=list)
 

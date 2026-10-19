@@ -541,6 +541,8 @@ mod tests {
         let equal = json!({"op":"equal","args":[{"op":"field","field_ref":"amount"},{"op":"literal","value":100}]});
         assert_eq!(evaluate_expression(&greater, &json!({"Employee.base_salary":"100.00"})).unwrap(), json!(true));
         assert_eq!(evaluate_expression(&equal, &json!({"amount":"100.00"})).unwrap(), json!(true));
+        let lexical = json!({"op":"less_than","args":[{"op":"field","field_ref":"name"},{"op":"literal","value":"beta"}]});
+        assert_eq!(evaluate_expression(&lexical, &json!({"name":"alpha"})).unwrap(), json!(true));
     }
 
     #[test]

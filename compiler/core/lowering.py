@@ -37,7 +37,6 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
     svc_cons_events: dict[str, list[Event]] = {}
     svc_security: dict[str, list[SecurityPolicy]] = {}
     api_security: dict[str, list[SecurityPolicy]] = {}
-    svc_security: dict[str, list[SecurityPolicy]] = {}
     services: list[Service] = []
     apis: list[ApiOperation] = []
     effects: list[Effect] = []
@@ -58,7 +57,12 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
                 policy_id=node_id, behavior=_behavior(node)
             )
         elif node.type == NodeType.API:
-            apis.append(ApiOperation(id=node_id, name=label, behavior=_behavior(node), security_policies=api_security.get(node_id, [])))
+            apis.append(ApiOperation(
+                id=node_id,
+                name=label,
+                behavior=_behavior(node),
+                security_policies=[],
+            ))
         elif node.type == NodeType.EFFECT:
             effects.append(Effect(id=node_id, name=label, behavior=_behavior(node)))
         elif node.type == NodeType.INVARIANT:
@@ -76,8 +80,6 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
                 api_security.setdefault(edge.source_id, []).append(sec_by_id[edge.target_id])
             else:
                 svc_security.setdefault(edge.source_id, []).append(sec_by_id[edge.target_id])
-        elif edge.type == EdgeType.SECURED_BY and edge.target_id in sec_by_id:
-            svc_security.setdefault(edge.source_id, []).append(sec_by_id[edge.target_id])
 
     apis = [api.model_copy(update={"security_policies": api_security.get(api.id, [])}) for api in apis]
 

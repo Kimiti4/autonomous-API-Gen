@@ -23,7 +23,7 @@ def sample_context(expression: Expression, plan: CompilationPlan) -> dict[str, A
         for model in plan.data_models:
             if owner is not None and model.entity_name != owner:
                 continue
-            for field in model.behavior.fields if model.behavior is not None else ():
+            for field in (model.behavior.fields if model.behavior is not None else ()):
                 if field.name == field_name:
                     matches.append(field)
         if len(matches) != 1:

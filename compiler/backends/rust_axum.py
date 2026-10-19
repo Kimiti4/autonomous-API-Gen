@@ -516,6 +516,14 @@ mod tests {
     }
 
     #[test]
+    fn money_precision_and_scale_are_enforced() {
+        let fields = json!([{"name":"amount","value_type":"money","required":true,"nullable":false,"precision":5,"scale":2}]);
+        assert!(validate_fields(&fields, &json!({"amount":"999.99"})).is_ok());
+        assert!(validate_fields(&fields, &json!({"amount":"1000.00"})).is_err());
+        assert!(validate_fields(&fields, &json!({"amount":"1.234"})).is_err());
+    }
+
+    #[test]
     fn authorization_is_default_deny_and_explicit_deny_wins() {
         let policies = json!([{"rules":[{"effect":"allow","roles":["approver"],"actions":["payroll.approve"],"resource":"PayrollRun","conditions":{}},{"effect":"deny","roles":["approver"],"actions":["payroll.approve"],"resource":"PayrollRun","conditions":{}}]}]);
         assert!(!authorize(&json!([]), "approver", "payroll.approve", "PayrollRun", &json!({})));

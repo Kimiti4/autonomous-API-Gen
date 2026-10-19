@@ -13,7 +13,7 @@ from isr.core.behavior import (
     expression_field_refs,
     validate_behavior_payload,
 )
-from isr.core.graph import ISRGraph, NodeType
+from isr.core.graph import EdgeType, ISRGraph, NodeType
 
 
 class BehavioralContractViolation(ValueError):
@@ -65,6 +65,20 @@ def validate_behavioral_graph(graph: ISRGraph) -> None:
                     f"Duplicate frontend route path {payload.path!r} on {previous!r} and {node_id!r}"
                 )
             route_paths[payload.path] = node_id
+            for edge in graph.edges.values():
+                if edge.type != EdgeType.ROUTES_TO or edge.source_id != node_id:
+                    continue
+                target = graph.nodes[edge.target_id]
+                if target.type != NodeType.API or "behavior" not in target.properties:
+                    raise BehavioralContractViolation(
+                        f"Frontend route {node_id!r} routes to an API without an explicit API contract"
+                    )
+                try:
+                    validate_behavior_payload("api", target.properties["behavior"])
+                except Exception as exc:
+                    raise BehavioralContractViolation(
+                        f"Frontend route {node_id!r} references an invalid API contract: {exc}"
+                    ) from exc
         elif isinstance(payload, FrontendInteractionBehavior):
             owner_routes = [
                 edge.source_id for edge in graph.edges.values()

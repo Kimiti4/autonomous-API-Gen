@@ -48,7 +48,7 @@ class ReactTypeScriptCompiler:
   const routePath = __ROUTE__;
   const actions = __ACTIONS__;
   const actionBindings = __BINDINGS__;
-  const authorizationPolicy = __AUTH__;
+  const authorizationPolicy: string = __AUTH__;
   const dataContract = __DATA__;
   const accessibilityRequirements = __A11Y__;
   const [status, setStatus] = useState("Ready");

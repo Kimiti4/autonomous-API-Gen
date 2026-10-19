@@ -4,6 +4,7 @@ from __future__ import annotations
 from isr.core.behavior import (
     ApiBehavior,
     DataModelBehavior,
+    EventBehavior,
     InvariantSpec,
     Expression,
     ServiceBehavior,
@@ -41,16 +42,17 @@ def validate_behavioral_graph(graph: ISRGraph) -> None:
                 f"Invalid behavioral payload on node {node_id!r}: {exc}"
             ) from exc
         parsed[node_id] = payload
-        if isinstance(payload, DataModelBehavior):
+        if isinstance(payload, (DataModelBehavior, EventBehavior)):
             names = [field.name for field in payload.fields]
             if len(names) != len(set(names)):
                 raise BehavioralContractViolation(
                     f"Duplicate field names on data model {node_id!r}"
                 )
-            label = str(node.properties.get("label", node_id))
-            for field in payload.fields:
-                all_field_refs.add(f"{label}.{field.name}")
-                simple_names[field.name] = simple_names.get(field.name, 0) + 1
+            if isinstance(payload, DataModelBehavior):
+                label = str(node.properties.get("label", node_id))
+                for field in payload.fields:
+                    all_field_refs.add(f"{label}.{field.name}")
+                    simple_names[field.name] = simple_names.get(field.name, 0) + 1
 
     valid_refs = all_field_refs | {
         name for name, count in simple_names.items() if count == 1

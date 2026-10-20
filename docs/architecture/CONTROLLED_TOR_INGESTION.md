@@ -11,7 +11,11 @@ The ingestion path is deliberately staged:
 5. Validate the resulting RequirementGraph against existing invariants.
 6. Project only approved requirement references and their explicit dependency/conflict/refinement/ownership edges into the ISR.
 
-The adapter does not invent capabilities or SATISFIES edges. A requirement reference records an obligation; it does not prove implementation.
+An approval may also carry reviewer-authored `isr_nodes` and `isr_edges` declarations. Each declaration must cite known `source_requirement_ids`, including the requirement being approved. The Genesis mapper validates declaration types, duplicate IDs, source bindings, edge endpoints, and behavioral payloads before an `ISRRevision` is created. Declarations are explicit review input; they are never inferred from prose.
+
+`project_tor_to_isr()` performs the canonical approved-source to ISR projection. `traceability_record()` binds the source digest, reviewed requirement graph hash, requirement IDs, ISR content hash, plan ID, and declared ISR IDs into one record for evidence artifacts.
+
+The adapter does not invent capabilities or SATISFIES edges. A requirement reference records an obligation; it does not prove implementation. Declarations are obligations to the compiler, and the selected backend must still support and emit every declared semantic.
 
 ## Limits
 

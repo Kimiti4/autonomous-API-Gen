@@ -1,14 +1,17 @@
 """
 Phase 14 — Layered Pytest Test Compiler
-Generates Unit, Property-based, Integration, Security, Contract, and Chaos test
-suites directly from the Universal ISR and the ArchitectureGenome.
+Generates Unit, Property-based, Integration, and Security test suites directly
+from the Universal ISR and the ArchitectureGenome.
 
 Because the tests are compiled from the same source of truth as the application,
 they are mathematically guaranteed to verify the architectural boundaries,
 security policies, and domain invariants the Evolution Engine selected. If the
-genome evolves from a Monolith to Microservices, the compiled test suite
-automatically shifts from in-memory integration tests to network-based
-contract tests.
+genome evolves from a Monolith to Microservices, the integration suite shifts to
+the endpoint contracts materialized in the ISR.
+
+Contract and chaos layers are declared unsupported in the manifest rather than
+emitted: no pact provider runtime and no circuit-breaker instrumentation are
+generated, so a placeholder test would pass without exercising anything.
 
 Constitutional Alignment:
 - "Prefer layered verification... Architectures should be designed to be inherently testable."
@@ -48,18 +51,27 @@ class PytestCompiler(TestCompiler):
             isr, genome,
         )
 
+        layers = ["unit", "integration", "security"]
+        unsupported_layers: Dict[str, str] = {}
+
         app_arch = genome.get_gene("app_arch")
         if app_arch in (
             ApplicationArchitecture.MICROSERVICES,
             ApplicationArchitecture.EVENT_DRIVEN,
             ApplicationArchitecture.SOA,
         ):
-            files["tests/contract/test_service_contracts.py"] = self._generate_contract_tests(isr)
+            unsupported_layers["contract"] = (
+                "consumer-contract tests require a pact provider runtime; "
+                "none is generated"
+            )
 
         posture = genome.resilience_posture
         posture_val = getattr(posture, "value", posture) if posture is not None else None
         if posture_val == "circuit_breaker":
-            files["tests/chaos/test_resilience.py"] = self._generate_chaos_tests()
+            unsupported_layers["chaos"] = (
+                "chaos tests require circuit-breaker instrumentation; "
+                "no backend generates it"
+            )
 
         manifest = CompilationManifest(
             artifact_type=ArtifactType.TEST_SUITE,
@@ -67,7 +79,8 @@ class PytestCompiler(TestCompiler):
             files=files,
             metadata={
                 "framework": "pytest",
-                "layers": ["unit", "integration", "security", "contract", "chaos"],
+                "layers": layers,
+                "unsupported_layers": unsupported_layers,
             },
         )
 
@@ -86,12 +99,6 @@ class PytestCompiler(TestCompiler):
     def _endpoints(self, isr: UniversalISR) -> List[Any]:
         return sorted(
             (n for n in isr.nodes.values() if n.type == NodeType.API_ENDPOINT),
-            key=lambda n: n.id,
-        )
-
-    def _services(self, isr: UniversalISR) -> List[Any]:
-        return sorted(
-            (n for n in isr.nodes.values() if n.type == NodeType.SERVICE),
             key=lambda n: n.id,
         )
 
@@ -198,58 +205,6 @@ class PytestCompiler(TestCompiler):
                     "",
                 ]
         return "\n".join(lines)
-
-    def _generate_contract_tests(self, isr: UniversalISR) -> str:
-        lines = [
-            "# Consumer-driven contract tests compiled from ISR SERVICE dependency graph",
-            "# Tooling: pact-python",
-            "",
-        ]
-        services = self._services(isr)
-        if not services:
-            lines += [
-                "# No SERVICE nodes materialized; contract harness reserved for",
-                "# microservices topologies evolved from this genome.",
-            ]
-        for svc in services:
-            consumers = [
-                e.source_id for e in isr.edges
-                if e.type == EdgeType.DEPENDS_ON and e.target_id == svc.id
-            ]
-            provider = svc.id.replace("svc_", "")
-            if consumers:
-                for consumer in consumers:
-                    lines += [
-                        f"def test_contract_{consumer.replace('svc_', '')}_to_{provider}():",
-                        f"    # Verify {consumer} -> {svc.id} interaction conforms to the compiled contract",
-                        "    from pact import Consumer, Provider",
-                        "    pact = Consumer('" + consumer.replace('svc_', '') + "').has_pact_with(Provider('" + provider + "'))",
-                        "    assert pact is not None",
-                        "",
-                    ]
-            else:
-                lines += [
-                    f"def test_provider_{provider}_contract():",
-                    f"    # Provider {svc.id} must honor the service contract",
-                    "    from pact import Provider",
-                    "    assert Provider('" + provider + "') is not None",
-                    "",
-                ]
-        return "\n".join(lines)
-
-    def _generate_chaos_tests(self) -> str:
-        return (
-            "import pytest\n"
-            "\n"
-            "# Chaos engineering tests derived from OperationalChromosome.resilience_posture\n"
-            "# Tooling: toxiproxy / pytest-chaos\n"
-            "\n"
-            "def test_circuit_breaker_opens_on_failure():\n"
-            "    # Simulate downstream failure and verify circuit breaker state\n"
-            "    # The circuit breaker posture was selected by the Evolution Engine;\n"
-            "    # this test proves the generated runtime honors it.\n"
-            "    assert True\n"
-        )
 
     def _is_restricted(self, isr: UniversalISR, api_id: str) -> bool:
         for edge in isr.edges:

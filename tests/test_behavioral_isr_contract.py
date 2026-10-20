@@ -99,6 +99,7 @@ def test_api_contract_is_framework_neutral_and_explicit():
         "operation_id": "payroll.submit",
         "method": "POST",
         "path": "/payroll-runs/{run_id}/submit",
+        "request_fields": [{"name": "run_id", "value_type": "identifier"}],
         "authorization_policy_ids": ["payroll-approver"],
     })
     assert api.method == "POST"

@@ -10,6 +10,8 @@ from compiler.core.plan import (
     DataModel,
     Effect,
     Event,
+    FrontendInteraction,
+    FrontendRoute,
     Invariant,
     SecurityPolicy,
     Service,
@@ -36,6 +38,7 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
     svc_pub_events: dict[str, list[Event]] = {}
     svc_cons_events: dict[str, list[Event]] = {}
     svc_security: dict[str, list[SecurityPolicy]] = {}
+    svc_effects: dict[str, list[Effect]] = {}
     api_security: dict[str, list[SecurityPolicy]] = {}
     services: list[Service] = []
     apis: list[ApiOperation] = []
@@ -68,8 +71,12 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
         elif node.type == NodeType.INVARIANT:
             invariants.append(Invariant(id=node_id, name=label, behavior=_behavior(node)))
 
+    effects_by_id = {effect.id: effect for effect in effects}
+
     for edge in graph.edges.values():
-        if edge.type == EdgeType.PERSISTS and edge.target_id in dm_by_id:
+        if edge.type == EdgeType.CAUSES_EFFECT and edge.target_id in effects_by_id:
+            svc_effects.setdefault(edge.source_id, []).append(effects_by_id[edge.target_id])
+        elif edge.type == EdgeType.PERSISTS and edge.target_id in dm_by_id:
             svc_data_models.setdefault(edge.source_id, []).append(dm_by_id[edge.target_id])
         elif edge.type == EdgeType.PUBLISHES and edge.target_id in ev_by_id:
             svc_pub_events.setdefault(edge.source_id, []).append(ev_by_id[edge.target_id])
@@ -83,6 +90,46 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
 
     apis = [api.model_copy(update={"security_policies": api_security.get(api.id, [])}) for api in apis]
 
+    api_by_id = {api.id: api for api in apis}
+    frontend_interactions: dict[str, FrontendInteraction] = {}
+    for node_id, node in graph.nodes.items():
+        if node.type != NodeType.FRONTEND_INTERACTION:
+            continue
+        label = node.properties.get("label", node_id.split(":", 1)[-1])
+        target_ids = [
+            edge.target_id for edge in graph.edges.values()
+            if edge.type == EdgeType.INVOKES and edge.source_id == node_id
+        ]
+        target_api = api_by_id.get(target_ids[0]) if len(target_ids) == 1 else None
+        frontend_interactions[node_id] = FrontendInteraction(
+            id=node_id,
+            name=label,
+            behavior=_behavior(node),
+            target_api_operation=target_api,
+        )
+
+    frontend_routes: list[FrontendRoute] = []
+    for node_id, node in graph.nodes.items():
+        if node.type != NodeType.FRONTEND_ROUTE:
+            continue
+        label = node.properties.get("label", node_id.split(":", 1)[-1])
+        route_api_ids = [
+            edge.target_id for edge in graph.edges.values()
+            if edge.type == EdgeType.ROUTES_TO and edge.source_id == node_id
+        ]
+        interaction_ids = [
+            edge.target_id for edge in graph.edges.values()
+            if edge.type == EdgeType.CONTAINS and edge.source_id == node_id
+            and edge.target_id in frontend_interactions
+        ]
+        frontend_routes.append(FrontendRoute(
+            id=node_id,
+            name=label,
+            behavior=_behavior(node),
+            api_operations=[api_by_id[item] for item in route_api_ids if item in api_by_id],
+            interactions=[frontend_interactions[item] for item in interaction_ids],
+        ))
+
     for node_id, node in graph.nodes.items():
         if node.type == NodeType.SERVICE:
             label = node.properties.get("label", node_id.split(":", 1)[-1])
@@ -92,6 +139,7 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
                 data_models=svc_data_models.get(node_id, []),
                 published_events=svc_pub_events.get(node_id, []),
                 consumed_events=svc_cons_events.get(node_id, []),
+                effects=svc_effects.get(node_id, []),
                 behavior=_behavior(node),
                 security_policies=svc_security.get(node_id, []),
             ))
@@ -106,4 +154,6 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
         apis=apis,
         effects=effects,
         invariants=invariants,
+        frontend_routes=frontend_routes,
+        frontend_interactions=list(frontend_interactions.values()),
     )

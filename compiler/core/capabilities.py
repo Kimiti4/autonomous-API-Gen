@@ -10,6 +10,7 @@ from compiler.core.plan import CompilationPlan
 
 class SemanticFeature(str, Enum):
     TYPED_FIELDS = "typed_fields"
+    DECIMAL_SHAPE = "decimal_shape"
     FIELD_CONSTRAINTS = "field_constraints"
     EXPRESSIONS = "expressions"
     BUSINESS_RULES = "business_rules"
@@ -19,6 +20,9 @@ class SemanticFeature(str, Enum):
     EFFECT_SEMANTICS = "effect_semantics"
     INVARIANTS = "invariants"
     TYPED_EVENTS = "typed_events"
+    FRONTEND_ROUTES = "frontend_routes"
+    FRONTEND_INTERACTIONS = "frontend_interactions"
+    FRONTEND_AUTH = "frontend_auth"
 
 
 class BackendCapabilities(BaseModel):
@@ -41,6 +45,8 @@ def required_features(plan: CompilationPlan) -> frozenset[SemanticFeature]:
         if behavior is None:
             continue
         required.add(SemanticFeature.TYPED_FIELDS)
+        if any(field.precision is not None or field.scale is not None for field in behavior.fields):
+            required.add(SemanticFeature.DECIMAL_SHAPE)
         if any(field.constraints for field in behavior.fields):
             required.add(SemanticFeature.FIELD_CONSTRAINTS)
         if behavior.invariants:
@@ -81,6 +87,40 @@ def required_features(plan: CompilationPlan) -> frozenset[SemanticFeature]:
             required.update({SemanticFeature.INVARIANTS, SemanticFeature.EXPRESSIONS})
 
     return frozenset(required)
+
+
+def required_frontend_features(plan: CompilationPlan) -> frozenset[SemanticFeature]:
+    """Return only the frontend compiler obligations in a shared plan."""
+    required: set[SemanticFeature] = set()
+    if plan.frontend_routes:
+        required.add(SemanticFeature.FRONTEND_ROUTES)
+    if plan.frontend_interactions:
+        required.add(SemanticFeature.FRONTEND_INTERACTIONS)
+    if any(route.api_operations for route in plan.frontend_routes):
+        required.add(SemanticFeature.API_CONTRACTS)
+    if any(route.behavior is not None and route.behavior.requires_auth for route in plan.frontend_routes):
+        required.add(SemanticFeature.FRONTEND_AUTH)
+    return frozenset(required)
+
+
+def assert_frontend_plan_supported(
+    plan: CompilationPlan,
+    capabilities: BackendCapabilities,
+) -> None:
+    unsupported = sorted(
+        feature.value
+        for feature in required_frontend_features(plan) - capabilities.supported_features
+    )
+    if unsupported:
+        auth_hint = (
+            "; no authentication flow is implemented for frontend_auth"
+            if SemanticFeature.FRONTEND_AUTH.value in unsupported
+            else ""
+        )
+        raise UnsupportedSemanticsError(
+            f"Frontend backend {capabilities.backend_id}@{capabilities.version} cannot compile "
+            f"declared ISR semantics; unsupported features: {', '.join(unsupported)}{auth_hint}"
+        )
 
 
 def assert_plan_supported(plan: CompilationPlan, capabilities: BackendCapabilities) -> None:

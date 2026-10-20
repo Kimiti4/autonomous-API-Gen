@@ -95,6 +95,7 @@ def _revision() -> ISRRevision:
     edges = {
         "e-persist": Edge(id="e-persist", type=EdgeType.PERSISTS, source_id="service:payroll", target_id="dm:employee"),
         "e-publish": Edge(id="e-publish", type=EdgeType.PUBLISHES, source_id="service:payroll", target_id="event:payroll-calculated"),
+        "e-effect": Edge(id="e-effect", type=EdgeType.CAUSES_EFFECT, source_id="service:payroll", target_id="effect:bank-transfer"),
         "e-secure-service": Edge(id="e-secure-service", type=EdgeType.SECURED_BY, source_id="service:payroll", target_id="security:payroll-approver"),
         "e-secure-api": Edge(id="e-secure-api", type=EdgeType.SECURED_BY, source_id="api:approve", target_id="security:payroll-approver"),
     }

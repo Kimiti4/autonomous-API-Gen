@@ -9,9 +9,11 @@ CRUD surface, the OpenAPI document, and auth.
 from __future__ import annotations
 
 import json
+from decimal import Decimal
 
 from compiler.core.plan import CompilationPlan
-from compiler.core.capabilities import BackendCapabilities, SemanticFeature, assert_plan_supported
+from compiler.core.behavior_oracle import reference_evaluate, sample_context
+from compiler.core.capabilities import BackendCapabilities, SemanticFeature, UnsupportedSemanticsError, assert_plan_supported
 from compiler.core.repository import GeneratedRepository, build_repository
 from compiler.core.conformance import CHECKER, ConformanceReport
 from compiler.core.protocol import BackendClass, BackendIdentity, TestSpec
@@ -32,6 +34,7 @@ class PythonFastAPIBackend:
     version = "1.4.0"
     supported_features = frozenset({
         SemanticFeature.TYPED_FIELDS,
+        SemanticFeature.DECIMAL_SHAPE,
         SemanticFeature.EXPRESSIONS,
         SemanticFeature.BUSINESS_RULES,
         SemanticFeature.STATE_TRANSITIONS,
@@ -245,17 +248,19 @@ def _number(value: Any) -> Decimal:
         raise BehaviorError("arithmetic operand is not numeric") from exc
 
 
+def _comparison_values(left: Any, right: Any) -> tuple[Any, Any]:
+    if isinstance(left, bool) or isinstance(right, bool):
+        return left, right
+    try:
+        return _number(left), _number(right)
+    except BehaviorError:
+        return left, right
+
+
 def _boolean(value: Any) -> bool:
     if not isinstance(value, bool):
         raise BehaviorError("boolean operand required")
     return value
-
-
-def _compare(left: Any, right: Any) -> int:
-    if isinstance(left, str) and isinstance(right, str):
-        return (left > right) - (left < right)
-    left_number, right_number = _number(left), _number(right)
-    return (left_number > right_number) - (left_number < right_number)
 
 
 def evaluate_expression(expression: dict[str, Any], context: dict[str, Any]) -> Any:
@@ -284,23 +289,19 @@ def evaluate_expression(expression: dict[str, Any], context: dict[str, Any]) -> 
         if divisor == 0:
             raise BehaviorError("division by zero")
         return _number(args[0]) / divisor
-    if op == "equal":
-        if isinstance(args[0], str) and isinstance(args[1], str):
-            return args[0] == args[1]
-        try:
-            return _number(args[0]) == _number(args[1])
-        except BehaviorError:
-            return args[0] == args[1]
-    if op == "not_equal":
-        return not evaluate_expression({"op": "equal", "args": raw_args}, context)
-    if op == "less_than":
-        return _compare(args[0], args[1]) < 0
-    if op == "less_or_equal":
-        return _compare(args[0], args[1]) <= 0
-    if op == "greater_than":
-        return _compare(args[0], args[1]) > 0
-    if op == "greater_or_equal":
-        return _compare(args[0], args[1]) >= 0
+    if op in ("equal", "not_equal", "less_than", "less_or_equal", "greater_than", "greater_or_equal"):
+        left, right = _comparison_values(args[0], args[1])
+        if op == "equal":
+            return left == right
+        if op == "not_equal":
+            return left != right
+        if op == "less_than":
+            return left < right
+        if op == "less_or_equal":
+            return left <= right
+        if op == "greater_than":
+            return left > right
+        return left >= right
     if op == "not":
         return not _boolean(args[0])
     raise BehaviorError(f"unsupported expression operator: {op!r}")
@@ -328,11 +329,21 @@ def validate_fields(fields: list[dict[str, Any]], payload: dict[str, Any]) -> di
             isinstance(value, str) if kind in ("string", "identifier", "date", "datetime")
             else isinstance(value, bool) if kind == "boolean"
             else isinstance(value, int) and not isinstance(value, bool) if kind == "integer"
-            else isinstance(value, (int, float, Decimal)) and not isinstance(value, bool) if kind in ("decimal", "money")
+                else isinstance(value, (int, float, Decimal, str)) and not isinstance(value, bool) if kind in ("decimal", "money")
             else True
         )
         if not valid:
             raise BehaviorError(f"invalid type for field: {name}")
+        if kind in ("decimal", "money"):
+            number = _number(value)
+            precision = spec.get("precision")
+            scale = spec.get("scale")
+            decimal_tuple = number.as_tuple()
+            actual_scale = max(0, -decimal_tuple.exponent)
+            if scale is not None and actual_scale > scale:
+                raise BehaviorError(f"{name} exceeds declared decimal scale")
+            if precision is not None and len(decimal_tuple.digits) > precision:
+                raise BehaviorError(f"{name} exceeds declared decimal precision")
         for constraint in spec.get("constraints", []):
             op, bound = constraint["operator"], constraint.get("value")
             if op == "min" and value < bound:
@@ -510,6 +521,27 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
                     f"        transitions = json.loads({json.dumps(transitions)!r})",
                     "        return apply_transition(transitions, transition_id, current_state, context)",
                 ]
+        if svc:
+            semantic_service = next((item for item in plan.services if _slug(item.name) == svc["mod"]), None)
+            if semantic_service is not None and semantic_service.effects:
+                effect_specs = []
+                for effect in semantic_service.effects:
+                    if effect.behavior is None:
+                        raise UnsupportedSemanticsError(
+                            f"Service {semantic_service.id!r} has an effect without typed semantics"
+                        )
+                    effect_specs.append({"id": effect.id, **effect.behavior.model_dump(mode="json")})
+                lines[2:2] = ["import json", "from app.core.behavior import apply_effect"]
+                lines += [
+                    "",
+                    "    def execute_effect(self, effect_id: str, idempotency_key: str | None, execute, ledger: dict) -> object:",
+                    f"        effects = json.loads({json.dumps(effect_specs)!r})",
+                    "        effect = next((item for item in effects if item['id'] == effect_id), None)",
+                    "        if effect is None:",
+                    "            raise ValueError('unknown effect')",
+                    "        return apply_effect(effect, idempotency_key, execute, ledger)",
+                    "",
+                ]
         return "\n".join(lines).rstrip("\n") + "\n"
 
     def _event(self, path: str, plan: CompilationPlan) -> str:
@@ -675,6 +707,15 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
             "        evaluate_expression({'op': 'divide', 'args': [{'op': 'literal', 'value': 1}, {'op': 'literal', 'value': 0}]}, {})",
             "",
             "",
+            "def test_behavior_comparisons_use_decimal_semantics_for_money_fields():",
+            "    greater = {'op': 'greater_than', 'args': [{'op': 'field', 'field_ref': 'Employee.base_salary'}, {'op': 'literal', 'value': 0}]}",
+            "    equal = {'op': 'equal', 'args': [{'op': 'field', 'field_ref': 'amount'}, {'op': 'literal', 'value': 100}]}",
+            "    assert evaluate_expression(greater, {'Employee.base_salary': '100.00'}) is True",
+            "    assert evaluate_expression(equal, {'amount': '100.00'}) is True",
+            "    lexical = {'op': 'less_than', 'args': [{'op': 'field', 'field_ref': 'name'}, {'op': 'literal', 'value': 'beta'}]}",
+            "    assert evaluate_expression(lexical, {'name': 'alpha'}) is True",
+            "",
+            "",
             "def test_behavior_boolean_and_string_comparison_semantics():",
             "    assert evaluate_expression({'op': 'less_than', 'args': [{'op': 'literal', 'value': 'A'}, {'op': 'literal', 'value': 'B'}]}, {}) is True",
             "    with pytest.raises(BehaviorError, match='boolean operand required'):",
@@ -688,6 +729,15 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
             "        validate_fields(fields, {'amount': -1})",
             "    with pytest.raises(BehaviorError, match='unknown fields'):",
             "        validate_fields(fields, {'amount': 10, 'unexpected': 1})",
+            "",
+            "",
+            "def test_behavior_money_precision_and_scale_are_enforced():",
+            "    fields = [{'name': 'amount', 'value_type': 'money', 'required': True, 'nullable': False, 'precision': 5, 'scale': 2}]",
+            "    assert validate_fields(fields, {'amount': '999.99'}) == {'amount': '999.99'}",
+            "    with pytest.raises(BehaviorError, match='decimal precision'):",
+            "        validate_fields(fields, {'amount': '1000.00'})",
+            "    with pytest.raises(BehaviorError, match='decimal scale'):",
+            "        validate_fields(fields, {'amount': '1.234'})",
             "",
             "",
             "def test_behavior_authorization_defaults_to_deny_and_deny_wins():",
@@ -718,6 +768,69 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
             "",
             "",
         ]
+        for service in plan.services:
+            if service.behavior is None:
+                continue
+            service_module = _slug(service.name)
+            service_class = _cls(service_module) + "Service"
+            for rule in service.behavior.rules:
+                context = sample_context(rule.expression, plan)
+                expected = reference_evaluate(rule.expression, context)
+                lines += [
+                    f"def test_generated_rule_{_slug(rule.rule_id)}():",
+                    f"    from app.application.{service_module} import {service_class}",
+                    f"    context = {context!r}",
+                    f"    actual = {service_class}().evaluate_rule({rule.rule_id!r}, context)",
+                    f"    assert actual == {expected!r}",
+                    "",
+                ]
+            for transition in service.behavior.transitions:
+                if transition.guard is None:
+                    continue
+                context = sample_context(transition.guard, plan)
+                accepted = bool(reference_evaluate(transition.guard, context))
+                lines += [
+                    f"def test_generated_transition_{_slug(transition.transition_id)}():",
+                    f"    from app.application.{service_module} import {service_class}",
+                    f"    context = {context!r}",
+                ]
+                if accepted:
+                    lines.append(
+                        f"    assert {service_class}().apply_transition({transition.transition_id!r}, {transition.source_state!r}, context) == {transition.target_state!r}"
+                    )
+                else:
+                    lines += [
+                        "    with pytest.raises(ValueError):",
+                        f"        {service_class}().apply_transition({transition.transition_id!r}, {transition.source_state!r}, context)",
+                    ]
+                lines.append("")
+            for effect in service.effects:
+                if effect.behavior is None:
+                    continue
+                if effect.behavior.idempotent:
+                    lines += [
+                        f"def test_generated_effect_{_slug(effect.id)}_is_idempotent():",
+                        f"    from app.application.{service_module} import {service_class}",
+                        "    ledger = {}",
+                        "    executions = []",
+                        "    service = " + service_class + "()",
+                        f"    first = service.execute_effect({effect.id!r}, 'key-1', lambda: executions.append('first') or {{'transfer_id': 'tx-1'}}, ledger)",
+                        f"    replay = service.execute_effect({effect.id!r}, 'key-1', lambda: executions.append('replay') or {{'transfer_id': 'tx-2'}}, ledger)",
+                        "    assert first == {'transfer_id': 'tx-1'}",
+                        "    assert replay == first",
+                        "    assert executions == ['first']",
+                        "    with pytest.raises(ValueError, match='idempotency key required'):",
+                        f"        service.execute_effect({effect.id!r}, None, lambda: {{'transfer_id': 'missing-key'}}, {{}})",
+                        "",
+                    ]
+                else:
+                    lines += [
+                        f"def test_generated_effect_{_slug(effect.id)}_executes_without_deduplication_key():",
+                        f"    from app.application.{service_module} import {service_class}",
+                        "    service = " + service_class + "()",
+                        f"    assert service.execute_effect({effect.id!r}, None, lambda: {{'ok': True}}, {{}}) == {{'ok': True}}",
+                        "",
+                    ]
         for e in entities:
             model = next((item for item in plan.data_models if _slug(item.entity_name) == e["mod"]), None)
             if model is not None and model.behavior is not None:
@@ -832,16 +945,16 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
         mod = path.rsplit("/", 1)[-1][: -len(".py")]
         effect = next((item for item in plan.effects if _slug(item.name) == mod), None)
         if effect is None or effect.behavior is None:
-            return '"""Effect contract unavailable; this module is not executable."""\\n'
+            return '"""Effect contract unavailable; this module is not executable."""\n'
         spec = effect.behavior.model_dump(mode="json")
         spec_json = json.dumps(spec)
         return (
-            '"""Generated effect adapter with explicit idempotency semantics."""\\n'
-            "import json\\n"
-            "from app.core.behavior import apply_effect\\n\\n"
-            f"EFFECT = json.loads({spec_json!r})\\n\\n"
-            "def apply(executor, idempotency_key, ledger):\\n"
-            "    return apply_effect(EFFECT, idempotency_key, executor, ledger)\\n"
+            '"""Generated effect adapter with explicit idempotency semantics."""\n'
+            "import json\n"
+            "from app.core.behavior import apply_effect\n\n"
+            f"EFFECT = json.loads({spec_json!r})\n\n"
+            "def apply(executor, idempotency_key, ledger):\n"
+            "    return apply_effect(EFFECT, idempotency_key, executor, ledger)\n"
         )
 
     def _k8s(self) -> str:

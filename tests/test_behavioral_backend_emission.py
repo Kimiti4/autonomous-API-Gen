@@ -76,6 +76,7 @@ def test_behavioral_features_are_explicit_and_supported_by_reference_backends():
     required = required_features(plan)
     assert required == frozenset({
         SemanticFeature.TYPED_FIELDS,
+        SemanticFeature.DECIMAL_SHAPE,
         SemanticFeature.EXPRESSIONS,
         SemanticFeature.BUSINESS_RULES,
         SemanticFeature.STATE_TRANSITIONS,
@@ -111,6 +112,8 @@ def test_python_emission_contains_executable_typed_fields_and_rule_methods():
     assert "def validate_fields" in behavior_source
     assert "def test_behavior_expression_arithmetic" in tests_source
     assert "def test_behavior_state_transition_checks_guard_and_source" in tests_source
+    assert "def test_generated_rule_payroll_gross" in tests_source
+    assert "def test_generated_transition_payroll_submit" in tests_source
 
 
 def test_rust_emission_contains_compilable_module_shapes_and_behavior_tests():

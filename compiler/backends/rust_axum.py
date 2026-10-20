@@ -10,9 +10,11 @@ placeholder modules.
 """
 from __future__ import annotations
 import json
+from decimal import Decimal
 
 from compiler.core.plan import CompilationPlan
-from compiler.core.capabilities import BackendCapabilities, SemanticFeature, assert_plan_supported
+from compiler.core.behavior_oracle import reference_evaluate, sample_context
+from compiler.core.capabilities import BackendCapabilities, SemanticFeature, UnsupportedSemanticsError, assert_plan_supported
 from compiler.core.repository import GeneratedRepository, build_repository
 from compiler.core.conformance import CHECKER, ConformanceReport
 from compiler.core.protocol import BackendClass, BackendIdentity, TestSpec
@@ -33,6 +35,7 @@ class RustAxumBackend:
     version = "1.4.0"
     supported_features = frozenset({
         SemanticFeature.TYPED_FIELDS,
+        SemanticFeature.DECIMAL_SHAPE,
         SemanticFeature.EXPRESSIONS,
         SemanticFeature.BUSINESS_RULES,
         SemanticFeature.STATE_TRANSITIONS,
@@ -327,15 +330,26 @@ fn decimal_value(value: Decimal) -> Value {
     Value::String(value.normalize().to_string())
 }
 
+fn equal_values(left: &Value, right: &Value) -> bool {
+    match (decimal(left), decimal(right)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => left == right,
+    }
+}
+
 fn boolean(value: &Value) -> Result<bool, String> {
     value.as_bool().ok_or("boolean operand required".to_string())
 }
 
-fn compare_values(left: &Value, right: &Value) -> Result<Ordering, String> {
-    if let (Value::String(a), Value::String(b)) = (left, right) {
-        return Ok(a.cmp(b));
+fn compare_values(left: &Value, right: &Value) -> Result<std::cmp::Ordering, String> {
+    if let (Ok(a), Ok(b)) = (decimal(left), decimal(right)) {
+        return Ok(a.cmp(&b));
     }
-    Ok(decimal(left)?.cmp(&decimal(right)?))
+    match (left, right) {
+        (Value::String(a), Value::String(b)) => Ok(a.cmp(b)),
+        (Value::Bool(a), Value::Bool(b)) => Ok(a.cmp(b)),
+        _ => Err("incompatible comparison types".to_string()),
+    }
 }
 
 pub fn evaluate_expression(expression: &Value, context: &Value) -> Result<Value, String> {
@@ -374,32 +388,12 @@ pub fn evaluate_expression(expression: &Value, context: &Value) -> Result<Value,
             if divisor == Decimal::ZERO { return Err("division by zero".to_string()); }
             Ok(decimal_value(decimal(&values[0])? / divisor))
         },
-        "equal" => {
-            let equal = if values[0].is_string() && values[1].is_string() {
-                values[0] == values[1]
-            } else {
-                match (decimal(&values[0]), decimal(&values[1])) {
-                    (Ok(left), Ok(right)) => left == right,
-                    _ => values[0] == values[1],
-                }
-            };
-            Ok(Value::Bool(equal))
-        },
-        "not_equal" => {
-            let equal = if values[0].is_string() && values[1].is_string() {
-                values[0] == values[1]
-            } else {
-                match (decimal(&values[0]), decimal(&values[1])) {
-                    (Ok(left), Ok(right)) => left == right,
-                    _ => values[0] == values[1],
-                }
-            };
-            Ok(Value::Bool(!equal))
-        },
-        "less_than" => Ok(Value::Bool(compare_values(&values[0], &values[1])? == Ordering::Less)),
-        "less_or_equal" => Ok(Value::Bool(compare_values(&values[0], &values[1])? != Ordering::Greater)),
-        "greater_than" => Ok(Value::Bool(compare_values(&values[0], &values[1])? == Ordering::Greater)),
-        "greater_or_equal" => Ok(Value::Bool(compare_values(&values[0], &values[1])? != Ordering::Less)),
+        "equal" => Ok(Value::Bool(equal_values(&values[0], &values[1]))),
+        "not_equal" => Ok(Value::Bool(!equal_values(&values[0], &values[1]))),
+        "less_than" => Ok(Value::Bool(compare_values(&values[0], &values[1])? == std::cmp::Ordering::Less)),
+        "less_or_equal" => Ok(Value::Bool(compare_values(&values[0], &values[1])? != std::cmp::Ordering::Greater)),
+        "greater_than" => Ok(Value::Bool(compare_values(&values[0], &values[1])? == std::cmp::Ordering::Greater)),
+        "greater_or_equal" => Ok(Value::Bool(compare_values(&values[0], &values[1])? != std::cmp::Ordering::Less)),
         "not" => Ok(Value::Bool(!boolean(&values[0])?)),
         _ => Err(format!("unsupported expression operator: {op}")),
     }
@@ -436,6 +430,20 @@ pub fn validate_fields(fields: &Value, payload: &Value) -> Result<(), String> {
             _ => false,
         };
         if !valid { return Err(format!("invalid type for field: {name}")); }
+        if kind == "decimal" || kind == "money" {
+            let amount = decimal(value)?;
+            if let Some(scale) = spec.get("scale").and_then(Value::as_u64) {
+                if amount.scale() as u64 > scale {
+                    return Err(format!("{name} exceeds declared decimal scale"));
+                }
+            }
+            if let Some(precision) = spec.get("precision").and_then(Value::as_u64) {
+                let digits = amount.mantissa().unsigned_abs().to_string().len() as u64;
+                if digits > precision {
+                    return Err(format!("{name} exceeds declared decimal precision"));
+                }
+            }
+        }
         if let Some(constraints) = spec.get("constraints").and_then(Value::as_array) {
             for constraint in constraints {
                 let operator = constraint.get("operator").and_then(Value::as_str).unwrap_or("");
@@ -540,6 +548,24 @@ mod tests {
         assert!(validate_fields(&fields, &json!({"amount":"10.00"})).is_ok());
         assert!(validate_fields(&fields, &json!({"amount":"-1"})).is_err());
         assert!(validate_fields(&fields, &json!({"amount":"10","other":1})).is_err());
+    }
+
+    #[test]
+    fn numeric_comparisons_accept_money_strings() {
+        let greater = json!({"op":"greater_than","args":[{"op":"field","field_ref":"Employee.base_salary"},{"op":"literal","value":0}]});
+        let equal = json!({"op":"equal","args":[{"op":"field","field_ref":"amount"},{"op":"literal","value":100}]});
+        assert_eq!(evaluate_expression(&greater, &json!({"Employee.base_salary":"100.00"})).unwrap(), json!(true));
+        assert_eq!(evaluate_expression(&equal, &json!({"amount":"100.00"})).unwrap(), json!(true));
+        let lexical = json!({"op":"less_than","args":[{"op":"field","field_ref":"name"},{"op":"literal","value":"beta"}]});
+        assert_eq!(evaluate_expression(&lexical, &json!({"name":"alpha"})).unwrap(), json!(true));
+    }
+
+    #[test]
+    fn money_precision_and_scale_are_enforced() {
+        let fields = json!([{"name":"amount","value_type":"money","required":true,"nullable":false,"precision":5,"scale":2}]);
+        assert!(validate_fields(&fields, &json!({"amount":"999.99"})).is_ok());
+        assert!(validate_fields(&fields, &json!({"amount":"1000.00"})).is_err());
+        assert!(validate_fields(&fields, &json!({"amount":"1.234"})).is_err());
     }
 
     #[test]
@@ -721,6 +747,33 @@ mod tests {
                 "pub fn authorize(role: &str, action: &str, resource: &str, attributes: &Value) -> bool {",
                 f"    let policies: Value = serde_json::from_str({policies_literal}).expect(\"validated ISR security policy\");",
                 "    crate::core::behavior::authorize(&policies, role, action, resource, attributes)",
+                "}",
+                "",
+            ]
+        if service is not None and service.effects:
+            lines[1] = "use serde_json::{json, Value};"
+            lines.insert(2, "use std::collections::HashMap;")
+            effect_arms = []
+            for effect in service.effects:
+                if effect.behavior is None:
+                    raise UnsupportedSemanticsError(
+                        f"Service {service.id!r} has an effect without typed semantics"
+                    )
+                spec = effect.behavior.model_dump(mode="json")
+                effect_arms.append(
+                    f"            {json.dumps(effect.id)} => json!({json.dumps(spec)}),"
+                )
+            lines += [
+                "",
+                "pub fn execute_effect<F>(effect_id: &str, idempotency_key: Option<&str>, ledger: &mut HashMap<String, Value>, execute: F) -> Result<Value, String>",
+                "where",
+                "    F: FnOnce() -> Result<Value, String>,",
+                "{",
+                "    let effect = match effect_id {",
+                *effect_arms,
+                '        _ => return Err("unknown effect".to_string()),',
+                "    };",
+                "    crate::core::behavior::apply_effect(&effect, idempotency_key, execute, ledger)",
                 "}",
                 "",
             ]
@@ -1130,6 +1183,76 @@ mod tests {
                 "    }",
                 "",
             ]
+        for service in plan.services:
+            if service.behavior is None:
+                continue
+            service_module = _slug(service.name)
+            for rule in service.behavior.rules:
+                context = sample_context(rule.expression, plan)
+                expected = reference_evaluate(rule.expression, context)
+                expected_json = format(expected.normalize(), "f") if isinstance(expected, Decimal) else expected
+                l += [
+                    "    #[test]",
+                    f"    fn generated_rule_{_slug(rule.rule_id)}() {{",
+                    f"        let context = json!({json.dumps(context, sort_keys=True)});",
+                    f'        let actual = application::{service_module}::evaluate_rule({json.dumps(rule.rule_id)}, &context).expect("rule");',
+                    f"        assert_eq!(actual, json!({json.dumps(expected_json)}));",
+                    "    }",
+                    "",
+                ]
+            for transition in service.behavior.transitions:
+                if transition.guard is None:
+                    continue
+                context = sample_context(transition.guard, plan)
+                if not bool(reference_evaluate(transition.guard, context)):
+                    continue
+                zero_context = {
+                    key: ("0" if isinstance(value, str) and value.replace(".", "", 1).isdigit()
+                          else 0 if isinstance(value, int) and not isinstance(value, bool)
+                          else False if isinstance(value, bool) else value)
+                    for key, value in context.items()
+                }
+                rejected = not bool(reference_evaluate(transition.guard, zero_context))
+                l += [
+                    "    #[test]",
+                    f"    fn generated_transition_{_slug(transition.transition_id)}() {{",
+                    f"        let context = json!({json.dumps(context, sort_keys=True)});",
+                    f'        assert_eq!(application::{service_module}::apply_transition({json.dumps(transition.transition_id)}, {json.dumps(transition.source_state)}, &context).expect("transition"), {json.dumps(transition.target_state)});',
+                ]
+                if rejected:
+                    l += [
+                        f"        let rejected = json!({json.dumps(zero_context, sort_keys=True)});",
+                        f'        assert!(application::{service_module}::apply_transition({json.dumps(transition.transition_id)}, {json.dumps(transition.source_state)}, &rejected).is_err());',
+                    ]
+                l += ["    }", ""]
+            for effect in service.effects:
+                if effect.behavior is None:
+                    continue
+                if effect.behavior.idempotent:
+                    l += [
+                        "    #[test]",
+                        f"    fn generated_effect_{_slug(effect.id)}_is_idempotent() {{",
+                        "        let mut ledger = std::collections::HashMap::new();",
+                        "        let mut executions = 0;",
+                        f'        let first = application::{service_module}::execute_effect({json.dumps(effect.id)}, Some("key-1"), &mut ledger, || {{ executions += 1; Ok(json!({{"transfer_id":"tx-1"}})) }}).expect("first effect");',
+                        f'        let replay = application::{service_module}::execute_effect({json.dumps(effect.id)}, Some("key-1"), &mut ledger, || {{ executions += 1; Ok(json!({{"transfer_id":"tx-2"}})) }}).expect("replay");',
+                        '        assert_eq!(first, json!({"transfer_id":"tx-1"}));',
+                        "        assert_eq!(replay, first);",
+                        "        assert_eq!(executions, 1);",
+                        f'        assert!(application::{service_module}::execute_effect({json.dumps(effect.id)}, None, &mut ledger, || Ok(json!({{"transfer_id":"missing-key"}}))).is_err());',
+                        "    }",
+                        "",
+                    ]
+                else:
+                    l += [
+                        "    #[test]",
+                        f"    fn generated_effect_{_slug(effect.id)}_executes_without_deduplication_key() {{",
+                        "        let mut ledger = std::collections::HashMap::new();",
+                        f'        let result = application::{service_module}::execute_effect({json.dumps(effect.id)}, None, &mut ledger, || Ok(json!({{"ok":true}}))).expect("effect");',
+                        '        assert_eq!(result, json!({"ok":true}));',
+                        "    }",
+                        "",
+                    ]
         l.append("}")
         return "\n".join(l) + "\n"
 

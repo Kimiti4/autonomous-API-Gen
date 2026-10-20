@@ -267,11 +267,24 @@ def test_declaration_ids_are_unique_across_reviewed_requirements():
         draft.approve(approvals)
 
 
+def _bundle_hash(files: dict[str, str]) -> str:
+    digest = hashlib.sha256()
+    for path in sorted(files):
+        digest.update(path.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(files[path].encode("utf-8"))
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
 def test_certified_emitters_consume_the_source_derived_behavior():
-    backend = backend_plan()
+    backend_projection_value = backend_projection()
+    backend = isr_to_plan(backend_projection_value.revision)
+    full_projection = full_stack_projection()
+    frontend = isr_to_plan(full_projection.revision)
     python_repo = PythonFastAPIBackend().compile(backend)
     rust_repo = RustAxumBackend().compile(backend)
-    frontend_repo = ReactFrontendBackend().compile(full_stack_plan())
+    frontend_repo = ReactFrontendBackend().compile(frontend)
 
     assert "base_salary: Decimal" in python_repo.files["app/domain/Employee.py"]
     assert "def test_generated_rule_payroll_gross" in python_repo.files["tests/test_app.py"]
@@ -280,3 +293,18 @@ def test_certified_emitters_consume_the_source_derived_behavior():
     assert "Payroll Management" in frontend_repo.files["src/App.tsx"]
     assert "/payroll-runs" in frontend_repo.files["src/App.tsx"]
     assert "calls the declared API" in frontend_repo.files["src/App.test.tsx"]
+
+    backend_record = traceability_record(
+        backend_projection_value,
+        plan_id=backend.plan_id,
+        artifact_bundle_hash=_bundle_hash(python_repo.files),
+    )
+    frontend_record = traceability_record(
+        full_projection,
+        plan_id=frontend.plan_id,
+        artifact_bundle_hash=_bundle_hash(frontend_repo.files),
+    )
+    assert backend_record.artifact_bundle_hash == _bundle_hash(python_repo.files)
+    assert frontend_record.artifact_bundle_hash == _bundle_hash(frontend_repo.files)
+    assert backend_record.isr_content_hash == backend_projection_value.revision.content_hash
+    assert frontend_record.isr_content_hash == full_projection.revision.content_hash

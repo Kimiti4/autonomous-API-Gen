@@ -48,6 +48,7 @@ class SourceTraceability(BaseModel):
     requirement_ids: tuple[str, ...]
     isr_content_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
     plan_id: str = Field(min_length=1)
+    artifact_bundle_hash: str = Field(default="", pattern=r"^$|^[a-f0-9]{64}$")
     mapping_spec_version: str = Field(min_length=1)
     isr_node_ids: tuple[str, ...]
     isr_edge_ids: tuple[str, ...]
@@ -142,6 +143,7 @@ def traceability_record(
     projection: TORISRProjection,
     *,
     plan_id: str,
+    artifact_bundle_hash: str = "",
 ) -> SourceTraceability:
     """Build the content-bound record for evidence and artifact manifests."""
     declared_node_ids, declared_edge_ids = _declared_ids(projection.requirement_graph)
@@ -152,6 +154,7 @@ def traceability_record(
         requirement_ids=tuple(sorted(projection.requirement_graph.nodes)),
         isr_content_hash=projection.revision.content_hash,
         plan_id=plan_id,
+        artifact_bundle_hash=artifact_bundle_hash,
         mapping_spec_version=projection.mapping_spec_version,
         isr_node_ids=declared_node_ids,
         isr_edge_ids=declared_edge_ids,

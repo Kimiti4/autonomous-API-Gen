@@ -124,6 +124,7 @@ KNOWN_PRS: dict[int, str] = {
     138: "CLOSED",
     139: "MERGED",
     140: "MERGED",
+    152: "OPEN",
 }
 
 
@@ -156,17 +157,22 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
             "version/hash, provenance, and approval status; reject missing, duplicate "
             "or invented mappings."
         ),
-        status=Status.IN_PROGRESS,
+        status=Status.IMPLEMENTED_UNVERIFIED,
         dependencies=(),
         evidence=(
             _code("reqgraph/core/graph.py"),
             _code("reqgraph/ingestion/tor_extractor.py"),
+            _code("reqgraph/adapters/tor_isr.py"),
             _code("autonomous-api/app/engine/source_bound_full_stack.py"),
             _test("tests/test_tor_ingestion_and_isr_projection.py"),
+            _test("tests/test_source_bound_behavioral_projection.py"),
+            _test("tests/integration/test_generated_backend_behavior_builds.py"),
             _test("tests/cbc1/test_source_bound_full_stack_projection.py"),
             _workflow(".github/workflows/root-canonical-suite.yml"),
+            _workflow(".github/workflows/react-frontend-compiler.yml"),
             _pr(140, "controlled TOR extraction and ISR requirement projection merged"),
             _pr(138, "superseded by #140 and closed"),
+            _pr(152, "source-bound behavioral projection and mutation evidence under review"),
         ),
         closure_gate=(
             "Mutating an authoritative source invalidates every derived binding; "
@@ -174,8 +180,7 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         ),
         claimed_tiers=(CertificationTier.STRUCTURAL, CertificationTier.BEHAVIORAL),
         limitations=(
-            "Controlled TOR extraction landed in merged PR #140; source-mutation invalidation and end-to-end semantic completeness still require candidate-bound closure evidence.",
-            "Source-mutation invalidation has no enforced canonical test yet.",
+            "Source-mutation invalidation and fail-closed declaration checks are covered in candidate PR #152; merge-bound CI evidence is still pending.",
             "Requirement approval status is not a first-class ISR attribute.",
         ),
     ),
@@ -191,10 +196,16 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         dependencies=("W01",),
         evidence=(
             _code("isr/core/graph.py"),
+            _code("isr/core/behavior.py"),
             _code("reqgraph/core/invariants.py"),
+            _code("reqgraph/adapters/tor_isr.py"),
             _code("compiler/core/lowering.py"),
             _test("tests/cbc1/test_campaign_a.py"),
+            _test("tests/test_source_bound_behavioral_projection.py"),
+            _test("tests/integration/test_generated_backend_behavior_builds.py"),
+            _workflow(".github/workflows/react-frontend-compiler.yml"),
             _pr(137, "typed behavioural ISR contract merged; end-to-end emitter consumption remains a separate closure gate"),
+            _pr(152, "source-bound typed behavior reaches Python, Rust, and React plans under review"),
         ),
         closure_gate=(
             "Representative requirements produce typed ISR semantics with explicit "
@@ -203,7 +214,7 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         claimed_tiers=(CertificationTier.STRUCTURAL, CertificationTier.BEHAVIORAL),
         limitations=(
             "Main ISR carries entities, edges, events and security only.",
-            "Typed behavioural ISR landed in merged PR #137 and loss-aware projection was extended in merged PR #140; consumption and semantic preservation must still be proven for every certified emitter with candidate-bound behavioral tests.",
+            "Source-bound typed fields, rules, transitions, API contracts, and frontend interactions now reach plans and generated artifacts in PR #152; authorization, effects, and consequence semantics remain Stage 2-3 work.",
         ),
     ),
     WorkPackage(
@@ -217,8 +228,10 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         dependencies=("W02",),
         evidence=(
             _code("reqgraph/core/graph.py"),
+            _code("reqgraph/adapters/tor_isr.py"),
             _code("certification/campaign/runner.py"),
             _test("tests/cbc1/test_campaign_a.py"),
+            _test("tests/test_source_bound_behavioral_projection.py"),
             _workflow(".github/workflows/root-canonical-suite.yml"),
         ),
         closure_gate=(

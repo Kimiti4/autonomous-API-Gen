@@ -120,10 +120,10 @@ KNOWN_PRS: dict[int, str] = {
     134: "MERGED",
     135: "MERGED",
     136: "MERGED",
-    137: "OPEN",
-    138: "OPEN",
-    139: "OPEN",
-    140: "OPEN",
+    137: "MERGED",
+    138: "MERGED",
+    139: "MERGED",
+    140: "MERGED",
 }
 
 
@@ -163,7 +163,7 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
             _code("autonomous-api/app/engine/source_bound_full_stack.py"),
             _test("tests/cbc1/test_source_bound_full_stack_projection.py"),
             _workflow(".github/workflows/root-canonical-suite.yml"),
-            _pr(138, "controlled TOR extraction draft, unmerged"),
+            _pr(138, "controlled TOR extraction merged; source-mutation invalidation remains to be verified"),
         ),
         closure_gate=(
             "Mutating an authoritative source invalidates every derived binding; "
@@ -171,7 +171,7 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         ),
         claimed_tiers=(CertificationTier.STRUCTURAL, CertificationTier.BEHAVIORAL),
         limitations=(
-            "TOR extraction exists only in open draft #138.",
+            "Controlled TOR extraction landed in merged PR #138; source-mutation invalidation and end-to-end semantic completeness still require candidate-bound closure evidence.",
             "Source-mutation invalidation has no enforced canonical test yet.",
             "Requirement approval status is not a first-class ISR attribute.",
         ),
@@ -191,7 +191,7 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
             _code("reqgraph/core/invariants.py"),
             _code("compiler/core/lowering.py"),
             _test("tests/cbc1/test_campaign_a.py"),
-            _pr(137, "typed behavioural ISR contract draft, unmerged"),
+            _pr(137, "typed behavioural ISR contract merged; end-to-end emitter consumption remains a separate closure gate"),
         ),
         closure_gate=(
             "Representative requirements produce typed ISR semantics with explicit "
@@ -200,8 +200,7 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         claimed_tiers=(CertificationTier.STRUCTURAL, CertificationTier.BEHAVIORAL),
         limitations=(
             "Main ISR carries entities, edges, events and security only.",
-            "Typed behavioural payloads exist only in open draft #137 and are not "
-            "consumed by the certified emitters.",
+            "Typed behavioural ISR landed in merged PR #137 and loss-aware projection was extended in merged PR #140; consumption and semantic preservation must still be proven for every certified emitter with candidate-bound behavioral tests.",
         ),
     ),
     WorkPackage(
@@ -501,7 +500,7 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
             "No npm install, build or browser tests run in CI.",
             "Registered frontend targets explicitly declare themselves not "
             "production-ready.",
-            "Draft #139 is unverified.",
+            "PR #139 is merged; its frontend fixture uses a mocked API and does not prove live generated UI-to-API-to-persistence integration.",
         ),
     ),
     WorkPackage(

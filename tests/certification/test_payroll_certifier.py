@@ -7,7 +7,43 @@ from isr.core.graph import ISRGraph, Node, NodeType
 from isr.core.identity import Provenance
 from isr.core.revision import ISRRevision
 from reqgraph.core.graph import Priority, RequirementGraph, RequirementKind, RequirementNode
-from certification.payroll.certifier import StatutoryEvidence, certify_payroll_candidate
+from certification.payroll.certifier import (
+    StatutoryEvidence,
+    TORReviewEvidence,
+    certify_payroll_candidate,
+    derive_required_oracle_categories,
+    derive_required_statutory_schemes,
+    compute_payroll_candidate_hash,
+)
+
+
+TOR_ID = "world-concern-payroll-tor"
+TOR_HASH = "c" * 64
+TOR_LEDGER_SHA256 = "a" * 64
+TOR_LEDGER_REF = "release/evidence/tor-review-ledger.jsonl"
+BACKENDS = ("python-fastapi", "rust-axum")
+
+
+def _tor_inputs(*, total=1, reviewed=1):
+    candidate_ids = [f"tor:candidate:{index}" for index in range(1, total + 1)]
+    review_records = [
+        TORReviewEvidence(
+            candidate_id=candidate_ids[index],
+            disposition=(
+                "approved_requirement" if index == 0 else "rejected_not_requirement"
+            ),
+            reviewed_by="independent-reviewer",
+            rationale="reviewed against the TOR statement",
+            requirement_id="REQ-PAY-001" if index == 0 else None,
+        )
+        for index in range(reviewed)
+    ]
+    return dict(
+        tor_candidate_ids=candidate_ids,
+        tor_review_records=review_records,
+        tor_review_ledger_sha256=TOR_LEDGER_SHA256,
+        tor_review_ledger_ref=TOR_LEDGER_REF,
+    )
 
 
 def _inputs():
@@ -33,6 +69,9 @@ def _inputs():
                 "requirement_id": "REQ-PAY-001",
                 "semantic_content": "The system shall calculate gross pay.",
                 "statement": "The system shall calculate gross pay.",
+                "candidate_id": "tor:candidate:1",
+                "review_status": "approved",
+                "source_text_sha256": TOR_HASH,
             },
         )
     })
@@ -53,25 +92,58 @@ def _inputs():
     )
     caps = {
         backend_id: BackendCapabilities(backend_id=backend_id, version="test")
-        for backend_id in ("python-fastapi", "rust-axum")
+        for backend_id in BACKENDS
     }
     return requirements, revision, plan, caps
 
 
-def test_payroll_candidate_is_not_certified_without_behavioral_and_runtime_evidence():
-    requirements, revision, plan, caps = _inputs()
-    report = certify_payroll_candidate(
+def _candidate_manifest(requirements, revision, plan, *, total=1, reviewed=1):
+    backend_hashes = {"python-fastapi": "d" * 64, "rust-axum": "e" * 64}
+    frontend_hash = "f" * 64
+    candidate_hash = compute_payroll_candidate_hash(
         requirement_graph=requirements,
         revision=revision,
         plan=plan,
-        candidate_sha256="a" * 64,
+        tor_source_id=TOR_ID,
+        tor_source_sha256=TOR_HASH,
+        tor_candidate_count=total,
+        reviewed_tor_candidate_count=reviewed,
+        **_tor_inputs(total=total, reviewed=reviewed),
+        backend_artifact_hashes=backend_hashes,
+        frontend_artifact_sha256=frontend_hash,
+    )
+    return candidate_hash, backend_hashes, frontend_hash
+
+
+def _common(requirements, revision, plan, caps, candidate_hash, backend_hashes, frontend_hash, *, total=1, reviewed=1):
+    return dict(
+        requirement_graph=requirements,
+        revision=revision,
+        plan=plan,
+        candidate_sha256=candidate_hash,
+        tor_source_id=TOR_ID,
+        tor_source_sha256=TOR_HASH,
+        tor_candidate_count=total,
+        reviewed_tor_candidate_count=reviewed,
+        **_tor_inputs(total=total, reviewed=reviewed),
+        backend_artifact_hashes=backend_hashes,
+        frontend_artifact_sha256=frontend_hash,
         payroll_period_start="2026-10-01",
         payroll_period_end="2026-10-31",
-        required_statutory_schemes=("income_tax", "social_security", "health_insurance"),
-        required_oracle_categories=("gross_to_net", "statutory_deductions", "arrears_backpay", "cost_allocation"),
+        required_statutory_schemes=(),
+        required_oracle_categories=(),
         backend_capabilities=caps,
-        required_backends=("python-fastapi", "rust-axum"),
+        required_backends=BACKENDS,
     )
+
+
+def test_payroll_candidate_is_not_certified_without_behavioral_and_runtime_evidence():
+    requirements, revision, plan, caps = _inputs()
+    candidate_hash, backend_hashes, frontend_hash = _candidate_manifest(requirements, revision, plan)
+    args = _common(requirements, revision, plan, caps, candidate_hash, backend_hashes, frontend_hash)
+    args["required_statutory_schemes"] = ("income_tax", "social_security", "health_insurance")
+    args["required_oracle_categories"] = ("gross_to_net", "statutory_deductions", "arrears_backpay", "cost_allocation")
+    report = certify_payroll_candidate(**args)
     assert report.verdict == "NOT_CERTIFIED"
     assert not report.certified
     assert any("no typed data-model fields" in finding for finding in report.findings)
@@ -83,20 +155,13 @@ def test_payroll_candidate_is_not_certified_without_behavioral_and_runtime_evide
 
 def test_payroll_certifier_rejects_malformed_candidate_hash():
     requirements, revision, plan, caps = _inputs()
-    report = certify_payroll_candidate(
-        requirement_graph=requirements,
-        revision=revision,
-        plan=plan,
-        candidate_sha256="not-a-sha",
-        payroll_period_start="2026-10-01",
-        payroll_period_end="2026-10-31",
-        required_statutory_schemes=(),
-        required_oracle_categories=(),
-        backend_capabilities=caps,
-        required_backends=("python-fastapi", "rust-axum"),
-    )
+    candidate_hash, backend_hashes, frontend_hash = _candidate_manifest(requirements, revision, plan)
+    args = _common(requirements, revision, plan, caps, candidate_hash, backend_hashes, frontend_hash)
+    args["candidate_sha256"] = "not-a-sha"
+    report = certify_payroll_candidate(**args)
     assert report.verdict == "NOT_CERTIFIED"
     assert "candidate SHA-256 is missing or malformed" in report.findings
+    assert any("does not match the ISR/plan/backend/frontend/TOR artifact manifest" in finding for finding in report.findings)
 
 
 def test_payroll_certifier_rejects_backend_without_required_behavioral_capabilities():
@@ -114,49 +179,73 @@ def test_payroll_certifier_rejects_backend_without_required_behavioral_capabilit
             ),
         )],
     )
-    report = certify_payroll_candidate(
-        requirement_graph=requirements,
-        revision=revision,
-        plan=plan,
-        candidate_sha256="a" * 64,
-        payroll_period_start="2026-10-01",
-        payroll_period_end="2026-10-31",
-        required_statutory_schemes=(),
-        required_oracle_categories=(),
-        backend_capabilities=caps,
-        required_backends=("python-fastapi", "rust-axum"),
-    )
-    assert any("missing API operation contracts" in finding for finding in report.findings)
+    candidate_hash, backend_hashes, frontend_hash = _candidate_manifest(requirements, revision, plan)
+    args = _common(requirements, revision, plan, caps, candidate_hash, backend_hashes, frontend_hash)
+    report = certify_payroll_candidate(**args)
     assert any("cannot implement this payroll plan" in finding for finding in report.findings)
-
 
 
 def test_payroll_certifier_rejects_statutory_source_that_covers_only_part_of_period():
     requirements, revision, plan, caps = _inputs()
-    candidate_hash = "a" * 64
-    report = certify_payroll_candidate(
-        requirement_graph=requirements,
-        revision=revision,
-        plan=plan,
+    candidate_hash, backend_hashes, frontend_hash = _candidate_manifest(requirements, revision, plan)
+    args = _common(requirements, revision, plan, caps, candidate_hash, backend_hashes, frontend_hash)
+    args["required_statutory_schemes"] = ("income_tax",)
+    args["statutory_evidence"] = (StatutoryEvidence(
+        scheme="income_tax",
+        source_ref="official-source#effective-2026-10",
+        source_sha256="b" * 64,
+        effective_from="2026-10-01",
+        effective_to="2026-10-14",
+        verified_by="independent-reviewer",
         candidate_sha256=candidate_hash,
-        payroll_period_start="2026-10-01",
-        payroll_period_end="2026-10-31",
-        required_statutory_schemes=("income_tax",),
-        required_oracle_categories=(),
-        backend_capabilities=caps,
-        required_backends=("python-fastapi", "rust-axum"),
-        statutory_evidence=(StatutoryEvidence(
-            scheme="income_tax",
-            source_ref="official-source#effective-2026-10",
-            source_sha256="b" * 64,
-            effective_from="2026-10-01",
-            effective_to="2026-10-14",
-            verified_by="independent-reviewer",
-            candidate_sha256=candidate_hash,
-            test_cases=2,
-            passed_cases=2,
-            failed_cases=0,
-        ),),
-    )
+        test_cases=2,
+        passed_cases=2,
+        failed_cases=0,
+    ),)
+    report = certify_payroll_candidate(**args)
     assert not report.certified
     assert any("does not cover the full payroll period" in finding for finding in report.findings)
+
+
+def test_payroll_certifier_blocks_unreviewed_tor_candidates():
+    requirements, revision, plan, caps = _inputs()
+    candidate_hash, backend_hashes, frontend_hash = _candidate_manifest(requirements, revision, plan, total=14, reviewed=9)
+    args = _common(
+        requirements, revision, plan, caps, candidate_hash, backend_hashes, frontend_hash,
+        total=14, reviewed=9,
+    )
+    report = certify_payroll_candidate(**args)
+    assert not report.certified
+    assert any("TOR review incomplete: 9/14" in finding for finding in report.findings)
+
+
+
+def test_required_statutory_schemes_and_oracles_are_derived_from_tor_statements():
+    graph = RequirementGraph(
+        schema_version="1.0",
+        nodes={
+            "REQ-TAX-001": RequirementNode(
+                id="REQ-TAX-001",
+                kind=RequirementKind.CONSTRAINT,
+                statement="The system shall calculate income tax, social security, pension and health insurance deductions.",
+                priority=Priority.MUST,
+                acceptance_criteria=("each deduction matches the approved effective-dated table",),
+                source_refs=("tor#L10-L10",),
+            ),
+            "REQ-PAY-002": RequirementNode(
+                id="REQ-PAY-002",
+                kind=RequirementKind.FUNCTIONAL,
+                statement="The system shall calculate salary, overtime, arrears and allocate cost centers.",
+                priority=Priority.MUST,
+                acceptance_criteria=("salary and arrears match independently computed expected values",),
+                source_refs=("tor#L20-L20",),
+            ),
+        },
+    )
+    assert derive_required_statutory_schemes(graph) == {
+        "income_tax", "social_security", "pension", "health_insurance"
+    }
+    assert {
+        "gross_to_net", "rounding_boundaries", "negative_and_boundary_cases",
+        "statutory_deductions", "overtime", "arrears_backpay", "cost_allocation",
+    } <= derive_required_oracle_categories(graph)

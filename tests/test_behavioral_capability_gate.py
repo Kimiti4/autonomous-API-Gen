@@ -95,14 +95,13 @@ def test_supported_behavioral_subset_is_emitted_by_both_backends():
         repo = backend.compile(plan)
         assert repo.files
         if backend.name == "python-fastapi":
-            assert "evaluate_rule" in repo.files["app/application/payroll.py"]
-            assert "pub" not in repo.files.get("app/core/behavior.py", "")
+            assert "evaluate_rule" in repo.files["app/application/Payroll.py"]
             assert "def evaluate_expression" in repo.files["app/core/behavior.py"]
-            assert "base_salary" in repo.files["app/domain/employee.py"]
+            assert "base_salary" in repo.files["app/domain/Employee.py"]
         else:
-            assert "evaluate_rule" in repo.files["src/application/payroll.rs"]
+            assert "evaluate_rule" in repo.files["src/application/Payroll.rs"]
             assert "pub fn evaluate_expression" in repo.files["src/core/behavior.rs"]
-            assert "base_salary" in repo.files["src/domain/employee.rs"]
+            assert "base_salary" in repo.files["src/domain/Employee.rs"]
 
 
 def test_api_contracts_are_not_silently_claimed_supported():

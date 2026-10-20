@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+import hashlib
+import json
 import re
 from typing import Mapping, Sequence
 
@@ -29,6 +31,7 @@ from reqgraph.core.graph import Priority, RequirementGraph
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 PAYROLL_BEHAVIORAL_FEATURES = frozenset({
     SemanticFeature.TYPED_FIELDS,
+    SemanticFeature.FIELD_CONSTRAINTS,
     SemanticFeature.EXPRESSIONS,
     SemanticFeature.BUSINESS_RULES,
     SemanticFeature.STATE_TRANSITIONS,
@@ -38,6 +41,15 @@ PAYROLL_BEHAVIORAL_FEATURES = frozenset({
     SemanticFeature.INVARIANTS,
     SemanticFeature.TYPED_EVENTS,
 })
+
+
+@dataclass(frozen=True)
+class TORReviewEvidence:
+    candidate_id: str
+    disposition: str
+    reviewed_by: str
+    rationale: str
+    requirement_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -152,12 +164,131 @@ def _require_behavioral_completeness(plan: CompilationPlan, findings: list[str])
         findings.append("payroll behavioral plan is missing required features: " + ", ".join(missing))
 
 
+def derive_required_statutory_schemes(requirement_graph: RequirementGraph) -> frozenset[str]:
+    """Derive statutory schemes from reviewed TOR requirement text, not caller defaults."""
+    schemes: set[str] = set()
+    for node in requirement_graph.nodes.values():
+        text = node.statement.lower()
+        if "income tax" in text or "paye" in text:
+            schemes.add("income_tax")
+        if "social security" in text or "nssf" in text:
+            schemes.add("social_security")
+        if "pension" in text:
+            schemes.add("pension")
+        if "health insurance" in text or "medical insurance" in text or "shif" in text:
+            schemes.add("health_insurance")
+        if "other statutory deduction" in text or "other statutory deductions" in text:
+            schemes.add("other_statutory")
+    return frozenset(schemes)
+
+
+def derive_required_oracle_categories(requirement_graph: RequirementGraph) -> frozenset[str]:
+    """Derive independent oracle categories from approved payroll requirements."""
+    categories: set[str] = set()
+    for node in requirement_graph.nodes.values():
+        text = node.statement.lower()
+        if any(term in text for term in ("gross pay", "gross-to-net", "salary calculation", "calculate salary", "payroll calculation")):
+            categories.add("gross_to_net")
+            categories.update({"rounding_boundaries", "negative_and_boundary_cases"})
+        if any(term in text for term in ("income tax", "social security", "health insurance", "pension", "statutory deduction")):
+            categories.add("statutory_deductions")
+        if "arrears" in text or "back-pay" in text or "back pay" in text:
+            categories.add("arrears_backpay")
+        if "leave deduction" in text:
+            categories.add("leave_deductions")
+        if "cost allocation" in text or "cost center" in text or "cost centre" in text:
+            categories.add("cost_allocation")
+        if "overtime" in text:
+            categories.add("overtime")
+        if "pay frequency" in text or "weekly" in text or "bi-weekly" in text or "biweekly" in text:
+            categories.add("pay_frequency")
+        if "loan" in text or "advance" in text:
+            categories.add("loans_advances")
+        if "allowance" in text or "benefit" in text:
+            categories.add("allowances_benefits")
+        if "bonus" in text or "incentive" in text:
+            categories.add("bonus_incentives")
+        if "bank transfer" in text or "bank details" in text:
+            categories.add("bank_transfers")
+        if "leave balance" in text or "apply for leave" in text:
+            categories.add("leave_balances")
+    return frozenset(categories)
+
+
+def compute_payroll_candidate_hash(
+    *,
+    requirement_graph: RequirementGraph,
+    revision: ISRRevision,
+    plan: CompilationPlan,
+    tor_source_id: str,
+    tor_source_sha256: str,
+    tor_candidate_count: int,
+    reviewed_tor_candidate_count: int,
+    tor_candidate_ids: Sequence[str],
+    tor_review_records: Sequence[TORReviewEvidence],
+    tor_review_ledger_sha256: str,
+    tor_review_ledger_ref: str,
+    backend_artifact_hashes: Mapping[str, str],
+    frontend_artifact_sha256: str,
+) -> str:
+    """Hash the ISR, lowered plan, exact emitted backend/frontend artifacts, and TOR review state."""
+    manifest = {
+        "isr_content_hash": revision.content_hash,
+        "reviewed_requirements": [
+            {
+                "id": node.id,
+                "kind": node.kind.value,
+                "statement": node.statement,
+                "priority": node.priority.value,
+                "acceptance_criteria": list(node.acceptance_criteria),
+                "source_refs": list(node.source_refs),
+            }
+            for node in sorted(requirement_graph.nodes.values(), key=lambda item: item.id)
+        ],
+        "derived_statutory_schemes": sorted(derive_required_statutory_schemes(requirement_graph)),
+        "derived_oracle_categories": sorted(derive_required_oracle_categories(requirement_graph)),
+        "system_id": revision.system_id,
+        "plan": plan.model_dump(mode="json"),
+        "backend_artifact_hashes": dict(sorted(backend_artifact_hashes.items())),
+        "frontend_artifact_sha256": frontend_artifact_sha256,
+        "tor_source_id": tor_source_id,
+        "tor_source_sha256": tor_source_sha256,
+        "tor_candidate_count": tor_candidate_count,
+        "reviewed_tor_candidate_count": reviewed_tor_candidate_count,
+        "tor_candidate_ids": sorted(tor_candidate_ids),
+        "tor_review_records": [
+            {
+                "candidate_id": record.candidate_id,
+                "disposition": record.disposition,
+                "reviewed_by": record.reviewed_by,
+                "rationale": record.rationale,
+                "requirement_id": record.requirement_id,
+            }
+            for record in sorted(tor_review_records, key=lambda item: item.candidate_id)
+        ],
+        "tor_review_ledger_sha256": tor_review_ledger_sha256,
+        "tor_review_ledger_ref": tor_review_ledger_ref,
+    }
+    canonical = json.dumps(manifest, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def certify_payroll_candidate(
     *,
     requirement_graph: RequirementGraph,
     revision: ISRRevision,
     plan: CompilationPlan,
     candidate_sha256: str,
+    tor_source_id: str,
+    tor_source_sha256: str,
+    tor_candidate_count: int,
+    reviewed_tor_candidate_count: int,
+    tor_candidate_ids: Sequence[str],
+    tor_review_records: Sequence[TORReviewEvidence],
+    tor_review_ledger_sha256: str,
+    tor_review_ledger_ref: str,
+    backend_artifact_hashes: Mapping[str, str],
+    frontend_artifact_sha256: str,
     payroll_period_start: str,
     payroll_period_end: str,
     required_statutory_schemes: Sequence[str],
@@ -185,15 +316,98 @@ def certify_payroll_candidate(
 
     if not _valid_hash(candidate_sha256):
         findings.append("candidate SHA-256 is missing or malformed")
+    if not tor_source_id.strip() or not _valid_hash(tor_source_sha256):
+        findings.append("TOR source identity or SHA-256 is missing or malformed")
+    if tor_candidate_count <= 0:
+        findings.append("TOR extraction contains no reviewable candidates")
+    if reviewed_tor_candidate_count != tor_candidate_count:
+        findings.append(
+            f"TOR review incomplete: {reviewed_tor_candidate_count}/{tor_candidate_count} candidates reviewed"
+        )
+    candidate_ids = list(tor_candidate_ids)
+    if len(candidate_ids) != len(set(candidate_ids)):
+        findings.append("TOR candidate ID list contains duplicates")
+    if tor_candidate_count != len(candidate_ids):
+        findings.append("TOR candidate count does not match extracted candidate IDs")
+    review_by_id: dict[str, TORReviewEvidence] = {}
+    for record in tor_review_records:
+        if record.candidate_id in review_by_id:
+            findings.append(f"duplicate TOR review record: {record.candidate_id}")
+        review_by_id[record.candidate_id] = record
+    if set(review_by_id) - set(candidate_ids):
+        findings.append("TOR review ledger contains unknown candidate IDs")
+    if set(review_by_id) != set(candidate_ids):
+        findings.append("TOR review ledger does not contain a disposition for every extracted candidate")
+    if reviewed_tor_candidate_count != len(review_by_id):
+        findings.append("reviewed TOR count does not match review-ledger records")
+    if not _valid_hash(tor_review_ledger_sha256) or not tor_review_ledger_ref.strip():
+        findings.append("TOR review ledger provenance is missing or invalid")
+    approved_candidate_ids: set[str] = set()
+    for record in tor_review_records:
+        if not record.reviewed_by.strip() or not record.rationale.strip():
+            findings.append(f"TOR review record lacks reviewer or rationale: {record.candidate_id}")
+        if record.disposition == "approved_requirement":
+            if not record.requirement_id:
+                findings.append(f"approved TOR candidate lacks requirement ID: {record.candidate_id}")
+            approved_candidate_ids.add(record.candidate_id)
+        elif record.disposition == "rejected_not_requirement":
+            if record.requirement_id:
+                findings.append(f"rejected TOR candidate must not bind a requirement ID: {record.candidate_id}")
+        else:
+            findings.append(f"unsupported TOR review disposition: {record.disposition}")
     if plan.isr_id != revision.system_id:
         findings.append("compilation plan is bound to a different ISR system ID")
     if plan.plan_id != f"plan:{revision.content_hash[:16]}":
         findings.append("compilation plan ID is not bound to the supplied ISR revision")
+    if set(backend_artifact_hashes) != set(required_backends):
+        findings.append("backend artifact manifest does not exactly match required backends")
+    for backend_id in required_backends:
+        if not _valid_hash(backend_artifact_hashes.get(backend_id, "")):
+            findings.append(f"missing or invalid emitted artifact hash for backend: {backend_id}")
+    if not _valid_hash(frontend_artifact_sha256):
+        findings.append("frontend artifact SHA-256 is missing or malformed")
+    expected_candidate_hash = compute_payroll_candidate_hash(
+        requirement_graph=requirement_graph,
+        revision=revision,
+        plan=plan,
+        tor_source_id=tor_source_id,
+        tor_source_sha256=tor_source_sha256,
+        tor_candidate_count=tor_candidate_count,
+        reviewed_tor_candidate_count=reviewed_tor_candidate_count,
+        tor_candidate_ids=tor_candidate_ids,
+        tor_review_records=tor_review_records,
+        tor_review_ledger_sha256=tor_review_ledger_sha256,
+        tor_review_ledger_ref=tor_review_ledger_ref,
+        backend_artifact_hashes=backend_artifact_hashes,
+        frontend_artifact_sha256=frontend_artifact_sha256,
+    )
+    if candidate_sha256 != expected_candidate_hash:
+        findings.append("candidate SHA-256 does not match the ISR/plan/backend/frontend/TOR artifact manifest")
 
     period_start = _iso_date(payroll_period_start, "payroll period start", findings)
     period_end = _iso_date(payroll_period_end, "payroll period end", findings)
     if period_start and period_end and period_end < period_start:
         findings.append("payroll period end precedes payroll period start")
+
+    graph_candidate_ids: set[str] = set()
+    for node in requirement_graph.nodes.values():
+        candidate_id = str(node.properties.get("candidate_id", ""))
+        if not candidate_id:
+            findings.append(f"reviewed requirement lacks TOR candidate provenance: {node.id}")
+            continue
+        graph_candidate_ids.add(candidate_id)
+        if node.properties.get("review_status") != "approved":
+            findings.append(f"requirement is not explicitly approved: {node.id}")
+        if node.properties.get("source_text_sha256") != tor_source_sha256:
+            findings.append(f"requirement source hash does not match TOR source: {node.id}")
+    if graph_candidate_ids != approved_candidate_ids:
+        findings.append("approved TOR review dispositions do not match requirements in the graph")
+    for candidate_id in approved_candidate_ids:
+        record = review_by_id.get(candidate_id)
+        if record is None or record.requirement_id not in requirement_graph.nodes:
+            findings.append(f"approved TOR candidate does not map to a requirement node: {candidate_id}")
+        elif requirement_graph.nodes[record.requirement_id].properties.get("candidate_id") != candidate_id:
+            findings.append(f"TOR review requirement binding mismatch: {candidate_id}")
 
     mandatory_ids = {
         node.id for node in requirement_graph.nodes.values()
@@ -220,10 +434,12 @@ def certify_payroll_candidate(
         except UnsupportedSemanticsError as exc:
             findings.append(f"backend {backend_id} cannot implement this payroll plan: {exc}")
 
+    effective_statutory_schemes = set(required_statutory_schemes) | set(derive_required_statutory_schemes(requirement_graph))
+    effective_oracle_categories = set(required_oracle_categories) | set(derive_required_oracle_categories(requirement_graph))
     schemes: dict[str, list[StatutoryEvidence]] = {}
     for evidence in statutory_evidence:
         schemes.setdefault(evidence.scheme, []).append(evidence)
-    for scheme in sorted(set(required_statutory_schemes)):
+    for scheme in sorted(effective_statutory_schemes):
         evidence_items = schemes.get(scheme, [])
         if not evidence_items:
             findings.append(f"missing statutory evidence for scheme: {scheme}")
@@ -278,7 +494,7 @@ def certify_payroll_candidate(
 
     requirement_ids = set(requirement_graph.nodes)
     oracles = {item.category: item for item in oracle_evidence}
-    for category in sorted(set(required_oracle_categories)):
+    for category in sorted(effective_oracle_categories):
         evidence = oracles.get(category)
         if evidence is None:
             findings.append(f"missing independent payroll oracle category: {category}")
@@ -301,6 +517,8 @@ def certify_payroll_candidate(
             findings.append("frontend evidence is bound to a different candidate")
         if not _valid_hash(frontend_evidence.artifact_sha256):
             findings.append("frontend artifact hash is invalid")
+        if frontend_evidence.artifact_sha256 != frontend_artifact_sha256:
+            findings.append("frontend execution evidence does not match the declared frontend artifact hash")
         for label, passed in (
             ("frontend build", frontend_evidence.build_passed),
             ("frontend unit tests", frontend_evidence.unit_tests_passed),

@@ -199,7 +199,8 @@ def test_behavior_payload_is_content_addressed_and_legacy_hash_unchanged():
 
 def test_behavior_payload_on_unsupported_node_type_fails_closed():
     graph = ISRGraph(nodes={
-        "event:payroll": Node(id="event:payroll", type=NodeType.EVENT, properties={
+        "requirement_ref:payroll": Node(id="requirement_ref:payroll", type=NodeType.REQUIREMENT_REF, properties={
+            "ref_id": "REQ-PAYROLL-001",
             "behavior": {"effect_kind": "bank_transfer"},
         }),
     })

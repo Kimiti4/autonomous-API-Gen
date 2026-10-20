@@ -277,7 +277,7 @@ class ReactFrontendBackend:
             "",
             "describe('ISR-generated frontend', () => {",
             "  beforeEach(() => {",
-            f"    window.history.pushState({}, '', {json.dumps(route['path'])});",
+            f"    window.history.pushState({{}}, '', {json.dumps(route['path'])});",
             "    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, text: async () => '{\"status\":\"ok\"}' }) as unknown as typeof fetch;",
             "  });",
             "  afterEach(() => { cleanup(); vi.restoreAllMocks(); });",

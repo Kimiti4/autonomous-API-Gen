@@ -112,7 +112,9 @@ class RustAxumBackend:
             "event", [e["mod"] for e in events], "No event modules."
         )
         f["src/effects/mod.rs"] = mod_rs(
-            "effect", [_slug(effect.name) for effect in plan.effects], "No effect modules."
+            "effect",
+            list(dict.fromkeys(_slug(effect.name) for effect in plan.effects)),
+            "No effect modules.",
         )
         f["src/infrastructure/mod.rs"] = "pub mod repositories;\n"
         f["src/core/mod.rs"] = "pub mod behavior;\n" + ("pub mod security;\n" if plan.security else "")
@@ -303,6 +305,7 @@ class RustAxumBackend:
         return r'''//! Deterministic runtime for the bounded ISR expression language.
 use rust_decimal::Decimal;
 use serde_json::Value;
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::str::FromStr;
 
@@ -335,6 +338,10 @@ fn equal_values(left: &Value, right: &Value) -> bool {
     }
 }
 
+fn boolean(value: &Value) -> Result<bool, String> {
+    value.as_bool().ok_or("boolean operand required".to_string())
+}
+
 fn compare_values(left: &Value, right: &Value) -> Result<std::cmp::Ordering, String> {
     if let (Ok(a), Ok(b)) = (decimal(left), decimal(right)) {
         return Ok(a.cmp(&b));
@@ -356,19 +363,19 @@ pub fn evaluate_expression(expression: &Value, context: &Value) -> Result<Value,
     }
     if op == "and" {
         let left = evaluate_expression(args.get(0).ok_or("missing left operand")?, context)?;
-        if !left.as_bool().unwrap_or(false) { return Ok(Value::Bool(false)); }
+        if !boolean(&left)? { return Ok(Value::Bool(false)); }
         let right = evaluate_expression(args.get(1).ok_or("missing right operand")?, context)?;
-        return Ok(Value::Bool(right.as_bool().unwrap_or(false)));
+        return Ok(Value::Bool(boolean(&right)?));
     }
     if op == "or" {
         let left = evaluate_expression(args.get(0).ok_or("missing left operand")?, context)?;
-        if left.as_bool().unwrap_or(false) { return Ok(Value::Bool(true)); }
+        if boolean(&left)? { return Ok(Value::Bool(true)); }
         let right = evaluate_expression(args.get(1).ok_or("missing right operand")?, context)?;
-        return Ok(Value::Bool(right.as_bool().unwrap_or(false)));
+        return Ok(Value::Bool(boolean(&right)?));
     }
     if op == "if_else" {
         let condition = evaluate_expression(args.get(0).ok_or("missing condition")?, context)?;
-        let branch = if condition.as_bool().unwrap_or(false) { args.get(1) } else { args.get(2) };
+        let branch = if boolean(&condition)? { args.get(1) } else { args.get(2) };
         return evaluate_expression(branch.ok_or("missing conditional branch")?, context);
     }
     let values: Result<Vec<Value>, String> = args.iter().map(|arg| evaluate_expression(arg, context)).collect();
@@ -388,7 +395,7 @@ pub fn evaluate_expression(expression: &Value, context: &Value) -> Result<Value,
         "less_or_equal" => Ok(Value::Bool(compare_values(&values[0], &values[1])? != std::cmp::Ordering::Greater)),
         "greater_than" => Ok(Value::Bool(compare_values(&values[0], &values[1])? == std::cmp::Ordering::Greater)),
         "greater_or_equal" => Ok(Value::Bool(compare_values(&values[0], &values[1])? != std::cmp::Ordering::Less)),
-        "not" => Ok(Value::Bool(!values[0].as_bool().unwrap_or(false))),
+        "not" => Ok(Value::Bool(!boolean(&values[0])?)),
         _ => Err(format!("unsupported expression operator: {op}")),
     }
 }
@@ -512,7 +519,7 @@ pub fn apply_transition(transitions: &Value, transition_id: &str, current_state:
     let transition = transitions.as_array().and_then(|items| items.iter().find(|item| item.get("transition_id").and_then(Value::as_str) == Some(transition_id))).ok_or("unknown transition")?;
     if transition.get("source_state").and_then(Value::as_str) != Some(current_state) { return Err("transition source state mismatch".to_string()); }
     if let Some(guard) = transition.get("guard") {
-        if !evaluate_expression(guard, context)?.as_bool().unwrap_or(false) { return Err("transition guard rejected".to_string()); }
+        if !boolean(&evaluate_expression(guard, context)?)? { return Err("transition guard rejected".to_string()); }
     }
     transition.get("target_state").and_then(Value::as_str).map(str::to_string).ok_or("target state missing".to_string())
 }
@@ -526,6 +533,14 @@ mod tests {
     fn decimal_expression_uses_exact_decimal_arithmetic() {
         let expression = json!({"op":"multiply","args":[{"op":"field","field_ref":"hours"},{"op":"field","field_ref":"rate"}]});
         assert_eq!(evaluate_expression(&expression, &json!({"hours":7,"rate":"12.50"})).unwrap(), json!("87.5"));
+    }
+
+    #[test]
+    fn boolean_operators_reject_non_boolean_values_and_strings_compare_lexically() {
+        let invalid = json!({"op":"not","args":[{"op":"literal","value":1}]});
+        assert!(evaluate_expression(&invalid, &json!({})).is_err());
+        let comparison = json!({"op":"less_than","args":[{"op":"literal","value":"A"},{"op":"literal","value":"B"}]});
+        assert_eq!(evaluate_expression(&comparison, &json!({})).unwrap(), json!(true));
     }
 
     #[test]

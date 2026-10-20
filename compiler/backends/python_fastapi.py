@@ -258,15 +258,21 @@ def _comparison_values(left: Any, right: Any) -> tuple[Any, Any]:
         return left, right
 
 
+def _boolean(value: Any) -> bool:
+    if not isinstance(value, bool):
+        raise BehaviorError("boolean operand required")
+    return value
+
+
 def evaluate_expression(expression: dict[str, Any], context: dict[str, Any]) -> Any:
     op = expression.get("op")
     raw_args = expression.get("args", [])
     if op == "and":
-        return bool(evaluate_expression(raw_args[0], context)) and bool(evaluate_expression(raw_args[1], context))
+        return _boolean(evaluate_expression(raw_args[0], context)) and _boolean(evaluate_expression(raw_args[1], context))
     if op == "or":
-        return bool(evaluate_expression(raw_args[0], context)) or bool(evaluate_expression(raw_args[1], context))
+        return _boolean(evaluate_expression(raw_args[0], context)) or _boolean(evaluate_expression(raw_args[1], context))
     if op == "if_else":
-        condition = bool(evaluate_expression(raw_args[0], context))
+        condition = _boolean(evaluate_expression(raw_args[0], context))
         return evaluate_expression(raw_args[1] if condition else raw_args[2], context)
     args = [evaluate_expression(arg, context) for arg in raw_args]
     if op == "literal":
@@ -298,7 +304,7 @@ def evaluate_expression(expression: dict[str, Any], context: dict[str, Any]) -> 
             return left > right
         return left >= right
     if op == "not":
-        return not bool(args[0])
+        return not _boolean(args[0])
     raise BehaviorError(f"unsupported expression operator: {op!r}")
 
 
@@ -324,7 +330,7 @@ def validate_fields(fields: list[dict[str, Any]], payload: dict[str, Any]) -> di
             isinstance(value, str) if kind in ("string", "identifier", "date", "datetime")
             else isinstance(value, bool) if kind == "boolean"
             else isinstance(value, int) and not isinstance(value, bool) if kind == "integer"
-            else isinstance(value, (int, float, Decimal)) and not isinstance(value, bool) if kind in ("decimal", "money")
+                else isinstance(value, (int, float, Decimal, str)) and not isinstance(value, bool) if kind in ("decimal", "money")
             else True
         )
         if not valid:
@@ -709,6 +715,12 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
             "    assert evaluate_expression(equal, {'amount': '100.00'}) is True",
             "    lexical = {'op': 'less_than', 'args': [{'op': 'field', 'field_ref': 'name'}, {'op': 'literal', 'value': 'beta'}]}",
             "    assert evaluate_expression(lexical, {'name': 'alpha'}) is True",
+            "",
+            "",
+            "def test_behavior_boolean_and_string_comparison_semantics():",
+            "    assert evaluate_expression({'op': 'less_than', 'args': [{'op': 'literal', 'value': 'A'}, {'op': 'literal', 'value': 'B'}]}, {}) is True",
+            "    with pytest.raises(BehaviorError, match='boolean operand required'):",
+            "        evaluate_expression({'op': 'not', 'args': [{'op': 'literal', 'value': 1}]}, {})",
             "",
             "",
             "def test_behavior_field_validation_fails_closed():",

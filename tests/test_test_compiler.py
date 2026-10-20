@@ -64,31 +64,34 @@ class TestPytestCompiler:
         assert "tests/unit/test_domain_invariants.py" in files
         assert "tests/integration/test_api_security.py" in files
 
-    def test_generates_contract_tests_for_microservices(self, microservice_genome, isr):
+    def test_contract_layer_is_declared_unsupported_for_microservices(self, microservice_genome, isr):
         compiler = PytestCompiler()
-        files = files_of(compiler.compile(isr, microservice_genome, {}))
-        assert "tests/contract/test_service_contracts.py" in files
+        manifest = compiler.compile(isr, microservice_genome, {}).manifests[0]
+        assert "tests/contract/test_service_contracts.py" not in manifest.files
+        assert "contract" in manifest.metadata["unsupported_layers"]
 
-    def test_generates_chaos_tests_for_resilience_posture(self, microservice_genome, isr):
+    def test_chaos_layer_is_declared_unsupported_for_circuit_breaker(self, microservice_genome, isr):
         compiler = PytestCompiler()
-        files = files_of(compiler.compile(isr, microservice_genome, {}))
-        assert "tests/chaos/test_resilience.py" in files
-        assert "circuit_breaker" in files["tests/chaos/test_resilience.py"]
+        manifest = compiler.compile(isr, microservice_genome, {}).manifests[0]
+        assert "tests/chaos/test_resilience.py" not in manifest.files
+        assert "chaos" in manifest.metadata["unsupported_layers"]
 
     def test_no_contract_tests_for_monolith(self, isr):
         mono_genome = ArchitectureGenome(genome_id="g2", intent_hash="1")
         mono_genome.set_gene("app_arch", ApplicationArchitecture.MODULAR_MONOLITH)
         compiler = PytestCompiler()
-        files = files_of(compiler.compile(isr, mono_genome, {}))
-        assert "tests/contract/test_service_contracts.py" not in files
+        manifest = compiler.compile(isr, mono_genome, {}).manifests[0]
+        assert "tests/contract/test_service_contracts.py" not in manifest.files
+        assert "contract" not in manifest.metadata["unsupported_layers"]
 
     def test_no_chaos_tests_for_fail_fast(self, isr):
         ff_genome = ArchitectureGenome(genome_id="g3", intent_hash="1")
         ff_genome.set_gene("app_arch", ApplicationArchitecture.MODULAR_MONOLITH)
         ff_genome.set_gene("resilience_posture", "fail_fast")
         compiler = PytestCompiler()
-        files = files_of(compiler.compile(isr, ff_genome, {}))
-        assert "tests/chaos/test_resilience.py" not in files
+        manifest = compiler.compile(isr, ff_genome, {}).manifests[0]
+        assert "tests/chaos/test_resilience.py" not in manifest.files
+        assert not manifest.metadata["unsupported_layers"]
 
     def test_conftest_fixtures_per_entity(self, microservice_genome, isr):
         compiler = PytestCompiler()
@@ -128,13 +131,11 @@ class TestPytestCompiler:
         ]
         assert "test_catalog_requires_authentication" in tests
 
-    def test_contract_tests_cover_service_dependencies(self, microservice_genome, isr):
+    def test_generated_suite_contains_no_vacuous_contract_placeholder(self, microservice_genome, isr):
         compiler = PytestCompiler()
-        contracts = files_of(compiler.compile(isr, microservice_genome, {}))[
-            "tests/contract/test_service_contracts.py"
-        ]
-        assert "test_contract_orders_to_payments" in contracts
-        assert "pact" in contracts
+        files = files_of(compiler.compile(isr, microservice_genome, {}))
+        assert not any("pact" in content for content in files.values())
+        assert not any("assert True" in content for content in files.values())
 
     def test_deterministic_output(self, microservice_genome, isr):
         compiler = PytestCompiler()
@@ -148,8 +149,11 @@ class TestPytestCompiler:
         assert bundle.compiler_id == "pytest_layered"
         assert bundle.target_technology == "pytest"
         assert bundle.manifests[0].metadata["layers"] == [
-            "unit", "integration", "security", "contract", "chaos",
+            "unit", "integration", "security",
         ]
+        assert set(bundle.manifests[0].metadata["unsupported_layers"]) == {
+            "contract", "chaos",
+        }
 
     def test_compiler_purity(self, microservice_genome, isr):
         import copy

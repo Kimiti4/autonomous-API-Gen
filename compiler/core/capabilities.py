@@ -112,9 +112,14 @@ def assert_frontend_plan_supported(
         for feature in required_frontend_features(plan) - capabilities.supported_features
     )
     if unsupported:
+        auth_hint = (
+            "; no authentication flow is implemented for frontend_auth"
+            if SemanticFeature.FRONTEND_AUTH.value in unsupported
+            else ""
+        )
         raise UnsupportedSemanticsError(
             f"Frontend backend {capabilities.backend_id}@{capabilities.version} cannot compile "
-            f"declared ISR semantics; unsupported features: {', '.join(unsupported)}"
+            f"declared ISR semantics; unsupported features: {', '.join(unsupported)}{auth_hint}"
         )
 
 

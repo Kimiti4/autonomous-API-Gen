@@ -121,7 +121,7 @@ KNOWN_PRS: dict[int, str] = {
     135: "MERGED",
     136: "MERGED",
     137: "MERGED",
-    138: "MERGED",
+    138: "CLOSED",
     139: "MERGED",
     140: "MERGED",
 }
@@ -160,10 +160,13 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         dependencies=(),
         evidence=(
             _code("reqgraph/core/graph.py"),
+            _code("reqgraph/ingestion/tor_extractor.py"),
             _code("autonomous-api/app/engine/source_bound_full_stack.py"),
+            _test("tests/test_tor_ingestion_and_isr_projection.py"),
             _test("tests/cbc1/test_source_bound_full_stack_projection.py"),
             _workflow(".github/workflows/root-canonical-suite.yml"),
-            _pr(138, "controlled TOR extraction merged; source-mutation invalidation remains to be verified"),
+            _pr(140, "controlled TOR extraction and ISR requirement projection merged"),
+            _pr(138, "superseded by #140 and closed"),
         ),
         closure_gate=(
             "Mutating an authoritative source invalidates every derived binding; "
@@ -171,7 +174,7 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         ),
         claimed_tiers=(CertificationTier.STRUCTURAL, CertificationTier.BEHAVIORAL),
         limitations=(
-            "Controlled TOR extraction landed in merged PR #138; source-mutation invalidation and end-to-end semantic completeness still require candidate-bound closure evidence.",
+            "Controlled TOR extraction landed in merged PR #140; source-mutation invalidation and end-to-end semantic completeness still require candidate-bound closure evidence.",
             "Source-mutation invalidation has no enforced canonical test yet.",
             "Requirement approval status is not a first-class ISR attribute.",
         ),

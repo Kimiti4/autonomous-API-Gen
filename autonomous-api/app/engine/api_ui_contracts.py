@@ -32,6 +32,7 @@ def verify_api_ui_contract(
         "response-schema-alignment",
         "authorization-alignment",
         "api-contract-version-alignment",
+        "explicit-action-operation-binding",
     )
     findings: list[str] = []
     bm = contract_manifest(backend)
@@ -42,6 +43,8 @@ def verify_api_ui_contract(
 
     operations = {(x["method"], x["path"]): x for x in bm["operations"]}
     for screen in fm["screens"]:
+        if screen.get("action_bindings"):
+            continue
         # A screen route is only required to map to a backend operation when
         # its data contract/actions declare an API dependency. Navigation-only
         # screens remain valid without an endpoint.
@@ -59,6 +62,24 @@ def verify_api_ui_contract(
             findings.append(
                 f"authorization mismatch for screen: {screen['screen_id']}"
             )
+
+    for screen in fm["screens"]:
+        for binding in screen.get("action_bindings", []):
+            operation = next(
+                (item for item in bm["operations"] if item["operation"] == binding["api_operation_id"]),
+                None,
+            )
+            if operation is None:
+                findings.append(
+                    f"action {binding['action_id']} references unknown API operation: {binding['api_operation_id']}"
+                )
+                continue
+            if operation["method"].upper() != binding["method"].upper():
+                findings.append(f"HTTP method mismatch for action: {binding['action_id']}")
+            if operation["path"] != binding["path"]:
+                findings.append(f"API path mismatch for action: {binding['action_id']}")
+            if binding["authorization_policy"] and operation["authorization_policy"] != binding["authorization_policy"]:
+                findings.append(f"authorization mismatch for action: {binding['action_id']}")
 
     # API version is a semantic compatibility declaration, not an assumption.
     if frontend.api_contract_version not in {

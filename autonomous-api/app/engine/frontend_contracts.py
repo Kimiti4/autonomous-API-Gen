@@ -21,6 +21,17 @@ def frontend_contract_manifest(ir: FrontendProjectIR) -> dict:
                 "authorization_policy": s.authorization_policy,
                 "actions": sorted(s.actions),
                 "accessibility_requirements": sorted(s.accessibility_requirements),
+                "action_bindings": [
+                    {
+                        "action_id": binding.action_id,
+                        "api_operation_id": binding.api_operation_id,
+                        "method": binding.method,
+                        "path": binding.path,
+                        "request_fields": list(binding.request_fields),
+                        "authorization_policy": binding.authorization_policy,
+                    }
+                    for binding in sorted(s.action_bindings, key=lambda item: item.action_id)
+                ],
             }
             for s in sorted(ir.screens, key=lambda x: x.screen_id)
         ],

@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 
 from compiler.core.plan import CompilationPlan
+from compiler.core.capabilities import BackendCapabilities, SemanticFeature, assert_plan_supported
 from compiler.core.repository import GeneratedRepository, build_repository
 from compiler.core.conformance import CHECKER, ConformanceReport
 from compiler.core.protocol import BackendClass, BackendIdentity, TestSpec
@@ -30,6 +31,12 @@ class RustAxumBackend:
     language = "rust"
     framework = "axum"
     version = "1.4.0"
+    supported_features = frozenset({
+        SemanticFeature.TYPED_FIELDS,
+        SemanticFeature.EXPRESSIONS,
+        SemanticFeature.BUSINESS_RULES,
+        SemanticFeature.STATE_TRANSITIONS,
+    })
 
     def identity(self) -> BackendIdentity:
         return BackendIdentity(
@@ -57,6 +64,8 @@ class RustAxumBackend:
                 p[ev.id] = f"src/events/{_slug(ev.name)}.rs"
         for sp in plan.security:
             p[sp.policy_id] = "src/core/security.rs"
+        for effect in plan.effects:
+            p[effect.id] = f"src/effects/{_slug(effect.name)}.rs"
         p.update({
             "infra:docker": "Dockerfile",
             "infra:cargo": "Cargo.toml",
@@ -65,12 +74,14 @@ class RustAxumBackend:
             "infra:readme": "README.md",
             "infra:main": "src/main.rs",
             "infra:repositories": "src/infrastructure/repositories.rs",
+            "infra:behavior": "src/core/behavior.rs",
             "infra:docs": "docs/architecture.md",
             "infra:openapi": "openapi.json",
         })
         return p
 
     def compile(self, plan: CompilationPlan) -> GeneratedRepository:
+        assert_plan_supported(plan, BackendCapabilities(backend_id=self.name, version=self.version, supported_features=self.supported_features))
         f: dict[str, str] = {}
         for path in dict.fromkeys(self.element_paths(plan).values()):
             f[path] = self._emit(path, plan)
@@ -96,9 +107,13 @@ class RustAxumBackend:
         f["src/events/mod.rs"] = mod_rs(
             "event", [e["mod"] for e in events], "No event modules."
         )
+        f["src/effects/mod.rs"] = mod_rs(
+            "effect",
+            list(dict.fromkeys(_slug(effect.name) for effect in plan.effects)),
+            "No effect modules.",
+        )
         f["src/infrastructure/mod.rs"] = "pub mod repositories;\n"
-        if plan.security:
-            f["src/core/mod.rs"] = "pub mod security;\n"
+        f["src/core/mod.rs"] = "pub mod behavior;\n" + ("pub mod security;\n" if plan.security else "")
         return build_repository(f)
 
     def conformance(self, plan: CompilationPlan, repo: GeneratedRepository) -> ConformanceReport:
@@ -120,6 +135,10 @@ class RustAxumBackend:
             return self._repositories()
         if path == "src/core/security.rs":
             return self._security()
+        if path == "src/core/behavior.rs":
+            return self._behavior_runtime()
+        if path.startswith("src/effects/") and path != "src/effects/mod.rs":
+            return self._effect(path, plan)
         if path == "k8s/deployment.yaml":
             return self._k8s()
         if path == ".github/workflows/ci.yml":
@@ -163,6 +182,7 @@ class RustAxumBackend:
             'tokio = { version = "1", features = ["full"] }\n'
             'serde = { version = "1", features = ["derive"] }\n'
             'serde_json = "1"\n'
+            'rust_decimal = { version = "1", features = ["serde"] }\n'
         )
 
     def _repositories(self) -> str:
@@ -277,28 +297,376 @@ class RustAxumBackend:
             "}\n"
         )
 
+    def _behavior_runtime(self) -> str:
+        return r'''//! Deterministic runtime for the bounded ISR expression language.
+use rust_decimal::Decimal;
+use serde_json::Value;
+use std::cmp::Ordering;
+use std::collections::HashMap;
+use std::str::FromStr;
+
+fn field_value(path: &str, context: &Value) -> Result<Value, String> {
+    if let Some(value) = context.get(path) { return Ok(value.clone()); }
+    let mut current = context;
+    for part in path.split('.') {
+        current = current.get(part).ok_or_else(|| format!("missing expression field: {path}"))?;
+    }
+    Ok(current.clone())
+}
+
+fn decimal(value: &Value) -> Result<Decimal, String> {
+    let text = match value {
+        Value::Number(number) => number.to_string(),
+        Value::String(text) => text.clone(),
+        _ => return Err("arithmetic operand is not numeric".to_string()),
+    };
+    Decimal::from_str(&text).map_err(|_| "arithmetic operand is not numeric".to_string())
+}
+
+fn decimal_value(value: Decimal) -> Value {
+    Value::String(value.normalize().to_string())
+}
+
+fn boolean(value: &Value) -> Result<bool, String> {
+    value.as_bool().ok_or("boolean operand required".to_string())
+}
+
+fn compare_values(left: &Value, right: &Value) -> Result<Ordering, String> {
+    if let (Value::String(a), Value::String(b)) = (left, right) {
+        return Ok(a.cmp(b));
+    }
+    Ok(decimal(left)?.cmp(&decimal(right)?))
+}
+
+pub fn evaluate_expression(expression: &Value, context: &Value) -> Result<Value, String> {
+    let op = expression.get("op").and_then(Value::as_str).ok_or("missing expression operator")?;
+    let args = expression.get("args").and_then(Value::as_array).cloned().unwrap_or_default();
+    if op == "literal" { return expression.get("value").cloned().ok_or("missing literal value".to_string()); }
+    if op == "field" {
+        let path = expression.get("field_ref").and_then(Value::as_str).ok_or("missing field_ref")?;
+        return field_value(path, context);
+    }
+    if op == "and" {
+        let left = evaluate_expression(args.get(0).ok_or("missing left operand")?, context)?;
+        if !boolean(&left)? { return Ok(Value::Bool(false)); }
+        let right = evaluate_expression(args.get(1).ok_or("missing right operand")?, context)?;
+        return Ok(Value::Bool(boolean(&right)?));
+    }
+    if op == "or" {
+        let left = evaluate_expression(args.get(0).ok_or("missing left operand")?, context)?;
+        if boolean(&left)? { return Ok(Value::Bool(true)); }
+        let right = evaluate_expression(args.get(1).ok_or("missing right operand")?, context)?;
+        return Ok(Value::Bool(boolean(&right)?));
+    }
+    if op == "if_else" {
+        let condition = evaluate_expression(args.get(0).ok_or("missing condition")?, context)?;
+        let branch = if boolean(&condition)? { args.get(1) } else { args.get(2) };
+        return evaluate_expression(branch.ok_or("missing conditional branch")?, context);
+    }
+    let values: Result<Vec<Value>, String> = args.iter().map(|arg| evaluate_expression(arg, context)).collect();
+    let values = values?;
+    match op {
+        "add" => Ok(decimal_value(decimal(&values[0])? + decimal(&values[1])?)),
+        "subtract" => Ok(decimal_value(decimal(&values[0])? - decimal(&values[1])?)),
+        "multiply" => Ok(decimal_value(decimal(&values[0])? * decimal(&values[1])?)),
+        "divide" => {
+            let divisor = decimal(&values[1])?;
+            if divisor == Decimal::ZERO { return Err("division by zero".to_string()); }
+            Ok(decimal_value(decimal(&values[0])? / divisor))
+        },
+        "equal" => {
+            let equal = if values[0].is_string() && values[1].is_string() {
+                values[0] == values[1]
+            } else {
+                match (decimal(&values[0]), decimal(&values[1])) {
+                    (Ok(left), Ok(right)) => left == right,
+                    _ => values[0] == values[1],
+                }
+            };
+            Ok(Value::Bool(equal))
+        },
+        "not_equal" => {
+            let equal = if values[0].is_string() && values[1].is_string() {
+                values[0] == values[1]
+            } else {
+                match (decimal(&values[0]), decimal(&values[1])) {
+                    (Ok(left), Ok(right)) => left == right,
+                    _ => values[0] == values[1],
+                }
+            };
+            Ok(Value::Bool(!equal))
+        },
+        "less_than" => Ok(Value::Bool(compare_values(&values[0], &values[1])? == Ordering::Less)),
+        "less_or_equal" => Ok(Value::Bool(compare_values(&values[0], &values[1])? != Ordering::Greater)),
+        "greater_than" => Ok(Value::Bool(compare_values(&values[0], &values[1])? == Ordering::Greater)),
+        "greater_or_equal" => Ok(Value::Bool(compare_values(&values[0], &values[1])? != Ordering::Less)),
+        "not" => Ok(Value::Bool(!boolean(&values[0])?)),
+        _ => Err(format!("unsupported expression operator: {op}")),
+    }
+}
+
+pub fn validate_fields(fields: &Value, payload: &Value) -> Result<(), String> {
+    let object = payload.as_object().ok_or("record must be an object")?;
+    let specs = fields.as_array().ok_or("field schema must be an array")?;
+    for key in object.keys() {
+        if !specs.iter().any(|spec| spec.get("name").and_then(Value::as_str) == Some(key.as_str())) {
+            return Err(format!("unknown field: {key}"));
+        }
+    }
+    for spec in specs {
+        let name = spec.get("name").and_then(Value::as_str).ok_or("field name missing")?;
+        let value = object.get(name);
+        let required = spec.get("required").and_then(Value::as_bool).unwrap_or(true);
+        let nullable = spec.get("nullable").and_then(Value::as_bool).unwrap_or(false);
+        if value.is_none() {
+            if required { return Err(format!("missing required field: {name}")); }
+            continue;
+        }
+        let value = value.unwrap();
+        if value.is_null() {
+            if !nullable { return Err(format!("field cannot be null: {name}")); }
+            continue;
+        }
+        let kind = spec.get("value_type").and_then(Value::as_str).unwrap_or("");
+        let valid = match kind {
+            "string" | "identifier" | "date" | "datetime" => value.is_string(),
+            "integer" => value.as_i64().is_some(),
+            "boolean" => value.is_boolean(),
+            "decimal" | "money" => decimal(value).is_ok(),
+            _ => false,
+        };
+        if !valid { return Err(format!("invalid type for field: {name}")); }
+        if let Some(constraints) = spec.get("constraints").and_then(Value::as_array) {
+            for constraint in constraints {
+                let operator = constraint.get("operator").and_then(Value::as_str).unwrap_or("");
+                let bound = constraint.get("value").ok_or("constraint value missing")?;
+                match operator {
+                    "min" => {
+                        if decimal(value)? < decimal(bound)? { return Err(format!("{name} is below minimum")); }
+                    },
+                    "max" => {
+                        if decimal(value)? > decimal(bound)? { return Err(format!("{name} is above maximum")); }
+                    },
+                    "min_length" => {
+                        if value.as_str().map(str::len).unwrap_or(0) < bound.as_u64().unwrap_or(0) as usize { return Err(format!("{name} is too short")); }
+                    },
+                    "max_length" => {
+                        if value.as_str().map(str::len).unwrap_or(usize::MAX) > bound.as_u64().unwrap_or(usize::MAX as u64) as usize { return Err(format!("{name} is too long")); }
+                    },
+                    "one_of" => {
+                        if !bound.as_array().map(|choices| choices.contains(value)).unwrap_or(false) { return Err(format!("{name} is not an allowed value")); }
+                    },
+                    _ => return Err(format!("unsupported field constraint: {operator}")),
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+pub fn authorize(policies: &Value, role: &str, action: &str, resource: &str, attributes: &Value) -> bool {
+    let mut allowed = false;
+    for policy in policies.as_array().into_iter().flatten() {
+        for rule in policy.get("rules").and_then(Value::as_array).into_iter().flatten() {
+            let has_role = rule.get("roles").and_then(Value::as_array).map(|xs| xs.iter().any(|x| x.as_str() == Some(role))).unwrap_or(false);
+            let has_action = rule.get("actions").and_then(Value::as_array).map(|xs| xs.iter().any(|x| x.as_str() == Some(action))).unwrap_or(false);
+            let target = rule.get("resource").and_then(Value::as_str).unwrap_or("");
+            if !has_role || !has_action || (target != resource && target != "*") { continue; }
+            let conditions_match = rule.get("conditions").and_then(Value::as_object).map(|conditions| conditions.iter().all(|(key, expected)| attributes.get(key) == Some(expected))).unwrap_or(true);
+            if !conditions_match { continue; }
+            match rule.get("effect").and_then(Value::as_str) {
+                Some("deny") => return false,
+                Some("allow") => allowed = true,
+                _ => {},
+            }
+        }
+    }
+    allowed
+}
+
+pub fn apply_effect<F>(effect: &Value, key: Option<&str>, execute: F, ledger: &mut HashMap<String, Value>) -> Result<Value, String>
+where
+    F: FnOnce() -> Result<Value, String>,
+{
+    let idempotent = effect.get("idempotent").and_then(Value::as_bool).unwrap_or(false);
+    let key_required = effect.get("idempotency_key_required").and_then(Value::as_bool).unwrap_or(false);
+    if key_required && key.is_none() { return Err("idempotency key required".to_string()); }
+    if idempotent {
+        let key = key.ok_or("idempotent effect requires a key")?;
+        let effect_kind = effect.get("effect_kind").and_then(Value::as_str).unwrap_or("effect");
+        let identity = format!("{effect_kind}:{key}");
+        if let Some(previous) = ledger.get(&identity) { return Ok(previous.clone()); }
+        let result = execute()?;
+        ledger.insert(identity, result.clone());
+        return Ok(result);
+    }
+    if key.is_some() {
+        return Err("non-idempotent effect cannot claim keyed deduplication".to_string());
+    }
+    execute()
+}
+
+pub fn apply_transition(transitions: &Value, transition_id: &str, current_state: &str, context: &Value) -> Result<String, String> {
+    let transition = transitions.as_array().and_then(|items| items.iter().find(|item| item.get("transition_id").and_then(Value::as_str) == Some(transition_id))).ok_or("unknown transition")?;
+    if transition.get("source_state").and_then(Value::as_str) != Some(current_state) { return Err("transition source state mismatch".to_string()); }
+    if let Some(guard) = transition.get("guard") {
+        if !boolean(&evaluate_expression(guard, context)?)? { return Err("transition guard rejected".to_string()); }
+    }
+    transition.get("target_state").and_then(Value::as_str).map(str::to_string).ok_or("target state missing".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn decimal_expression_uses_exact_decimal_arithmetic() {
+        let expression = json!({"op":"multiply","args":[{"op":"field","field_ref":"hours"},{"op":"field","field_ref":"rate"}]});
+        assert_eq!(evaluate_expression(&expression, &json!({"hours":7,"rate":"12.50"})).unwrap(), json!("87.5"));
+    }
+
+    #[test]
+    fn boolean_operators_reject_non_boolean_values_and_strings_compare_lexically() {
+        let invalid = json!({"op":"not","args":[{"op":"literal","value":1}]});
+        assert!(evaluate_expression(&invalid, &json!({})).is_err());
+        let comparison = json!({"op":"less_than","args":[{"op":"literal","value":"A"},{"op":"literal","value":"B"}]});
+        assert_eq!(evaluate_expression(&comparison, &json!({})).unwrap(), json!(true));
+    }
+
+    #[test]
+    fn validation_rejects_unknown_and_invalid_fields() {
+        let fields = json!([{"name":"amount","value_type":"money","required":true,"nullable":false,"constraints":[{"operator":"min","value":0}]}]);
+        assert!(validate_fields(&fields, &json!({"amount":"10.00"})).is_ok());
+        assert!(validate_fields(&fields, &json!({"amount":"-1"})).is_err());
+        assert!(validate_fields(&fields, &json!({"amount":"10","other":1})).is_err());
+    }
+
+    #[test]
+    fn authorization_is_default_deny_and_explicit_deny_wins() {
+        let policies = json!([{"rules":[{"effect":"allow","roles":["approver"],"actions":["payroll.approve"],"resource":"PayrollRun","conditions":{}},{"effect":"deny","roles":["approver"],"actions":["payroll.approve"],"resource":"PayrollRun","conditions":{}}]}]);
+        assert!(!authorize(&json!([]), "approver", "payroll.approve", "PayrollRun", &json!({})));
+        assert!(!authorize(&policies, "approver", "payroll.approve", "PayrollRun", &json!({})));
+    }
+
+    #[test]
+    fn effect_idempotency_returns_prior_result() {
+        let effect = json!({"effect_kind":"bank_transfer","idempotent":true,"idempotency_key_required":true});
+        let mut ledger = HashMap::new();
+        let mut calls = 0;
+        let first = apply_effect(&effect, Some("run-1"), || { calls += 1; Ok(json!({"status":"queued"})) }, &mut ledger).unwrap();
+        let retry = apply_effect(&effect, Some("run-1"), || { calls += 1; Ok(json!({"status":"duplicate"})) }, &mut ledger).unwrap();
+        assert_eq!(first, json!({"status":"queued"}));
+        assert_eq!(retry, first);
+        assert_eq!(calls, 1);
+        assert!(apply_effect(&effect, None, || Ok(json!({})), &mut ledger).is_err());
+    }
+
+    #[test]
+    fn transition_guard_is_enforced() {
+        let transitions = json!([{"transition_id":"submit","source_state":"draft","target_state":"submitted","guard":{"op":"greater_than","args":[{"op":"field","field_ref":"gross"},{"op":"literal","value":0}]}}]);
+        assert_eq!(apply_transition(&transitions, "submit", "draft", &json!({"gross":100})).unwrap(), "submitted");
+        assert!(apply_transition(&transitions, "submit", "draft", &json!({"gross":0})).is_err());
+    }
+}
+'''
+
+    def _effect(self, path: str, plan: CompilationPlan) -> str:
+        stem = path.rsplit("/", 1)[-1][: -len(".rs")]
+        effect = next((item for item in plan.effects if _slug(item.name) == stem), None)
+        if effect is None or effect.behavior is None:
+            return "//! Effect contract unavailable; this module is not executable.\n"
+        spec_json = json.dumps(effect.behavior.model_dump(mode="json"))
+        spec_literal = json.dumps(spec_json)
+        lines = [
+            "//! Generated effect adapter with explicit executor and idempotency contract.",
+            "use serde_json::Value;",
+            "use std::collections::HashMap;",
+            "",
+            f"const EFFECT_JSON: &str = {spec_literal};",
+            "",
+            "pub fn apply<F>(idempotency_key: Option<&str>, ledger: &mut HashMap<String, Value>, executor: F) -> Result<Value, String>",
+            "where",
+            "    F: FnOnce() -> Result<Value, String>,",
+            "{",
+            "    let effect: Value = serde_json::from_str(EFFECT_JSON).map_err(|e| e.to_string())?;",
+            "    crate::core::behavior::apply_effect(&effect, idempotency_key, executor, ledger)",
+            "}",
+        ]
+        if effect.behavior.idempotent:
+            lines += [
+                "",
+                "#[cfg(test)]",
+                "mod tests {",
+                "    use super::*;",
+                "    use serde_json::json;",
+                "",
+                "    #[test]",
+                "    fn retries_return_the_original_result_without_reexecuting_handler() {",
+                "        let mut ledger = HashMap::new();",
+                "        let mut calls = 0;",
+                '        let first = apply(Some("same-key"), &mut ledger, || { calls += 1; Ok(json!({"status":"queued"})) }).unwrap();',
+                '        let retry = apply(Some("same-key"), &mut ledger, || { calls += 1; Ok(json!({"status":"duplicate"})) }).unwrap();',
+                "        assert_eq!(first, retry);",
+                "        assert_eq!(calls, 1);",
+                "    }",
+            ]
+            if effect.behavior.idempotency_key_required:
+                lines += [
+                    "",
+                    "    #[test]",
+                    "    fn required_key_is_enforced() {",
+                    "        let mut ledger = HashMap::new();",
+                    "        assert!(apply(None, &mut ledger, || Ok(json!({}))).is_err());",
+                    "    }",
+                ]
+            lines.append("}")
+        return "\n".join(lines) + "\n"
+
     def _domain(self, path: str, plan: CompilationPlan) -> str:
         stem = path.rsplit("/", 1)[-1][: -len(".rs")]
         entities = plan_entities(plan)
         entity = next((e for e in entities if e["mod"] == stem), None)
         cls = entity["cls"] if entity else _cls(stem)
-        return (
-            f"//! Domain model {cls} (generated).\n"
-            "#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]\n"
-            "#[serde(default)]\n"
-            f"pub struct {cls} {{\n"
-            "    pub id: Option<String>,\n"
-            "    pub name: String,\n"
-            "}\n"
-        )
+        model = next((item for item in plan.data_models if _slug(item.entity_name) == stem), None)
+        if model is None or model.behavior is None:
+            return (
+                f"//! Domain model {cls} (generated).\n"
+                "#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]\n"
+                "#[serde(default)]\n"
+                f"pub struct {cls} {{\n"
+                "    pub id: Option<String>,\n"
+                "    pub name: String,\n"
+                "}\n"
+            )
+        type_names = {
+            "string": "String", "identifier": "String", "date": "String", "datetime": "String",
+            "integer": "i64", "decimal": "rust_decimal::Decimal", "money": "rust_decimal::Decimal",
+            "boolean": "bool",
+        }
+        lines = [
+            f"//! Typed domain model {cls} (generated from ISR).",
+            "#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]",
+            f"pub struct {cls} {{",
+        ]
+        for field in model.behavior.fields:
+            annotation = type_names[field.value_type.value]
+            optional = field.nullable or not field.required
+            if optional:
+                annotation = f"Option<{annotation}>"
+                lines.append("    #[serde(default)]")
+            lines.append(f"    pub {field.name}: {annotation},")
+        lines.append("}")
+        return "\n".join(lines) + "\n"
 
     def _application(self, path: str, plan: CompilationPlan) -> str:
         stem = path.rsplit("/", 1)[-1][: -len(".rs")]
         svc = next((s for s in plan_services(plan) if s["mod"] == stem), None)
+        service = next((item for item in plan.services if _slug(item.name) == stem), None)
         name = svc["name"] if svc else stem
         owned = svc["owned"] if svc else []
         lines = [
-            f"//! Application validation for service {name} (generated).",
+            f"//! Application behavior for service {name} (generated from ISR).",
             "use serde_json::Value;",
             "",
             "pub fn service_name() -> &'static str {",
@@ -308,17 +676,55 @@ class RustAxumBackend:
         ]
         for mod_e in owned:
             fn = mod_e.lower()
+            model = next((item for item in plan.data_models if _slug(item.entity_name) == mod_e), None)
+            if model is not None and model.behavior is not None:
+                schema_json = json.dumps([field.model_dump(mode="json") for field in model.behavior.fields])
+                schema_literal = json.dumps(schema_json)
+                lines += [
+                    f"pub fn validate_{fn}(payload: &Value) -> Result<(), String> {{",
+                    f"    let fields: Value = serde_json::from_str({schema_literal}).map_err(|e| e.to_string())?;",
+                    "    crate::core::behavior::validate_fields(&fields, payload)",
+                    "}",
+                    "",
+                ]
+            else:
+                lines += [
+                    f"pub fn validate_{fn}(payload: &Value) -> Result<(), String> {{",
+                    '    let name = payload.get("name").and_then(|v| v.as_str()).unwrap_or("");',
+                    '    if name.is_empty() { return Err("name must be a non-empty string".to_string()); }',
+                    "    Ok(())",
+                    "}",
+                    "",
+                ]
+        if service is not None and service.behavior is not None:
+            rules = [item.model_dump(mode="json") for item in service.behavior.rules]
+            transitions = [item.model_dump(mode="json") for item in service.behavior.transitions]
+            rules_literal = json.dumps(json.dumps(rules))
+            transitions_literal = json.dumps(json.dumps(transitions))
             lines += [
-                f"pub fn validate_{fn}(payload: &Value) -> Result<(), &'static str> {{",
-                '    let name = payload.get("name").and_then(|v| v.as_str()).unwrap_or("");',
-                '    if name.is_empty() {',
-                '        return Err("name must be a non-empty string");',
-                "    }",
-                "    Ok(())",
+                f"pub fn evaluate_rule(rule_id: &str, context: &Value) -> Result<Value, String> {{",
+                f"    let rules: Value = serde_json::from_str({rules_literal}).map_err(|e| e.to_string())?;",
+                "    let rule = rules.as_array().and_then(|items| items.iter().find(|item| item.get(\"rule_id\").and_then(Value::as_str) == Some(rule_id))).ok_or(\"unknown business rule\")?;",
+                "    crate::core::behavior::evaluate_expression(&rule[\"expression\"], context)",
+                "}",
+                "",
+                "pub fn apply_transition(transition_id: &str, current_state: &str, context: &Value) -> Result<String, String> {",
+                f"    let transitions: Value = serde_json::from_str({transitions_literal}).map_err(|e| e.to_string())?;",
+                "    crate::core::behavior::apply_transition(&transitions, transition_id, current_state, context)",
                 "}",
                 "",
             ]
-        return "\n".join(lines)
+        if service is not None and service.security_policies:
+            policies = [policy.behavior.model_dump(mode="json") if policy.behavior is not None else {"rules": []} for policy in service.security_policies]
+            policies_literal = json.dumps(json.dumps(policies))
+            lines += [
+                "pub fn authorize(role: &str, action: &str, resource: &str, attributes: &Value) -> bool {",
+                f"    let policies: Value = serde_json::from_str({policies_literal}).expect(\"validated ISR security policy\");",
+                "    crate::core::behavior::authorize(&policies, role, action, resource, attributes)",
+                "}",
+                "",
+            ]
+        return "\n".join(lines) + "\n"
 
     def _event(self, path: str, plan: CompilationPlan) -> str:
         stem = path.rsplit("/", 1)[-1][: -len(".rs")]
@@ -390,9 +796,9 @@ class RustAxumBackend:
             "pub mod domain;",
             "pub mod events;",
             "pub mod infrastructure;",
+            "pub mod effects;"
         ]
-        if secured:
-            l.append("pub mod core;")
+        l.append("pub mod core;")
         l.append("")
         l += [
             "use infrastructure::repositories::Stores;",
@@ -625,30 +1031,61 @@ class RustAxumBackend:
             e = entities[0]
             fn = e["mod"].lower()
             plural = _plural(fn)
+            model = next((item for item in plan.data_models if _slug(item.entity_name) == e["mod"]), None)
+            if model is not None and model.behavior is not None:
+                payload = {}
+                updated_payload = {}
+                for field in model.behavior.fields:
+                    kind = field.value_type.value
+                    if kind == "integer":
+                        value, updated = 1, 2
+                    elif kind in ("decimal", "money"):
+                        value, updated = "10.00", "20.00"
+                    elif kind == "boolean":
+                        value, updated = True, False
+                    elif kind == "date":
+                        value, updated = "2026-01-01", "2026-01-02"
+                    elif kind == "datetime":
+                        value, updated = "2026-01-01T00:00:00Z", "2026-01-02T00:00:00Z"
+                    elif kind == "identifier":
+                        value, updated = f"{field.name}-alpha", f"{field.name}-beta"
+                    else:
+                        value, updated = "alpha", "beta"
+                    payload[field.name] = value
+                    updated_payload[field.name] = updated
+                tested_field = model.behavior.fields[0].name
+            else:
+                payload = {"name": "alpha"}
+                updated_payload = {"name": "beta"}
+                tested_field = "name"
+            payload_json = json.dumps(payload, sort_keys=True)
+            updated_json = json.dumps(updated_payload, sort_keys=True)
+            expected_created = json.dumps(payload[tested_field])
+            expected_updated = json.dumps(updated_payload[tested_field])
             l += [
                 "    #[tokio::test]",
                 f"    async fn crud_roundtrip_{plural}() {{",
                 "        let state = new_state();",
-                f"        let created = create_{fn}(State(state.clone()), Json(json!({{\"name\": \"alpha\"}})))",
+                f"        let created = create_{fn}(State(state.clone()), Json(json!({payload_json})))",
                 '            .await',
                 '            .expect("create");',
-                f"        assert_eq!(created.0, StatusCode::CREATED);",
-                f'        assert_eq!(created.1.0["name"], json!("alpha"));',
+                "        assert_eq!(created.0, StatusCode::CREATED);",
+                f'        assert_eq!(created.1.0[{json.dumps(tested_field)}], json!({expected_created}));',
                 f'        let item_id = created.1.0["id"].as_str().expect("id").to_string();',
                 f"        let listed = list_{plural}(State(state.clone())).await;",
                 "        assert_eq!(listed.0.len(), 1);",
                 f"        let fetched = get_{fn}(State(state.clone()), Path(item_id.clone()))",
                 '            .await',
                 '            .expect("get");',
-                f'        assert_eq!(fetched.0["name"], json!("alpha"));',
+                f'        assert_eq!(fetched.0[{json.dumps(tested_field)}], json!({expected_created}));',
                 f"        let updated = update_{fn}(",
                 "            State(state.clone()),",
                 "            Path(item_id.clone()),",
-                '            Json(json!({"name": "beta"})),',
+                f"            Json(json!({updated_json})),",
                 "        )",
                 "        .await",
                 '        .expect("update");',
-                f'        assert_eq!(updated.0["name"], json!("beta"));',
+                f'        assert_eq!(updated.0[{json.dumps(tested_field)}], json!({expected_updated}));',
                 f"        let deleted = delete_{fn}(State(state.clone()), Path(item_id))",
                 '            .await',
                 '            .expect("delete");',

@@ -7,6 +7,7 @@ from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from isr.core.behavior_validation import validate_behavioral_graph
 from isr.core.graph import ISRGraph
 from isr.core.identity import Provenance, compute_content_hash
 from isr.core.invariants import validate_invariants
@@ -48,6 +49,7 @@ class ISRRevision(BaseModel):
     ) -> ISRRevision:
         """Construct a revision, enforcing all invariants fail-closed."""
         validate_invariants(graph)
+        validate_behavioral_graph(graph)
 
         content_hash = compute_content_hash(schema_version, graph)
 

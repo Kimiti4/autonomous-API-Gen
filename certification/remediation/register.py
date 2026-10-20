@@ -710,6 +710,8 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         evidence=(
             _code("autonomous-api/app/engine/repository_audit_gate.py"),
             _code("autonomous-api/app/engine/repository_code_scan.py"),
+            _workflow(".github/workflows/root-canonical-suite.yml"),
+            _test("tests/test_autonomous_api_suite_coverage.py"),
         ),
         closure_gate=(
             "Existing-code changes preserve unrelated behaviour and contracts and "
@@ -718,8 +720,6 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         claimed_tiers=(CertificationTier.BEHAVIORAL, CertificationTier.OPERATIONAL),
         limitations=(
             "Analysis is regex-only.",
-            "Repository analysis tests live under autonomous-api/tests and are "
-            "outside the canonical testpaths, so the root gate does not enforce them.",
         ),
     ),
     WorkPackage(
@@ -839,9 +839,14 @@ DEFECTS: tuple[Defect, ...] = (
         id="D08",
         title="Repository-engine tests live outside the canonical testpaths",
         location="autonomous-api/tests",
-        status=DefectStatus.OPEN,
+        status=DefectStatus.VERIFIED,
         severity="medium",
-        note="Coverage gap: root gate does not execute these tests.",
+        regression_test="tests/test_autonomous_api_suite_coverage.py",
+        note=(
+            "The Root Canonical Suite workflow runs the repository-engine suite in "
+            "a dedicated Postgres-backed job on every PR and main push; a canonical "
+            "contract keeps that wiring from silently disappearing."
+        ),
     ),
 )
 

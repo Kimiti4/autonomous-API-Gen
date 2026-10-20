@@ -7,9 +7,9 @@ from ...domain.models.isr import IntermediateSoftwareRepresentation
 
 
 class MinimalContainerBackend:
-    """Minimal compiler backend: materializes an ISR into a runnable app dir
-    with a smoke test. Swap in real backends (FastAPI/Go/Rust/Java) via the
-    CompilerBackend protocol."""
+    """Calibration-only backend: materializes an ISR into a runnable app dir
+    with a smoke test that exercises the generated health function. Swap in
+    real backends (FastAPI/Go/Rust/Java) via the CompilerBackend protocol."""
 
     @property
     def name(self) -> str:
@@ -29,7 +29,14 @@ class MinimalContainerBackend:
         )
         tests = out / "tests"
         tests.mkdir(exist_ok=True)
-        (tests / "test_smoke.py").write_text("def test_smoke():\n    assert True\n")
+        (tests / "__init__.py").write_text("")
+        (tests / "test_smoke.py").write_text(
+            "from app import health\n"
+            "\n"
+            "\n"
+            "def test_health_reports_ok():\n"
+            "    assert health() == {\"status\": \"ok\"}\n"
+        )
         (out / "app.py").write_text("def health():\n    return {'status': 'ok'}\n")
         manifest = CapabilityManifest(
             backend_id=self.name,
@@ -44,6 +51,6 @@ class MinimalContainerBackend:
             backend_name=self.name,
             isr_hash=isr.content_hash(),
             path=out,
-            artifacts=["README.md", "app.py", "tests/test_smoke.py"],
+            artifacts=["README.md", "app.py", "tests/__init__.py", "tests/test_smoke.py"],
             capability_manifest=manifest,
         )

@@ -30,8 +30,16 @@ def test_dast_thousands_ledger():
     ledger=EvolutionLedger()
     arts=[f"art-{i}" for i in range(10)]
     atks=[f"attack-{i}" for i in range(100)]
-    res=run_dast(arts, atks, ledger, seed=1)
+    class Scanner:
+        def __init__(self): self.calls=0
+        def attack(self, artifact, attack, seed):
+            self.calls += 1
+            return int(attack.split("-")[1]) % 2 == 0
+    scanner=Scanner()
+    res=run_dast(arts, atks, ledger, seed=1, client=scanner)
     assert len(res)==1000
+    assert scanner.calls==1000
+    assert any(r.blocked for r in res) and any(not r.blocked for r in res)
     assert all(ledger.event_by_ref(r.ledger_ref) for r in res)
     assert ledger.verify_event_chain() is True
 def test_matrix_unchanged():

@@ -540,6 +540,7 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         evidence=(
             _code("compiler/backends/python_fastapi.py"),
             _test("tests/test_no_passing_stubs.py"),
+            _test("tests/test_test_compiler_no_vacuous_layers.py"),
             _test("tests/cbc1/test_campaign_a.py"),
         ),
         closure_gate=(
@@ -548,7 +549,9 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         ),
         claimed_tiers=(CertificationTier.BEHAVIORAL,),
         limitations=(
-            "The constitutional testing compiler still emits assert True (D05).",
+            "Consumer-contract and chaos layers are declared unsupported and not "
+            "emitted; no pact provider runtime or generated circuit-breaker "
+            "instrumentation exists.",
             "Requirement-derived negative and boundary generation is not implemented.",
         ),
     ),
@@ -795,9 +798,14 @@ DEFECTS: tuple[Defect, ...] = (
         id="D05",
         title="Constitutional pytest compiler emits assert True chaos/contract tests",
         location="constitutional_architecture/compilers/testing/pytest/compiler.py",
-        status=DefectStatus.OPEN,
+        status=DefectStatus.VERIFIED,
         severity="high",
-        note="Violates the no-vacuous-behavioural-tests rule.",
+        regression_test="tests/test_test_compiler_no_vacuous_layers.py",
+        note=(
+            "The assert-True chaos suite and pact placeholder suite are no longer "
+            "emitted; unsupported layers are declared with reasons and metadata "
+            "advertises only the layers actually generated."
+        ),
     ),
     Defect(
         id="D06",

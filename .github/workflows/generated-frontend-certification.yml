@@ -1,0 +1,81 @@
+name: Generated React Frontend Certification
+
+on:
+  pull_request:
+    paths:
+      - "autonomous-api/app/engine/frontend_ir.py"
+      - "autonomous-api/app/engine/frontend_contracts.py"
+      - "autonomous-api/app/engine/frontend_certification.py"
+      - "autonomous-api/app/engine/react_typescript_compiler.py"
+      - "autonomous-api/app/engine/api_ui_contracts.py"
+      - "autonomous-api/scripts/build_generated_frontend.py"
+      - "autonomous-api/tests/**"
+      - ".github/workflows/generated-frontend-certification.yml"
+  push:
+    branches: [main]
+    paths:
+      - "autonomous-api/app/engine/frontend_ir.py"
+      - "autonomous-api/app/engine/frontend_contracts.py"
+      - "autonomous-api/app/engine/frontend_certification.py"
+      - "autonomous-api/app/engine/react_typescript_compiler.py"
+      - "autonomous-api/app/engine/api_ui_contracts.py"
+      - "autonomous-api/scripts/build_generated_frontend.py"
+      - ".github/workflows/generated-frontend-certification.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  generated-react:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: autonomous-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Generate the exact frontend candidate
+        run: python scripts/build_generated_frontend.py --output-dir "$RUNNER_TEMP/generated-frontend"
+      - name: Resolve frontend dependencies
+        run: |
+          set -o pipefail
+          cd "$RUNNER_TEMP/generated-frontend"
+          npm install --no-audit --no-fund 2>&1 | tee "$RUNNER_TEMP/frontend-install.log"
+      - name: Build generated TypeScript application
+        run: |
+          set -o pipefail
+          cd "$RUNNER_TEMP/generated-frontend"
+          npm run build 2>&1 | tee "$RUNNER_TEMP/frontend-build.log"
+      - name: Run generated component behavior tests
+        run: |
+          set -o pipefail
+          cd "$RUNNER_TEMP/generated-frontend"
+          npm test 2>&1 | tee "$RUNNER_TEMP/frontend-unit.log"
+      - name: Install Chromium for browser E2E
+        run: |
+          cd "$RUNNER_TEMP/generated-frontend"
+          npx playwright install --with-deps chromium
+      - name: Run generated browser E2E
+        run: |
+          set -o pipefail
+          cd "$RUNNER_TEMP/generated-frontend"
+          npm run test:e2e 2>&1 | tee "$RUNNER_TEMP/frontend-e2e.log"
+      - name: Bind evidence to exact generated source and execution logs
+        run: |
+          python scripts/build_generated_frontend.py --output-dir "$RUNNER_TEMP/generated-frontend" --record-evidence --build-log "$RUNNER_TEMP/frontend-build.log" --unit-log "$RUNNER_TEMP/frontend-unit.log" --e2e-log "$RUNNER_TEMP/frontend-e2e.log"
+          python scripts/build_generated_frontend.py --output-dir "$RUNNER_TEMP/generated-frontend" --certify
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: generated-react-frontend-evidence
+          path: |
+            ${{ runner.temp }}/generated-frontend/frontend-execution-evidence.json
+            ${{ runner.temp }}/generated-frontend/frontend-certification.json
+            ${{ runner.temp }}/frontend-build.log
+            ${{ runner.temp }}/frontend-unit.log
+            ${{ runner.temp }}/frontend-e2e.log

@@ -573,6 +573,7 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
             _test("tests/test_execution_evidence_truthfulness.py"),
             _test("tests/test_deployment_targets_fail_closed.py"),
             _test("tests/test_dast_fail_closed.py"),
+            _test("tests/test_minimal_backend_smoke_fail_closed.py"),
             _workflow(".github/workflows/cbc1-campaign-a.yml"),
             _artifact("cbc1-a-evidence", "78/78 CERTIFIED at d8f2a88e, chain valid"),
         ),
@@ -586,7 +587,8 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
             CertificationTier.RUNTIME,
         ),
         limitations=(
-            "The phase-31 minimal backend still writes assert-True smoke tests (D07).",
+            "The minimal backend remains calibration-only; its artifacts are not "
+            "production evidence.",
         ),
     ),
     WorkPackage(
@@ -824,9 +826,14 @@ DEFECTS: tuple[Defect, ...] = (
         id="D07",
         title="Phase-31 minimal container backend writes assert-True smoke tests",
         location="tiannara/infrastructure/backends/minimal_container_backend.py",
-        status=DefectStatus.OPEN,
+        status=DefectStatus.VERIFIED,
         severity="medium",
-        note="Calibration-only backend; must never be presented as production evidence.",
+        regression_test="tests/test_minimal_backend_smoke_fail_closed.py",
+        note=(
+            "The generated smoke test imports the materialized health function; "
+            "it passes on the generated app and fails when the artifact is broken. "
+            "The backend remains calibration-only."
+        ),
     ),
     Defect(
         id="D08",

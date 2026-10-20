@@ -107,6 +107,11 @@ class RustAxumBackend:
         f["src/events/mod.rs"] = mod_rs(
             "event", [e["mod"] for e in events], "No event modules."
         )
+        f["src/effects/mod.rs"] = mod_rs(
+            "effect",
+            list(dict.fromkeys(_slug(effect.name) for effect in plan.effects)),
+            "No effect modules.",
+        )
         f["src/infrastructure/mod.rs"] = "pub mod repositories;\n"
         f["src/core/mod.rs"] = "pub mod behavior;\n" + ("pub mod security;\n" if plan.security else "")
         return build_repository(f)

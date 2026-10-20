@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ast
+import re
 
 from compiler.backends.python_fastapi import PythonFastAPIBackend
 from compiler.backends.rust_axum import RustAxumBackend
@@ -13,6 +14,7 @@ from compiler.core.capabilities import (
     required_features,
 )
 from compiler.core.lowering import isr_to_plan
+from compiler.core.plan import Effect
 from isr.core.graph import Edge, EdgeType, ISRGraph, Node, NodeType
 from isr.core.identity import Provenance
 from isr.core.revision import ISRRevision
@@ -123,6 +125,23 @@ def test_rust_emission_contains_compilable_module_shapes_and_behavior_tests():
     assert "pub fn apply_transition" in service_source
     assert "pub fn validate_fields" in behavior_source
     assert "fn decimal_expression_uses_exact_decimal_arithmetic()" in behavior_source
+
+
+def test_rust_module_declarations_resolve_to_emitted_sources():
+    plan = isr_to_plan(_revision()).model_copy(update={
+        "effects": [Effect(id="effect:notify", name="Notify")],
+    })
+    repo = RustAxumBackend().compile(plan)
+    main_source = repo.files["src/main.rs"]
+    declared = re.findall(r"^pub mod ([A-Za-z_][A-Za-z0-9_]*);$", main_source, re.MULTILINE)
+
+    assert declared
+    for module in declared:
+        assert (
+            f"src/{module}.rs" in repo.files
+            or f"src/{module}/mod.rs" in repo.files
+        ), f"src/main.rs declares {module!r} but no source is emitted"
+    assert "pub mod Notify;" in repo.files["src/effects/mod.rs"]
 
 
 def test_structural_only_backend_cannot_accept_behavioral_plan():

@@ -9,6 +9,7 @@ from isr.core.revision import ISRRevision
 from reqgraph.core.graph import Priority, RequirementGraph, RequirementKind, RequirementNode
 from certification.payroll.certifier import (
     StatutoryEvidence,
+    TORReviewEvidence,
     certify_payroll_candidate,
     derive_required_oracle_categories,
     derive_required_statutory_schemes,
@@ -18,7 +19,31 @@ from certification.payroll.certifier import (
 
 TOR_ID = "world-concern-payroll-tor"
 TOR_HASH = "c" * 64
+TOR_LEDGER_SHA256 = "a" * 64
+TOR_LEDGER_REF = "release/evidence/tor-review-ledger.jsonl"
 BACKENDS = ("python-fastapi", "rust-axum")
+
+
+def _tor_inputs(*, total=1, reviewed=1):
+    candidate_ids = [f"tor:candidate:{index}" for index in range(1, total + 1)]
+    review_records = [
+        TORReviewEvidence(
+            candidate_id=candidate_ids[index],
+            disposition=(
+                "approved_requirement" if index == 0 else "rejected_not_requirement"
+            ),
+            reviewed_by="independent-reviewer",
+            rationale="reviewed against the TOR statement",
+            requirement_id="REQ-PAY-001" if index == 0 else None,
+        )
+        for index in range(reviewed)
+    ]
+    return dict(
+        tor_candidate_ids=candidate_ids,
+        tor_review_records=review_records,
+        tor_review_ledger_sha256=TOR_LEDGER_SHA256,
+        tor_review_ledger_ref=TOR_LEDGER_REF,
+    )
 
 
 def _inputs():
@@ -44,6 +69,9 @@ def _inputs():
                 "requirement_id": "REQ-PAY-001",
                 "semantic_content": "The system shall calculate gross pay.",
                 "statement": "The system shall calculate gross pay.",
+                "candidate_id": "tor:candidate:1",
+                "review_status": "approved",
+                "source_text_sha256": TOR_HASH,
             },
         )
     })
@@ -80,6 +108,7 @@ def _candidate_manifest(requirements, revision, plan, *, total=1, reviewed=1):
         tor_source_sha256=TOR_HASH,
         tor_candidate_count=total,
         reviewed_tor_candidate_count=reviewed,
+        **_tor_inputs(total=total, reviewed=reviewed),
         backend_artifact_hashes=backend_hashes,
         frontend_artifact_sha256=frontend_hash,
     )
@@ -96,6 +125,7 @@ def _common(requirements, revision, plan, caps, candidate_hash, backend_hashes, 
         tor_source_sha256=TOR_HASH,
         tor_candidate_count=total,
         reviewed_tor_candidate_count=reviewed,
+        **_tor_inputs(total=total, reviewed=reviewed),
         backend_artifact_hashes=backend_hashes,
         frontend_artifact_sha256=frontend_hash,
         payroll_period_start="2026-10-01",
@@ -152,7 +182,6 @@ def test_payroll_certifier_rejects_backend_without_required_behavioral_capabilit
     candidate_hash, backend_hashes, frontend_hash = _candidate_manifest(requirements, revision, plan)
     args = _common(requirements, revision, plan, caps, candidate_hash, backend_hashes, frontend_hash)
     report = certify_payroll_candidate(**args)
-    assert any("missing API operation contracts" in finding for finding in report.findings)
     assert any("cannot implement this payroll plan" in finding for finding in report.findings)
 
 

@@ -65,7 +65,9 @@ def test_bound_action_calls_declared_api_and_reports_actual_http_result():
     assert "Request completed:" in app
     assert "Request rejected:" in app
     assert "Request failed: API unavailable" in app
-    assert "Access policy: payroll.read. The API remains authoritative" in app
+    assert 'const authorizationPolicy: string = "payroll.read";' in app
+    assert "Access policy: {authorizationPolicy}." in app
+    assert "The API remains authoritative for access control" in app
     assert "Request completed" in files["e2e/generated-app.spec.ts"]
 
 

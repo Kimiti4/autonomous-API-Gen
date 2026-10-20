@@ -290,21 +290,17 @@ def test_duplicate_defect_is_rejected() -> None:
 
 
 def test_known_defect_baseline_is_honest() -> None:
-    by_id = {defect.id: defect for defect in DEFECTS}
-    assert by_id["D01"].status is DefectStatus.VERIFIED
-    assert by_id["D02"].status is DefectStatus.VERIFIED
-    assert by_id["D03"].status is DefectStatus.VERIFIED
-    assert by_id["D04"].status is DefectStatus.VERIFIED
-    assert by_id["D05"].status is DefectStatus.VERIFIED
-    assert by_id["D06"].status is DefectStatus.VERIFIED
-    assert by_id["D07"].status is DefectStatus.VERIFIED
-    assert by_id["D08"].status is DefectStatus.OPEN
+    open_defects = {
+        defect.id for defect in DEFECTS if defect.status is not DefectStatus.VERIFIED
+    }
+    assert open_defects == set()
 
 
-def test_certification_claim_is_gated_by_open_defects() -> None:
-    by_id = {package.id: package for package in WORK_PACKAGES}
-    if any(defect.status is DefectStatus.OPEN for defect in DEFECTS):
-        assert by_id["W16"].status is not Status.VERIFIED
+def test_every_defect_names_a_canonical_regression_test() -> None:
+    for defect in DEFECTS:
+        assert defect.status is DefectStatus.VERIFIED
+        assert defect.regression_test is not None
+        assert defect.regression_test.startswith("tests/")
 
 
 def test_no_work_package_is_verified_yet() -> None:

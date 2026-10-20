@@ -569,6 +569,7 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
             _test("tests/test_passes/test_verification.py"),
             _test("tests/test_execution_evidence_truthfulness.py"),
             _test("tests/test_deployment_targets_fail_closed.py"),
+            _test("tests/test_dast_fail_closed.py"),
             _workflow(".github/workflows/cbc1-campaign-a.yml"),
             _artifact("cbc1-a-evidence", "78/78 CERTIFIED at d8f2a88e, chain valid"),
         ),
@@ -600,6 +601,7 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
             _workflow(".github/workflows/dependency-review.yml"),
             _code("tiannara/application/security/dast_campaign.py"),
             _test("tests/test_security_privacy_audit_hardening.py"),
+            _test("tests/test_dast_fail_closed.py"),
         ),
         closure_gate=(
             "Findings gate by severity; DAST runs against the actual application; "
@@ -607,7 +609,8 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         ),
         claimed_tiers=(CertificationTier.SECURITY,),
         limitations=(
-            "DAST is hash-simulated (D06).",
+            "No real DAST scanner adapter ships; the campaign fails closed until a "
+            "client is injected against a running target.",
             "No SBOM or licence policy is enforced in canonical gates.",
         ),
     ),
@@ -798,10 +801,16 @@ DEFECTS: tuple[Defect, ...] = (
     ),
     Defect(
         id="D06",
-        title="DAST campaign is simulated through hashes rather than a running target",
+        title="DAST campaign simulated attack outcomes through hashes",
         location="tiannara/application/security/dast_campaign.py",
-        status=DefectStatus.OPEN,
+        status=DefectStatus.VERIFIED,
         severity="high",
+        regression_test="tests/test_dast_fail_closed.py",
+        note=(
+            "run_dast now requires an injected DASTClient, dispatches every attack "
+            "to it, preserves the returned outcomes in the ledger, and fails closed "
+            "when no scanner is configured."
+        ),
     ),
     Defect(
         id="D07",

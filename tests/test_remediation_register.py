@@ -295,7 +295,8 @@ def test_known_defect_baseline_is_honest() -> None:
     assert by_id["D02"].status is DefectStatus.VERIFIED
     assert by_id["D03"].status is DefectStatus.VERIFIED
     assert by_id["D04"].status is DefectStatus.VERIFIED
-    for defect_id in ("D05", "D06", "D07", "D08"):
+    assert by_id["D06"].status is DefectStatus.VERIFIED
+    for defect_id in ("D05", "D07", "D08"):
         assert by_id[defect_id].status is DefectStatus.OPEN
 
 
@@ -307,7 +308,7 @@ def test_certification_claim_is_gated_by_open_simulation_defects() -> None:
         for defect_id, defect in defects.items()
         if defect.status is DefectStatus.OPEN
     }
-    if open_defects & {"D05", "D06", "D07", "D08"}:
+    if open_defects & {"D05", "D07", "D08"}:
         assert by_id["W16"].status is not Status.VERIFIED
 
 

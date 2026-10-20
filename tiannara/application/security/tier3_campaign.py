@@ -1,7 +1,7 @@
 """Tier 3 Full Campaign -- 1,000-attack + stateful replay on real artifacts."""
 from __future__ import annotations
 from dataclasses import dataclass
-from tiannara.application.security.dast_campaign import run_dast
+from tiannara.application.security.dast_campaign import DASTClient, run_dast
 from tiannara.application.resilience.chaos_stateful import ChaosState
 from tiannara.application.evolution.ledger import EvolutionLedger, EvolutionEvent, EventType
 from tiannara.domain.services.canonical import canonical_hash
@@ -15,8 +15,9 @@ class Tier3Result:
     tier: str = "TIER_3"
 
 class Tier3Campaign:
-    def __init__(self, ledger: EvolutionLedger):
+    def __init__(self, ledger: EvolutionLedger, dast_client: DASTClient | None = None):
         self.ledger = ledger
+        self.dast_client = dast_client
         self.tier = "TIER_3"
 
     def is_eligible(self, tier2_verdict: str) -> bool:
@@ -25,8 +26,8 @@ class Tier3Campaign:
     def run(self, artifacts: list[str], attacks: list[str], seed: int = 42) -> Tier3Result:
         assert artifacts, "no artifacts"
         # Tier 3 reserved only for Tier2 survivors -- verify
-        # Run DAST thousands
-        dast_results = run_dast(artifacts, attacks, self.ledger, seed)
+        # Run DAST thousands against the injected scanner
+        dast_results = run_dast(artifacts, attacks, self.ledger, seed, client=self.dast_client)
         # Stateful replay
         chaos = ChaosState()
         for atk in attacks[:10]:

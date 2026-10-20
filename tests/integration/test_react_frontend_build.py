@@ -1,6 +1,8 @@
 """Build and exercise an actual generated React app with npm/Vitest/Vite."""
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -47,6 +49,13 @@ def _plan():
     return isr_to_plan(revision)
 
 
+def _npm(*args: str) -> list[str]:
+    executable = shutil.which("npm") or "npm"
+    if os.name == "nt":
+        return [os.environ.get("COMSPEC", "cmd.exe"), "/c", executable, *args]
+    return [executable, *args]
+
+
 def test_generated_react_app_passes_vitest_and_production_build(tmp_path: Path):
     repo = ReactFrontendBackend().compile(_plan())
     for relative_path, content in repo.files.items():
@@ -55,7 +64,7 @@ def test_generated_react_app_passes_vitest_and_production_build(tmp_path: Path):
         destination.write_text(content, encoding="utf-8")
 
     subprocess.run(
-        ["npm", "install", "--no-audit", "--no-fund"],
+        _npm("install", "--no-audit", "--no-fund"),
         cwd=tmp_path,
         check=True,
         timeout=600,
@@ -63,7 +72,7 @@ def test_generated_react_app_passes_vitest_and_production_build(tmp_path: Path):
         text=True,
     )
     subprocess.run(
-        ["npm", "test"],
+        _npm("test"),
         cwd=tmp_path,
         check=True,
         timeout=180,
@@ -71,7 +80,7 @@ def test_generated_react_app_passes_vitest_and_production_build(tmp_path: Path):
         text=True,
     )
     subprocess.run(
-        ["npm", "run", "build"],
+        _npm("run", "build"),
         cwd=tmp_path,
         check=True,
         timeout=180,

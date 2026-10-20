@@ -47,10 +47,10 @@ class ReactFrontendBackend:
                 "type": "module",
                 "scripts": {"build": "tsc --noEmit && vite build", "test": "vitest run"},
                 "dependencies": {
-                    "@vitejs/plugin-react": "^4.3.4",
+                    "@vitejs/plugin-react": "^4.7.0",
                     "react": "^18.3.1",
                     "react-dom": "^18.3.1",
-                    "vite": "^6.0.0",
+                    "vite": "^6.3.5",
                 },
                 "devDependencies": {
                     "@testing-library/jest-dom": "^6.6.3",
@@ -58,9 +58,9 @@ class ReactFrontendBackend:
                     "@testing-library/user-event": "^14.5.2",
                     "@types/react": "^18.3.12",
                     "@types/react-dom": "^18.3.1",
-                    "jsdom": "^25.0.1",
-                    "typescript": "^5.7.2",
-                    "vitest": "^2.1.8",
+                    "jsdom": "^26.1.0",
+                    "typescript": "^5.9.2",
+                    "vitest": "^3.2.4",
                 },
             }, indent=2) + "\n",
             "index.html": self._index(title),
@@ -208,7 +208,7 @@ class ReactFrontendBackend:
     def _app(self, routes: list[dict[str, Any]]) -> str:
         return (
             "import { useState, type FormEvent } from 'react';\n\n"
-            "type FieldSpec = { name: string; value_type: string; required: boolean; nullable: boolean };\n"
+            "type FieldSpec = { name: string; value_type: string; required: boolean; nullable: boolean; precision: number | null; scale: number | null; constraints: unknown[] };\n"
             "type ApiOperation = { id: string; operationId: string; method: string; path: string };\n"
             "type Interaction = { id: string; label: string; action: 'submit' | 'refresh' | 'delete' | 'toggle'; "
             "successMessage: string | null; operationId: string | null; method: string | null; path: string | null; fields: FieldSpec[] };\n"

@@ -1,0 +1,41 @@
+name: Authorization Certification Campaign
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: authorization-campaign-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  authorization-campaign:
+    name: Source-bound authorization campaign (Python lane + Rust negative control)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: autonomous-api/requirements*.txt
+      - name: Install platform dependencies
+        run: pip install -r autonomous-api/requirements.txt -r autonomous-api/requirements-dev.txt
+      - name: Run the source-bound authorization campaign
+        run: |
+          python -m certification.authorization.campaign \
+            --evidence-dir release/evidence/authorization
+      - name: Archive authorization evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: authorization-campaign-evidence
+          path: release/evidence/authorization/
+          retention-days: 180

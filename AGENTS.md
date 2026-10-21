@@ -149,6 +149,21 @@ infrastructure — do not treat their absence as a unit-suite regression:
   `detect_regressions()` returns a list of CERTIFIED -> later-NOT_CERTIFIED
   findings with before/after diffs and metric deltas. Enforced by
   `tests/cbc1/test_governance_registry.py` (19 tests).
+- **Source-bound authorization certification lane (`certification/authorization/`).**
+  Stage 2 (issue #158): a separate, versioned certification lane that proves
+  authorization enforcement end to end — TOR source → reviewed approval →
+  typed ISR policy → plan → generated route enforcement → the generated
+  application's own adversarial suite → candidate-bound evidence. Run it with
+  `python -m certification.authorization.campaign --evidence-dir
+  release/evidence/authorization` (exit 0 only when every gate passes). The
+  lane is deliberately separate from Campaign A: Campaign A keeps its
+  39-workload × 2-backend (78-trial) scope, and Rust is exercised as a
+  negative control that must refuse the authorization obligation. Evidence is
+  written to `release/evidence/authorization/` (gitignored): manifest, source,
+  requirement graph, ISR, plan, generated bundle, runtime report, mutation
+  record, Rust negative control, and a hash-chained ledger. Enforced by
+  `tests/authorization/test_authorization_campaign.py` and the
+  `.github/workflows/authorization-campaign.yml` workflow.
 - Python: 3.14.0 is the interpreter on PATH for `python -m pytest`.
 
 ## Launching Campaign B waves

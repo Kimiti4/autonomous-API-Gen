@@ -11,8 +11,16 @@ from __future__ import annotations
 import json
 from decimal import Decimal
 
-from compiler.core.plan import CompilationPlan
+from compiler.core.plan import CompilationPlan, Service
 from compiler.core.behavior_oracle import reference_evaluate, sample_context
+from compiler.core.authorization import (
+    ROUTE_VERBS,
+    assert_authorization_enforceable,
+    canonical_action,
+    policy_payload,
+    protected_services,
+    service_policies,
+)
 from compiler.core.capabilities import BackendCapabilities, SemanticFeature, UnsupportedSemanticsError, assert_plan_supported
 from compiler.core.repository import GeneratedRepository, build_repository
 from compiler.core.conformance import CHECKER, ConformanceReport
@@ -38,6 +46,7 @@ class PythonFastAPIBackend:
         SemanticFeature.EXPRESSIONS,
         SemanticFeature.BUSINESS_RULES,
         SemanticFeature.STATE_TRANSITIONS,
+        SemanticFeature.AUTHORIZATION_POLICIES,
     })
 
     def identity(self) -> BackendIdentity:
@@ -72,6 +81,8 @@ class PythonFastAPIBackend:
             "infra:main": "app/main.py",
             "infra:repositories": "app/infrastructure/repositories.py",
             "infra:behavior": "app/core/behavior.py",
+            "infra:authorization": "app/core/authorization.py",
+            "infra:policies": "app/core/policies.py",
             "infra:docs": "docs/architecture.md",
             "infra:requirements": "requirements.txt",
             "infra:test": "tests/test_app.py",
@@ -80,6 +91,11 @@ class PythonFastAPIBackend:
 
     def compile(self, plan: CompilationPlan) -> GeneratedRepository:
         assert_plan_supported(plan, BackendCapabilities(backend_id=self.name, version=self.version, supported_features=self.supported_features))
+        # The capability says this backend implements authorization enforcement.
+        # This check says whether *this* plan's obligations have an enforcement
+        # point here; an obligation without one fails closed instead of being
+        # emitted as an unprotected route.
+        assert_authorization_enforceable(plan)
         f: dict[str, str] = {}
         for path in dict.fromkeys(self.element_paths(plan).values()):
             f[path] = self._emit(path, plan)
@@ -101,6 +117,175 @@ class PythonFastAPIBackend:
 
     def _secured(self, plan: CompilationPlan) -> bool:
         return bool(plan.security)
+
+    def _protected_service_for(self, plan: CompilationPlan, entity: dict) -> Service | None:
+        """Return the service that owns the entity when it carries typed policies."""
+        protected = protected_services(plan)
+        for service in plan.services:
+            if _slug(service.name) != entity["service_mod"]:
+                continue
+            policies = protected.get(service.id)
+            if policies:
+                return service
+        return None
+
+    def _has_protected_routes(self, plan: CompilationPlan) -> bool:
+        """True when at least one emitted route carries an authorization obligation."""
+        return any(
+            self._protected_service_for(plan, entity) is not None
+            for entity in self._entities(plan)
+        )
+
+    def _authorization_dependency(self, plan: CompilationPlan, entity: dict, verb: str) -> str:
+        """Return the route dependency that authorizes this route before it runs."""
+        service = self._protected_service_for(plan, entity)
+        if service is None:
+            return ""
+        action = canonical_action(entity["entity"], verb)
+        return (
+            ", dependencies=[Depends(require_authorization("
+            f"action=\"{action}\", resource=\"{entity['cls']}\", "
+            f"policies=SERVICE_POLICIES[\"{_slug(service.name)}\"]))]"
+        )
+
+    def _authorization_rules_for(self, plan: CompilationPlan, entity: dict) -> list:
+        """Return the policy rules that can match this entity's routes."""
+        service = self._protected_service_for(plan, entity)
+        if service is None:
+            return []
+        rules = []
+        for policy in service_policies(service):
+            rules.extend(policy.behavior.rules)
+        return rules
+
+    def _allowed_verbs(self, plan: CompilationPlan, entity: dict) -> set[str]:
+        """Return the route verbs an allow rule covers for this entity."""
+        allowed: set[str] = set()
+        for rule in self._authorization_rules_for(plan, entity):
+            if rule.effect != "allow" or rule.resource not in (entity["cls"], "*"):
+                continue
+            for verb in ROUTE_VERBS:
+                action = canonical_action(entity["entity"], verb)
+                if "*" in rule.actions or action in rule.actions:
+                    allowed.add(verb)
+        return allowed
+
+    def _authorization_expectations(self, plan: CompilationPlan, entity: dict) -> dict[str, tuple[set[str], set[str]]]:
+        """Return (allowed_roles, denied_roles) per route verb."""
+        expectations: dict[str, tuple[set[str], set[str]]] = {}
+        for verb in ROUTE_VERBS:
+            action = canonical_action(entity["entity"], verb)
+            allowed: set[str] = set()
+            denied: set[str] = set()
+            for rule in self._authorization_rules_for(plan, entity):
+                if rule.resource not in (entity["cls"], "*"):
+                    continue
+                if not ("*" in rule.actions or action in rule.actions):
+                    continue
+                if rule.effect == "allow":
+                    allowed.update(rule.roles)
+                else:
+                    denied.update(rule.roles)
+            expectations[verb] = (allowed, denied)
+        return expectations
+
+    def _authorization_roles(self, plan: CompilationPlan, entity: dict) -> list[str]:
+        """Return the roles granted for this entity's routes.
+
+        Roles that a deny rule covers for every route are excluded, so the
+        emitted test exercises the grant the policy actually makes.
+        """
+        expectations = self._authorization_expectations(plan, entity)
+        granted: list[str] = []
+        for allowed, denied in expectations.values():
+            for role in sorted(allowed - denied):
+                if role not in granted:
+                    granted.append(role)
+        return granted
+
+    def _authorization_tests(self, plan: CompilationPlan, entities: list[dict]) -> list[str]:
+        """Emit the runtime and route level authorization tests."""
+        protected = [e for e in entities if self._protected_service_for(plan, e) is not None]
+        if not protected:
+            return []
+        target = protected[0]
+        plural = target["plural"]
+        lines = [
+            "",
+            "",
+            "def test_authorization_requires_a_signed_token():",
+            f"    r = client.get('/api/{plural}', headers=HEADERS)",
+            "    assert r.status_code == 401",
+            "",
+            "",
+            "def test_authorization_rejects_a_tampered_token():",
+            "    token = issue_token('someone', ['no_such_role'])",
+            "    tampered = token[:-1] + ('a' if token[-1] != 'a' else 'b')",
+            f"    r = client.get('/api/{plural}', headers={{**HEADERS, 'Authorization': f'Bearer {{tampered}}'}})",
+            "    assert r.status_code == 401",
+            "",
+            "",
+            "def test_authorization_denies_a_principal_without_a_grant():",
+            "    token = issue_token('intruder', ['no_such_role'])",
+            f"    r = client.get('/api/{plural}', headers={{**HEADERS, 'Authorization': f'Bearer {{token}}'}})",
+            "    assert r.status_code == 403",
+            "",
+            "",
+            "def test_denied_request_does_not_mutate_state():",
+            f"    allowed = client.get('/api/{plural}', headers=HEADERS_{plural.upper()}).json()",
+            "    token = issue_token('intruder', ['no_such_role'])",
+            f"    denied = client.delete('/api/{plural}/missing-item', headers={{**HEADERS, 'Authorization': f'Bearer {{token}}'}})",
+            "    assert denied.status_code == 403",
+            f"    after = client.get('/api/{plural}', headers=HEADERS_{plural.upper()}).json()",
+            "    assert after == allowed",
+            "",
+            "",
+            "def test_authorization_runtime_denies_by_default():",
+            "    from app.core.authorization import Principal, evaluate",
+            "    principal = Principal(principal_id='p1', roles=frozenset({'reader'}))",
+            "    allowed, reason = evaluate([], principal, 'employee.read', 'Employee')",
+            "    assert allowed is False",
+            "    assert 'default deny' in reason",
+            "",
+            "",
+            "def test_authorization_runtime_explicit_deny_wins_over_allow():",
+            "    from app.core.authorization import Principal, evaluate",
+            "    policies = [{'policy_id': 'p', 'rules': [",
+            "        {'rule_id': 'allow', 'effect': 'allow', 'roles': ['reader'], 'actions': ['employee.read'], 'resource': 'Employee', 'conditions': {}},",
+            "        {'rule_id': 'deny', 'effect': 'deny', 'roles': ['reader'], 'actions': ['employee.read'], 'resource': 'Employee', 'conditions': {}},",
+            "    ]}]",
+            "    principal = Principal(principal_id='p1', roles=frozenset({'reader'}))",
+            "    allowed, reason = evaluate(policies, principal, 'employee.read', 'Employee')",
+            "    assert allowed is False",
+            "    assert 'explicit deny' in reason",
+            "",
+            "",
+            "def test_authorization_runtime_missing_attribute_never_grants():",
+            "    from app.core.authorization import Principal, evaluate",
+            "    policies = [{'policy_id': 'p', 'rules': [",
+            "        {'rule_id': 'allow', 'effect': 'allow', 'roles': ['reader'], 'actions': ['employee.read'], 'resource': 'Employee', 'conditions': {'department': 'finance'}},",
+            "    ]}]",
+            "    principal = Principal(principal_id='p1', roles=frozenset({'reader'}))",
+            "    allowed, _ = evaluate(policies, principal, 'employee.read', 'Employee')",
+            "    assert allowed is False",
+            "    granted = Principal(principal_id='p1', roles=frozenset({'reader'}), attributes={'department': 'finance'})",
+            "    allowed, _ = evaluate(policies, granted, 'employee.read', 'Employee')",
+            "    assert allowed is True",
+            "",
+            "",
+            "def test_authorization_runtime_isolates_tenants():",
+            "    from app.core.authorization import Principal, evaluate",
+            "    principal = Principal(principal_id='p1', roles=frozenset({'reader'}), tenant_id='tenant-a')",
+            "    allowed, reason = evaluate([], principal, 'employee.read', 'Employee', {'tenant_id': 'tenant-b'})",
+            "    assert allowed is False",
+            "    assert 'different tenant' in reason",
+            "    anonymous = Principal(principal_id='p2', roles=frozenset({'reader'}))",
+            "    allowed, reason = evaluate([], anonymous, 'employee.read', 'Employee', {'tenant_id': 'tenant-a'})",
+            "    assert allowed is False",
+            "    assert 'tenant identity is missing' in reason",
+            "",
+        ]
+        return lines
 
     # -- emitters ----------------------------------------------------------
 
@@ -125,6 +310,10 @@ class PythonFastAPIBackend:
             return self._repositories()
         if path == "app/core/security.py":
             return self._security()
+        if path == "app/core/authorization.py":
+            return self._authorization()
+        if path == "app/core/policies.py":
+            return self._policies(plan)
         if path == "app/core/behavior.py":
             return self._behavior_runtime()
         if path.startswith("app/domain/"):
@@ -212,6 +401,183 @@ class PythonFastAPIBackend:
             "        )\n"
             "    if not x_api_key or not secrets.compare_digest(x_api_key, expected):\n"
             '        raise HTTPException(status_code=401, detail="invalid API key")\n'
+        )
+
+    def _authorization(self) -> str:
+        return '''"""Generated authorization runtime.
+
+Identity is established by a token signed by a trusted provider. Roles and
+tenant identity are read only from verified token claims; caller-supplied
+headers are never trusted. Decisions are deny-by-default and an explicit deny
+rule always wins over an allow rule.
+"""
+from __future__ import annotations
+
+import base64
+import hashlib
+import hmac
+import json
+import os
+import time
+from dataclasses import dataclass, field
+from typing import Any, Callable, Mapping, Sequence
+
+from fastapi import HTTPException, Request
+
+
+class AuthorizationError(Exception):
+    """Raised when the authorization boundary cannot be established."""
+
+
+@dataclass(frozen=True)
+class Principal:
+    """The authenticated identity, resolved from verified token claims."""
+
+    principal_id: str
+    roles: frozenset[str] = frozenset()
+    tenant_id: str | None = None
+    attributes: Mapping[str, Any] = field(default_factory=dict)
+
+
+def _secret() -> bytes:
+    raw = os.environ.get("GENERATED_AUTH_SECRET", "")
+    if not raw:
+        raise AuthorizationError("GENERATED_AUTH_SECRET is not configured")
+    return raw.encode("utf-8")
+
+
+def _b64(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).decode("ascii").rstrip("=")
+
+
+def _unb64(text: str) -> bytes:
+    padding = "=" * (-len(text) % 4)
+    return base64.urlsafe_b64decode(text + padding)
+
+
+def issue_token(principal_id: str, roles: Sequence[str] = (), tenant_id: str | None = None,
+                attributes: Mapping[str, Any] | None = None, ttl_seconds: int = 3600) -> str:
+    """Mint a signed token for the trusted provider that authenticated the caller."""
+    claims = {
+        "sub": principal_id,
+        "roles": list(roles),
+        "tenant_id": tenant_id,
+        "attributes": dict(attributes or {}),
+        "exp": int(time.time()) + int(ttl_seconds),
+    }
+    body = _b64(json.dumps(claims, sort_keys=True, separators=(",", ":")).encode("utf-8"))
+    signature = _b64(hmac.new(_secret(), body.encode("ascii"), hashlib.sha256).digest())
+    return f"{body}.{signature}"
+
+
+def resolve_principal(authorization: str | None) -> Principal:
+    """Establish identity from a signed token, or refuse the request."""
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="bearer token required")
+    token = authorization.split(" ", 1)[1].strip()
+    if token.count(".") != 1:
+        raise HTTPException(status_code=401, detail="malformed token")
+    body, signature = token.split(".", 1)
+    expected = _b64(hmac.new(_secret(), body.encode("ascii"), hashlib.sha256).digest())
+    if not hmac.compare_digest(signature, expected):
+        raise HTTPException(status_code=401, detail="invalid token signature")
+    try:
+        claims = json.loads(_unb64(body).decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        raise HTTPException(status_code=401, detail="malformed token")
+    if not isinstance(claims, dict):
+        raise HTTPException(status_code=401, detail="malformed token")
+    if int(claims.get("exp") or 0) < int(time.time()):
+        raise HTTPException(status_code=401, detail="token expired")
+    principal_id = str(claims.get("sub") or "")
+    if not principal_id:
+        raise HTTPException(status_code=401, detail="token carries no subject")
+    return Principal(
+        principal_id=principal_id,
+        roles=frozenset(str(role) for role in claims.get("roles") or ()),
+        tenant_id=claims.get("tenant_id"),
+        attributes=dict(claims.get("attributes") or {}),
+    )
+
+
+def _matches(rule: Mapping[str, Any], principal: Principal, action: str,
+             resource: str, attributes: Mapping[str, Any]) -> bool:
+    if rule.get("resource") not in (resource, "*"):
+        return False
+    actions = rule.get("actions") or ()
+    if "*" not in actions and action not in actions:
+        return False
+    if not set(rule.get("roles") or ()).intersection(principal.roles):
+        return False
+    subject_attributes = dict(principal.attributes or {})
+    for key, expected in (rule.get("conditions") or {}).items():
+        if key in attributes:
+            actual = attributes[key]
+        elif key in subject_attributes:
+            actual = subject_attributes[key]
+        else:
+            # Absence of a required attribute never grants access.
+            return False
+        if actual != expected:
+            return False
+    return True
+
+
+def evaluate(policies: Sequence[Mapping[str, Any]], principal: Principal, action: str,
+             resource: str, resource_attributes: Mapping[str, Any] | None = None) -> tuple[bool, str]:
+    """Decide an access request. Deny by default; an explicit deny always wins."""
+    attributes = dict(resource_attributes or {})
+    resource_tenant = attributes.get("tenant_id")
+    if resource_tenant is not None:
+        if not principal.tenant_id:
+            return False, "tenant identity is missing"
+        if principal.tenant_id != resource_tenant:
+            return False, "resource belongs to a different tenant"
+    for policy in policies:
+        for rule in policy.get("rules", []):
+            if rule.get("effect") != "deny":
+                continue
+            if _matches(rule, principal, action, resource, attributes):
+                return False, f"explicit deny rule '{rule.get('rule_id')}' matched"
+    for policy in policies:
+        for rule in policy.get("rules", []):
+            if rule.get("effect") != "allow":
+                continue
+            if _matches(rule, principal, action, resource, attributes):
+                return True, f"allow rule '{rule.get('rule_id')}' matched"
+    return False, "no matching allow rule; default deny"
+
+
+def require_authorization(action: str, resource: str,
+                          policies: Sequence[Mapping[str, Any]],
+                          resource_attributes: Callable[[], Mapping[str, Any]] | None = None):
+    """Build a route dependency that authorizes before the handler can mutate."""
+
+    async def dependency(request: Request) -> Principal:
+        principal = resolve_principal(request.headers.get("authorization"))
+        attributes = resource_attributes() if resource_attributes is not None else {}
+        allowed, reason = evaluate(policies, principal, action, resource, attributes)
+        if not allowed:
+            raise HTTPException(status_code=403, detail=reason)
+        return principal
+
+    return dependency
+'''
+
+    def _policies(self, plan: CompilationPlan) -> str:
+        protected = protected_services(plan)
+        payload: dict[str, list[dict]] = {}
+        for service in plan.services:
+            policies = protected.get(service.id)
+            if not policies:
+                continue
+            payload[_slug(service.name)] = [policy_payload(policy) for policy in policies]
+        return (
+            '"""Declared authorization policies bound to the emitted routes."""\n'
+            "from __future__ import annotations\n\n"
+            "SERVICE_POLICIES: dict[str, list[dict]] = "
+            + json.dumps(payload, indent=2, sort_keys=True)
+            + "\n"
         )
 
 
@@ -569,6 +935,10 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
         if secured:
             imports[0] = "from fastapi import APIRouter, Depends, FastAPI, HTTPException"
             imports.append("from app.core.security import require_api_key")
+        if self._has_protected_routes(plan):
+            imports[0] = "from fastapi import APIRouter, Depends, FastAPI, HTTPException"
+            imports.append("from app.core.authorization import require_authorization")
+            imports.append("from app.core.policies import SERVICE_POLICIES")
         for e in entities:
             imports.append(f"from app.domain.{e['mod']} import {e['cls']}")
         for s in services:
@@ -616,29 +986,29 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
         for e in entities:
             svc_var = f"_{e['service_mod']}_service"
             lines += [
-                f"@router.get('/api/{e['plural']}')",
+                f"@router.get('/api/{e['plural']}'{self._authorization_dependency(plan, e, 'read')})",
                 f"def list_{e['plural']}() -> list[dict]:",
                 f"    return {svc_var}.list_{e['mod']}()",
                 "",
-                f"@router.post('/api/{e['plural']}', status_code=201)",
+                f"@router.post('/api/{e['plural']}', status_code=201{self._authorization_dependency(plan, e, 'create')})",
                 f"def create_{e['mod']}(payload: {e['cls']}) -> dict:",
                 f"    return {svc_var}.create_{e['mod']}(payload.model_dump())",
                 "",
-                f"@router.get('/api/{e['plural']}/{{item_id}}')",
+                f"@router.get('/api/{e['plural']}/{{item_id}}'{self._authorization_dependency(plan, e, 'read')})",
                 f"def get_{e['mod']}(item_id: str) -> dict:",
                 f"    item = {svc_var}.get_{e['mod']}(item_id)",
                 "    if item is None:",
                 f'        raise HTTPException(status_code=404, detail="{e["plural"]} not found")',
                 "    return item",
                 "",
-                f"@router.put('/api/{e['plural']}/{{item_id}}')",
+                f"@router.put('/api/{e['plural']}/{{item_id}}'{self._authorization_dependency(plan, e, 'update')})",
                 f"def update_{e['mod']}(item_id: str, payload: {e['cls']}) -> dict:",
                 f"    item = {svc_var}.update_{e['mod']}(item_id, payload.model_dump())",
                 "    if item is None:",
                 f'        raise HTTPException(status_code=404, detail="{e["plural"]} not found")',
                 "    return item",
                 "",
-                f"@router.delete('/api/{e['plural']}/{{item_id}}')",
+                f"@router.delete('/api/{e['plural']}/{{item_id}}'{self._authorization_dependency(plan, e, 'delete')})",
                 f"def delete_{e['mod']}(item_id: str) -> dict:",
                 f"    if not {svc_var}.delete_{e['mod']}(item_id):",
                 f'        raise HTTPException(status_code=404, detail="{e["plural"]} not found")',
@@ -660,15 +1030,28 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
         entities = self._entities(plan)
         events = self._events(plan)
         secured = self._secured(plan)
+        authorized = self._has_protected_routes(plan)
         lines = [
             "import os",
             "",
             'os.environ.setdefault("GENERATED_API_KEY", "generated-dev-key")',
             'API_KEY = os.environ["GENERATED_API_KEY"]',
+        ]
+        if authorized:
+            lines += [
+                'os.environ.setdefault("GENERATED_AUTH_SECRET", "generated-dev-secret")',
+            ]
+        lines += [
             "",
             "from fastapi.testclient import TestClient",
             "",
             "from app.main import app",
+        ]
+        if authorized:
+            lines += [
+                "from app.core.authorization import issue_token",
+            ]
+        lines += [
             "",
             "",
             "client = TestClient(app)",
@@ -865,26 +1248,89 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
                 expected_updated = repr("beta")
                 payload_json = json.dumps({"name": "alpha"})
                 updated_json = json.dumps({"name": "beta"})
-            lines += [
-                f"def test_crud_{e['plural']}():",
-                f"    created = client.post('/api/{e['plural']}', json={payload_json}, headers=HEADERS)",
-                "    assert created.status_code == 201",
-                "    item_id = created.json()['id']",
-                f"    assert created.json()[{tested_field!r}] == {expected_created}",
-                f"    listed = client.get('/api/{e['plural']}', headers=HEADERS)",
-                f"    assert item_id in [i['id'] for i in listed.json()]",
-                f"    fetched = client.get(f'/api/{e['plural']}/{{item_id}}', headers=HEADERS)",
-                "    assert fetched.status_code == 200",
-                f"    assert fetched.json()[{tested_field!r}] == {expected_created}",
-                f"    updated = client.put(f'/api/{e['plural']}/{{item_id}}', json={updated_json}, headers=HEADERS)",
-                "    assert updated.status_code == 200",
-                f"    assert updated.json()[{tested_field!r}] == {expected_updated}",
-                f"    deleted = client.delete(f'/api/{e['plural']}/{{item_id}}', headers=HEADERS)",
-                "    assert deleted.status_code == 200",
-                f"    gone = client.get(f'/api/{e['plural']}/{{item_id}}', headers=HEADERS)",
-                "    assert gone.status_code == 404",
-                "",
-            ]
+            protected = self._protected_service_for(plan, e) is not None
+            allowed = self._allowed_verbs(plan, e)
+            if protected:
+                header_var = f"HEADERS_{e['plural'].upper()}"
+                roles = self._authorization_roles(plan, e)
+                expectations = self._authorization_expectations(plan, e)
+                granted = set(roles)
+                expected_verb = {
+                    verb: bool(granted & allow_roles) and not (granted & deny_roles)
+                    for verb, (allow_roles, deny_roles) in expectations.items()
+                }
+                lines += [
+                    f"TOKEN_{e['plural'].upper()} = issue_token('service-account', {roles!r})",
+                    f"{header_var} = {{**HEADERS, 'Authorization': f'Bearer {{TOKEN_{e['plural'].upper()}}}'}}",
+                    "",
+                ]
+            else:
+                header_var = "HEADERS"
+                expected_verb = {verb: True for verb in ROUTE_VERBS}
+            create_allowed = expected_verb["create"]
+            read_allowed = expected_verb["read"]
+            update_allowed = expected_verb["update"]
+            delete_allowed = expected_verb["delete"]
+            body = [f"def test_crud_{e['plural']}():"]
+            if create_allowed:
+                body += [
+                    f"    created = client.post('/api/{e['plural']}', json={payload_json}, headers={header_var})",
+                    "    assert created.status_code == 201",
+                    "    item_id = created.json()['id']",
+                    f"    assert created.json()[{tested_field!r}] == {expected_created}",
+                ]
+            else:
+                body += [
+                    f"    denied_create = client.post('/api/{e['plural']}', json={payload_json}, headers={header_var})",
+                    "    assert denied_create.status_code == 403",
+                ]
+            if read_allowed:
+                body += [f"    listed = client.get('/api/{e['plural']}', headers={header_var})"]
+                if create_allowed:
+                    body += ["    assert item_id in [i['id'] for i in listed.json()]"]
+                else:
+                    body += ["    assert isinstance(listed.json(), list)"]
+                if create_allowed:
+                    body += [
+                        f"    fetched = client.get(f'/api/{e['plural']}/{{item_id}}', headers={header_var})",
+                        "    assert fetched.status_code == 200",
+                        f"    assert fetched.json()[{tested_field!r}] == {expected_created}",
+                    ]
+            else:
+                body += [
+                    f"    denied_read = client.get('/api/{e['plural']}', headers={header_var})",
+                    "    assert denied_read.status_code == 403",
+                ]
+            if create_allowed:
+                if update_allowed:
+                    body += [
+                        f"    updated = client.put(f'/api/{e['plural']}/{{item_id}}', json={updated_json}, headers={header_var})",
+                        "    assert updated.status_code == 200",
+                        f"    assert updated.json()[{tested_field!r}] == {expected_updated}",
+                    ]
+                else:
+                    body += [
+                        f"    denied_update = client.put(f'/api/{e['plural']}/{{item_id}}', json={updated_json}, headers={header_var})",
+                        "    assert denied_update.status_code == 403",
+                    ]
+                if delete_allowed:
+                    body += [
+                        f"    deleted = client.delete(f'/api/{e['plural']}/{{item_id}}', headers={header_var})",
+                        "    assert deleted.status_code == 200",
+                    ]
+                    if read_allowed:
+                        body += [
+                            f"    gone = client.get(f'/api/{e['plural']}/{{item_id}}', headers={header_var})",
+                            "    assert gone.status_code == 404",
+                        ]
+                else:
+                    body += [
+                        f"    denied_delete = client.delete(f'/api/{e['plural']}/{{item_id}}', headers={header_var})",
+                        "    assert denied_delete.status_code == 403",
+                    ]
+            body += [""]
+            lines += body
+        lines += self._authorization_tests(plan, entities)
         if secured and entities:
             first = entities[0]["plural"]
             lines += [

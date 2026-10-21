@@ -164,6 +164,8 @@ def test_operation_bound_untyped_policy_is_an_authorization_obligation():
 
 def test_policy_reference_without_typed_behavior_cannot_bypass_the_capability_gate():
     """A route that names a policy stays an obligation even if the policy is bare."""
+    from compiler.core.authorization import assert_authorization_enforceable
+
     policy = SecurityPolicy(policy_id="security:payroll", behavior=None)
     plan = CompilationPlan(
         plan_id="referencing-route-plan", isr_id="system",
@@ -177,8 +179,13 @@ def test_policy_reference_without_typed_behavior_cannot_bypass_the_capability_ga
         security=[policy],
     )
     assert SemanticFeature.AUTHORIZATION_POLICIES in required_features(plan)
+    # The obligation cannot be dropped: a backend that cannot enforce it must
+    # refuse the plan, whether it refuses at the capability gate or at the
+    # enforceability check.
+    with pytest.raises(UnsupportedSemanticsError, match="authorization_policies"):
+        assert_authorization_enforceable(plan)
     for backend in (PythonFastAPIBackend(), RustAxumBackend()):
-        with pytest.raises(UnsupportedSemanticsError, match="authorization_policies"):
+        with pytest.raises(UnsupportedSemanticsError):
             backend.compile(plan)
 
 

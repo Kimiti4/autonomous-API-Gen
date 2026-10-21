@@ -65,18 +65,24 @@ def required_features(plan: CompilationPlan) -> frozenset[SemanticFeature]:
                 required.add(SemanticFeature.STATE_TRANSITIONS)
                 if any(transition.guard is not None for transition in behavior.transitions):
                     required.add(SemanticFeature.EXPRESSIONS)
-        if any(policy.behavior is not None for policy in service.security_policies):
+        # A policy reference is itself a security obligation. Missing typed
+        # behavior must not make that obligation disappear from capability checks.
+        if service.security_policies:
             required.add(SemanticFeature.AUTHORIZATION_POLICIES)
 
     for api in plan.apis:
         if api.behavior is not None:
             required.add(SemanticFeature.API_CONTRACTS)
-            if api.behavior.authorization_policy_ids or api.security_policies:
-                required.add(SemanticFeature.AUTHORIZATION_POLICIES)
-
-    for policy in plan.security:
-        if policy.behavior is not None:
+        if api.security_policies or (
+            api.behavior is not None and api.behavior.authorization_policy_ids
+        ):
             required.add(SemanticFeature.AUTHORIZATION_POLICIES)
+
+    # Even an untyped policy node is not permission to silently downgrade
+    # authorization to an API-key check. Backends without proven policy
+    # enforcement must reject the candidate.
+    if plan.security:
+        required.add(SemanticFeature.AUTHORIZATION_POLICIES)
 
     for effect in plan.effects:
         if effect.behavior is not None:

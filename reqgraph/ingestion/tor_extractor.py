@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 import re
 from enum import Enum
-from typing import Mapping
+from typing import Any, Mapping
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -45,7 +45,12 @@ class TORCandidate(BaseModel):
 
 
 class HumanApproval(BaseModel):
-    """Explicit human decision required before a draft enters RequirementGraph."""
+    """Explicit human decision required before a draft enters RequirementGraph.
+
+    ``isr_nodes`` and ``isr_edges`` are optional, reviewer-authored architecture
+    declarations. They are validated against the approved requirement IDs and
+    projected by the Genesis mapper; they are never inferred from prose.
+    """
     model_config = ConfigDict(frozen=True, extra="forbid")
     reviewer_id: str = Field(min_length=1)
     approval_ref: str = Field(min_length=1)
@@ -53,6 +58,84 @@ class HumanApproval(BaseModel):
     selected_kind: RequirementKind | None = None
     selected_priority: Priority | None = None
     resolution_ref: str | None = None
+    isr_nodes: tuple[dict[str, Any], ...] = ()
+    isr_edges: tuple[dict[str, Any], ...] = ()
+
+
+def _require_source_binding(
+    properties: Mapping[str, Any],
+    requirement_id: str,
+    candidate_ids: set[str],
+    label: str,
+    declaration_id: str,
+) -> None:
+    source_ids = properties.get("source_requirement_ids")
+    if not isinstance(source_ids, (list, tuple)) or not source_ids:
+        raise ValueError(
+            f"{label} {declaration_id!r} must cite source_requirement_ids including {requirement_id!r}"
+        )
+    unknown = sorted(
+        source_id
+        for source_id in source_ids
+        if not isinstance(source_id, str) or source_id not in candidate_ids
+    )
+    if unknown:
+        raise ValueError(
+            f"{label} {declaration_id!r} cites unknown source requirement IDs: {unknown}"
+        )
+    if requirement_id not in source_ids:
+        raise ValueError(
+            f"{label} {declaration_id!r} must cite its approving requirement {requirement_id!r}"
+        )
+
+
+def _validate_declarations(
+    approval: "HumanApproval",
+    requirement_id: str,
+    candidate_ids: set[str],
+    declared_node_ids: set[str],
+    declared_edge_ids: set[str],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    nodes: list[dict[str, Any]] = []
+    for declaration in approval.isr_nodes:
+        node_id = declaration.get("id")
+        node_type = declaration.get("type")
+        properties = declaration.get("properties")
+        if not isinstance(node_id, str) or not node_id:
+            raise ValueError(f"requirement {requirement_id!r} ISR node needs a non-empty id")
+        if not isinstance(node_type, str) or not node_type:
+            raise ValueError(f"ISR node {node_id!r} needs a non-empty type")
+        if not isinstance(properties, Mapping):
+            raise ValueError(f"ISR node {node_id!r} needs a properties mapping")
+        if node_id in declared_node_ids:
+            raise ValueError(f"duplicate ISR node declaration: {node_id!r}")
+        _require_source_binding(properties, requirement_id, candidate_ids, "ISR node", node_id)
+        declared_node_ids.add(node_id)
+        nodes.append(dict(declaration))
+
+    edges: list[dict[str, Any]] = []
+    for declaration in approval.isr_edges:
+        edge_id = declaration.get("id")
+        edge_type = declaration.get("type")
+        source_id = declaration.get("source_id")
+        target_id = declaration.get("target_id")
+        properties = declaration.get("properties", {})
+        if not all(
+            isinstance(value, str) and value
+            for value in (edge_id, edge_type, source_id, target_id)
+        ):
+            raise ValueError(
+                f"requirement {requirement_id!r} ISR edge needs id/type/source_id/target_id"
+            )
+        if not isinstance(properties, Mapping):
+            raise ValueError(f"ISR edge {edge_id!r} needs a properties mapping")
+        if edge_id in declared_edge_ids:
+            raise ValueError(f"duplicate ISR edge declaration: {edge_id!r}")
+        _require_source_binding(properties, requirement_id, candidate_ids, "ISR edge", edge_id)
+        declared_edge_ids.add(edge_id)
+        edges.append(dict(declaration))
+
+    return nodes, edges
 
 
 class TORExtractionDraft(BaseModel):
@@ -88,6 +171,8 @@ class TORExtractionDraft(BaseModel):
             )
 
         nodes: dict[str, RequirementNode] = {}
+        declared_node_ids: set[str] = set()
+        declared_edge_ids: set[str] = set()
         for candidate in self.candidates:
             approval = approvals[candidate.requirement_id]
             if not approval.acceptance_criteria:
@@ -100,6 +185,28 @@ class TORExtractionDraft(BaseModel):
                 raise ValueError(
                     f"Requirement {candidate.requirement_id!r} needs a recorded ambiguity resolution"
                 )
+            isr_nodes, isr_edges = _validate_declarations(
+                approval,
+                candidate.requirement_id,
+                candidate_ids,
+                declared_node_ids,
+                declared_edge_ids,
+            )
+            properties: dict[str, Any] = {
+                "source_name": self.source_name,
+                "source_sha256": self.source_sha256,
+                "source_start_line": candidate.source_start_line,
+                "source_end_line": candidate.source_end_line,
+                "section": candidate.section or "",
+                "ambiguity_reasons": list(candidate.ambiguity_reasons),
+                "review_status": ReviewStatus.APPROVED.value,
+                "reviewer_id": approval.reviewer_id,
+                "approval_ref": approval.approval_ref,
+            }
+            if isr_nodes:
+                properties["isr_nodes"] = isr_nodes
+            if isr_edges:
+                properties["isr_edges"] = isr_edges
             nodes[candidate.requirement_id] = RequirementNode(
                 id=candidate.requirement_id,
                 kind=kind,
@@ -109,17 +216,7 @@ class TORExtractionDraft(BaseModel):
                 ambiguity_score=candidate.ambiguity_score,
                 resolution_ref=approval.resolution_ref,
                 source_refs=(candidate.source_ref,),
-                properties={
-                    "source_name": self.source_name,
-                    "source_sha256": self.source_sha256,
-                    "source_start_line": candidate.source_start_line,
-                    "source_end_line": candidate.source_end_line,
-                    "section": candidate.section or "",
-                    "ambiguity_reasons": list(candidate.ambiguity_reasons),
-                    "review_status": ReviewStatus.APPROVED.value,
-                    "reviewer_id": approval.reviewer_id,
-                    "approval_ref": approval.approval_ref,
-                },
+                properties=properties,
             )
         graph = RequirementGraph(
             schema_version=self.schema_version,

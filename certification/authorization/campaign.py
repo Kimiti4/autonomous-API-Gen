@@ -305,9 +305,14 @@ def run_authorization_campaign(
     workload: AuthorizationWorkload = AUTHORIZATION_CORPUS[0],
     *,
     install: bool = True,
-    keep_evidence: bool = True,
+    keep_workdir: bool = False,
 ) -> AuthorizationCampaignResult:
-    """Run the authorization certification lane for one workload."""
+    """Run the authorization certification lane for one workload.
+
+    The generated applications are reproduced from ``bundle.json``, so the
+    work directory is removed unless ``keep_workdir`` is set; the archived
+    evidence stays small and every byte of it is independently checkable.
+    """
     evidence_path = Path(evidence_dir)
     gates: list[GateResult] = []
     problems: list[str] = []
@@ -473,7 +478,7 @@ def run_authorization_campaign(
     if problems:
         verdict = VERDICT_NOT_CERTIFIED
 
-    if not keep_evidence:
+    if not keep_workdir:
         shutil.rmtree(workdir, ignore_errors=True)
 
     return AuthorizationCampaignResult(

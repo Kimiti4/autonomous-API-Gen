@@ -170,9 +170,10 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
             _test("tests/cbc1/test_source_bound_full_stack_projection.py"),
             _workflow(".github/workflows/root-canonical-suite.yml"),
             _workflow(".github/workflows/react-frontend-compiler.yml"),
+            _artifact("cbc1-a-evidence", "PR #152 Campaign A 78/78 CERTIFIED; Tier A 4711 passed"),
             _pr(140, "controlled TOR extraction and ISR requirement projection merged"),
             _pr(138, "superseded by #140 and closed"),
-            _pr(152, "source-bound behavioral projection and mutation evidence under review"),
+            _pr(152, "source-bound behavioral projection, fail-closed mapping, and mutation evidence"),
         ),
         closure_gate=(
             "Mutating an authoritative source invalidates every derived binding; "
@@ -180,8 +181,8 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         ),
         claimed_tiers=(CertificationTier.STRUCTURAL, CertificationTier.BEHAVIORAL),
         limitations=(
-            "Source-mutation invalidation and fail-closed declaration checks are covered in candidate PR #152; merge-bound CI evidence is still pending.",
-            "Requirement approval status is not a first-class ISR attribute.",
+            "Requirement approval status is carried in requirement_ref properties rather than a first-class ISR revision attribute.",
+            "The register's no-package-verified guard defers VERIFIED status until the programme closure phase, despite candidate-bound CI evidence in PR #152.",
         ),
     ),
     WorkPackage(

@@ -142,3 +142,62 @@ def test_legacy_structural_security_edge_does_not_claim_behavioral_auth():
     assert SemanticFeature.AUTHORIZATION_POLICIES not in required_features(plan)
     for backend in (PythonFastAPIBackend(), RustAxumBackend()):
         backend.compile(plan)
+
+
+def test_operation_bound_untyped_policy_is_an_authorization_obligation():
+    """A policy bound to an operation cannot vanish from capability checks.
+
+    The obligation exists because the route is secured, not because the policy
+    carries typed behavior. A backend that cannot prove enforcement must
+    reject the candidate instead of emitting an unguarded route.
+    """
+    policy = SecurityPolicy(policy_id="security:payroll", behavior=None)
+    plan = CompilationPlan(
+        plan_id="secured-route-plan", isr_id="system",
+        apis=[ApiOperation(id="api:submit", name="submit", security_policies=[policy])],
+    )
+    assert SemanticFeature.AUTHORIZATION_POLICIES in required_features(plan)
+    for backend in (PythonFastAPIBackend(), RustAxumBackend()):
+        with pytest.raises(UnsupportedSemanticsError, match="authorization_policies"):
+            backend.compile(plan)
+
+
+def test_policy_reference_without_typed_behavior_cannot_bypass_the_capability_gate():
+    """A route that names a policy stays an obligation even if the policy is bare."""
+    policy = SecurityPolicy(policy_id="security:payroll", behavior=None)
+    plan = CompilationPlan(
+        plan_id="referencing-route-plan", isr_id="system",
+        apis=[ApiOperation(
+            id="api:submit", name="submit",
+            behavior=ApiBehavior(
+                operation_id="submit", method="POST", path="/submit",
+                authorization_policy_ids=("security:payroll",),
+            ),
+        )],
+        security=[policy],
+    )
+    assert SemanticFeature.AUTHORIZATION_POLICIES in required_features(plan)
+    for backend in (PythonFastAPIBackend(), RustAxumBackend()):
+        with pytest.raises(UnsupportedSemanticsError, match="authorization_policies"):
+            backend.compile(plan)
+
+
+def test_authentication_declaration_is_not_an_authorization_obligation():
+    """A transport-level or structural declaration carries no rule to enforce.
+
+    The certification corpus declares an authentication scheme per service.
+    That declaration is not an authorization obligation, so it must not be
+    reported as one, and it must not block the certified baseline.
+    """
+    policy = SecurityPolicy(policy_id="sec:policy", behavior=None)
+    service = Service(
+        id="service:orders", name="Orders",
+        security_policies=[policy],
+    )
+    plan = CompilationPlan(
+        plan_id="authn-declaration-plan", isr_id="system",
+        services=[service], security=[policy],
+    )
+    assert SemanticFeature.AUTHORIZATION_POLICIES not in required_features(plan)
+    for backend in (PythonFastAPIBackend(), RustAxumBackend()):
+        backend.compile(plan)

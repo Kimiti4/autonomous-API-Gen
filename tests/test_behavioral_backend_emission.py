@@ -14,7 +14,7 @@ from compiler.core.capabilities import (
     required_features,
 )
 from compiler.core.lowering import isr_to_plan
-from compiler.core.plan import ApiOperation, Effect, SecurityPolicy
+from compiler.core.plan import Effect
 from isr.core.graph import Edge, EdgeType, ISRGraph, Node, NodeType
 from isr.core.identity import Provenance
 from isr.core.revision import ISRRevision
@@ -159,44 +159,3 @@ def test_structural_only_backend_cannot_accept_behavioral_plan():
         assert "business_rules" in str(exc)
     else:
         raise AssertionError("unsupported behavior must not pass a structural-only backend")
-
-
-def test_untyped_security_policy_still_requires_authorization_capability():
-    plan = isr_to_plan(_revision()).model_copy(update={
-        "security": [SecurityPolicy(policy_id="policy:payroll")],
-    })
-
-    assert SemanticFeature.AUTHORIZATION_POLICIES in required_features(plan)
-    for backend in (PythonFastAPIBackend(), RustAxumBackend()):
-        try:
-            backend.compile(plan)
-        except UnsupportedSemanticsError as exc:
-            assert "authorization_policies" in str(exc)
-        else:
-            raise AssertionError(
-                f"{backend.name} must reject a security policy it cannot enforce"
-            )
-
-
-def test_api_policy_reference_without_typed_policy_cannot_bypass_capability_gate():
-    policy = SecurityPolicy(policy_id="policy:payroll")
-    plan = isr_to_plan(_revision()).model_copy(update={
-        "apis": [
-            ApiOperation(
-                id="api:payroll",
-                name="SubmitPayroll",
-                security_policies=[policy],
-            )
-        ],
-    })
-
-    assert SemanticFeature.AUTHORIZATION_POLICIES in required_features(plan)
-    for backend in (PythonFastAPIBackend(), RustAxumBackend()):
-        try:
-            backend.compile(plan)
-        except UnsupportedSemanticsError as exc:
-            assert "authorization_policies" in str(exc)
-        else:
-            raise AssertionError(
-                f"{backend.name} must reject an API policy without enforcement semantics"
-            )

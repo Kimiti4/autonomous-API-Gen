@@ -1,10 +1,11 @@
 """The source-bound authorization certification lane.
 
-The lane proves one thing: that a reviewed source requirement, bound through
-an approval to a typed ISR policy, reaches a generated application whose own
-runtime enforces it, and that the whole chain is candidate-bound.
+The lane proves one thing per workload: that a reviewed source requirement,
+bound through an approval to a typed ISR policy, reaches a generated
+application whose own runtime enforces it, and that the whole chain is
+candidate-bound.
 
-Gates, in order:
+Gates, per workload:
 
 ``source_binding``
     The reviewed requirement declares a typed policy, the approval binds it,
@@ -17,21 +18,29 @@ Gates, in order:
     The generated application is installed and runs its own adversarial suite.
     Static assertions do not count.
 ``mutation_sensitivity``
-    A policy mutation changes the source, ISR, plan, bundle, and runtime report
-    hashes; reusing the previous candidate's evidence fails.
+    Every policy mutation the corpus declares changes the source, ISR, plan,
+    bundle, and runtime report hashes; reusing the previous candidate's
+    evidence fails.
 ``rust_negative_control``
     The same candidate is refused by the Rust backend with a precise
     unsupported-semantics reason. No Rust pass is inferred.
 ``independent_verification``
     An independent verifier replays the bindings from the persisted artifacts.
 
-The verdict is ``CERTIFIED`` only when every gate passes and the independent
-verifier reports no problems.
+Outcomes are never collapsed into a generic pass. Every workload reports one
+verdict per backend:
+
+``CERTIFIED``
+    The backend enforced the policy and the candidate's evidence verified.
+``UNSUPPORTED_FAIL_CLOSED``
+    The backend refused the authorization obligation with a precise reason.
+``NOT_CERTIFIED``
+    Anything else: a failed gate, a missing binding, or an unverifiable
+    candidate.
 """
 from __future__ import annotations
 
 import argparse
-import dataclasses
 import json
 import shutil
 from dataclasses import dataclass
@@ -42,17 +51,11 @@ from certification.authorization.candidate import (
     REQUIRED_ADVERSARIAL_TESTS,
     AuthorizationCandidate,
     build_candidate,
-    candidate_from_manifest,
     canonical_json,
     sha256_json,
-    sha256_text,
     stale_evidence_problems,
 )
-from certification.authorization.corpus import (
-    CORPUS_VERSION,
-    AuthorizationWorkload,
-    validate_workload,
-)
+from certification.authorization.corpus import AuthorizationWorkload
 from certification.authorization.runtime import RuntimeReport, run_generated_suite
 from certification.authorization.verifier import verify_authorization_evidence
 from certification.authorization.workloads import (
@@ -60,10 +63,12 @@ from certification.authorization.workloads import (
     AUTHORIZATION_CORPUS_HASH,
     CORPUS_ID,
     CORPUS_METADATA,
+    CORPUS_VERSION,
 )
 from certification.evidence.ledger import EvidenceLedger
 
 VERDICT_CERTIFIED = "CERTIFIED"
+VERDICT_UNSUPPORTED_FAIL_CLOSED = "UNSUPPORTED_FAIL_CLOSED"
 VERDICT_NOT_CERTIFIED = "NOT_CERTIFIED"
 
 GATE_NAMES = (
@@ -76,9 +81,14 @@ GATE_NAMES = (
 )
 
 TRIAL_SCHEMA_ID = "tiannara.authorization.trial"
-TRIAL_SCHEMA_VERSION = "1.0.0"
+TRIAL_SCHEMA_VERSION = "1.1.0"
 
 LEDGER_NAME = "authorization-ledger.jsonl"
+COVERAGE_NAME = "coverage.json"
+WORKLOADS_DIRNAME = "workloads"
+
+PYTHON_BACKEND = "python-fastapi"
+RUST_BACKEND = "rust-axum"
 
 
 @dataclass(frozen=True)
@@ -92,11 +102,65 @@ class GateResult:
 
 
 @dataclass(frozen=True)
+class BackendOutcome:
+    """The verdict for one (workload, backend) pair."""
+
+    workload_id: str
+    backend: str
+    backend_version: str
+    verdict: str
+    detail: str
+    policy_ids: tuple[str, ...] = ()
+    bound_operations: tuple[dict[str, Any], ...] = ()
+    runtime_report_hash: str = ""
+    manifest_hash: str = ""
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "workload_id": self.workload_id,
+            "backend": self.backend,
+            "backend_version": self.backend_version,
+            "verdict": self.verdict,
+            "detail": self.detail,
+            "policy_ids": list(self.policy_ids),
+            "bound_operations": [dict(binding) for binding in self.bound_operations],
+            "runtime_report_hash": self.runtime_report_hash,
+            "manifest_hash": self.manifest_hash,
+        }
+
+
+@dataclass(frozen=True)
+class WorkloadOutcome:
+    """Every outcome for one workload."""
+
+    workload_id: str
+    python: BackendOutcome
+    rust: BackendOutcome
+    gates: tuple[GateResult, ...]
+    mutations: tuple[dict[str, Any], ...]
+    problems: tuple[str, ...]
+    candidate: AuthorizationCandidate | None = None
+
+    @property
+    def certified(self) -> bool:
+        return self.python.verdict == VERDICT_CERTIFIED
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "workload_id": self.workload_id,
+            "python": self.python.as_dict(),
+            "rust": self.rust.as_dict(),
+            "gates": [gate.as_dict() for gate in self.gates],
+            "mutations": [dict(mutation) for mutation in self.mutations],
+            "problems": list(self.problems),
+        }
+
+
+@dataclass(frozen=True)
 class AuthorizationCampaignResult:
     verdict: str
-    candidate_id: str
-    manifest_hash: str
-    gates: tuple[GateResult, ...]
+    corpus_hash: str
+    workloads: tuple[WorkloadOutcome, ...]
     problems: tuple[str, ...]
     evidence_dir: str
 
@@ -107,9 +171,8 @@ class AuthorizationCampaignResult:
     def as_dict(self) -> dict[str, Any]:
         return {
             "verdict": self.verdict,
-            "candidate_id": self.candidate_id,
-            "manifest_hash": self.manifest_hash,
-            "gates": [gate.as_dict() for gate in self.gates],
+            "corpus_hash": self.corpus_hash,
+            "workloads": [workload.as_dict() for workload in self.workloads],
             "problems": list(self.problems),
             "evidence_dir": self.evidence_dir,
         }
@@ -149,44 +212,6 @@ def build_candidate_artifacts(workload: AuthorizationWorkload) -> CandidateArtif
         plan=plan,
         repo=repo,
     )
-
-
-def _replace_role(payload: Any, old_role: str, new_role: str) -> Any:
-    if isinstance(payload, str):
-        return payload.replace(old_role, new_role)
-    if isinstance(payload, Mapping):
-        return {key: _replace_role(value, old_role, new_role) for key, value in payload.items()}
-    if isinstance(payload, (list, tuple)):
-        return [_replace_role(value, old_role, new_role) for value in payload]
-    return payload
-
-
-def mutate_workload(
-    workload: AuthorizationWorkload,
-    *,
-    old_role: str,
-    new_role: str,
-) -> AuthorizationWorkload:
-    """Return a workload whose policy role was renamed in the source and approval."""
-    mutated = dataclasses.replace(
-        workload,
-        source_text=workload.source_text.replace(old_role, new_role),
-        approval_needles=tuple(
-            (needle, _replace_role(payload, old_role, new_role))
-            for needle, payload in workload.approval_needles
-        ),
-        policy_node=_replace_role(workload.policy_node, old_role, new_role),
-        policy_edge=_replace_role(workload.policy_edge, old_role, new_role),
-        bound_operations=tuple(
-            dataclasses.replace(
-                binding,
-                roles=tuple(role.replace(old_role, new_role) for role in binding.roles),
-            )
-            for binding in workload.bound_operations
-        ),
-    )
-    validate_workload(mutated)
-    return mutated
 
 
 def _source_binding_problems(
@@ -245,7 +270,7 @@ def _candidate_binding_problems(
     )
 
 
-def _rust_negative_control(plan: Any) -> tuple[bool, str]:
+def _rust_outcome(workload: AuthorizationWorkload, plan: Any) -> BackendOutcome:
     """Submit the same candidate to Rust; it must refuse the obligation."""
     from compiler.backends.rust_axum import RustAxumBackend
     from compiler.core.capabilities import UnsupportedSemanticsError
@@ -255,9 +280,27 @@ def _rust_negative_control(plan: Any) -> tuple[bool, str]:
     except UnsupportedSemanticsError as exc:
         message = str(exc)
         if "authorization_policies" in message:
-            return True, message
-        return False, f"rust refused the candidate without citing authorization_policies: {message}"
-    return False, "rust accepted a candidate carrying an authorization obligation"
+            return BackendOutcome(
+                workload_id=workload.workload_id,
+                backend=RUST_BACKEND,
+                backend_version="1.4.0",
+                verdict=VERDICT_UNSUPPORTED_FAIL_CLOSED,
+                detail=message,
+            )
+        return BackendOutcome(
+            workload_id=workload.workload_id,
+            backend=RUST_BACKEND,
+            backend_version="1.4.0",
+            verdict=VERDICT_NOT_CERTIFIED,
+            detail=f"rust refused the candidate without citing authorization_policies: {message}",
+        )
+    return BackendOutcome(
+        workload_id=workload.workload_id,
+        backend=RUST_BACKEND,
+        backend_version="1.4.0",
+        verdict=VERDICT_NOT_CERTIFIED,
+        detail="rust accepted a candidate carrying an authorization obligation",
+    )
 
 
 def _write_evidence(
@@ -300,27 +343,18 @@ def _write_evidence(
     )
 
 
-def run_authorization_campaign(
-    evidence_dir: str,
-    workload: AuthorizationWorkload = AUTHORIZATION_CORPUS[0],
+def _run_workload(
+    workload: AuthorizationWorkload,
+    evidence_root: Path,
+    workdir: Path,
     *,
-    install: bool = True,
-    keep_workdir: bool = False,
-) -> AuthorizationCampaignResult:
-    """Run the authorization certification lane for one workload.
-
-    The generated applications are reproduced from ``bundle.json``, so the
-    work directory is removed unless ``keep_workdir`` is set; the archived
-    evidence stays small and every byte of it is independently checkable.
-    """
-    evidence_path = Path(evidence_dir)
+    install: bool,
+    install_state: dict[str, bool],
+) -> WorkloadOutcome:
+    """Run every gate for one workload and write its evidence."""
     gates: list[GateResult] = []
     problems: list[str] = []
-
-    if evidence_path.exists():
-        shutil.rmtree(evidence_path)
-    evidence_path.mkdir(parents=True, exist_ok=True)
-    workdir = evidence_path / "work"
+    evidence_dir = evidence_root / WORKLOADS_DIRNAME / workload.workload_id
 
     artifacts = build_candidate_artifacts(workload)
     source_problems = _source_binding_problems(workload, artifacts)
@@ -332,12 +366,16 @@ def run_authorization_campaign(
     ))
     problems.extend(source_problems)
 
+    should_install = install and not install_state.get("installed", False)
     runtime_report = run_generated_suite(
         artifacts.repo.files,
-        workdir / "candidate",
+        workdir / workload.workload_id / "candidate",
         REQUIRED_ADVERSARIAL_TESTS,
-        install=install,
+        install=should_install,
     )
+    if should_install:
+        install_state["installed"] = True
+
     candidate = build_candidate(
         candidate_id=f"authorization-candidate:{workload.workload_id}",
         corpus_id=CORPUS_ID,
@@ -372,21 +410,123 @@ def run_authorization_campaign(
     ))
     problems.extend(runtime_problems)
 
+    mutation_records: list[dict[str, Any]] = []
     mutation_problems: list[str] = []
-    mutation_detail: dict[str, Any] = {}
+    for case in workload.mutations:
+        record, case_problems = _run_mutation(
+            case,
+            workload,
+            candidate,
+            workdir / workload.workload_id / f"mutation-{case.kind}",
+            install=install,
+            install_state=install_state,
+        )
+        mutation_records.append(record)
+        mutation_problems.extend(case_problems)
+    if workload.mutations:
+        gates.append(GateResult(
+            gate="mutation_sensitivity",
+            passed=not mutation_problems,
+            detail="every policy mutation invalidates the previous candidate evidence"
+            if not mutation_problems else "; ".join(mutation_problems),
+        ))
+        problems.extend(mutation_problems)
+
+    rust = _rust_outcome(workload, artifacts.plan)
+    gates.append(GateResult(
+        gate="rust_negative_control",
+        passed=rust.verdict == VERDICT_UNSUPPORTED_FAIL_CLOSED,
+        detail=rust.detail,
+    ))
+    if rust.verdict != VERDICT_UNSUPPORTED_FAIL_CLOSED:
+        problems.append(f"rust negative control: {rust.detail}")
+
+    negative_control = {
+        "backend": RUST_BACKEND,
+        "backend_version": rust.backend_version,
+        "rejected": rust.verdict == VERDICT_UNSUPPORTED_FAIL_CLOSED,
+        "verdict": rust.verdict,
+        "reason": rust.detail,
+    }
+    mutation_record = {
+        "cases": mutation_records,
+        "changed_hashes": all(
+            all(case["changed_hashes"].values()) for case in mutation_records
+        ) if mutation_records else False,
+        "stale_evidence_problems": [
+            problem
+            for case in mutation_records
+            for problem in case["stale_evidence_problems"]
+        ],
+        "mutated_runtime_passed": all(
+            case["mutated_runtime_passed"] for case in mutation_records
+        ) if mutation_records else False,
+    }
+    _write_evidence(
+        evidence_dir,
+        artifacts,
+        candidate,
+        runtime_report,
+        mutation_record,
+        negative_control,
+    )
+
+    python_verdict = VERDICT_CERTIFIED if not problems else VERDICT_NOT_CERTIFIED
+    python_outcome = BackendOutcome(
+        workload_id=workload.workload_id,
+        backend=PYTHON_BACKEND,
+        backend_version="1.4.0",
+        verdict=python_verdict,
+        detail="; ".join(problems) if problems else "every gate passed",
+        policy_ids=candidate.policy_ids,
+        bound_operations=candidate.bound_operations,
+        runtime_report_hash=runtime_report.report_hash,
+        manifest_hash=candidate.manifest_hash,
+    )
+    return WorkloadOutcome(
+        workload_id=workload.workload_id,
+        python=python_outcome,
+        rust=rust,
+        gates=tuple(gates),
+        mutations=tuple(mutation_records),
+        problems=tuple(problems),
+        candidate=candidate,
+    )
+
+
+def _run_mutation(
+    case: Any,
+    workload: AuthorizationWorkload,
+    candidate: AuthorizationCandidate,
+    workdir: Path,
+    *,
+    install: bool,
+    install_state: dict[str, bool],
+) -> tuple[dict[str, Any], list[str]]:
+    """Run one policy mutation and prove the previous evidence is stale."""
+    problems: list[str] = []
+    record: dict[str, Any] = {
+        "kind": case.kind,
+        "description": case.description,
+        "changed_hashes": {},
+        "stale_evidence_problems": [],
+        "mutated_runtime_passed": False,
+    }
     try:
-        mutated_workload = mutate_workload(workload, old_role="payroll_approver", new_role="payroll_admin")
+        mutated_workload = case.apply(workload)
         mutated_artifacts = build_candidate_artifacts(mutated_workload)
         mutated_report = run_generated_suite(
             mutated_artifacts.repo.files,
-            workdir / "mutated",
+            workdir,
             REQUIRED_ADVERSARIAL_TESTS,
-            install=install,
+            install=install and not install_state.get("installed", False),
         )
+        install_state["installed"] = True
+        mutated_plan_hash = sha256_json(mutated_artifacts.plan.model_dump(mode="json"))
         changed = {
             "source_sha256": mutated_artifacts.projection.source_sha256 != candidate.source_sha256,
             "isr_content_hash": mutated_artifacts.projection.revision.content_hash != candidate.isr_content_hash,
-            "plan_hash": sha256_json(mutated_artifacts.plan.model_dump(mode="json")) != candidate.plan_hash,
+            "plan_hash": mutated_plan_hash != candidate.plan_hash,
             "artifact_bundle_hash": mutated_artifacts.repo.content_hash != candidate.artifact_bundle_hash,
             "runtime_report_hash": mutated_report.report_hash != candidate.runtime_report_hash,
         }
@@ -395,97 +535,125 @@ def run_authorization_campaign(
             source_sha256=mutated_artifacts.projection.source_sha256,
             requirement_graph_hash=candidate.requirement_graph_hash,
             isr_content_hash=mutated_artifacts.projection.revision.content_hash,
-            plan_hash=sha256_json(mutated_artifacts.plan.model_dump(mode="json")),
+            plan_hash=mutated_plan_hash,
             artifact_bundle_hash=mutated_artifacts.repo.content_hash,
             runtime_report_hash=mutated_report.report_hash,
         )
-        mutation_detail = {
-            "mutated_role": {"from": "payroll_approver", "to": "payroll_admin"},
-            "changed_hashes": changed,
-            "mutated_runtime_passed": mutated_report.passed,
-            "stale_evidence_problems": stale,
+        record["changed_hashes"] = changed
+        record["stale_evidence_problems"] = stale
+        record["mutated_runtime_passed"] = mutated_report.passed
+        record["mutated"] = {
+            "source_sha256": mutated_artifacts.projection.source_sha256,
+            "isr_content_hash": mutated_artifacts.projection.revision.content_hash,
+            "plan_hash": mutated_plan_hash,
+            "artifact_bundle_hash": mutated_artifacts.repo.content_hash,
+            "runtime_report_hash": mutated_report.report_hash,
         }
         if not all(changed.values()):
-            mutation_problems.append(
-                "a policy mutation did not change every candidate binding hash: "
-                f"{ {k: v for k, v in changed.items() if not v} }"
+            problems.append(
+                f"mutation {case.kind!r} did not change every candidate binding hash: "
+                f"{ {key: value for key, value in changed.items() if not value} }"
             )
         if not mutated_report.passed:
-            mutation_problems.append("the mutated candidate did not pass its own adversarial suite")
+            problems.append(f"mutation {case.kind!r} did not pass its own adversarial suite")
         if not stale:
-            mutation_problems.append("the prior candidate's evidence still verified against the mutated candidate")
+            problems.append(
+                f"mutation {case.kind!r} left the previous candidate's evidence valid"
+            )
     except Exception as exc:  # noqa: BLE001 - the gate records the failure reason
-        mutation_problems.append(f"the mutation case failed to execute: {exc}")
-        mutation_detail = {"error": str(exc)}
-    gates.append(GateResult(
-        gate="mutation_sensitivity",
-        passed=not mutation_problems,
-        detail="a policy mutation invalidates the previous candidate evidence"
-        if not mutation_problems else "; ".join(mutation_problems),
-    ))
-    problems.extend(mutation_problems)
+        problems.append(f"mutation {case.kind!r} failed to execute: {exc}")
+        record["error"] = str(exc)
+    return record, problems
 
-    rust_passed, rust_detail = _rust_negative_control(artifacts.plan)
-    gates.append(GateResult(
-        gate="rust_negative_control",
-        passed=rust_passed,
-        detail=rust_detail,
-    ))
-    if not rust_passed:
-        problems.append(f"rust negative control: {rust_detail}")
 
-    negative_control = {
-        "backend": "rust-axum",
-        "backend_version": "1.4.0",
-        "rejected": rust_passed,
-        "reason": rust_detail,
+def _coverage_document(
+    outcomes: Sequence[WorkloadOutcome],
+    corpus_hash: str,
+) -> dict[str, Any]:
+    """The per-workload, per-backend coverage report."""
+    rows: list[dict[str, Any]] = []
+    for outcome in outcomes:
+        for backend in (outcome.python, outcome.rust):
+            rows.append(backend.as_dict())
+    certified = [row for row in rows if row["verdict"] == VERDICT_CERTIFIED]
+    fail_closed = [row for row in rows if row["verdict"] == VERDICT_UNSUPPORTED_FAIL_CLOSED]
+    return {
+        "schema_id": "tiannara.authorization.coverage",
+        "schema_version": "1.0.0",
+        "corpus_id": CORPUS_ID,
+        "corpus_version": CORPUS_VERSION,
+        "corpus_hash": corpus_hash,
+        "workload_count": len(outcomes),
+        "rows": rows,
+        "summary": {
+            "certified": len(certified),
+            "unsupported_fail_closed": len(fail_closed),
+            "not_certified": len(rows) - len(certified) - len(fail_closed),
+        },
     }
-    _write_evidence(
-        evidence_path,
-        artifacts,
-        candidate,
-        runtime_report,
-        mutation_detail,
-        negative_control,
-    )
 
-    verdict = VERDICT_CERTIFIED if not problems else VERDICT_NOT_CERTIFIED
+
+def run_authorization_campaign(
+    evidence_dir: str,
+    workloads: Sequence[AuthorizationWorkload] = AUTHORIZATION_CORPUS,
+    *,
+    install: bool = True,
+    keep_workdir: bool = False,
+) -> AuthorizationCampaignResult:
+    """Run the authorization certification lane for a set of workloads."""
+    evidence_path = Path(evidence_dir)
+    if evidence_path.exists():
+        shutil.rmtree(evidence_path)
+    evidence_path.mkdir(parents=True, exist_ok=True)
+    workdir = evidence_path / "work"
+    install_state: dict[str, bool] = {}
+
+    outcomes: list[WorkloadOutcome] = []
+    for workload in workloads:
+        outcomes.append(_run_workload(
+            workload,
+            evidence_path,
+            workdir,
+            install=install,
+            install_state=install_state,
+        ))
+
+    coverage = _coverage_document(outcomes, AUTHORIZATION_CORPUS_HASH)
+    (evidence_path / COVERAGE_NAME).write_text(canonical_json(coverage), encoding="utf-8")
+
     ledger = EvidenceLedger(str(evidence_path / LEDGER_NAME))
-    record_hash = ledger.append({
-        "schema_id": TRIAL_SCHEMA_ID,
-        "schema_version": TRIAL_SCHEMA_VERSION,
-        "candidate_id": candidate.candidate_id,
-        "manifest_hash": candidate.manifest_hash,
-        "verdict": verdict,
-        "gates": [gate.as_dict() for gate in gates],
-        "source_sha256": candidate.source_sha256,
-        "requirement_graph_hash": candidate.requirement_graph_hash,
-        "isr_content_hash": candidate.isr_content_hash,
-        "plan_hash": candidate.plan_hash,
-        "artifact_bundle_hash": candidate.artifact_bundle_hash,
-        "runtime_report_hash": candidate.runtime_report_hash,
-        "corpus_hash": candidate.corpus_hash,
-    })
+    for outcome in outcomes:
+        candidate = outcome.candidate
+        ledger.append({
+            "schema_id": TRIAL_SCHEMA_ID,
+            "schema_version": TRIAL_SCHEMA_VERSION,
+            "candidate_id": outcome.python.manifest_hash,
+            "workload_id": outcome.workload_id,
+            "manifest_hash": outcome.python.manifest_hash,
+            "verdict": outcome.python.verdict,
+            "python": outcome.python.as_dict(),
+            "rust": outcome.rust.as_dict(),
+            "gates": [gate.as_dict() for gate in outcome.gates],
+            "source_sha256": candidate.source_sha256 if candidate else "",
+            "isr_content_hash": candidate.isr_content_hash if candidate else "",
+            "plan_hash": candidate.plan_hash if candidate else "",
+            "artifact_bundle_hash": candidate.artifact_bundle_hash if candidate else "",
+            "runtime_report_hash": candidate.runtime_report_hash if candidate else "",
+            "corpus_hash": AUTHORIZATION_CORPUS_HASH,
+        })
 
     verification = verify_authorization_evidence(str(evidence_path))
-    gates.append(GateResult(
-        gate="independent_verification",
-        passed=verification.ok,
-        detail="independent verification replayed every binding"
-        if verification.ok else "; ".join(verification.problems),
-    ))
+    problems = [problem for outcome in outcomes for problem in outcome.problems]
     problems.extend(verification.problems)
-    if problems:
-        verdict = VERDICT_NOT_CERTIFIED
+    verdict = VERDICT_CERTIFIED if not problems else VERDICT_NOT_CERTIFIED
 
     if not keep_workdir:
         shutil.rmtree(workdir, ignore_errors=True)
 
     return AuthorizationCampaignResult(
         verdict=verdict,
-        candidate_id=candidate.candidate_id,
-        manifest_hash=candidate.manifest_hash,
-        gates=tuple(gates),
+        corpus_hash=AUTHORIZATION_CORPUS_HASH,
+        workloads=tuple(outcomes),
         problems=tuple(problems),
         evidence_dir=str(evidence_path),
     )
@@ -510,9 +678,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         install=not args.no_install,
     )
     print(json.dumps(result.as_dict(), indent=2))
-    for gate in result.gates:
-        status = "PASS" if gate.passed else "FAIL"
-        print(f"{status} {gate.gate}: {gate.detail}")
+    for workload in result.workloads:
+        print(
+            f"{workload.workload_id}: python={workload.python.verdict} "
+            f"rust={workload.rust.verdict}"
+        )
+        for gate in workload.gates:
+            status = "PASS" if gate.passed else "FAIL"
+            print(f"  {status} {gate.gate}: {gate.detail}")
     print(f"VERDICT: {result.verdict}")
     return 0 if result.certified else 1
 

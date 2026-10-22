@@ -1,14 +1,15 @@
 """The source-bound authorization certification lane: contract tests.
 
 These tests are the lane's own acceptance criteria. They run the lane once
-(the expensive part: the generated application installs and runs its own
+(the expensive part: each generated application installs and runs its own
 adversarial suite) and then verify the negative cases against the evidence it
-produced: stale candidate evidence, a tampered ledger, a missing runtime
-report, and the Rust negative control.
+produced: stale candidate evidence, a missing runtime report, a tampered
+ledger, a mismatched manifest, and the Rust negative control.
 """
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,7 @@ from certification.authorization.candidate import REQUIRED_ADVERSARIAL_TESTS
 from certification.authorization.campaign import (
     VERDICT_CERTIFIED,
     VERDICT_NOT_CERTIFIED,
+    VERDICT_UNSUPPORTED_FAIL_CLOSED,
     run_authorization_campaign,
 )
 from certification.authorization.corpus import CorpusError, validate_workload
@@ -24,9 +26,15 @@ from certification.authorization.verifier import verify_authorization_evidence
 from certification.authorization.workloads import (
     AUTHORIZATION_CORPUS,
     AUTHORIZATION_CORPUS_HASH,
-    PAYROLL_AUTHORIZATION_WORKLOAD,
+    PAYROLL_WORKLOAD,
 )
 from certification.corpus.corpus import default_corpus
+
+EVIDENCE_FILES = (
+    "manifest.json", "source.md", "requirement-graph.json", "isr.json",
+    "plan.json", "bundle.json", "runtime-report.json", "mutation.json",
+    "negative-control.json", "authorization-ledger.jsonl",
+)
 
 
 @pytest.fixture(scope="module")
@@ -36,91 +44,153 @@ def campaign_run(tmp_path_factory) -> tuple[Path, object]:
     return evidence_dir, result
 
 
+def _copy_evidence(evidence_dir: Path, target: Path, workloads=None) -> Path:
+    target.mkdir(parents=True, exist_ok=True)
+    for name in ("coverage.json", "authorization-ledger.jsonl"):
+        source = evidence_dir / name
+        if source.is_file():
+            shutil.copy2(source, target / name)
+    workloads_dir = evidence_dir / "workloads"
+    for workload_dir in (workloads or [p for p in workloads_dir.iterdir() if p.is_dir()]):
+        destination = target / "workloads" / workload_dir.name
+        destination.mkdir(parents=True, exist_ok=True)
+        for name in EVIDENCE_FILES:
+            source = workload_dir / name
+            if source.is_file():
+                shutil.copy2(source, destination / name)
+    return target
+
+
 def test_campaign_certifies_only_when_every_gate_passes(campaign_run) -> None:
     _, result = campaign_run
     assert result.verdict == VERDICT_CERTIFIED, result.problems
     assert not result.problems
-    passed = {gate.gate for gate in result.gates if gate.passed}
-    assert passed == {
-        "source_binding",
-        "candidate_binding",
-        "runtime_enforcement",
-        "mutation_sensitivity",
-        "rust_negative_control",
-        "independent_verification",
+    for workload in result.workloads:
+        assert workload.python.verdict == VERDICT_CERTIFIED, workload.problems
+        for gate in workload.gates:
+            assert gate.passed, f"{workload.workload_id}: {gate.gate}: {gate.detail}"
+
+
+def test_unsupported_backend_is_never_reported_as_a_pass(campaign_run) -> None:
+    _, result = campaign_run
+    for workload in result.workloads:
+        assert workload.rust.verdict == VERDICT_UNSUPPORTED_FAIL_CLOSED
+        assert workload.rust.verdict != VERDICT_CERTIFIED
+        assert "authorization_policies" in workload.rust.detail
+
+
+def test_coverage_reports_every_workload_and_backend(campaign_run) -> None:
+    evidence_dir, result = campaign_run
+    coverage = json.loads((evidence_dir / "coverage.json").read_text(encoding="utf-8"))
+    rows = coverage["rows"]
+    assert len(rows) == len(result.workloads) * 2
+    assert {(row["workload_id"], row["backend"]) for row in rows} == {
+        (workload.workload_id, backend)
+        for workload in result.workloads
+        for backend in ("python-fastapi", "rust-axum")
     }
+    assert coverage["summary"] == {
+        "certified": len(result.workloads),
+        "unsupported_fail_closed": len(result.workloads),
+        "not_certified": 0,
+    }
+    for row in rows:
+        assert row["verdict"] in {
+            VERDICT_CERTIFIED, VERDICT_UNSUPPORTED_FAIL_CLOSED, VERDICT_NOT_CERTIFIED
+        }
+
+
+def test_each_workload_covers_a_distinct_policy_pattern(campaign_run) -> None:
+    _, result = campaign_run
+    policy_ids = {workload.python.policy_ids for workload in result.workloads}
+    assert len(policy_ids) == len(result.workloads)
+    resources = {
+        binding["resource"]
+        for workload in result.workloads
+        for binding in workload.python.bound_operations
+    }
+    assert len(resources) >= 3
+    operations = {
+        binding["operation"]
+        for workload in result.workloads
+        for binding in workload.python.bound_operations
+    }
+    assert len(operations) >= 10
 
 
 def test_generated_application_executed_the_adversarial_suite(campaign_run) -> None:
-    evidence_dir, _ = campaign_run
-    report = json.loads((evidence_dir / "runtime-report.json").read_text(encoding="utf-8"))
-    assert report["passed"] is True
-    assert report["failed"] == 0
-    for name in REQUIRED_ADVERSARIAL_TESTS:
-        assert name in report["passed_tests"]
-    assert not report["missing_required"]
-
-
-def test_candidate_manifest_binds_source_to_runtime_report(campaign_run) -> None:
     evidence_dir, result = campaign_run
-    manifest = json.loads((evidence_dir / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["source_sha256"]
-    assert manifest["requirement_graph_hash"]
-    assert manifest["isr_content_hash"]
-    assert manifest["plan_hash"]
-    assert manifest["artifact_bundle_hash"]
-    assert manifest["runtime_report_hash"]
-    assert manifest["policy_ids"] == ["security:payroll-approver"]
-    assert manifest["manifest_hash" if "manifest_hash" in manifest else "candidate_id"]
-    assert result.manifest_hash
+    for workload in result.workloads:
+        report = json.loads(
+            (evidence_dir / "workloads" / workload.workload_id / "runtime-report.json")
+            .read_text(encoding="utf-8")
+        )
+        assert report["passed"] is True, workload.workload_id
+        assert report["failed"] == 0
+        for name in REQUIRED_ADVERSARIAL_TESTS:
+            assert name in report["passed_tests"], f"{workload.workload_id}: {name}"
+        assert not report["missing_required"]
 
 
-def test_mutation_invalidated_the_previous_candidate_evidence(campaign_run) -> None:
-    evidence_dir, _ = campaign_run
-    mutation = json.loads((evidence_dir / "mutation.json").read_text(encoding="utf-8"))
-    assert all(mutation["changed_hashes"].values())
-    assert mutation["mutated_runtime_passed"] is True
-    assert mutation["stale_evidence_problems"]
-
-
-def test_rust_negative_control_refused_the_authorization_obligation(campaign_run) -> None:
-    evidence_dir, _ = campaign_run
-    control = json.loads((evidence_dir / "negative-control.json").read_text(encoding="utf-8"))
-    assert control["backend"] == "rust-axum"
-    assert control["rejected"] is True
-    assert "authorization_policies" in control["reason"]
+def test_every_mutation_kind_invalidated_the_previous_evidence(campaign_run) -> None:
+    evidence_dir, result = campaign_run
+    kinds = set()
+    for workload in result.workloads:
+        record = json.loads(
+            (evidence_dir / "workloads" / workload.workload_id / "mutation.json")
+            .read_text(encoding="utf-8")
+        )
+        assert record["cases"], workload.workload_id
+        for case in record["cases"]:
+            kinds.add(case["kind"])
+            assert all(case["changed_hashes"].values()), f"{workload.workload_id}: {case['kind']}"
+            assert case["stale_evidence_problems"], f"{workload.workload_id}: {case['kind']}"
+            assert case["mutated_runtime_passed"] is True
+    assert kinds == {"role", "action", "resource", "policy", "attribute"}
 
 
 def test_stale_candidate_evidence_is_refused(campaign_run, tmp_path: Path) -> None:
     evidence_dir, _ = campaign_run
-    stale = tmp_path / "stale"
-    stale.mkdir()
-    for name in (
-        "manifest.json", "source.md", "requirement-graph.json", "isr.json",
-        "plan.json", "bundle.json", "runtime-report.json", "mutation.json",
-        "negative-control.json", "authorization-ledger.jsonl",
-    ):
-        (stale / name).write_text((evidence_dir / name).read_text(encoding="utf-8"), encoding="utf-8")
-    manifest = json.loads((stale / "manifest.json").read_text(encoding="utf-8"))
+    stale = _copy_evidence(evidence_dir, tmp_path / "stale")
+    manifest_path = stale / "workloads" / "payroll-authorization" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["plan_hash"] = "0" * 64
-    (stale / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     verification = verify_authorization_evidence(str(stale))
     assert verification.ok is False
     assert any("plan hash mismatch" in problem for problem in verification.problems)
-    assert any("ledger does not bind" in problem for problem in verification.problems)
+    assert any("does not bind this candidate manifest" in problem for problem in verification.problems)
+
+
+def test_mismatched_manifest_is_refused(campaign_run, tmp_path: Path) -> None:
+    """A manifest that claims policies the plan does not carry must be refused."""
+    evidence_dir, _ = campaign_run
+    mismatched = _copy_evidence(evidence_dir, tmp_path / "mismatched")
+    manifest_path = mismatched / "workloads" / "payroll-authorization" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["policy_ids"] = ["security:not-in-the-plan"]
+    manifest["bound_operations"] = [{
+        "policy_id": "security:not-in-the-plan",
+        "service_id": "service:payroll",
+        "operation": "employee.read",
+        "resource": "Employee",
+        "effect": "allow",
+        "roles": ["payroll_approver"],
+        "rule_id": "invented",
+    }]
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    verification = verify_authorization_evidence(str(mismatched))
+    assert verification.ok is False
+    assert any("policy ids do not match" in problem for problem in verification.problems)
+    assert any("bindings do not match" in problem for problem in verification.problems)
 
 
 def test_missing_runtime_report_blocks_certification(campaign_run, tmp_path: Path) -> None:
     evidence_dir, _ = campaign_run
-    broken = tmp_path / "missing-report"
-    broken.mkdir()
-    for name in (
-        "manifest.json", "source.md", "requirement-graph.json", "isr.json",
-        "plan.json", "bundle.json", "mutation.json", "negative-control.json",
-        "authorization-ledger.jsonl",
-    ):
-        (broken / name).write_text((evidence_dir / name).read_text(encoding="utf-8"), encoding="utf-8")
+    broken = _copy_evidence(evidence_dir, tmp_path / "missing-report")
+    (broken / "workloads" / "payroll-authorization" / "runtime-report.json").unlink()
 
     verification = verify_authorization_evidence(str(broken))
     assert verification.ok is False
@@ -129,17 +199,10 @@ def test_missing_runtime_report_blocks_certification(campaign_run, tmp_path: Pat
 
 def test_tampered_ledger_blocks_certification(campaign_run, tmp_path: Path) -> None:
     evidence_dir, _ = campaign_run
-    tampered = tmp_path / "tampered"
-    tampered.mkdir()
-    for name in (
-        "manifest.json", "source.md", "requirement-graph.json", "isr.json",
-        "plan.json", "bundle.json", "runtime-report.json", "mutation.json",
-        "negative-control.json",
-    ):
-        (tampered / name).write_text((evidence_dir / name).read_text(encoding="utf-8"), encoding="utf-8")
-    ledger = (evidence_dir / "authorization-ledger.jsonl").read_text(encoding="utf-8")
-    tampered_ledger = ledger.replace('"verdict": "CERTIFIED"', '"verdict": "NOT_CERTIFIED"', 1)
-    (tampered / "authorization-ledger.jsonl").write_text(tampered_ledger, encoding="utf-8")
+    tampered = _copy_evidence(evidence_dir, tmp_path / "tampered")
+    ledger = tampered / "authorization-ledger.jsonl"
+    content = ledger.read_text(encoding="utf-8")
+    ledger.write_text(content.replace('"verdict": "CERTIFIED"', '"verdict": "NOT_CERTIFIED"', 1), encoding="utf-8")
 
     verification = verify_authorization_evidence(str(tampered))
     assert verification.ok is False
@@ -147,7 +210,7 @@ def test_tampered_ledger_blocks_certification(campaign_run, tmp_path: Path) -> N
 
 
 def test_policy_the_source_does_not_authorise_is_refused() -> None:
-    workload = PAYROLL_AUTHORIZATION_WORKLOAD
+    workload = PAYROLL_WORKLOAD
     tampered = workload.__class__(
         **{
             **{field: getattr(workload, field) for field in workload.__dataclass_fields__},
@@ -164,11 +227,11 @@ def test_authorization_corpus_is_versioned_and_hashed() -> None:
     assert AUTHORIZATION_CORPUS_HASH == corpus_hash(AUTHORIZATION_CORPUS)
     assert len(AUTHORIZATION_CORPUS_HASH) == 64
     changed = corpus_hash((
-        PAYROLL_AUTHORIZATION_WORKLOAD.__class__(
+        PAYROLL_WORKLOAD.__class__(
             **{
-                **{field: getattr(PAYROLL_AUTHORIZATION_WORKLOAD, field)
-                   for field in PAYROLL_AUTHORIZATION_WORKLOAD.__dataclass_fields__},
-                "source_text": PAYROLL_AUTHORIZATION_WORKLOAD.source_text + "\n- An extra line.\n",
+                **{field: getattr(PAYROLL_WORKLOAD, field)
+                   for field in PAYROLL_WORKLOAD.__dataclass_fields__},
+                "source_text": PAYROLL_WORKLOAD.source_text + "\n- An extra line.\n",
             }
         ),
     ))

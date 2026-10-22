@@ -9,27 +9,31 @@ from __future__ import annotations
 from certification.authorization.corpus import (
     CORPUS_VERSION,
     AuthorizationWorkload,
+    MutationCase,
     OperationBinding,
     build_workload,
     corpus_hash,
+    rebuild_workload,
     validate_workload,
 )
 from certification.authorization.workloads import (
     AUTHORIZATION_CORPUS,
     AUTHORIZATION_CORPUS_HASH,
+    CORPUS_ID,
     CORPUS_METADATA,
-    PAYROLL_AUTHORIZATION_WORKLOAD,
 )
 
 __all__ = [
     "AUTHORIZATION_CORPUS",
     "AUTHORIZATION_CORPUS_HASH",
+    "CORPUS_ID",
     "CORPUS_METADATA",
     "CORPUS_VERSION",
     "AuthorizationWorkload",
+    "MutationCase",
     "OperationBinding",
-    "PAYROLL_AUTHORIZATION_WORKLOAD",
     "build_workload",
     "corpus_hash",
+    "rebuild_workload",
     "validate_workload",
 ]

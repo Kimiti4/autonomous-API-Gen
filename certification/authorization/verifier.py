@@ -177,12 +177,20 @@ def _verify_workload(root: Path, workload_id: str) -> tuple[list[str], dict[str,
         record("runtime_report_present", True, "")
         report = _read_json(report_path)
         digest = sha256_json({
-            key: value for key, value in report.items() if key != "report_hash"
+            key: value
+            for key, value in report.items()
+            if key not in ("report_hash", "stdout_sha256")
         })
         record(
             "runtime_report_hash",
             digest == candidate.runtime_report_hash == report.get("report_hash"),
             f"runtime report hash mismatch: evidence={digest} manifest={candidate.runtime_report_hash}",
+        )
+        record(
+            "runtime_report_bound_to_candidate",
+            report.get("bundle_hash") == candidate.artifact_bundle_hash,
+            "the runtime report was not produced by the candidate's generated bundle: "
+            f"report={report.get('bundle_hash')} manifest={candidate.artifact_bundle_hash}",
         )
         record(
             "runtime_report_passed",

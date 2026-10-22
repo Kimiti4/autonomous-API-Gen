@@ -132,6 +132,31 @@ def test_generated_application_executed_the_adversarial_suite(campaign_run) -> N
         assert not report["missing_required"]
 
 
+def test_runtime_report_is_bound_to_the_exact_generated_candidate(campaign_run) -> None:
+    """The executed artifact must be the candidate's bundle, not a lookalike."""
+    evidence_dir, result = campaign_run
+    for workload in result.workloads:
+        workload_dir = evidence_dir / "workloads" / workload.workload_id
+        manifest = json.loads((workload_dir / "manifest.json").read_text(encoding="utf-8"))
+        report = json.loads((workload_dir / "runtime-report.json").read_text(encoding="utf-8"))
+        assert report["bundle_hash"] == manifest["artifact_bundle_hash"], workload.workload_id
+
+
+def test_runtime_report_from_another_candidate_is_refused(campaign_run, tmp_path: Path) -> None:
+    evidence_dir, _ = campaign_run
+    swapped = _copy_evidence(evidence_dir, tmp_path / "swapped")
+    payroll = swapped / "workloads" / "payroll-authorization"
+    orders_report = json.loads(
+        (swapped / "workloads" / "orders-authorization" / "runtime-report.json")
+        .read_text(encoding="utf-8")
+    )
+    (payroll / "runtime-report.json").write_text(json.dumps(orders_report), encoding="utf-8")
+
+    verification = verify_authorization_evidence(str(swapped))
+    assert verification.ok is False
+    assert any("runtime report hash mismatch" in problem for problem in verification.problems)
+
+
 def test_every_mutation_kind_invalidated_the_previous_evidence(campaign_run) -> None:
     evidence_dir, result = campaign_run
     kinds = set()

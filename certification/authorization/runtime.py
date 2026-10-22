@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from certification.authorization.candidate import sha256_json, sha256_text
+from compiler.core.repository import build_repository
 
 _TEST_LINE = re.compile(
     r"^(?:.*::)?(?P<name>test_[A-Za-z0-9_:]+)\s+(?P<status>PASSED|FAILED|ERROR|SKIPPED)\b"
@@ -33,13 +34,14 @@ class RuntimeReport:
     failed_tests: tuple[str, ...]
     required_tests: tuple[str, ...]
     missing_required: tuple[str, ...]
+    bundle_hash: str
     stdout_sha256: str
     report_hash: str
 
     def as_dict(self) -> dict[str, Any]:
         return {
             "schema_id": "tiannara.authorization.runtime-report",
-            "schema_version": "1.0.0",
+            "schema_version": "1.1.0",
             "passed": self.passed,
             "total": self.total,
             "failed": self.failed,
@@ -47,13 +49,24 @@ class RuntimeReport:
             "failed_tests": list(self.failed_tests),
             "required_tests": list(self.required_tests),
             "missing_required": list(self.missing_required),
+            "bundle_hash": self.bundle_hash,
             "stdout_sha256": self.stdout_sha256,
             "report_hash": self.report_hash,
         }
 
 
 def _report_hash(payload: Mapping[str, Any]) -> str:
-    body = {key: value for key, value in payload.items() if key != "report_hash"}
+    """Hash the semantic outcome and the executed artifact.
+
+    The raw transcript is deliberately excluded: it depends on the environment
+    (paths, durations), so hashing it would make two different candidates look
+    identical whenever the environment did not change.
+    """
+    body = {
+        key: value
+        for key, value in payload.items()
+        if key not in ("report_hash", "stdout_sha256")
+    }
     return sha256_json(body)
 
 
@@ -80,6 +93,7 @@ def run_generated_suite(
     root = workdir / "generated-app"
     root.mkdir(parents=True, exist_ok=True)
     write_repository(files, root)
+    bundle_hash = build_repository(dict(files)).content_hash
 
     if install:
         install_result = subprocess.run(
@@ -93,7 +107,7 @@ def run_generated_suite(
         if install_result.returncode != 0:
             payload = {
                 "schema_id": "tiannara.authorization.runtime-report",
-                "schema_version": "1.0.0",
+                "schema_version": "1.1.0",
                 "passed": False,
                 "total": 0,
                 "failed": 1,
@@ -101,6 +115,7 @@ def run_generated_suite(
                 "failed_tests": ["install"],
                 "required_tests": list(required_tests),
                 "missing_required": list(required_tests),
+                "bundle_hash": bundle_hash,
                 "stdout_sha256": sha256_text(install_result.stdout + install_result.stderr),
             }
             payload["report_hash"] = _report_hash(payload)
@@ -112,12 +127,16 @@ def run_generated_suite(
                 failed_tests=("install",),
                 required_tests=tuple(required_tests),
                 missing_required=tuple(required_tests),
+                bundle_hash=bundle_hash,
                 stdout_sha256=payload["stdout_sha256"],
                 report_hash=payload["report_hash"],
             )
 
+    # The target is explicit: the evidence must come from the generated
+    # application's own suite, never from whatever the surrounding repository
+    # or environment would otherwise collect.
     result = subprocess.run(
-        [sys.executable, "-m", "pytest", "-v"],
+        [sys.executable, "-m", "pytest", "-v", "tests"],
         cwd=root,
         capture_output=True,
         text=True,
@@ -138,7 +157,7 @@ def run_generated_suite(
     missing = tuple(name for name in required_tests if name not in passed_tests)
     payload = {
         "schema_id": "tiannara.authorization.runtime-report",
-        "schema_version": "1.0.0",
+        "schema_version": "1.1.0",
         "passed": result.returncode == 0 and not missing and not failed_tests,
         "total": len(passed_tests) + len(failed_tests),
         "failed": len(failed_tests),
@@ -146,6 +165,7 @@ def run_generated_suite(
         "failed_tests": sorted(failed_tests),
         "required_tests": list(required_tests),
         "missing_required": list(missing),
+        "bundle_hash": bundle_hash,
         "stdout_sha256": sha256_text(output),
     }
     payload["report_hash"] = _report_hash(payload)
@@ -157,6 +177,7 @@ def run_generated_suite(
         failed_tests=tuple(payload["failed_tests"]),
         required_tests=tuple(required_tests),
         missing_required=missing,
+        bundle_hash=bundle_hash,
         stdout_sha256=payload["stdout_sha256"],
         report_hash=payload["report_hash"],
     )

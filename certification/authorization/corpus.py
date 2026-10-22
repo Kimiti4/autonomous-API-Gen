@@ -61,6 +61,23 @@ class OperationBinding:
 
 
 @dataclass(frozen=True)
+class MutationCase:
+    """A policy mutation that must invalidate the previous candidate evidence.
+
+    The corpus authors its own mutations because a mutation is only valid when
+    the source still authorises the changed policy. Each case therefore
+    rewrites the source statement and the approval together.
+    """
+
+    kind: str
+    description: str
+    apply: Any
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"kind": self.kind, "description": self.description}
+
+
+@dataclass(frozen=True)
 class AuthorizationWorkload:
     """One source-bound authorization workload.
 
@@ -81,6 +98,7 @@ class AuthorizationWorkload:
     system_id: str
     revision_id: str
     created_at: str
+    mutations: tuple[MutationCase, ...] = ()
 
     def resolve_requirements(self, draft: Any) -> tuple[dict[str, HumanApproval], str]:
         """Bind the corpus needles to the draft's requirement identifiers."""
@@ -119,6 +137,7 @@ class AuthorizationWorkload:
             "system_id": self.system_id,
             "revision_id": self.revision_id,
             "created_at": self.created_at,
+            "mutation_kinds": [mutation.kind for mutation in self.mutations],
         }
 
 
@@ -246,6 +265,14 @@ def validate_policy_declaration(
                     f"rule {rule_id!r} names role {role!r}, which the source "
                     "statement does not authorise"
                 )
+        for key, value in (rule.get("conditions") or {}).items():
+            if not isinstance(key, str) or not key:
+                raise CorpusError(f"rule {rule_id!r} has a condition without an attribute name")
+            if isinstance(value, str) and value.lower() not in statement_lower:
+                raise CorpusError(
+                    f"rule {rule_id!r} requires attribute {key!r}={value!r}, which the "
+                    "source statement does not authorise"
+                )
         binding = OperationBinding(
             operation=actions[0] if len(actions) == 1 else "*, ".join(actions),
             resource=resource,
@@ -300,8 +327,9 @@ def build_workload(
     system_id: str,
     revision_id: str,
     created_at: str,
+    mutations: Sequence[MutationCase] = (),
 ) -> AuthorizationWorkload:
-    """Build and validate one corpus entry."""
+    """Build and validate one corpus entry, including its mutation cases."""
     workload = AuthorizationWorkload(
         workload_id=workload_id,
         source_name=source_name,
@@ -315,6 +343,21 @@ def build_workload(
         system_id=system_id,
         revision_id=revision_id,
         created_at=created_at,
+        mutations=tuple(mutations),
     )
     validate_workload(workload)
+    for mutation in workload.mutations:
+        mutated = mutation.apply(workload)
+        if mutated.workload_id != workload.workload_id:
+            raise CorpusError(
+                f"mutation {mutation.kind!r} of {workload.workload_id!r} changes the workload id"
+            )
+        validate_workload(mutated)
     return workload
+
+
+def rebuild_workload(workload: AuthorizationWorkload, **changes: Any) -> AuthorizationWorkload:
+    """Return a modified copy of a workload, keeping its mutation cases."""
+    import dataclasses
+
+    return dataclasses.replace(workload, **changes)

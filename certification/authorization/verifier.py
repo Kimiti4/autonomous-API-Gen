@@ -1,8 +1,8 @@
 """Independent verification of the authorization certification evidence.
 
 The verifier reads only what is on disk. It recomputes every binding from the
-persisted artifacts and refuses to certify when anything is missing, stale, or
-tampered. It never trusts the manifest's own claims.
+persisted artifacts and refuses to certify when anything is missing, stale,
+tampered, or mismatched. It never trusts the manifest's own claims.
 """
 from __future__ import annotations
 
@@ -29,6 +29,8 @@ RUNTIME_REPORT_NAME = "runtime-report.json"
 MUTATION_NAME = "mutation.json"
 NEGATIVE_CONTROL_NAME = "negative-control.json"
 LEDGER_NAME = "authorization-ledger.jsonl"
+COVERAGE_NAME = "coverage.json"
+WORKLOADS_DIRNAME = "workloads"
 
 
 @dataclass(frozen=True)
@@ -49,22 +51,21 @@ def _read_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def verify_authorization_evidence(evidence_dir: str) -> VerificationResult:
-    """Recompute and check every binding the candidate claims."""
-    root = Path(evidence_dir)
+def _verify_workload(root: Path, workload_id: str) -> tuple[list[str], dict[str, bool]]:
+    """Verify one workload's evidence directory."""
     problems: list[str] = []
     checks: dict[str, bool] = {}
 
     def record(name: str, ok: bool, message: str) -> bool:
         checks[name] = ok
         if not ok:
-            problems.append(message)
+            problems.append(f"{workload_id}: {message}")
         return ok
 
     manifest_path = root / MANIFEST_NAME
     if not manifest_path.is_file():
         record("manifest_present", False, f"missing {MANIFEST_NAME}")
-        return VerificationResult(ok=False, problems=tuple(problems), checks=checks)
+        return problems, checks
     record("manifest_present", True, "")
 
     manifest = _read_json(manifest_path)
@@ -114,14 +115,15 @@ def verify_authorization_evidence(evidence_dir: str) -> VerificationResult:
         )
 
     plan_path = root / PLAN_NAME
+    plan_payload: Any = None
     if not plan_path.is_file():
         record("plan_present", False, f"missing {PLAN_NAME}")
     else:
         record("plan_present", True, "")
         from compiler.core.plan import CompilationPlan
 
-        plan = CompilationPlan.model_validate(_read_json(plan_path))
-        digest = sha256_json(plan.model_dump(mode="json"))
+        plan_payload = CompilationPlan.model_validate(_read_json(plan_path))
+        digest = sha256_json(plan_payload.model_dump(mode="json"))
         record(
             "plan_hash",
             digest == candidate.plan_hash,
@@ -129,18 +131,43 @@ def verify_authorization_evidence(evidence_dir: str) -> VerificationResult:
         )
 
     bundle_path = root / BUNDLE_NAME
+    bundle_files: dict[str, str] = {}
     if not bundle_path.is_file():
         record("bundle_present", False, f"missing {BUNDLE_NAME}")
     else:
         record("bundle_present", True, "")
         from compiler.core.repository import build_repository
 
-        files = _read_json(bundle_path)
-        digest = build_repository({str(k): str(v) for k, v in files.items()}).content_hash
+        bundle_files = {str(k): str(v) for k, v in _read_json(bundle_path).items()}
+        digest = build_repository(bundle_files).content_hash
         record(
             "artifact_bundle_hash",
             digest == candidate.artifact_bundle_hash,
             f"artifact bundle hash mismatch: evidence={digest} manifest={candidate.artifact_bundle_hash}",
+        )
+
+    # The manifest's declared policy and operation bindings must match the plan
+    # and the emitted application, not merely the plan's own hash.
+    if plan_payload is not None:
+        from certification.authorization.candidate import bound_operations_of
+
+        observed = bound_operations_of(plan_payload)
+        record(
+            "policy_bindings_match_plan",
+            [dict(binding) for binding in observed] == [dict(binding) for binding in candidate.bound_operations],
+            "the manifest's authorization bindings do not match the compiled plan",
+        )
+        record(
+            "policy_ids_match_plan",
+            sorted(p.policy_id for p in plan_payload.security) == sorted(candidate.policy_ids),
+            "the manifest's policy ids do not match the compiled plan",
+        )
+    if bundle_files:
+        emitted = bundle_files.get("app/core/policies.py", "")
+        record(
+            "emitted_enforcement_matches_manifest",
+            all(policy_id in emitted for policy_id in candidate.policy_ids),
+            "the generated application does not carry the manifest's policies",
         )
 
     report_path = root / RUNTIME_REPORT_NAME
@@ -150,12 +177,20 @@ def verify_authorization_evidence(evidence_dir: str) -> VerificationResult:
         record("runtime_report_present", True, "")
         report = _read_json(report_path)
         digest = sha256_json({
-            key: value for key, value in report.items() if key != "report_hash"
+            key: value
+            for key, value in report.items()
+            if key not in ("report_hash", "stdout_sha256")
         })
         record(
             "runtime_report_hash",
             digest == candidate.runtime_report_hash == report.get("report_hash"),
             f"runtime report hash mismatch: evidence={digest} manifest={candidate.runtime_report_hash}",
+        )
+        record(
+            "runtime_report_bound_to_candidate",
+            report.get("bundle_hash") == candidate.artifact_bundle_hash,
+            "the runtime report was not produced by the candidate's generated bundle: "
+            f"report={report.get('bundle_hash')} manifest={candidate.artifact_bundle_hash}",
         )
         record(
             "runtime_report_passed",
@@ -176,21 +211,26 @@ def verify_authorization_evidence(evidence_dir: str) -> VerificationResult:
     else:
         record("mutation_present", True, "")
         mutation = _read_json(mutation_path)
-        changed = mutation.get("changed_hashes") or {}
+        cases = mutation.get("cases") or []
+        record(
+            "mutation_cases_present",
+            bool(cases),
+            "the workload declares no executed policy mutation",
+        )
         record(
             "mutation_changed_hashes",
-            bool(changed) and all(changed.values()),
-            f"a policy mutation did not change every candidate binding hash: {changed}",
+            all(all((case.get("changed_hashes") or {}).values()) for case in cases),
+            "a policy mutation did not change every candidate binding hash",
         )
         record(
             "mutation_invalidates_prior_evidence",
-            bool(mutation.get("stale_evidence_problems")),
-            "the prior candidate evidence still verified against the mutated candidate",
+            all(case.get("stale_evidence_problems") for case in cases),
+            "the prior candidate evidence still verified against a mutated candidate",
         )
         record(
             "mutation_reexecuted",
-            bool(mutation.get("mutated_runtime_passed")),
-            "the mutated candidate was not independently re-executed",
+            all(case.get("mutated_runtime_passed") for case in cases),
+            "a mutated candidate was not independently re-executed",
         )
 
     control_path = root / NEGATIVE_CONTROL_NAME
@@ -201,30 +241,108 @@ def verify_authorization_evidence(evidence_dir: str) -> VerificationResult:
         control = _read_json(control_path)
         record(
             "rust_negative_control",
-            bool(control.get("rejected")) and "authorization_policies" in str(control.get("reason", "")),
+            bool(control.get("rejected"))
+            and control.get("verdict") == "UNSUPPORTED_FAIL_CLOSED"
+            and "authorization_policies" in str(control.get("reason", "")),
             f"the Rust negative control did not refuse the obligation: {control.get('reason')}",
         )
 
+    return problems, checks
+
+
+def verify_authorization_evidence(evidence_dir: str) -> VerificationResult:
+    """Recompute and check every binding the candidates claim."""
+    root = Path(evidence_dir)
+    problems: list[str] = []
+    checks: dict[str, bool] = {}
+
+    workloads_root = root / WORKLOADS_DIRNAME
+    if not workloads_root.is_dir():
+        checks["workloads_present"] = False
+        problems.append(f"missing {WORKLOADS_DIRNAME}/")
+        return VerificationResult(ok=False, problems=tuple(problems), checks=checks)
+    checks["workloads_present"] = True
+
+    workload_dirs = sorted(path for path in workloads_root.iterdir() if path.is_dir())
+    if not workload_dirs:
+        checks["workloads_non_empty"] = False
+        problems.append("no workload evidence was produced")
+        return VerificationResult(ok=False, problems=tuple(problems), checks=checks)
+    checks["workloads_non_empty"] = True
+
+    for workload_dir in workload_dirs:
+        workload_problems, workload_checks = _verify_workload(workload_dir, workload_dir.name)
+        problems.extend(workload_problems)
+        for name, value in workload_checks.items():
+            checks[f"{workload_dir.name}.{name}"] = value
+
+    coverage_path = root / COVERAGE_NAME
+    if not coverage_path.is_file():
+        checks["coverage_present"] = False
+        problems.append(f"missing {COVERAGE_NAME}")
+    else:
+        checks["coverage_present"] = True
+        coverage = _read_json(coverage_path)
+        rows = coverage.get("rows") or []
+        recorded = {(row["workload_id"], row["backend"]) for row in rows}
+        expected = {
+            (workload_dir.name, backend)
+            for workload_dir in workload_dirs
+            for backend in ("python-fastapi", "rust-axum")
+        }
+        checks["coverage_matches_workloads"] = recorded == expected
+        if recorded != expected:
+            problems.append(
+                "the coverage report does not cover exactly the produced workloads: "
+                f"recorded={sorted(recorded)} expected={sorted(expected)}"
+            )
+        certified = [row for row in rows if row["verdict"] == "CERTIFIED"]
+        fail_closed = [row for row in rows if row["verdict"] == "UNSUPPORTED_FAIL_CLOSED"]
+        checks["coverage_has_certified_rows"] = bool(certified)
+        checks["coverage_has_fail_closed_rows"] = bool(fail_closed)
+        if not certified:
+            problems.append("the coverage report certifies no backend")
+        if not fail_closed:
+            problems.append("the coverage report records no fail-closed backend")
+
     ledger_path = root / LEDGER_NAME
     if not ledger_path.is_file():
-        record("ledger_present", False, f"missing {LEDGER_NAME}")
-        record("ledger_chain", False, "the evidence ledger is missing")
+        checks["ledger_present"] = False
+        checks["ledger_chain"] = False
+        problems.append("the evidence ledger is missing")
     else:
-        record("ledger_present", True, "")
-        record(
-            "ledger_chain",
-            EvidenceLedger.verify(str(ledger_path)),
-            "the evidence ledger chain does not verify",
-        )
-        last: Mapping[str, Any] | None = None
-        for line in ledger_path.read_text(encoding="utf-8").splitlines():
-            if line.strip():
-                last = json.loads(line)
-        record(
-            "ledger_binds_candidate",
-            bool(last) and last.get("trial", {}).get("manifest_hash") == candidate.manifest_hash,
-            "the ledger does not bind this candidate manifest",
-        )
+        checks["ledger_present"] = True
+        checks["ledger_chain"] = EvidenceLedger.verify(str(ledger_path))
+        if not checks["ledger_chain"]:
+            problems.append("the evidence ledger chain does not verify")
+        records = [
+            json.loads(line)
+            for line in ledger_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        bound = {record.get("trial", {}).get("workload_id") for record in records}
+        expected_ids = {workload_dir.name for workload_dir in workload_dirs}
+        checks["ledger_binds_every_workload"] = expected_ids.issubset(bound)
+        if not expected_ids.issubset(bound):
+            problems.append(
+                f"the ledger does not bind every workload: expected={sorted(expected_ids)} "
+                f"bound={sorted(bound)}"
+            )
+        for record in records:
+            trial = record.get("trial", {})
+            workload_id = trial.get("workload_id")
+            manifest_path = workloads_root / str(workload_id) / MANIFEST_NAME
+            if not manifest_path.is_file():
+                continue
+            manifest = _read_json(manifest_path)
+            candidate = candidate_from_manifest(manifest)
+            checks[f"ledger_binds_{workload_id}"] = (
+                trial.get("manifest_hash") == candidate.manifest_hash
+            )
+            if trial.get("manifest_hash") != candidate.manifest_hash:
+                problems.append(
+                    f"{workload_id}: the ledger does not bind this candidate manifest"
+                )
 
     return VerificationResult(
         ok=not problems,

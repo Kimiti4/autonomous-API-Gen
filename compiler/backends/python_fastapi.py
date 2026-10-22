@@ -203,6 +203,20 @@ class PythonFastAPIBackend:
                     granted.append(role)
         return granted
 
+    def _authorization_attributes(self, plan: CompilationPlan, entity: dict) -> dict[str, object]:
+        """Return the subject attributes an allow rule requires for this entity."""
+        attributes: dict[str, object] = {}
+        for verb in ROUTE_VERBS:
+            action = canonical_action(entity["entity"], verb)
+            for rule in self._authorization_rules_for(plan, entity):
+                if rule.effect != "allow" or rule.resource not in (entity["cls"], "*"):
+                    continue
+                if not ("*" in rule.actions or action in rule.actions):
+                    continue
+                for key, value in (rule.conditions or {}).items():
+                    attributes.setdefault(str(key), value)
+        return attributes
+
     def _authorization_tests(self, plan: CompilationPlan, entities: list[dict]) -> list[str]:
         """Emit the runtime and route level authorization tests."""
         protected = [e for e in entities if self._protected_service_for(plan, e) is not None]
@@ -210,6 +224,11 @@ class PythonFastAPIBackend:
             return []
         target = protected[0]
         plural = target["plural"]
+        expectations = self._authorization_expectations(plan, target)
+        roles = self._authorization_roles(plan, target)
+        granted = set(roles)
+        readable = bool(granted & expectations["read"][0]) and not (granted & expectations["read"][1])
+        attributes = self._authorization_attributes(plan, target)
         lines = [
             "",
             "",
@@ -245,14 +264,36 @@ class PythonFastAPIBackend:
             "",
             "",
             "def test_denied_request_does_not_mutate_state():",
-            f"    allowed = client.get('/api/{plural}', headers=HEADERS_{plural.upper()}).json()",
-            "    token = issue_token('intruder', ['no_such_role'])",
-            f"    denied = client.delete('/api/{plural}/missing-item', headers={{**HEADERS, 'Authorization': f'Bearer {{token}}'}})",
-            "    assert denied.status_code == 403",
-            f"    after = client.get('/api/{plural}', headers=HEADERS_{plural.upper()}).json()",
-            "    assert after == allowed",
+        ]
+        if readable:
+            lines += [
+                f"    allowed = client.get('/api/{plural}', headers=HEADERS_{plural.upper()}).json()",
+                "    token = issue_token('intruder', ['no_such_role'])",
+                f"    denied = client.delete('/api/{plural}/missing-item', headers={{**HEADERS, 'Authorization': f'Bearer {{token}}'}})",
+                "    assert denied.status_code == 403",
+                f"    after = client.get('/api/{plural}', headers=HEADERS_{plural.upper()}).json()",
+                "    assert after == allowed",
+            ]
+        else:
+            lines += [
+                "    token = issue_token('intruder', ['no_such_role'])",
+                f"    denied = client.post('/api/{plural}', json={{}}, headers={{**HEADERS, 'Authorization': f'Bearer {{token}}'}})",
+                "    assert denied.status_code == 403",
+            ]
+        lines += [
             "",
             "",
+        ]
+        if attributes:
+            lines += [
+                "def test_authorization_denies_a_principal_without_the_required_attribute():",
+                f"    token = issue_token('someone', {sorted(self._authorization_roles(plan, target))!r})",
+                f"    r = client.get('/api/{plural}', headers={{**HEADERS, 'Authorization': f'Bearer {{token}}'}})",
+                "    assert r.status_code == 403",
+                "",
+                "",
+            ]
+        lines += [
             "def test_authorization_runtime_denies_by_default():",
             "    from app.core.authorization import Principal, evaluate",
             "    principal = Principal(principal_id='p1', roles=frozenset({'reader'}))",
@@ -1266,6 +1307,7 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
             if protected:
                 header_var = f"HEADERS_{e['plural'].upper()}"
                 roles = self._authorization_roles(plan, e)
+                attributes = self._authorization_attributes(plan, e)
                 expectations = self._authorization_expectations(plan, e)
                 granted = set(roles)
                 expected_verb = {
@@ -1273,7 +1315,7 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
                     for verb, (allow_roles, deny_roles) in expectations.items()
                 }
                 lines += [
-                    f"TOKEN_{e['plural'].upper()} = issue_token('service-account', {roles!r})",
+                    f"TOKEN_{e['plural'].upper()} = issue_token('service-account', {roles!r}, attributes={attributes!r})",
                     f"{header_var} = {{**HEADERS, 'Authorization': f'Bearer {{TOKEN_{e['plural'].upper()}}}'}}",
                     "",
                 ]

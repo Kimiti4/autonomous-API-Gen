@@ -60,6 +60,9 @@ class ApiOperation(BaseModel):
     id: str = Field(min_length=1)
     name: str = Field(min_length=1)
     behavior: ApiBehavior | None = None
+    # Explicit ISR EXPOSES relation. Never infer an owning service from names
+    # or request fields; emitters need this binding to implement side effects.
+    service_id: str | None = None
     security_policies: list[SecurityPolicy] = Field(default_factory=list)
 
 

@@ -39,6 +39,9 @@ class RustAxumBackend:
         SemanticFeature.EXPRESSIONS,
         SemanticFeature.BUSINESS_RULES,
         SemanticFeature.STATE_TRANSITIONS,
+        SemanticFeature.EFFECT_POLICY_PRESERVATION,
+        SemanticFeature.EFFECT_BINDING_PRESERVATION,
+        SemanticFeature.CONSEQUENCE_PRESERVATION,
     })
 
     def identity(self) -> BackendIdentity:
@@ -79,6 +82,7 @@ class RustAxumBackend:
             "infra:repositories": "src/infrastructure/repositories.rs",
             "infra:behavior": "src/core/behavior.rs",
             "infra:docs": "docs/architecture.md",
+            "infra:semantic_obligations": "docs/semantic-obligations.json",
             "infra:openapi": "openapi.json",
         })
         return p
@@ -150,6 +154,13 @@ class RustAxumBackend:
             return self._readme(plan)
         if path == "docs/architecture.md":
             return self._docs(plan)
+        if path == "docs/semantic-obligations.json":
+            return json.dumps({
+                "schema_version": "1",
+                "effects": [item.model_dump(mode="json") for item in plan.effects],
+                "effect_bindings": [item.model_dump(mode="json") for item in plan.effect_bindings],
+                "consequences": [item.model_dump(mode="json") for item in plan.consequences],
+            }, sort_keys=True, indent=2)
         if path == "openapi.json":
             return self._openapi(plan)
         if path.startswith("src/domain/"):

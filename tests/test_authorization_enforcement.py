@@ -20,7 +20,13 @@ from compiler.core.authorization import (
 from compiler.core.capabilities import SemanticFeature, UnsupportedSemanticsError
 from compiler.core.plan import ApiOperation, CompilationPlan, SecurityPolicy, Service
 from isr.core.behavior import ApiBehavior
-from tests.support.tor_sources import authorized_backend_plan, backend_plan
+from isr.core.graph import Edge, EdgeType
+from compiler.core.lowering import isr_to_plan
+from tests.support.tor_sources import (
+    authorized_backend_plan,
+    backend_plan,
+    full_stack_projection,
+)
 
 
 def _emitted(plan) -> dict[str, str]:
@@ -173,3 +179,53 @@ def test_emitted_sources_are_valid_python():
     for path, source in _emitted(authorized_backend_plan()).items():
         if path.endswith(".py"):
             ast.parse(source, filename=path)
+
+
+
+def test_lowering_preserves_explicit_service_exposes_api_binding():
+    revision = full_stack_projection().revision
+    graph = revision.graph
+    edges = dict(graph.edges)
+    edges["exposes:payroll"] = Edge(
+        id="exposes:payroll",
+        type=EdgeType.EXPOSES,
+        source_id="service:payroll",
+        target_id="api:payroll",
+    )
+    bound_revision = revision.model_copy(
+        update={"graph": graph.model_copy(update={"edges": edges})}
+    )
+
+    plan = isr_to_plan(bound_revision)
+    operation = next(api for api in plan.apis if api.id == "api:payroll")
+    assert operation.service_id == "service:payroll"
+
+
+def test_lowering_does_not_infer_api_service_from_names_or_fields():
+    plan = isr_to_plan(full_stack_projection().revision)
+    operation = next(api for api in plan.apis if api.id == "api:payroll")
+    assert operation.service_id is None
+
+
+def test_lowering_rejects_ambiguous_service_exposes_api_bindings():
+    revision = full_stack_projection().revision
+    graph = revision.graph
+    edges = dict(graph.edges)
+    edges["exposes:payroll"] = Edge(
+        id="exposes:payroll",
+        type=EdgeType.EXPOSES,
+        source_id="service:payroll",
+        target_id="api:payroll",
+    )
+    edges["exposes:payroll-duplicate"] = Edge(
+        id="exposes:payroll-duplicate",
+        type=EdgeType.EXPOSES,
+        source_id="service:other",
+        target_id="api:payroll",
+    )
+    bound_revision = revision.model_copy(
+        update={"graph": graph.model_copy(update={"edges": edges})}
+    )
+
+    with pytest.raises(ValueError, match="exactly one explicit EXPOSES service binding"):
+        isr_to_plan(bound_revision)

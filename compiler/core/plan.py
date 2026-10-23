@@ -1,6 +1,8 @@
 """CompilationPlan — the technology-neutral intermediate representation."""
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from isr.core.behavior import (
@@ -42,6 +44,9 @@ class Effect(BaseModel):
     id: str = Field(min_length=1)
     name: str = Field(min_length=1)
     behavior: EffectBehavior | None = None
+    # Preserve legacy/source-declared policy fields until a typed executable
+    # contract can consume them; capability gates must not ignore this payload.
+    declared_policy: dict[str, Any] = Field(default_factory=dict)
 
 
 class Service(BaseModel):

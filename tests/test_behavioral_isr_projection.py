@@ -182,14 +182,17 @@ def test_behavioral_plan_does_not_cross_backend_gate_with_unimplemented_api_effe
             )
         except UnsupportedSemanticsError as exc:
             message = str(exc)
-            assert "api_contracts" in message
             assert "effect_semantics" in message
             if backend.name == "rust-axum":
-                # The Rust backend still cannot enforce authorization policies.
+                # The Rust backend still cannot emit declared operations or
+                # enforce authorization policies.
+                assert "api_contracts" in message
                 assert "authorization_policies" in message
             else:
-                # The Python backend implements authorization enforcement; the
-                # remaining blockers are the semantics it still does not emit.
+                # The Python backend emits declared operations and enforces
+                # authorization; the remaining blockers are the semantics it
+                # still does not emit.
+                assert "api_contracts" not in message
                 assert "authorization_policies" not in message
         else:
             raise AssertionError(f"{backend.name} accepted unsupported semantic obligations")

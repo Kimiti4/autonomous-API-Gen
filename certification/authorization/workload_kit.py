@@ -55,6 +55,43 @@ def service_node(
     return {"id": node_id, "type": "service", "properties": properties}
 
 
+def api_node(
+    node_id: str,
+    label: str,
+    operation_id: str,
+    method: str,
+    path: str,
+    request_fields: Sequence[Mapping[str, Any]] = (),
+    response_fields: Sequence[Mapping[str, Any]] = (),
+) -> dict[str, Any]:
+    """A declared API operation; the owning service comes from an EXPOSES edge."""
+    return {
+        "id": node_id,
+        "type": "api",
+        "properties": {
+            "label": label,
+            "behavior": {
+                "operation_id": operation_id,
+                "method": method,
+                "path": path,
+                "request_fields": [dict(field) for field in request_fields],
+                "response_fields": [dict(field) for field in response_fields],
+            },
+            "source_requirement_ids": [REQUIREMENT_ID_TOKEN],
+        },
+    }
+
+
+def exposes_edge(edge_id: str, service_id: str, api_id: str) -> dict[str, Any]:
+    return {
+        "id": edge_id,
+        "type": "exposes",
+        "source_id": service_id,
+        "target_id": api_id,
+        "properties": {"source_requirement_ids": [REQUIREMENT_ID_TOKEN]},
+    }
+
+
 def persists_edge(edge_id: str, service_id: str, model_id: str) -> dict[str, Any]:
     return {
         "id": edge_id,

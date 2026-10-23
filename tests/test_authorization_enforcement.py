@@ -7,6 +7,8 @@ which the integration test executes.
 from __future__ import annotations
 
 import ast
+import subprocess
+import sys
 
 import pytest
 
@@ -18,8 +20,23 @@ from compiler.core.authorization import (
     protected_services,
 )
 from compiler.core.capabilities import SemanticFeature, UnsupportedSemanticsError
-from compiler.core.plan import ApiOperation, CompilationPlan, SecurityPolicy, Service
-from isr.core.behavior import ApiBehavior
+from compiler.core.plan import (
+    ApiOperation,
+    CompilationPlan,
+    DataModel,
+    SecurityPolicy,
+    Service,
+)
+from isr.core.behavior import (
+    ApiBehavior,
+    AuthorizationRule,
+    ConstraintOperator,
+    DataModelBehavior,
+    FieldConstraint,
+    FieldSpec,
+    SecurityBehavior,
+    ValueType,
+)
 from isr.core.graph import Edge, EdgeType
 from compiler.core.lowering import isr_to_plan
 from tests.support.tor_sources import (
@@ -31,6 +48,324 @@ from tests.support.tor_sources import (
 
 def _emitted(plan) -> dict[str, str]:
     return PythonFastAPIBackend().compile(plan).files
+
+
+_EMPLOYEE = (
+    FieldSpec(name="employee_id", value_type=ValueType.IDENTIFIER),
+    FieldSpec(name="base_salary", value_type=ValueType.MONEY, precision=12, scale=2),
+    FieldSpec(name="allowances", value_type=ValueType.MONEY, precision=12, scale=2),
+)
+
+
+def _declared_policy() -> SecurityPolicy:
+    return SecurityPolicy(
+        policy_id="security:payroll-approver",
+        behavior=SecurityBehavior(
+            roles=("payroll_approver",),
+            rules=(
+                AuthorizationRule(
+                    rule_id="payroll.read-create.allow",
+                    effect="allow",
+                    roles=("payroll_approver",),
+                    actions=("employee.read", "employee.create"),
+                    resource="Employee",
+                ),
+                AuthorizationRule(
+                    rule_id="payroll.delete.deny",
+                    effect="deny",
+                    roles=("payroll_approver",),
+                    actions=("employee.delete",),
+                    resource="Employee",
+                ),
+            ),
+        ),
+    )
+
+
+def _operation(
+    api_id: str,
+    name: str,
+    method: str,
+    path: str,
+    action: str,
+    request: tuple[FieldSpec, ...] = (),
+    response: tuple[FieldSpec, ...] = (),
+    *,
+    service_id: str | None = "service:payroll",
+    policy_ids: tuple[str, ...] = ("security:payroll-approver",),
+) -> ApiOperation:
+    return ApiOperation(
+        id=api_id,
+        name=name,
+        service_id=service_id,
+        behavior=ApiBehavior(
+            operation_id=action,
+            method=method,
+            path=path,
+            request_fields=request,
+            response_fields=response,
+            authorization_policy_ids=policy_ids,
+        ),
+    )
+
+
+def _declared_plan() -> CompilationPlan:
+    employee = _EMPLOYEE
+    return CompilationPlan(
+        plan_id="declared-plan",
+        isr_id="declared-payroll",
+        services=[
+            Service(
+                id="service:payroll",
+                name="Payroll",
+                data_models=[
+                    DataModel(
+                        id="dm:employee",
+                        entity_name="Employee",
+                        behavior=DataModelBehavior(fields=employee),
+                    )
+                ],
+            )
+        ],
+        security=[_declared_policy()],
+        apis=[
+            _operation(
+                "api:list", "listEmployees", "GET", "/payroll/employees",
+                "employee.read", response=employee,
+            ),
+            _operation(
+                "api:read", "readEmployee", "GET",
+                "/payroll/employees/{employee_id}", "employee.read",
+                request=employee[:1], response=employee,
+            ),
+            _operation(
+                "api:create", "createEmployee", "POST", "/payroll/employees",
+                "employee.create", request=employee, response=employee,
+            ),
+            _operation(
+                "api:delete", "deleteEmployee", "DELETE",
+                "/payroll/employees/{employee_id}", "employee.delete",
+                request=employee[:1], response=employee[:1],
+            ),
+        ],
+    )
+
+
+def _with_api(plan: CompilationPlan, index: int, **updates) -> CompilationPlan:
+    apis = list(plan.apis)
+    api = apis[index]
+    if "behavior" in updates:
+        api = api.model_copy(update={
+            "behavior": api.behavior.model_copy(update=updates.pop("behavior")),
+        })
+    apis[index] = api.model_copy(update=updates)
+    return plan.model_copy(update={"apis": apis})
+
+
+def test_declared_operations_emit_their_exact_method_path_and_guard():
+    files = _emitted(_declared_plan())
+    declared = files["app/api/declared.py"]
+    for method, path in (
+        ("GET", "/payroll/employees"),
+        ("GET", "/payroll/employees/{employee_id}"),
+        ("POST", "/payroll/employees"),
+        ("DELETE", "/payroll/employees/{employee_id}"),
+    ):
+        assert f"methods=[{method!r}]" in declared
+        assert f"        {path!r}," in declared
+    assert "action='employee.read', resource='Employee'" in declared
+    assert "action='employee.create', resource='Employee'" in declared
+    assert "action='employee.delete', resource='Employee'" in declared
+    assert "OPERATION_POLICIES['api:create']" in declared
+    main = files["app/main.py"]
+    assert "from app.api.declared import register_declared_routes" in main
+    assert main.index("register_declared_routes(router)") < main.index(
+        "app.include_router(router)"
+    )
+
+
+def test_declared_route_metadata_binds_each_operation_to_its_service_and_policy():
+    declared = _emitted(_declared_plan())["app/api/declared.py"]
+    for fragment in (
+        "'operation_id': 'api:create'",
+        "'declared_operation_id': 'employee.create'",
+        "'service_id': 'service:payroll'",
+        "'resource': 'Employee'",
+        "'policy_ids': ['security:payroll-approver']",
+    ):
+        assert fragment in declared
+
+
+def test_declared_operation_without_an_explicit_service_binding_fails_closed():
+    plan = _with_api(_declared_plan(), 0, service_id=None)
+    with pytest.raises(UnsupportedSemanticsError, match="explicit EXPOSES service binding"):
+        _emitted(plan)
+
+
+def test_declared_operation_referencing_an_unknown_policy_fails_closed():
+    plan = _with_api(
+        _declared_plan(), 0,
+        behavior={"authorization_policy_ids": ("security:missing",)},
+    )
+    with pytest.raises(UnsupportedSemanticsError, match="unknown policy"):
+        _emitted(plan)
+
+
+def test_declared_operation_bound_to_an_untyped_policy_fails_closed():
+    plan = _declared_plan()
+    plan = plan.model_copy(update={
+        "security": [SecurityPolicy(
+            policy_id="security:payroll-approver", behavior=None,
+        )],
+    })
+    with pytest.raises(UnsupportedSemanticsError, match="carries no typed rules"):
+        _emitted(plan)
+
+
+def test_declared_policy_that_does_not_govern_the_action_fails_closed():
+    policy = _declared_policy()
+    policy = policy.model_copy(update={
+        "behavior": policy.behavior.model_copy(update={
+            "rules": (policy.behavior.rules[0],),
+        }),
+    })
+    plan = _declared_plan().model_copy(update={"security": [policy]})
+    with pytest.raises(UnsupportedSemanticsError, match="do not govern action"):
+        _emitted(plan)
+
+
+def test_duplicate_declared_method_and_path_fails_closed():
+    plan = _declared_plan()
+    duplicate = _operation(
+        "api:duplicate", "duplicateEmployees", "GET", "/payroll/employees",
+        "employee.read", response=_EMPLOYEE,
+    )
+    plan = plan.model_copy(update={"apis": [*plan.apis, duplicate]})
+    with pytest.raises(UnsupportedSemanticsError, match="declare the same GET route"):
+        _emitted(plan)
+
+
+def test_declared_route_that_collides_with_emitted_crud_fails_closed():
+    plan = _declared_plan()
+    colliding = _operation(
+        "api:collide", "collideEmployees", "GET", "/api/employees",
+        "employee.read", response=_EMPLOYEE,
+    )
+    plan = plan.model_copy(update={"apis": [*plan.apis, colliding]})
+    with pytest.raises(UnsupportedSemanticsError, match="collides with the emitted"):
+        _emitted(plan)
+
+
+def test_undeclarable_response_semantics_fail_closed():
+    invented = FieldSpec(name="gross_pay", value_type=ValueType.MONEY)
+    plan = _with_api(
+        _declared_plan(), 2,
+        behavior={"response_fields": (*_EMPLOYEE, invented)},
+    )
+    with pytest.raises(UnsupportedSemanticsError, match="response field"):
+        _emitted(plan)
+
+
+def test_declared_query_and_filter_semantics_fail_closed():
+    plan = _with_api(
+        _declared_plan(), 0,
+        behavior={"request_fields": (_EMPLOYEE[0],)},
+    )
+    with pytest.raises(UnsupportedSemanticsError, match="query and filter"):
+        _emitted(plan)
+
+
+def test_declared_delete_without_exactly_one_path_parameter_fails_closed():
+    plan = _with_api(
+        _declared_plan(), 3,
+        behavior={"path": "/payroll/employees", "request_fields": ()},
+    )
+    with pytest.raises(UnsupportedSemanticsError, match="exactly one path parameter"):
+        _emitted(plan)
+
+
+def test_declared_constraints_the_route_cannot_enforce_fail_closed():
+    constrained = FieldSpec(
+        name="employee_id",
+        value_type=ValueType.IDENTIFIER,
+        constraints=(FieldConstraint(operator=ConstraintOperator.UNIQUE),),
+    )
+    plan = _with_api(
+        _declared_plan(), 2,
+        behavior={"request_fields": (constrained, *_EMPLOYEE[1:])},
+    )
+    with pytest.raises(UnsupportedSemanticsError, match="cannot enforce"):
+        _emitted(plan)
+
+
+def test_declared_operation_without_a_policy_is_emitted_unprotected(tmp_path):
+    plan = _declared_plan()
+    apis = [
+        api.model_copy(update={
+            "behavior": api.behavior.model_copy(
+                update={"authorization_policy_ids": ()}
+            ),
+        })
+        for api in plan.apis
+    ]
+    plan = plan.model_copy(update={"security": [], "apis": apis})
+    repo = PythonFastAPIBackend().compile(plan)
+    declared = repo.files["app/api/declared.py"]
+    assert "router.add_api_route(" in declared
+    assert "require_authorization" not in declared
+    assert "OPERATION_POLICIES" not in declared
+    # Validation is still a real contract without a policy: the request model
+    # rejects unknown fields and the route is emitted at its exact path.
+    assert "class CreateEmployeeRequest(BaseModel):" in declared
+    assert "model_config = ConfigDict(extra='forbid')" in declared
+    for path, source in repo.files.items():
+        target = tmp_path / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(source, encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "tests"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=600,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    tests = repo.files["tests/test_app.py"]
+    assert "def test_declared_operation_emits_the_exact_route():" in tests
+    assert "def test_declared_operation_rejects_a_malformed_payload():" in tests
+    assert "def test_declared_operation_requires_a_signed_token():" not in tests
+
+
+def test_rust_backend_refuses_declared_operations():
+    with pytest.raises(UnsupportedSemanticsError, match="api_contracts"):
+        RustAxumBackend().compile(_declared_plan())
+
+
+def test_declared_operation_runtime_suite_executes_and_proves_enforcement(tmp_path):
+    repo = PythonFastAPIBackend().compile(_declared_plan())
+    for path, source in repo.files.items():
+        target = tmp_path / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(source, encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "tests"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=600,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    tests = repo.files["tests/test_app.py"]
+    for name in (
+        "test_declared_operation_emits_the_exact_route",
+        "test_declared_operation_requires_a_signed_token",
+        "test_declared_operation_denies_a_principal_without_a_grant",
+        "test_declared_operation_rejects_a_malformed_payload",
+        "test_declared_operation_authorized_create_and_read",
+        "test_declared_operation_denial_does_not_mutate_state",
+        "test_declared_operation_explicit_deny_wins",
+    ):
+        assert f"def {name}():" in tests
 
 
 def test_source_bound_policy_reaches_the_emitted_route():

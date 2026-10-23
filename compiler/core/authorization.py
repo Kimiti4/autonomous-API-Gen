@@ -22,7 +22,7 @@ from __future__ import annotations
 from typing import Any, Iterable
 
 from compiler.core.capabilities import SemanticFeature, UnsupportedSemanticsError
-from compiler.core.plan import ApiOperation, CompilationPlan, SecurityPolicy, Service
+from compiler.core.plan import CompilationPlan, SecurityPolicy, Service
 
 ROUTE_VERBS: tuple[str, ...] = ("read", "create", "update", "delete")
 
@@ -83,26 +83,6 @@ def declaration_only_policies(plan: CompilationPlan) -> list[SecurityPolicy]:
     return declared
 
 
-def _operation_obligations(plan: CompilationPlan) -> list[tuple[ApiOperation, SecurityPolicy]]:
-    """Return (operation, policy) pairs that bind a policy to a declared route."""
-    by_id = {policy.policy_id: policy for policy in plan.security}
-    obligations: list[tuple[ApiOperation, SecurityPolicy]] = []
-    for api in plan.apis:
-        attached = list(api.security_policies)
-        if api.behavior is not None:
-            for policy_id in api.behavior.authorization_policy_ids:
-                policy = by_id.get(policy_id)
-                if policy is None:
-                    raise UnsupportedSemanticsError(
-                        "authorization_policies: operation "
-                        f"'{api.id}' references unknown policy '{policy_id}'"
-                    )
-                attached.append(policy)
-        for policy in attached:
-            obligations.append((api, policy))
-    return obligations
-
-
 def assert_authorization_enforceable(plan: CompilationPlan) -> None:
     """Fail closed when a declared obligation cannot be enforced.
 
@@ -110,19 +90,12 @@ def assert_authorization_enforceable(plan: CompilationPlan) -> None:
     capability says the backend implements authorization enforcement, this
     check says whether *this* plan's obligations are enforceable by it.
     """
-    for api, policy in _operation_obligations(plan):
-        if not _typed(policy):
-            raise UnsupportedSemanticsError(
-                "authorization_policies: policy "
-                f"'{policy.policy_id}' is bound to operation '{api.id}' but "
-                "carries no typed rules, so no enforcement can be proven"
-            )
-        raise UnsupportedSemanticsError(
-            "authorization_policies: operation "
-            f"'{api.id}' declares policy '{policy.policy_id}', but this "
-            "backend does not emit declared operations, so the obligation "
-            "cannot be enforced"
-        )
+    from compiler.core.declared_api import declared_routes
+
+    # Declared operations are emittable only with an explicit service binding,
+    # an unambiguous resource, and typed policies that actually govern the
+    # operation. This also rejects an operation that names an unknown policy.
+    declared_routes(plan)
 
     emitted_actions: dict[str, set[str]] = {}
     for service in plan.services:

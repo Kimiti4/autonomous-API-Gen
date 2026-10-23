@@ -149,7 +149,10 @@ def _verify_workload(root: Path, workload_id: str) -> tuple[list[str], dict[str,
     # The manifest's declared policy and operation bindings must match the plan
     # and the emitted application, not merely the plan's own hash.
     if plan_payload is not None:
-        from certification.authorization.candidate import bound_operations_of
+        from certification.authorization.candidate import (
+            bound_operations_of,
+            declared_routes_of,
+        )
 
         observed = bound_operations_of(plan_payload)
         record(
@@ -162,6 +165,13 @@ def _verify_workload(root: Path, workload_id: str) -> tuple[list[str], dict[str,
             sorted(p.policy_id for p in plan_payload.security) == sorted(candidate.policy_ids),
             "the manifest's policy ids do not match the compiled plan",
         )
+        observed_routes = declared_routes_of(plan_payload)
+        record(
+            "declared_routes_match_plan",
+            [dict(route) for route in observed_routes]
+            == [dict(route) for route in candidate.declared_routes],
+            "the manifest's declared routes do not match the compiled plan",
+        )
     if bundle_files:
         emitted = bundle_files.get("app/core/policies.py", "")
         record(
@@ -169,6 +179,27 @@ def _verify_workload(root: Path, workload_id: str) -> tuple[list[str], dict[str,
             all(policy_id in emitted for policy_id in candidate.policy_ids),
             "the generated application does not carry the manifest's policies",
         )
+        if candidate.declared_routes:
+            declared_module = bundle_files.get("app/api/declared.py")
+            record(
+                "declared_module_present",
+                bool(declared_module),
+                "the generated application does not emit the declared API module",
+            )
+            if declared_module:
+                missing = [
+                    route for route in candidate.declared_routes
+                    if f"{route['path']!r}," not in declared_module
+                    or f"methods=[{route['method']!r}]" not in declared_module
+                    or f"OPERATION_POLICIES[{route['operation_id']!r}]" not in declared_module
+                    or f"resource={route['resource']!r}" not in declared_module
+                ]
+                record(
+                    "emitted_declared_routes_match_manifest",
+                    not missing,
+                    "the generated application does not emit the manifest's declared "
+                    f"routes: {[route['operation_id'] for route in missing]}",
+                )
 
     report_path = root / RUNTIME_REPORT_NAME
     if not report_path.is_file():

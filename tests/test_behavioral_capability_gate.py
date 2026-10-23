@@ -104,7 +104,7 @@ def test_supported_behavioral_subset_is_emitted_by_both_backends():
             assert "base_salary" in repo.files["src/domain/Employee.rs"]
 
 
-def test_api_contracts_are_not_silently_claimed_supported():
+def test_api_contracts_are_claimed_only_where_operations_can_be_emitted():
     plan = CompilationPlan(
         plan_id="api-plan", isr_id="system",
         apis=[ApiOperation(
@@ -112,9 +112,14 @@ def test_api_contracts_are_not_silently_claimed_supported():
             behavior=ApiBehavior(operation_id="submit", method="POST", path="/submit"),
         )],
     )
-    for backend in (PythonFastAPIBackend(), RustAxumBackend()):
-        with pytest.raises(UnsupportedSemanticsError, match="api_contracts"):
-            backend.compile(plan)
+    assert SemanticFeature.API_CONTRACTS in PythonFastAPIBackend().supported_features
+    assert SemanticFeature.API_CONTRACTS not in RustAxumBackend().supported_features
+    # Python claims the capability but this operation has no service binding, so
+    # it fails closed rather than emitting an ownerless route.
+    with pytest.raises(UnsupportedSemanticsError, match="EXPOSES"):
+        PythonFastAPIBackend().compile(plan)
+    with pytest.raises(UnsupportedSemanticsError, match="api_contracts"):
+        RustAxumBackend().compile(plan)
 
 
 def test_external_effect_semantics_remain_blocked_until_durable_execution_is_bound():

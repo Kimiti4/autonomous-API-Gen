@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
 CANDIDATE_SCHEMA_ID = "tiannara.authorization.candidate"
-CANDIDATE_SCHEMA_VERSION = "1.0.0"
+CANDIDATE_SCHEMA_VERSION = "1.1.0"
 
 #: The adversarial proof the generated application must execute for itself.
 REQUIRED_ADVERSARIAL_TESTS: tuple[str, ...] = (
@@ -31,6 +31,17 @@ REQUIRED_ADVERSARIAL_TESTS: tuple[str, ...] = (
     "test_authorization_runtime_explicit_deny_wins_over_allow",
     "test_authorization_runtime_missing_attribute_never_grants",
     "test_authorization_runtime_isolates_tenants",
+)
+
+#: The additional proof a candidate with declared API operations must execute.
+DECLARED_OPERATION_TESTS: tuple[str, ...] = (
+    "test_declared_operation_emits_the_exact_route",
+    "test_declared_operation_requires_a_signed_token",
+    "test_declared_operation_denies_a_principal_without_a_grant",
+    "test_declared_operation_rejects_a_malformed_payload",
+    "test_declared_operation_authorized_create_and_read",
+    "test_declared_operation_denial_does_not_mutate_state",
+    "test_declared_operation_explicit_deny_wins",
 )
 
 
@@ -69,6 +80,7 @@ class AuthorizationCandidate:
     bound_operations: tuple[dict[str, Any], ...]
     runtime_report_hash: str
     required_adversarial_tests: tuple[str, ...] = REQUIRED_ADVERSARIAL_TESTS
+    declared_routes: tuple[dict[str, Any], ...] = ()
 
     def manifest(self) -> dict[str, Any]:
         return {
@@ -91,6 +103,7 @@ class AuthorizationCandidate:
             "artifact_bundle_hash": self.artifact_bundle_hash,
             "policy_ids": list(self.policy_ids),
             "bound_operations": [dict(binding) for binding in self.bound_operations],
+            "declared_routes": [dict(route) for route in self.declared_routes],
             "runtime_report_hash": self.runtime_report_hash,
             "required_adversarial_tests": list(self.required_adversarial_tests),
         }
@@ -122,6 +135,13 @@ def bound_operations_of(plan: Any) -> tuple[dict[str, Any], ...]:
     return tuple(operations)
 
 
+def declared_routes_of(plan: Any) -> tuple[dict[str, Any], ...]:
+    """Return the exact declared routes the plan requires, with every binding."""
+    from compiler.core.declared_api import declared_routes
+
+    return tuple(route.as_dict() for route in declared_routes(plan))
+
+
 def build_candidate(
     *,
     candidate_id: str,
@@ -133,6 +153,7 @@ def build_candidate(
     plan: Any,
     repo: Any,
     runtime_report_hash: str,
+    required_tests: Sequence[str] | None = None,
 ) -> AuthorizationCandidate:
     """Bind a source-bound candidate into its manifest."""
     from reqgraph.adapters.tor_isr import requirement_graph_hash
@@ -156,6 +177,8 @@ def build_candidate(
         policy_ids=tuple(sorted(policy.policy_id for policy in plan.security)),
         bound_operations=bound_operations_of(plan),
         runtime_report_hash=runtime_report_hash,
+        required_adversarial_tests=tuple(required_tests or REQUIRED_ADVERSARIAL_TESTS),
+        declared_routes=declared_routes_of(plan),
     )
 
 
@@ -181,6 +204,9 @@ def candidate_from_manifest(manifest: Mapping[str, Any]) -> AuthorizationCandida
         bound_operations=tuple(dict(binding) for binding in manifest["bound_operations"]),
         runtime_report_hash=manifest["runtime_report_hash"],
         required_adversarial_tests=tuple(manifest["required_adversarial_tests"]),
+        declared_routes=tuple(
+            dict(route) for route in manifest.get("declared_routes") or ()
+        ),
     )
 
 

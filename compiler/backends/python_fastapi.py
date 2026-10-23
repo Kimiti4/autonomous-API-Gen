@@ -21,6 +21,11 @@ from compiler.core.authorization import (
     protected_services,
     service_policies,
 )
+from compiler.core.declared_api import (
+    DeclaredRoute,
+    declared_routes,
+    normalized_path,
+)
 from compiler.core.capabilities import BackendCapabilities, SemanticFeature, UnsupportedSemanticsError, assert_plan_supported
 from compiler.core.repository import GeneratedRepository, build_repository
 from compiler.core.conformance import CHECKER, ConformanceReport
@@ -46,6 +51,7 @@ class PythonFastAPIBackend:
         SemanticFeature.EXPRESSIONS,
         SemanticFeature.BUSINESS_RULES,
         SemanticFeature.STATE_TRANSITIONS,
+        SemanticFeature.API_CONTRACTS,
         SemanticFeature.AUTHORIZATION_POLICIES,
     })
 
@@ -87,6 +93,8 @@ class PythonFastAPIBackend:
             "infra:requirements": "requirements.txt",
             "infra:test": "tests/test_app.py",
         })
+        if any(api.behavior is not None for api in plan.apis):
+            p["infra:declared_apis"] = "app/api/declared.py"
         return p
 
     def compile(self, plan: CompilationPlan) -> GeneratedRepository:
@@ -96,6 +104,7 @@ class PythonFastAPIBackend:
         # point here; an obligation without one fails closed instead of being
         # emitted as an unprotected route.
         assert_authorization_enforceable(plan)
+        self._assert_no_route_collision(plan)
         f: dict[str, str] = {}
         for path in dict.fromkeys(self.element_paths(plan).values()):
             f[path] = self._emit(path, plan)
@@ -341,6 +350,439 @@ class PythonFastAPIBackend:
         ]
         return lines
 
+    # -- declared API operation emission ----------------------------------
+
+    _DECLARED_ANNOTATIONS = {
+        "string": "str", "identifier": "str", "date": "str", "datetime": "str",
+        "integer": "int", "decimal": "Decimal", "money": "Decimal", "boolean": "bool",
+    }
+
+    def _crud_route_keys(self, plan: CompilationPlan) -> set[tuple[str, str]]:
+        keys = {("GET", "/health"), ("GET", "/api/services")}
+        for entity in self._entities(plan):
+            plural = entity["plural"]
+            keys.add(("GET", f"/api/{plural}"))
+            keys.add(("POST", f"/api/{plural}"))
+            keys.add(("GET", f"/api/{plural}/{{}}"))
+            keys.add(("PUT", f"/api/{plural}/{{}}"))
+            keys.add(("DELETE", f"/api/{plural}/{{}}"))
+        return keys
+
+    def _assert_no_route_collision(self, plan: CompilationPlan) -> None:
+        """A declared route must not shadow or duplicate an emitted CRUD route."""
+        reserved = self._crud_route_keys(plan)
+        for route in declared_routes(plan):
+            key = (route.method, normalized_path(route.path))
+            if key in reserved:
+                raise UnsupportedSemanticsError(
+                    "api_contracts: declared operation "
+                    f"'{route.operation.id}' collides with the emitted "
+                    f"{route.method} route {route.path!r}"
+                )
+
+    def _declared_rules(self, route: DeclaredRoute) -> list:
+        rules = []
+        for policy in route.policies:
+            for rule in policy.behavior.rules:
+                if rule.resource not in (route.resource, "*"):
+                    continue
+                if "*" in rule.actions or route.action in rule.actions:
+                    rules.append(rule)
+        return rules
+
+    def _declared_roles(self, route: DeclaredRoute) -> list[str]:
+        allowed: set[str] = set()
+        denied: set[str] = set()
+        for rule in self._declared_rules(route):
+            if rule.effect == "allow":
+                allowed.update(rule.roles)
+            else:
+                denied.update(rule.roles)
+        return sorted(allowed - denied)
+
+    def _declared_deny_roles(self, route: DeclaredRoute) -> list[str]:
+        denied: set[str] = set()
+        for rule in self._declared_rules(route):
+            if rule.effect == "deny":
+                denied.update(rule.roles)
+        return sorted(denied)
+
+    def _declared_attributes(self, route: DeclaredRoute) -> dict[str, object]:
+        attributes: dict[str, object] = {}
+        for rule in self._declared_rules(route):
+            if rule.effect != "allow":
+                continue
+            for key, value in (rule.conditions or {}).items():
+                attributes.setdefault(str(key), value)
+        return attributes
+
+    def _declared_names(self, routes: tuple[DeclaredRoute, ...]) -> list[str]:
+        used: set[str] = set()
+        names: list[str] = []
+        for route in routes:
+            base = _cls(_slug(route.operation.name))
+            candidate = base
+            index = 2
+            while candidate in used:
+                candidate = f"{base}{index}"
+                index += 1
+            used.add(candidate)
+            names.append(candidate)
+        return names
+
+    def _declared_annotation(self, field, *, optional: bool = False) -> str:
+        annotation = self._DECLARED_ANNOTATIONS[field.value_type.value]
+        return f"{annotation} | None" if optional else annotation
+
+    def _declared_constraint_args(self, field) -> list[str]:
+        args: list[str] = []
+        kind = field.value_type.value
+        if field.precision is not None and kind in ("decimal", "money"):
+            args.append(f"max_digits={field.precision}")
+        if field.scale is not None and kind in ("decimal", "money"):
+            args.append(f"decimal_places={field.scale}")
+        for constraint in field.constraints:
+            operator = constraint.operator.value
+            if operator == "min":
+                args.append(f"ge={constraint.value!r}")
+            elif operator == "max":
+                args.append(f"le={constraint.value!r}")
+            elif operator == "min_length":
+                args.append(f"min_length={int(constraint.value)}")
+            elif operator == "max_length":
+                args.append(f"max_length={int(constraint.value)}")
+            elif operator == "pattern":
+                args.append(f"pattern={str(constraint.value)!r}")
+        return args
+
+    def _declared_model(self, class_name: str, fields: tuple) -> list[str]:
+        lines = [
+            f"class {class_name}(BaseModel):",
+            "    model_config = ConfigDict(extra='forbid')",
+        ]
+        for field in fields:
+            optional = field.nullable or not field.required
+            annotation = self._declared_annotation(field, optional=optional)
+            default = "None" if optional else "..."
+            args = [default, *self._declared_constraint_args(field)]
+            lines.append(
+                f"    {field.name}: {annotation} = Field({', '.join(args)})"
+            )
+        return lines
+
+    def _declared_handler(self, route: DeclaredRoute, base: str, names: tuple[str, ...]) -> list[str]:
+        handler = f"_declared_{_slug(route.operation.name)}"
+        parameters: list[str] = []
+        for field in route.path_fields:
+            parameters.append(f"{field.name}: {self._declared_annotation(field)}")
+        if route.body_fields:
+            parameters.append(f"body: {base}Request")
+        signature = ", ".join(parameters)
+        module = route.resource_module
+        names_literal = repr(names)
+        if route.method == "GET":
+            if route.path_fields:
+                return [
+                    f"def {handler}({signature}) -> dict:",
+                    f"    return _get({module!r}, {route.path_fields[0].name!r}, "
+                    f"{route.path_fields[0].name}, {names_literal})",
+                ]
+            return [
+                f"def {handler}({signature}) -> list[dict]:",
+                f"    return _list({module!r}, {names_literal})",
+            ]
+        if route.method == "POST":
+            return [
+                f"def {handler}({signature}) -> dict:",
+                f"    return _create({module!r}, body.model_dump(mode='json'), "
+                f"{names_literal})",
+            ]
+        if route.method in ("PUT", "PATCH"):
+            return [
+                f"def {handler}({signature}) -> dict:",
+                f"    return _update({module!r}, {route.path_fields[0].name!r}, "
+                f"{route.path_fields[0].name}, body.model_dump(mode='json'), "
+                f"{names_literal}, merge={route.method == 'PATCH'})",
+            ]
+        return [
+            f"def {handler}({signature}) -> dict:",
+            f"    return _delete({module!r}, {route.path_fields[0].name!r}, "
+            f"{route.path_fields[0].name}, {names_literal})",
+        ]
+
+    def _declared_apis(self, plan: CompilationPlan) -> str:
+        routes = declared_routes(plan)
+        bases = self._declared_names(routes)
+        secured = any(route.policies for route in routes)
+        lines = [
+            '"""Declared API operations bound through explicit ISR EXPOSES relations.',
+            "",
+            "A route is emitted only because the plan names its owning service,",
+            "resolves the resource it governs, and binds a typed policy that",
+            "actually governs the declared action. Nothing is inferred from",
+            "names, paths, or request fields.",
+            '"""',
+            "from __future__ import annotations",
+            "",
+            "from decimal import Decimal",
+            "",
+            "from fastapi import Depends, HTTPException",
+            "from pydantic import BaseModel, ConfigDict, Field",
+            "",
+        ]
+        if secured:
+            lines += [
+                "from app.core.authorization import require_authorization",
+                "from app.core.policies import OPERATION_POLICIES",
+            ]
+        lines += [
+            "from app.infrastructure.repositories import repository_for",
+            "",
+            "",
+        ]
+        for route, base in zip(routes, bases):
+            if route.body_fields:
+                lines += self._declared_model(f"{base}Request", route.body_fields)
+                lines += ["", ""]
+            if route.response_fields:
+                lines += self._declared_model(f"{base}Response", route.response_fields)
+                lines += ["", ""]
+        lines += [
+            "def _project(record: dict, names: tuple[str, ...]) -> dict:",
+            "    return {name: record.get(name) for name in names} if names else dict(record)",
+            "",
+            "",
+            "def _create(module: str, payload: dict, names: tuple[str, ...]) -> dict:",
+            "    return _project(repository_for(module).create(payload), names)",
+            "",
+            "",
+            "def _list(module: str, names: tuple[str, ...]) -> list[dict]:",
+            "    return [_project(record, names) for record in repository_for(module).list()]",
+            "",
+            "",
+            "def _find(module: str, field: str, value: object) -> dict:",
+            "    record = repository_for(module).find(field, value)",
+            "    if record is None:",
+            "        raise HTTPException(status_code=404, detail=f'{module} not found')",
+            "    return record",
+            "",
+            "",
+            "def _get(module: str, field: str, value: object, names: tuple[str, ...]) -> dict:",
+            "    return _project(_find(module, field, value), names)",
+            "",
+            "",
+            "def _update(module: str, field: str, value: object, payload: dict,",
+            "            names: tuple[str, ...], merge: bool) -> dict:",
+            "    repository = repository_for(module)",
+            "    existing = _find(module, field, value)",
+            "    if merge:",
+            "        payload = {**existing, **payload}",
+            "    record = repository.update(existing['id'], payload)",
+            "    if record is None:",
+            "        raise HTTPException(status_code=404, detail=f'{module} not found')",
+            "    return _project(record, names)",
+            "",
+            "",
+            "def _delete(module: str, field: str, value: object, names: tuple[str, ...]) -> dict:",
+            "    repository = repository_for(module)",
+            "    existing = _find(module, field, value)",
+            "    repository.delete(existing['id'])",
+            "    return _project(existing, names)",
+            "",
+            "",
+        ]
+        for route, base in zip(routes, bases):
+            names = tuple(field.name for field in route.response_fields)
+            lines += self._declared_handler(route, base, names)
+            lines += ["", ""]
+        lines += [
+            "def register_declared_routes(router) -> None:",
+            '    """Register each declared route with its exact method, path, and guard."""',
+        ]
+        for route, base in zip(routes, bases):
+            handler = f"_declared_{_slug(route.operation.name)}"
+            name = f"declared_{_slug(route.operation.name)}"
+            arguments = [
+                f"        {route.path!r},",
+                f"        {handler},",
+                f"        methods=[{route.method!r}],",
+                f"        name={name!r},",
+            ]
+            if route.method == "POST":
+                arguments.append("        status_code=201,")
+            if route.response_fields:
+                model = f"{base}Response"
+                if route.method == "GET" and not route.path_fields:
+                    model = f"list[{model}]"
+                arguments.append(f"        response_model={model},")
+            if route.policies:
+                arguments.append(
+                    "        dependencies=[Depends(require_authorization("
+                    f"action={route.action!r}, resource={route.resource!r}, "
+                    f"policies=OPERATION_POLICIES[{route.operation.id!r}]))],"
+                )
+            lines.append("    router.add_api_route(")
+            lines += arguments
+            lines.append("    )")
+        lines += [
+            "",
+            "",
+            "def declared_route_metadata() -> list[dict]:",
+            '    """The exact routes this module registered, for independent checks."""',
+            "    return [",
+        ]
+        for route in routes:
+            lines.append("        " + repr(route.as_dict()) + ",")
+        lines += [
+            "    ]",
+        ]
+        return "\n".join(lines) + "\n"
+
+    def _declared_operation_tests(self, plan: CompilationPlan, routes: tuple[DeclaredRoute, ...]) -> list[str]:
+        reads = [r for r in routes if r.method == "GET" and not r.path_fields]
+        singles = [r for r in routes if r.method == "GET" and r.path_fields]
+        creates = [r for r in routes if r.method == "POST"]
+        deletes = [r for r in routes if r.method == "DELETE"]
+        guarded = [r for r in routes if r.policies]
+
+        lines = [
+            "",
+            "",
+            "def test_declared_operation_emits_the_exact_route():",
+            "    paths = client.get('/openapi.json').json()['paths']",
+        ]
+        for route in routes:
+            lines.append(
+                f"    assert {route.method.lower()!r} in paths[{route.path!r}]"
+            )
+        if creates:
+            body = creates[0]
+            payload = self._declared_payload(body)
+            payload_json = json.dumps(payload, sort_keys=True)
+            headers = "HEADERS_DECLARED" if guarded else "HEADERS"
+            lines += [
+                "",
+                "",
+                "def test_declared_operation_rejects_a_malformed_payload():",
+                f"    r = client.post({body.path!r}, json={{'__unexpected__': 'invalid'}}, headers={headers})",
+                "    assert r.status_code == 422",
+            ]
+        if not guarded:
+            return lines
+
+        positive = next((self._declared_roles(r) for r in guarded if self._declared_roles(r)), [])
+        attributes = self._declared_attributes(guarded[0])
+        lines += [
+            "",
+            "",
+            f"TOKEN_DECLARED = issue_token('service-account', {positive!r}, attributes={attributes!r})",
+            "HEADERS_DECLARED = {**HEADERS, 'Authorization': f'Bearer {TOKEN_DECLARED}'}",
+            "",
+            "",
+            "def test_declared_operation_requires_a_signed_token():",
+            f"    r = client.{guarded[0].method.lower()}({guarded[0].path!r}, headers=HEADERS)",
+            "    assert r.status_code == 401",
+            "",
+            "",
+            "def test_declared_operation_denies_a_principal_without_a_grant():",
+            "    token = issue_token('intruder', ['no_such_role'])",
+            f"    r = client.{guarded[0].method.lower()}({guarded[0].path!r}, headers={{**HEADERS, 'Authorization': f'Bearer {{token}}'}})",
+            "    assert r.status_code == 403",
+        ]
+        if creates:
+            body = creates[0]
+            payload = self._declared_payload(body)
+            payload_json = json.dumps(payload, sort_keys=True)
+            if positive:
+                lines += [
+                    "",
+                    "",
+                    "def test_declared_operation_authorized_create_and_read():",
+                    f"    created = client.post({body.path!r}, json={payload_json}, headers=HEADERS_DECLARED)",
+                    "    assert created.status_code == 201",
+                    "    item = created.json()",
+                ]
+                target = next(
+                    (
+                        single for single in singles
+                        if single.service.id == body.service.id
+                        and single.resource == body.resource
+                        and single.path_fields[0].name in payload
+                    ),
+                    None,
+                )
+                if target is not None:
+                    field = target.path_fields[0].name
+                    lines += [
+                        f"    {field} = item[{field!r}]",
+                        f"    fetched = client.get(f'{target.path}', headers=HEADERS_DECLARED)",
+                        "    assert fetched.status_code == 200",
+                        f"    assert fetched.json()[{field!r}] == item[{field!r}]",
+                    ]
+                if reads:
+                    read = reads[0]
+                    lines += [
+                        f"    listed = client.get({read.path!r}, headers=HEADERS_DECLARED)",
+                        "    entries = listed.json()",
+                        "    shared = [name for name in item if entries and name in entries[0]]",
+                        "    assert shared",
+                        "    assert item[shared[0]] in [entry[shared[0]] for entry in entries]",
+                    ]
+                if reads:
+                    lines += [
+                        "",
+                        "",
+                        "def test_declared_operation_denial_does_not_mutate_state():",
+                        f"    before = client.get({reads[0].path!r}, headers=HEADERS_DECLARED).json()",
+                        "    token = issue_token('intruder', ['no_such_role'])",
+                        f"    denied = client.post({body.path!r}, json={payload_json}, headers={{**HEADERS, 'Authorization': f'Bearer {{token}}'}})",
+                        "    assert denied.status_code == 403",
+                        f"    after = client.get({reads[0].path!r}, headers=HEADERS_DECLARED).json()",
+                        "    assert after == before",
+                    ]
+                deny = next(
+                    (
+                        deletion for deletion in deletes
+                        if set(positive) & set(self._declared_deny_roles(deletion))
+                    ),
+                    None,
+                )
+                if deny is not None and target is not None:
+                    field = target.path_fields[0].name
+                    lines += [
+                        "",
+                        "",
+                        "def test_declared_operation_explicit_deny_wins():",
+                        f"    created = client.post({body.path!r}, json={payload_json}, headers=HEADERS_DECLARED)",
+                        "    item = created.json()",
+                        f"    {field} = item[{field!r}]",
+                        f"    denied = client.delete(f'{deny.path}', headers=HEADERS_DECLARED)",
+                        "    assert denied.status_code == 403",
+                        f"    still_there = client.get(f'{target.path}', headers=HEADERS_DECLARED)",
+                        "    assert still_there.status_code == 200",
+                    ]
+        return lines
+
+    def _declared_payload(self, route: DeclaredRoute) -> dict:
+        payload: dict = {}
+        for field in route.body_fields:
+            kind = field.value_type.value
+            if kind == "integer":
+                payload[field.name] = 1
+            elif kind in ("decimal", "money"):
+                payload[field.name] = "10.00"
+            elif kind == "boolean":
+                payload[field.name] = True
+            elif kind == "date":
+                payload[field.name] = "2026-01-01"
+            elif kind == "datetime":
+                payload[field.name] = "2026-01-01T00:00:00Z"
+            elif kind == "identifier":
+                payload[field.name] = f"{field.name}-alpha"
+            else:
+                payload[field.name] = "alpha"
+        return payload
+
     # -- emitters ----------------------------------------------------------
 
     def _emit(self, path: str, plan: CompilationPlan) -> str:
@@ -370,6 +812,8 @@ class PythonFastAPIBackend:
             return self._policies(plan)
         if path == "app/core/behavior.py":
             return self._behavior_runtime()
+        if path == "app/api/declared.py":
+            return self._declared_apis(plan)
         if path.startswith("app/domain/"):
             return self._domain(path, plan)
         if path.startswith("app/application/"):
@@ -414,6 +858,12 @@ class PythonFastAPIBackend:
             "    def list(self) -> list[dict]:\n"
             "        with self._lock:\n"
             "            return [dict(v) for k, v in sorted(self._items.items())]\n\n"
+            "    def find(self, field: str, value: object) -> dict | None:\n"
+            "        with self._lock:\n"
+            "            for record in self._items.values():\n"
+            "                if record.get(field) == value:\n"
+            "                    return dict(record)\n"
+            "            return None\n\n"
             "    def get(self, item_id: str) -> dict | None:\n"
             "        with self._lock:\n"
             "            item = self._items.get(item_id)\n"
@@ -620,17 +1070,24 @@ def require_authorization(action: str, resource: str,
 
     def _policies(self, plan: CompilationPlan) -> str:
         protected = protected_services(plan)
-        payload: dict[str, list[dict]] = {}
+        service_payload: dict[str, list[dict]] = {}
         for service in plan.services:
             policies = protected.get(service.id)
             if not policies:
                 continue
-            payload[_slug(service.name)] = [policy_payload(policy) for policy in policies]
+            service_payload[_slug(service.name)] = [policy_payload(policy) for policy in policies]
+        operation_payload = {
+            route.operation.id: [policy_payload(policy) for policy in route.policies]
+            for route in declared_routes(plan)
+        }
         return (
             '"""Declared authorization policies bound to the emitted routes."""\n'
             "from __future__ import annotations\n\n"
             "SERVICE_POLICIES: dict[str, list[dict]] = "
-            + json.dumps(payload, indent=2, sort_keys=True)
+            + json.dumps(service_payload, indent=2, sort_keys=True)
+            + "\n\n"
+            "OPERATION_POLICIES: dict[str, list[dict]] = "
+            + json.dumps(operation_payload, indent=2, sort_keys=True)
             + "\n"
         )
 
@@ -983,6 +1440,7 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
         entities = self._entities(plan)
         services = self._services(plan)
         secured = self._secured(plan)
+        declared = declared_routes(plan)
         title = plan.isr_id or "generated-service"
 
         imports = ["from fastapi import APIRouter, FastAPI, HTTPException"]
@@ -999,6 +1457,8 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
             imports.append(
                 f"from app.application.{s['mod']} import {s['cls']}Service"
             )
+        if declared:
+            imports.append("from app.api.declared import register_declared_routes")
 
         lines = [
             '"""Generated FastAPI application — wired CRUD, health, OpenAPI."""',
@@ -1075,6 +1535,14 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
             "    return [svc.catalog() for svc in SERVICES]",
             "",
             "",
+        ]
+        if declared:
+            lines += [
+                "register_declared_routes(router)",
+                "",
+                "",
+            ]
+        lines += [
             "app.include_router(router)",
             "",
         ]
@@ -1084,7 +1552,10 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
         entities = self._entities(plan)
         events = self._events(plan)
         secured = self._secured(plan)
-        authorized = self._has_protected_routes(plan)
+        declared = declared_routes(plan)
+        authorized = self._has_protected_routes(plan) or any(
+            route.policies for route in declared
+        )
         lines = [
             "import os",
             "",
@@ -1386,6 +1857,8 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
             body += [""]
             lines += body
         lines += self._authorization_tests(plan, entities)
+        if declared:
+            lines += self._declared_operation_tests(plan, declared)
         if secured and entities:
             first = entities[0]["plural"]
             lines += [

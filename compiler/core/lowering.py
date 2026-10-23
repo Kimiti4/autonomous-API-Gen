@@ -71,7 +71,15 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
                 security_policies=[],
             ))
         elif node.type == NodeType.EFFECT:
-            effects.append(Effect(id=node_id, name=label, behavior=_behavior(node)))
+            effects.append(Effect(
+                id=node_id,
+                name=label,
+                behavior=_behavior(node),
+                declared_policy={
+                    key: value for key, value in node.properties.items()
+                    if key not in {"label", "behavior"}
+                },
+            ))
         elif node.type == NodeType.INVARIANT:
             invariants.append(Invariant(id=node_id, name=label, behavior=_behavior(node)))
         elif node.type == NodeType.CONSEQUENCE:

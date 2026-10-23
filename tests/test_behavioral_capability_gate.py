@@ -131,13 +131,10 @@ def test_external_effect_semantics_remain_blocked_until_durable_execution_is_bou
         ),
     )
     plan = CompilationPlan(plan_id="effect-plan", isr_id="system", effects=[effect])
-    assert SemanticFeature.EFFECT_POLICY_PRESERVATION in required_features(plan)
-    assert SemanticFeature.EFFECT_SEMANTICS not in required_features(plan)
+    assert SemanticFeature.EFFECT_SEMANTICS in required_features(plan)
     for backend in (PythonFastAPIBackend(), RustAxumBackend()):
-        repo = backend.compile(plan)
-        manifest = json.loads(repo.files["docs/semantic-obligations.json"])
-        assert manifest["effects"][0]["declared_policy"]["failure_policy"] == "rollback"
-
+        with pytest.raises(UnsupportedSemanticsError, match="effect_semantics"):
+            backend.compile(plan)
 
 def test_legacy_structural_security_edge_does_not_claim_behavioral_auth():
     policy = SecurityPolicy(policy_id="security:legacy", behavior=None)
@@ -255,7 +252,9 @@ def test_source_declared_effect_policy_is_preserved_without_claiming_execution()
             },
         )],
     )
-    assert SemanticFeature.EFFECT_SEMANTICS in required_features(plan)
+    assert SemanticFeature.EFFECT_POLICY_PRESERVATION in required_features(plan)
+    assert SemanticFeature.EFFECT_SEMANTICS not in required_features(plan)
     for backend in (PythonFastAPIBackend(), RustAxumBackend()):
-        with pytest.raises(UnsupportedSemanticsError, match="effect_semantics"):
-            backend.compile(plan)
+        repo = backend.compile(plan)
+        manifest = json.loads(repo.files["docs/semantic-obligations.json"])
+        assert manifest["effects"][0]["declared_policy"]["failure_policy"] == "rollback"

@@ -237,6 +237,14 @@ def test_consequence_contract_is_preserved_without_claiming_execution():
         manifest = json.loads(repo.files["docs/semantic-obligations.json"])
         assert manifest["consequences"][0]["behavior"]["outcome"] == "return prior result"
         assert manifest["consequences"][0]["related_node_ids"] == ["effect:create"]
+        assert backend.conformance(plan, repo).passed
+        tampered_files = dict(repo.files)
+        manifest["consequences"][0]["behavior"]["outcome"] = "silently changed"
+        tampered_files["docs/semantic-obligations.json"] = json.dumps(manifest)
+        tampered_repo = repo.model_copy(update={"files": tampered_files})
+        report = backend.conformance(plan, tampered_repo)
+        assert not report.passed
+        assert "semantic-obligations:mismatch" in report.missing
 
 
 def test_source_declared_effect_policy_is_preserved_without_claiming_execution():

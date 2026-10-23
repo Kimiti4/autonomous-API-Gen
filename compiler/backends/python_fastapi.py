@@ -812,7 +812,7 @@ class PythonFastAPIBackend:
                 "effects": [item.model_dump(mode="json") for item in plan.effects],
                 "effect_bindings": [item.model_dump(mode="json") for item in plan.effect_bindings],
                 "consequences": [item.model_dump(mode="json") for item in plan.consequences],
-            }, sort_keys=True, indent=2) + "\\n"
+            }, sort_keys=True, indent=2)
         if path == "app/infrastructure/repositories.py":
             return self._repositories()
         if path == "app/core/security.py":

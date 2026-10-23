@@ -12,8 +12,8 @@ from compiler.core.capabilities import (
     assert_plan_supported,
     required_features,
 )
-from compiler.core.plan import ApiOperation, CompilationPlan, DataModel, Effect, SecurityPolicy, Service
-from isr.core.behavior import ApiBehavior, DataModelBehavior, EffectBehavior
+from compiler.core.plan import ApiOperation, CompilationPlan, Consequence, DataModel, Effect, SecurityPolicy, Service
+from isr.core.behavior import ApiBehavior, ConsequenceBehavior, DataModelBehavior, EffectBehavior
 
 
 def test_structural_plan_requires_no_behavioral_features():
@@ -213,3 +213,24 @@ def test_authentication_declaration_is_not_an_authorization_obligation():
     assert SemanticFeature.AUTHORIZATION_POLICIES not in required_features(plan)
     for backend in (PythonFastAPIBackend(), RustAxumBackend()):
         backend.compile(plan)
+
+
+def test_consequence_contract_is_an_explicit_unsupported_capability():
+    plan = CompilationPlan(
+        plan_id="consequence-plan", isr_id="system",
+        consequences=[Consequence(
+            id="consequence:duplicate",
+            behavior=ConsequenceBehavior(
+                trigger="duplicate request",
+                outcome="return prior result",
+                failure_policy="no duplicate side effect",
+                effect_consequence={"effect_id": "effect:create", "retry_policy": "bounded"},
+            ),
+            related_node_ids=("effect:create",),
+        )],
+    )
+    assert SemanticFeature.CONSEQUENCE_SEMANTICS in required_features(plan)
+    for backend in (PythonFastAPIBackend(), RustAxumBackend()):
+        assert SemanticFeature.CONSEQUENCE_SEMANTICS not in backend.supported_features
+        with pytest.raises(UnsupportedSemanticsError, match="consequence_semantics"):
+            backend.compile(plan)

@@ -91,11 +91,26 @@ def _revision() -> ISRRevision:
                 ]},
             },
         }),
+        "consequence:duplicate": Node(id="consequence:duplicate", type=NodeType.CONSEQUENCE, properties={
+            "label": "DuplicateRequest",
+            "trigger": "duplicate request",
+            "outcome": "return prior result",
+            "failure_policy": "no duplicate side effect",
+            "effect_consequence": {
+                "effect_id": "effect:bank-transfer",
+                "persistence": "dm:employee",
+                "event": "none",
+                "idempotency_key": "request-id",
+                "retry_policy": "bounded",
+            },
+        }),
     }
     edges = {
         "e-persist": Edge(id="e-persist", type=EdgeType.PERSISTS, source_id="service:payroll", target_id="dm:employee"),
         "e-publish": Edge(id="e-publish", type=EdgeType.PUBLISHES, source_id="service:payroll", target_id="event:payroll-calculated"),
         "e-effect": Edge(id="e-effect", type=EdgeType.CAUSES_EFFECT, source_id="service:payroll", target_id="effect:bank-transfer"),
+        "e-api-effect": Edge(id="e-api-effect", type=EdgeType.CAUSES_EFFECT, source_id="api:approve", target_id="effect:bank-transfer"),
+        "e-consequence": Edge(id="e-consequence", type=EdgeType.CONSEQUENCE_OF, source_id="consequence:duplicate", target_id="effect:bank-transfer"),
         "e-secure-service": Edge(id="e-secure-service", type=EdgeType.SECURED_BY, source_id="service:payroll", target_id="security:payroll-approver"),
         "e-secure-api": Edge(id="e-secure-api", type=EdgeType.SECURED_BY, source_id="api:approve", target_id="security:payroll-approver"),
     }
@@ -138,6 +153,17 @@ def test_projection_preserves_all_behavioral_contracts_and_security_bindings():
     assert effect.behavior.effect_kind == "bank_transfer"
     assert effect.behavior.idempotent is True
     assert effect.behavior.idempotency_key_required is True
+    assert {(binding.edge_id, binding.source_id, binding.effect_id) for binding in plan.effect_bindings} == {
+        ("e-effect", "service:payroll", "effect:bank-transfer"),
+        ("e-api-effect", "api:approve", "effect:bank-transfer"),
+    }
+
+    consequence = next(item for item in plan.consequences if item.id == "consequence:duplicate")
+    assert consequence.behavior.trigger == "duplicate request"
+    assert consequence.behavior.outcome == "return prior result"
+    assert consequence.behavior.failure_policy == "no duplicate side effect"
+    assert consequence.behavior.effect_consequence["idempotency_key"] == "request-id"
+    assert consequence.related_node_ids == ("effect:bank-transfer",)
 
     invariant = next(item for item in plan.invariants if item.id == "invariant:nonnegative-pay")
     assert invariant.behavior.expression.op == "greater_or_equal"
@@ -168,6 +194,7 @@ def test_behavioral_plan_does_not_cross_backend_gate_with_unimplemented_api_effe
     assert SemanticFeature.API_CONTRACTS in required
     assert SemanticFeature.AUTHORIZATION_POLICIES in required
     assert SemanticFeature.EFFECT_SEMANTICS in required
+    assert SemanticFeature.CONSEQUENCE_SEMANTICS in required
     assert SemanticFeature.INVARIANTS in required
 
     for backend in (PythonFastAPIBackend(), RustAxumBackend()):
@@ -196,3 +223,22 @@ def test_behavioral_plan_does_not_cross_backend_gate_with_unimplemented_api_effe
                 assert "authorization_policies" not in message
         else:
             raise AssertionError(f"{backend.name} accepted unsupported semantic obligations")
+
+
+def test_consequence_without_explicit_effect_or_invariant_binding_is_rejected():
+    revision = _revision()
+    edges = {
+        edge_id: edge for edge_id, edge in revision.graph.edges.items()
+        if edge.type != EdgeType.CONSEQUENCE_OF
+    }
+    broken_graph = ISRGraph(nodes=revision.graph.nodes, edges=edges)
+    broken = ISRRevision.create(
+        system_id=revision.system_id,
+        revision_id="rev-missing-consequence-binding",
+        schema_version=revision.schema_version,
+        graph=broken_graph,
+        provenance=revision.provenance,
+    )
+    import pytest
+    with pytest.raises(ValueError, match="no explicit CONSEQUENCE_OF binding"):
+        isr_to_plan(broken)

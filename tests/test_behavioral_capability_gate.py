@@ -242,7 +242,7 @@ def test_consequence_contract_is_an_explicit_unsupported_capability():
         assert manifest["consequences"][0]["related_node_ids"] == ["effect:create"]
 
 
-def test_source_declared_effect_policy_cannot_bypass_capability_gate():
+def test_source_declared_effect_policy_is_preserved_without_claiming_execution():
     plan = CompilationPlan(
         plan_id="legacy-effect-policy-plan", isr_id="system",
         effects=[Effect(

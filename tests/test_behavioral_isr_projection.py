@@ -204,7 +204,8 @@ def test_behavioral_plan_does_not_cross_backend_gate_with_unimplemented_api_effe
     assert SemanticFeature.API_CONTRACTS in required
     assert SemanticFeature.AUTHORIZATION_POLICIES in required
     assert SemanticFeature.EFFECT_SEMANTICS in required
-    assert SemanticFeature.CONSEQUENCE_SEMANTICS in required
+    assert SemanticFeature.CONSEQUENCE_PRESERVATION in required
+    assert SemanticFeature.CONSEQUENCE_SEMANTICS not in required
     assert SemanticFeature.INVARIANTS in required
 
     for backend in (PythonFastAPIBackend(), RustAxumBackend()):

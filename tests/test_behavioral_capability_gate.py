@@ -215,7 +215,7 @@ def test_authentication_declaration_is_not_an_authorization_obligation():
         backend.compile(plan)
 
 
-def test_consequence_contract_is_an_explicit_unsupported_capability():
+def test_consequence_contract_is_preserved_without_claiming_execution():
     plan = CompilationPlan(
         plan_id="consequence-plan", isr_id="system",
         consequences=[Consequence(

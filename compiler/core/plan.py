@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from isr.core.behavior import (
     ApiBehavior,
+    ConsequenceBehavior,
     DataModelBehavior,
     EffectBehavior,
     EventBehavior,
@@ -51,6 +52,8 @@ class Service(BaseModel):
     published_events: list[Event] = Field(default_factory=list)
     consumed_events: list[Event] = Field(default_factory=list)
     effects: list[Effect] = Field(default_factory=list)
+    effect_bindings: list[EffectBinding] = Field(default_factory=list)
+    consequences: list[Consequence] = Field(default_factory=list)
     behavior: ServiceBehavior | None = None
     security_policies: list[SecurityPolicy] = Field(default_factory=list)
 
@@ -88,6 +91,23 @@ class Invariant(BaseModel):
     id: str = Field(min_length=1)
     name: str = Field(min_length=1)
     behavior: InvariantSpec | None = None
+
+
+class Consequence(BaseModel):
+    """Observable consequence preserved from a first-class ISR node."""
+    model_config = ConfigDict(frozen=True)
+    id: str = Field(min_length=1)
+    behavior: ConsequenceBehavior
+    # IDs reached by explicit ISR CONSEQUENCE_OF edges; never inferred by name.
+    related_node_ids: tuple[str, ...] = Field(min_length=1)
+
+
+class EffectBinding(BaseModel):
+    """Source-bound CAUSES_EFFECT edge, regardless of source node kind."""
+    model_config = ConfigDict(frozen=True)
+    edge_id: str = Field(min_length=1)
+    source_id: str = Field(min_length=1)
+    effect_id: str = Field(min_length=1)
 
 
 class CompilationPlan(BaseModel):

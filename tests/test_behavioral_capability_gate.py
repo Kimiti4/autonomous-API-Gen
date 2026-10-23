@@ -1,6 +1,7 @@
 """Capability gate tests: unsupported semantics must never reach emitters."""
 from __future__ import annotations
 
+import json
 import pytest
 
 from compiler.backends.python_fastapi import PythonFastAPIBackend
@@ -130,10 +131,12 @@ def test_external_effect_semantics_remain_blocked_until_durable_execution_is_bou
         ),
     )
     plan = CompilationPlan(plan_id="effect-plan", isr_id="system", effects=[effect])
-    assert SemanticFeature.EFFECT_SEMANTICS in required_features(plan)
+    assert SemanticFeature.EFFECT_POLICY_PRESERVATION in required_features(plan)
+    assert SemanticFeature.EFFECT_SEMANTICS not in required_features(plan)
     for backend in (PythonFastAPIBackend(), RustAxumBackend()):
-        with pytest.raises(UnsupportedSemanticsError, match="effect_semantics"):
-            backend.compile(plan)
+        repo = backend.compile(plan)
+        manifest = json.loads(repo.files["docs/semantic-obligations.json"])
+        assert manifest["effects"][0]["declared_policy"]["failure_policy"] == "rollback"
 
 
 def test_legacy_structural_security_edge_does_not_claim_behavioral_auth():
@@ -229,11 +232,14 @@ def test_consequence_contract_is_an_explicit_unsupported_capability():
             related_node_ids=("effect:create",),
         )],
     )
-    assert SemanticFeature.CONSEQUENCE_SEMANTICS in required_features(plan)
+    assert SemanticFeature.CONSEQUENCE_PRESERVATION in required_features(plan)
+    assert SemanticFeature.CONSEQUENCE_SEMANTICS not in required_features(plan)
     for backend in (PythonFastAPIBackend(), RustAxumBackend()):
-        assert SemanticFeature.CONSEQUENCE_SEMANTICS not in backend.supported_features
-        with pytest.raises(UnsupportedSemanticsError, match="consequence_semantics"):
-            backend.compile(plan)
+        assert SemanticFeature.CONSEQUENCE_PRESERVATION in backend.supported_features
+        repo = backend.compile(plan)
+        manifest = json.loads(repo.files["docs/semantic-obligations.json"])
+        assert manifest["consequences"][0]["behavior"]["outcome"] == "return prior result"
+        assert manifest["consequences"][0]["related_node_ids"] == ["effect:create"]
 
 
 def test_source_declared_effect_policy_cannot_bypass_capability_gate():

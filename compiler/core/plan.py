@@ -57,8 +57,6 @@ class Service(BaseModel):
     published_events: list[Event] = Field(default_factory=list)
     consumed_events: list[Event] = Field(default_factory=list)
     effects: list[Effect] = Field(default_factory=list)
-    effect_bindings: list[EffectBinding] = Field(default_factory=list)
-    consequences: list[Consequence] = Field(default_factory=list)
     behavior: ServiceBehavior | None = None
     security_policies: list[SecurityPolicy] = Field(default_factory=list)
 
@@ -131,6 +129,8 @@ class CompilationPlan(BaseModel):
     security: list[SecurityPolicy] = Field(default_factory=list)
     apis: list[ApiOperation] = Field(default_factory=list)
     effects: list[Effect] = Field(default_factory=list)
+    effect_bindings: list[EffectBinding] = Field(default_factory=list)
+    consequences: list[Consequence] = Field(default_factory=list)
     invariants: list[Invariant] = Field(default_factory=list)
     frontend_routes: list[FrontendRoute] = Field(default_factory=list)
     frontend_interactions: list[FrontendInteraction] = Field(default_factory=list)

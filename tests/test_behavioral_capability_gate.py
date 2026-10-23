@@ -234,3 +234,22 @@ def test_consequence_contract_is_an_explicit_unsupported_capability():
         assert SemanticFeature.CONSEQUENCE_SEMANTICS not in backend.supported_features
         with pytest.raises(UnsupportedSemanticsError, match="consequence_semantics"):
             backend.compile(plan)
+
+
+def test_source_declared_effect_policy_cannot_bypass_capability_gate():
+    plan = CompilationPlan(
+        plan_id="legacy-effect-policy-plan", isr_id="system",
+        effects=[Effect(
+            id="effect:create", name="Create",
+            declared_policy={
+                "effect_type": "create",
+                "idempotency_policy": "required",
+                "replay_policy": "deduplicate",
+                "failure_policy": "rollback",
+            },
+        )],
+    )
+    assert SemanticFeature.EFFECT_SEMANTICS in required_features(plan)
+    for backend in (PythonFastAPIBackend(), RustAxumBackend()):
+        with pytest.raises(UnsupportedSemanticsError, match="effect_semantics"):
+            backend.compile(plan)

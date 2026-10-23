@@ -86,7 +86,7 @@ def required_features(plan: CompilationPlan) -> frozenset[SemanticFeature]:
             required.add(SemanticFeature.AUTHORIZATION_POLICIES)
 
     for effect in plan.effects:
-        if effect.behavior is not None:
+        if effect.behavior is not None or effect.declared_policy:
             required.add(SemanticFeature.EFFECT_SEMANTICS)
     # A source-bound effect edge is itself an execution obligation even when
     # the target effect has only legacy structural properties.

@@ -78,6 +78,10 @@ def _revision() -> ISRRevision:
         }),
         "effect:bank-transfer": Node(id="effect:bank-transfer", type=NodeType.EFFECT, properties={
             "label": "BankTransfer",
+            "effect_type": "bank_transfer",
+            "idempotency_policy": "required",
+            "replay_policy": "deduplicate",
+            "failure_policy": "rollback",
             "behavior": {"effect_kind": "bank_transfer", "idempotent": True, "idempotency_key_required": True},
         }),
         "invariant:nonnegative-pay": Node(id="invariant:nonnegative-pay", type=NodeType.INVARIANT, properties={
@@ -153,6 +157,12 @@ def test_projection_preserves_all_behavioral_contracts_and_security_bindings():
     assert effect.behavior.effect_kind == "bank_transfer"
     assert effect.behavior.idempotent is True
     assert effect.behavior.idempotency_key_required is True
+    assert effect.declared_policy == {
+        "effect_type": "bank_transfer",
+        "idempotency_policy": "required",
+        "replay_policy": "deduplicate",
+        "failure_policy": "rollback",
+    }
     assert {(binding.edge_id, binding.source_id, binding.effect_id) for binding in plan.effect_bindings} == {
         ("e-effect", "service:payroll", "effect:bank-transfer"),
         ("e-api-effect", "api:approve", "effect:bank-transfer"),

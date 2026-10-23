@@ -203,6 +203,16 @@ class EffectBehavior(BaseModel):
         return self
 
 
+class ConsequenceBehavior(BaseModel):
+    """Observable consequence and failure contract declared by an ISR node."""
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    trigger: str = Field(min_length=1)
+    outcome: str = Field(min_length=1)
+    failure_policy: str = Field(min_length=1)
+    effect_consequence: dict[str, Any] = Field(default_factory=dict)
+    source_requirement_ids: tuple[str, ...] = ()
+
+
 class SecurityBehavior(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     roles: tuple[str, ...] = Field(min_length=1)

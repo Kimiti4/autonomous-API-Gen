@@ -1,6 +1,7 @@
 """Capability gate tests: unsupported semantics must never reach emitters."""
 from __future__ import annotations
 
+import json
 import pytest
 
 from compiler.backends.python_fastapi import PythonFastAPIBackend
@@ -12,8 +13,8 @@ from compiler.core.capabilities import (
     assert_plan_supported,
     required_features,
 )
-from compiler.core.plan import ApiOperation, CompilationPlan, DataModel, Effect, SecurityPolicy, Service
-from isr.core.behavior import ApiBehavior, DataModelBehavior, EffectBehavior
+from compiler.core.plan import ApiOperation, CompilationPlan, Consequence, DataModel, Effect, SecurityPolicy, Service
+from isr.core.behavior import ApiBehavior, ConsequenceBehavior, DataModelBehavior, EffectBehavior
 
 
 def test_structural_plan_requires_no_behavioral_features():
@@ -135,7 +136,6 @@ def test_external_effect_semantics_remain_blocked_until_durable_execution_is_bou
         with pytest.raises(UnsupportedSemanticsError, match="effect_semantics"):
             backend.compile(plan)
 
-
 def test_legacy_structural_security_edge_does_not_claim_behavioral_auth():
     policy = SecurityPolicy(policy_id="security:legacy", behavior=None)
     service = Service(
@@ -213,3 +213,56 @@ def test_authentication_declaration_is_not_an_authorization_obligation():
     assert SemanticFeature.AUTHORIZATION_POLICIES not in required_features(plan)
     for backend in (PythonFastAPIBackend(), RustAxumBackend()):
         backend.compile(plan)
+
+
+def test_consequence_contract_is_preserved_without_claiming_execution():
+    plan = CompilationPlan(
+        plan_id="consequence-plan", isr_id="system",
+        consequences=[Consequence(
+            id="consequence:duplicate",
+            behavior=ConsequenceBehavior(
+                trigger="duplicate request",
+                outcome="return prior result",
+                failure_policy="no duplicate side effect",
+                effect_consequence={"effect_id": "effect:create", "retry_policy": "bounded"},
+            ),
+            related_node_ids=("effect:create",),
+        )],
+    )
+    assert SemanticFeature.CONSEQUENCE_PRESERVATION in required_features(plan)
+    assert SemanticFeature.CONSEQUENCE_SEMANTICS not in required_features(plan)
+    for backend in (PythonFastAPIBackend(), RustAxumBackend()):
+        assert SemanticFeature.CONSEQUENCE_PRESERVATION in backend.supported_features
+        repo = backend.compile(plan)
+        manifest = json.loads(repo.files["docs/semantic-obligations.json"])
+        assert manifest["consequences"][0]["behavior"]["outcome"] == "return prior result"
+        assert manifest["consequences"][0]["related_node_ids"] == ["effect:create"]
+        assert backend.conformance(plan, repo).passed
+        tampered_files = dict(repo.files)
+        manifest["consequences"][0]["behavior"]["outcome"] = "silently changed"
+        tampered_files["docs/semantic-obligations.json"] = json.dumps(manifest)
+        tampered_repo = repo.model_copy(update={"files": tampered_files})
+        report = backend.conformance(plan, tampered_repo)
+        assert not report.passed
+        assert "semantic-obligations:mismatch" in report.missing
+
+
+def test_source_declared_effect_policy_is_preserved_without_claiming_execution():
+    plan = CompilationPlan(
+        plan_id="legacy-effect-policy-plan", isr_id="system",
+        effects=[Effect(
+            id="effect:create", name="Create",
+            declared_policy={
+                "effect_type": "create",
+                "idempotency_policy": "required",
+                "replay_policy": "deduplicate",
+                "failure_policy": "rollback",
+            },
+        )],
+    )
+    assert SemanticFeature.EFFECT_POLICY_PRESERVATION in required_features(plan)
+    assert SemanticFeature.EFFECT_SEMANTICS not in required_features(plan)
+    for backend in (PythonFastAPIBackend(), RustAxumBackend()):
+        repo = backend.compile(plan)
+        manifest = json.loads(repo.files["docs/semantic-obligations.json"])
+        assert manifest["effects"][0]["declared_policy"]["failure_policy"] == "rollback"

@@ -1,10 +1,13 @@
 """CompilationPlan — the technology-neutral intermediate representation."""
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from isr.core.behavior import (
     ApiBehavior,
+    ConsequenceBehavior,
     DataModelBehavior,
     EffectBehavior,
     EventBehavior,
@@ -41,6 +44,9 @@ class Effect(BaseModel):
     id: str = Field(min_length=1)
     name: str = Field(min_length=1)
     behavior: EffectBehavior | None = None
+    # Preserve legacy/source-declared policy fields until a typed executable
+    # contract can consume them; capability gates must not ignore this payload.
+    declared_policy: dict[str, Any] = Field(default_factory=dict)
 
 
 class Service(BaseModel):
@@ -90,6 +96,23 @@ class Invariant(BaseModel):
     behavior: InvariantSpec | None = None
 
 
+class Consequence(BaseModel):
+    """Observable consequence preserved from a first-class ISR node."""
+    model_config = ConfigDict(frozen=True)
+    id: str = Field(min_length=1)
+    behavior: ConsequenceBehavior
+    # IDs reached by explicit ISR CONSEQUENCE_OF edges; never inferred by name.
+    related_node_ids: tuple[str, ...] = Field(min_length=1)
+
+
+class EffectBinding(BaseModel):
+    """Source-bound CAUSES_EFFECT edge, regardless of source node kind."""
+    model_config = ConfigDict(frozen=True)
+    edge_id: str = Field(min_length=1)
+    source_id: str = Field(min_length=1)
+    effect_id: str = Field(min_length=1)
+
+
 class CompilationPlan(BaseModel):
     """Deterministic, technology-neutral IR between ISR lowering and emitters.
 
@@ -106,6 +129,8 @@ class CompilationPlan(BaseModel):
     security: list[SecurityPolicy] = Field(default_factory=list)
     apis: list[ApiOperation] = Field(default_factory=list)
     effects: list[Effect] = Field(default_factory=list)
+    effect_bindings: list[EffectBinding] = Field(default_factory=list)
+    consequences: list[Consequence] = Field(default_factory=list)
     invariants: list[Invariant] = Field(default_factory=list)
     frontend_routes: list[FrontendRoute] = Field(default_factory=list)
     frontend_interactions: list[FrontendInteraction] = Field(default_factory=list)

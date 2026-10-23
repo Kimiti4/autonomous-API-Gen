@@ -1,12 +1,14 @@
 """Loss-aware ISRRevision -> CompilationPlan projection."""
 from __future__ import annotations
 
-from isr.core.behavior import validate_behavior_payload
+from isr.core.behavior import ConsequenceBehavior, validate_behavior_payload
 from isr.core.graph import EdgeType, NodeType
 from isr.core.revision import ISRRevision
 from compiler.core.plan import (
     ApiOperation,
     CompilationPlan,
+    Consequence,
+    EffectBinding,
     DataModel,
     Effect,
     Event,
@@ -45,6 +47,7 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
     apis: list[ApiOperation] = []
     effects: list[Effect] = []
     invariants: list[Invariant] = []
+    consequence_nodes: dict[str, object] = {}
 
     for node_id, node in graph.nodes.items():
         label = node.properties.get("label", node_id.split(":", 1)[-1])
@@ -68,18 +71,48 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
                 security_policies=[],
             ))
         elif node.type == NodeType.EFFECT:
-            effects.append(Effect(id=node_id, name=label, behavior=_behavior(node)))
+            effects.append(Effect(
+                id=node_id,
+                name=label,
+                behavior=_behavior(node),
+                declared_policy={
+                    key: value for key, value in node.properties.items()
+                    if key not in {"label", "behavior"}
+                },
+            ))
         elif node.type == NodeType.INVARIANT:
             invariants.append(Invariant(id=node_id, name=label, behavior=_behavior(node)))
+        elif node.type == NodeType.CONSEQUENCE:
+            consequence_nodes[node_id] = node
 
     effects_by_id = {effect.id: effect for effect in effects}
     api_ids = {api.id for api in apis}
+    effect_bindings: list[EffectBinding] = []
+    consequence_targets: dict[str, list[str]] = {}
 
     for edge in graph.edges.values():
         if edge.type == EdgeType.EXPOSES and edge.target_id in api_ids:
             api_services.setdefault(edge.target_id, []).append(edge.source_id)
-        elif edge.type == EdgeType.CAUSES_EFFECT and edge.target_id in effects_by_id:
-            svc_effects.setdefault(edge.source_id, []).append(effects_by_id[edge.target_id])
+        elif edge.type == EdgeType.CAUSES_EFFECT:
+            if edge.target_id not in effects_by_id or edge.source_id not in graph.nodes:
+                raise ValueError(
+                    f"CAUSES_EFFECT edge {edge.id!r} has an unresolved source or effect target"
+                )
+            effect_bindings.append(EffectBinding(
+                edge_id=edge.id, source_id=edge.source_id, effect_id=edge.target_id
+            ))
+            if graph.nodes[edge.source_id].type == NodeType.SERVICE:
+                svc_effects.setdefault(edge.source_id, []).append(effects_by_id[edge.target_id])
+        elif edge.type == EdgeType.CONSEQUENCE_OF:
+            if edge.source_id not in consequence_nodes:
+                raise ValueError(
+                    f"CONSEQUENCE_OF edge {edge.id!r} does not originate at a consequence node"
+                )
+            if edge.target_id not in effects_by_id and edge.target_id not in {item.id for item in invariants}:
+                raise ValueError(
+                    f"CONSEQUENCE_OF edge {edge.id!r} has an unresolved effect/invariant target"
+                )
+            consequence_targets.setdefault(edge.source_id, []).append(edge.target_id)
         elif edge.type == EdgeType.PERSISTS and edge.target_id in dm_by_id:
             svc_data_models.setdefault(edge.source_id, []).append(dm_by_id[edge.target_id])
         elif edge.type == EdgeType.PUBLISHES and edge.target_id in ev_by_id:
@@ -164,6 +197,21 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
                 security_policies=svc_security.get(node_id, []),
             ))
 
+    consequences: list[Consequence] = []
+    for consequence_id, node in consequence_nodes.items():
+        targets = tuple(sorted(set(consequence_targets.get(consequence_id, ()))))
+        if not targets:
+            raise ValueError(
+                f"consequence {consequence_id!r} has no explicit CONSEQUENCE_OF binding"
+            )
+        properties = {
+            key: value for key, value in node.properties.items() if key != "label"
+        }
+        behavior = ConsequenceBehavior.model_validate(properties)
+        consequences.append(Consequence(
+            id=consequence_id, behavior=behavior, related_node_ids=targets
+        ))
+
     return CompilationPlan(
         plan_id=f"plan:{revision.content_hash[:16]}",
         isr_id=revision.system_id,
@@ -173,6 +221,8 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
         security=list(sec_by_id.values()),
         apis=apis,
         effects=effects,
+        effect_bindings=effect_bindings,
+        consequences=consequences,
         invariants=invariants,
         frontend_routes=frontend_routes,
         frontend_interactions=list(frontend_interactions.values()),

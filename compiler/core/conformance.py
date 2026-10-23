@@ -1,6 +1,7 @@
 """ConformanceReport and backend-agnostic ConformanceChecker (ADR-012)."""
 from __future__ import annotations
 import ast
+import json
 from pydantic import BaseModel, ConfigDict, Field
 from compiler.core.plan import CompilationPlan
 from compiler.core.repository import GeneratedRepository
@@ -25,7 +26,7 @@ def plan_element_ids(plan: CompilationPlan) -> list[str]:
         ids.append(sp.policy_id)
     ids += [
         "infra:docker", "infra:k8s", "infra:ci", "infra:readme",
-        "infra:main", "infra:repositories", "infra:docs",
+        "infra:main", "infra:repositories", "infra:docs", "infra:semantic_obligations",
     ]
     return ids
 
@@ -86,6 +87,21 @@ class ConformanceChecker:
                 finding = hollow_finding(path, repo.files[path])
                 if finding is not None:
                     missing.append(finding)
+        manifest_path = element_paths.get("infra:semantic_obligations")
+        if manifest_path and manifest_path in repo.files:
+            try:
+                manifest = json.loads(repo.files[manifest_path])
+            except (TypeError, ValueError):
+                missing.append("semantic-obligations:invalid-json")
+            else:
+                expected = {
+                    "schema_version": "1",
+                    "effects": [item.model_dump(mode="json") for item in plan.effects],
+                    "effect_bindings": [item.model_dump(mode="json") for item in plan.effect_bindings],
+                    "consequences": [item.model_dump(mode="json") for item in plan.consequences],
+                }
+                if manifest != expected:
+                    missing.append("semantic-obligations:mismatch")
         return ConformanceReport(passed=not missing, missing=missing)
 
 

@@ -18,6 +18,10 @@ class SemanticFeature(str, Enum):
     API_CONTRACTS = "api_contracts"
     AUTHORIZATION_POLICIES = "authorization_policies"
     EFFECT_SEMANTICS = "effect_semantics"
+    EFFECT_POLICY_PRESERVATION = "effect_policy_preservation"
+    EFFECT_BINDING_PRESERVATION = "effect_binding_preservation"
+    CONSEQUENCE_PRESERVATION = "consequence_preservation"
+    CONSEQUENCE_SEMANTICS = "consequence_semantics"
     INVARIANTS = "invariants"
     TYPED_EVENTS = "typed_events"
     FRONTEND_ROUTES = "frontend_routes"
@@ -87,6 +91,14 @@ def required_features(plan: CompilationPlan) -> frozenset[SemanticFeature]:
     for effect in plan.effects:
         if effect.behavior is not None:
             required.add(SemanticFeature.EFFECT_SEMANTICS)
+        if effect.declared_policy:
+            required.add(SemanticFeature.EFFECT_POLICY_PRESERVATION)
+    # These features preserve source semantics in a candidate manifest; they
+    # do not claim the backend executes the declared side effects or outcomes.
+    if plan.effect_bindings:
+        required.add(SemanticFeature.EFFECT_BINDING_PRESERVATION)
+    if plan.consequences:
+        required.add(SemanticFeature.CONSEQUENCE_PRESERVATION)
 
     for invariant in plan.invariants:
         if invariant.behavior is not None:

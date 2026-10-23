@@ -18,6 +18,7 @@ class SemanticFeature(str, Enum):
     API_CONTRACTS = "api_contracts"
     AUTHORIZATION_POLICIES = "authorization_policies"
     EFFECT_SEMANTICS = "effect_semantics"
+    CONSEQUENCE_SEMANTICS = "consequence_semantics"
     INVARIANTS = "invariants"
     TYPED_EVENTS = "typed_events"
     FRONTEND_ROUTES = "frontend_routes"
@@ -87,6 +88,12 @@ def required_features(plan: CompilationPlan) -> frozenset[SemanticFeature]:
     for effect in plan.effects:
         if effect.behavior is not None:
             required.add(SemanticFeature.EFFECT_SEMANTICS)
+    # A source-bound effect edge is itself an execution obligation even when
+    # the target effect has only legacy structural properties.
+    if plan.effect_bindings:
+        required.add(SemanticFeature.EFFECT_SEMANTICS)
+    if plan.consequences:
+        required.add(SemanticFeature.CONSEQUENCE_SEMANTICS)
 
     for invariant in plan.invariants:
         if invariant.behavior is not None:

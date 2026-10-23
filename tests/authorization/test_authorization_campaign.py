@@ -14,7 +14,10 @@ from pathlib import Path
 
 import pytest
 
-from certification.authorization.candidate import REQUIRED_ADVERSARIAL_TESTS
+from certification.authorization.candidate import (
+    DECLARED_OPERATION_TESTS,
+    REQUIRED_ADVERSARIAL_TESTS,
+)
 from certification.authorization.campaign import (
     VERDICT_CERTIFIED,
     VERDICT_NOT_CERTIFIED,
@@ -129,7 +132,77 @@ def test_generated_application_executed_the_adversarial_suite(campaign_run) -> N
         assert report["failed"] == 0
         for name in REQUIRED_ADVERSARIAL_TESTS:
             assert name in report["passed_tests"], f"{workload.workload_id}: {name}"
+        if workload.python.declared_routes:
+            for name in DECLARED_OPERATION_TESTS:
+                assert name in report["passed_tests"], f"{workload.workload_id}: {name}"
         assert not report["missing_required"]
+
+
+def test_declared_operation_workload_is_candidate_bound(campaign_run) -> None:
+    """The declared route metadata comes from the plan and is emitted verbatim."""
+    from compiler.core.declared_api import declared_routes
+    from compiler.core.plan import CompilationPlan
+
+    evidence_dir, result = campaign_run
+    declared = [w for w in result.workloads if w.python.declared_routes]
+    assert len(declared) == 1
+    workload = declared[0]
+    workload_dir = evidence_dir / "workloads" / workload.workload_id
+    manifest = json.loads((workload_dir / "manifest.json").read_text(encoding="utf-8"))
+    plan = CompilationPlan.model_validate(
+        json.loads((workload_dir / "plan.json").read_text(encoding="utf-8"))
+    )
+    expected = [route.as_dict() for route in declared_routes(plan)]
+    assert len(expected) == 4
+    assert manifest["declared_routes"] == expected
+
+    bundle = json.loads((workload_dir / "bundle.json").read_text(encoding="utf-8"))
+    module = bundle["app/api/declared.py"]
+    for route in expected:
+        assert f"{route['path']!r}," in module
+        assert f"methods=[{route['method']!r}]" in module
+        assert f"OPERATION_POLICIES[{route['operation_id']!r}]" in module
+        assert f"resource={route['resource']!r}" in module
+
+    report = json.loads(
+        (workload_dir / "runtime-report.json").read_text(encoding="utf-8")
+    )
+    assert report["bundle_hash"] == manifest["artifact_bundle_hash"]
+
+
+def test_declared_route_tampering_is_refused(campaign_run, tmp_path: Path) -> None:
+    evidence_dir, result = campaign_run
+    declared = next(w for w in result.workloads if w.python.declared_routes)
+    tampered = _copy_evidence(evidence_dir, tmp_path / "declared-route-tampered")
+    manifest_path = tampered / "workloads" / declared.workload_id / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["declared_routes"][0]["path"] = "/tampered"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    verification = verify_authorization_evidence(str(tampered))
+    assert verification.ok is False
+    assert any(
+        "declared routes do not match" in problem for problem in verification.problems
+    )
+
+
+def test_bundle_that_drops_a_declared_guard_is_refused(campaign_run, tmp_path: Path) -> None:
+    evidence_dir, result = campaign_run
+    declared = next(w for w in result.workloads if w.python.declared_routes)
+    tampered = _copy_evidence(evidence_dir, tmp_path / "declared-guard-tampered")
+    bundle_path = tampered / "workloads" / declared.workload_id / "bundle.json"
+    bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
+    operation_id = declared.python.declared_routes[0]["operation_id"]
+    guard = f"OPERATION_POLICIES[{operation_id!r}]"
+    bundle["app/api/declared.py"] = bundle["app/api/declared.py"].replace(guard, "None")
+    bundle_path.write_text(json.dumps(bundle), encoding="utf-8")
+
+    verification = verify_authorization_evidence(str(tampered))
+    assert verification.ok is False
+    assert any(
+        "does not emit the manifest's declared routes" in problem
+        for problem in verification.problems
+    )
 
 
 def test_runtime_report_is_bound_to_the_exact_generated_candidate(campaign_run) -> None:
@@ -261,6 +334,17 @@ def test_authorization_corpus_is_versioned_and_hashed() -> None:
         ),
     ))
     assert changed != AUTHORIZATION_CORPUS_HASH
+
+
+def test_corpus_carries_exactly_one_declared_operation_workload() -> None:
+    declared = [w for w in AUTHORIZATION_CORPUS if w.declared_operations]
+    assert len(declared) == 1
+    workload = declared[0]
+    assert workload.workload_id == "payroll-declared-api-authorization"
+    assert len(workload.declared_operations) == 4
+    assert {operation.method for operation in workload.declared_operations} == {
+        "GET", "POST", "DELETE",
+    }
 
 
 def test_general_campaign_a_scope_is_unchanged() -> None:

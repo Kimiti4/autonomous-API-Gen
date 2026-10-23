@@ -187,14 +187,17 @@ def test_payroll_backend_compilers_fail_closed_on_unimplemented_semantics():
             backend.compile(plan)
         except UnsupportedSemanticsError as exc:
             message = str(exc)
-            assert "api_contracts" in message
             if backend.name == "rust-axum":
-                # The Rust backend still cannot enforce authorization policies.
+                # The Rust backend still cannot emit declared operations or
+                # enforce authorization policies.
+                assert "api_contracts" in message
                 assert "authorization_policies" in message
             else:
-                # The Python backend enforces authorization for the policies it
-                # can bind to an emitted route; the payroll plan still fails
-                # closed on the semantics it does not implement.
+                # The Python backend emits declared operations and enforces
+                # authorization for the policies it can bind to a route; the
+                # payroll plan still fails closed on the semantics it does not
+                # implement.
+                assert "api_contracts" not in message
                 assert "authorization_policies" not in message
         else:
             raise AssertionError(f"{backend.name} accepted unsupported payroll semantics")

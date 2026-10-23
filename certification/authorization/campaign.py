@@ -48,6 +48,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from certification.authorization.candidate import (
+    DECLARED_OPERATION_TESTS,
     REQUIRED_ADVERSARIAL_TESTS,
     AuthorizationCandidate,
     build_candidate,
@@ -112,6 +113,7 @@ class BackendOutcome:
     detail: str
     policy_ids: tuple[str, ...] = ()
     bound_operations: tuple[dict[str, Any], ...] = ()
+    declared_routes: tuple[dict[str, Any], ...] = ()
     runtime_report_hash: str = ""
     manifest_hash: str = ""
 
@@ -124,6 +126,7 @@ class BackendOutcome:
             "detail": self.detail,
             "policy_ids": list(self.policy_ids),
             "bound_operations": [dict(binding) for binding in self.bound_operations],
+            "declared_routes": [dict(route) for route in self.declared_routes],
             "runtime_report_hash": self.runtime_report_hash,
             "manifest_hash": self.manifest_hash,
         }
@@ -214,6 +217,13 @@ def build_candidate_artifacts(workload: AuthorizationWorkload) -> CandidateArtif
     )
 
 
+def _required_tests(workload: AuthorizationWorkload) -> tuple[str, ...]:
+    """A declared-operation candidate must execute the extra route proof."""
+    if workload.declared_operations:
+        return REQUIRED_ADVERSARIAL_TESTS + DECLARED_OPERATION_TESTS
+    return REQUIRED_ADVERSARIAL_TESTS
+
+
 def _source_binding_problems(
     workload: AuthorizationWorkload,
     artifacts: CandidateArtifacts,
@@ -249,6 +259,41 @@ def _source_binding_problems(
             "the plan's authorization obligations do not match the declared source bindings: "
             f"declared={sorted(declared)} observed={sorted(observed)}"
         )
+
+    if workload.declared_operations:
+        from compiler.core.declared_api import declared_routes
+
+        expected_routes = {
+            (
+                operation.api_id,
+                operation.operation,
+                operation.method,
+                operation.path,
+                workload.policy_edge.get("source_id"),
+                operation.resource,
+                tuple(sorted(operation.policy_ids)),
+            )
+            for operation in workload.declared_operations
+        }
+        observed_routes = {
+            (
+                route.operation.id,
+                route.action,
+                route.method,
+                route.path,
+                route.service.id,
+                route.resource,
+                tuple(sorted(policy.policy_id for policy in route.policies)),
+            )
+            for route in declared_routes(artifacts.plan)
+        }
+        if observed_routes != expected_routes:
+            problems.append(
+                "the plan's declared routes do not match the declared source operations: "
+                f"declared={sorted(expected_routes)} observed={sorted(observed_routes)}"
+            )
+        if "app/api/declared.py" not in artifacts.repo.files:
+            problems.append("the generated bundle does not emit the declared API module")
     return problems
 
 
@@ -367,10 +412,11 @@ def _run_workload(
     problems.extend(source_problems)
 
     should_install = install and not install_state.get("installed", False)
+    required_tests = _required_tests(workload)
     runtime_report = run_generated_suite(
         artifacts.repo.files,
         workdir / workload.workload_id / "candidate",
-        REQUIRED_ADVERSARIAL_TESTS,
+        required_tests,
         install=should_install,
     )
     if should_install:
@@ -386,6 +432,7 @@ def _run_workload(
         plan=artifacts.plan,
         repo=artifacts.repo,
         runtime_report_hash=runtime_report.report_hash,
+        required_tests=required_tests,
     )
     binding_problems = _candidate_binding_problems(candidate, artifacts, runtime_report)
     gates.append(GateResult(
@@ -480,6 +527,7 @@ def _run_workload(
         detail="; ".join(problems) if problems else "every gate passed",
         policy_ids=candidate.policy_ids,
         bound_operations=candidate.bound_operations,
+        declared_routes=candidate.declared_routes,
         runtime_report_hash=runtime_report.report_hash,
         manifest_hash=candidate.manifest_hash,
     )
@@ -518,7 +566,7 @@ def _run_mutation(
         mutated_report = run_generated_suite(
             mutated_artifacts.repo.files,
             workdir,
-            REQUIRED_ADVERSARIAL_TESTS,
+            _required_tests(mutated_workload),
             install=install and not install_state.get("installed", False),
         )
         install_state["installed"] = True

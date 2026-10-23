@@ -9,6 +9,7 @@ from __future__ import annotations
 from certification.authorization.corpus import (
     CORPUS_VERSION,
     AuthorizationWorkload,
+    DeclaredOperation,
     MutationCase,
     OperationBinding,
     build_workload,
@@ -30,6 +31,7 @@ __all__ = [
     "CORPUS_METADATA",
     "CORPUS_VERSION",
     "AuthorizationWorkload",
+    "DeclaredOperation",
     "MutationCase",
     "OperationBinding",
     "build_workload",

@@ -14,6 +14,13 @@ resource and operation pattern:
     A service that owns two resources while the policy governs only one; the
     other resource's routes are refused because no rule grants them.
 
+A fifth workload adds the declared-operation surface:
+
+``payroll-declared-api-authorization``
+    Four reviewed API operations, each explicitly exposed by the payroll
+    service and bound to one typed policy. Certification requires the emitted
+    route, the operation-bound guard, and the runtime proof.
+
 The corpus is versioned and hashed. It is deliberately separate from the
 general Campaign A substrate matrix, whose 39-workload, 78-trial scope is
 unchanged.
@@ -29,6 +36,9 @@ from certification.authorization.corpus import (
     validate_workload,
 )
 from certification.authorization.workload_inventory import WORKLOAD as INVENTORY_WORKLOAD
+from certification.authorization.workload_declared_api import (
+    WORKLOAD as DECLARED_API_WORKLOAD,
+)
 from certification.authorization.workload_orders import WORKLOAD as ORDERS_WORKLOAD
 from certification.authorization.workload_payroll import WORKLOAD as PAYROLL_WORKLOAD
 from certification.authorization.workload_shipments import WORKLOAD as SHIPMENTS_WORKLOAD
@@ -41,6 +51,7 @@ AUTHORIZATION_CORPUS: tuple[AuthorizationWorkload, ...] = (
     ORDERS_WORKLOAD,
     INVENTORY_WORKLOAD,
     SHIPMENTS_WORKLOAD,
+    DECLARED_API_WORKLOAD,
 )
 
 AUTHORIZATION_CORPUS_HASH = corpus_hash(AUTHORIZATION_CORPUS)
@@ -56,4 +67,9 @@ CORPUS_METADATA = {
         for workload in AUTHORIZATION_CORPUS
         for mutation in workload.mutations
     }),
+    "declared_operation_workloads": [
+        workload.workload_id
+        for workload in AUTHORIZATION_CORPUS
+        if workload.declared_operations
+    ],
 }

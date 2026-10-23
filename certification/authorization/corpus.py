@@ -28,10 +28,11 @@ from compiler.core.authorization import ROUTE_VERBS, canonical_action
 from reqgraph.ingestion.tor_extractor import HumanApproval
 
 CORPUS_SCHEMA_ID = "tiannara.authorization.corpus"
-CORPUS_VERSION = "1.0.0"
+CORPUS_VERSION = "1.1.0"
 
 #: The operation/resource vocabulary is platform-defined, not invented per app.
 _ALLOWED_EFFECTS = ("allow", "deny")
+_ALLOWED_METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE")
 
 
 class CorpusError(ValueError):
@@ -78,6 +79,43 @@ class MutationCase:
 
 
 @dataclass(frozen=True)
+class DeclaredOperation:
+    """A declared API route the corpus requires the candidate to emit.
+
+    The entry mirrors the ISR ``api`` declaration: the compiler validates the
+    same bindings, and the campaign proves the emitted route, its service
+    owner, and its policy binding match this record exactly.
+    """
+
+    api_id: str
+    operation: str
+    method: str
+    path: str
+    resource: str
+    policy_ids: tuple[str, ...]
+    request_fields: tuple[str, ...] = ()
+    response_fields: tuple[str, ...] = ()
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "api_id": self.api_id,
+            "operation": self.operation,
+            "method": self.method,
+            "path": self.path,
+            "resource": self.resource,
+            "policy_ids": list(self.policy_ids),
+            "request_fields": list(self.request_fields),
+            "response_fields": list(self.response_fields),
+        }
+
+    @property
+    def key(self) -> tuple[str, str]:
+        from compiler.core.declared_api import normalized_path
+
+        return (self.method, normalized_path(self.path))
+
+
+@dataclass(frozen=True)
 class AuthorizationWorkload:
     """One source-bound authorization workload.
 
@@ -99,6 +137,7 @@ class AuthorizationWorkload:
     revision_id: str
     created_at: str
     mutations: tuple[MutationCase, ...] = ()
+    declared_operations: tuple[DeclaredOperation, ...] = ()
 
     def resolve_requirements(self, draft: Any) -> tuple[dict[str, HumanApproval], str]:
         """Bind the corpus needles to the draft's requirement identifiers."""
@@ -134,6 +173,9 @@ class AuthorizationWorkload:
             "policy_node": self.policy_node,
             "policy_edge": self.policy_edge,
             "bound_operations": [binding.as_dict() for binding in self.bound_operations],
+            "declared_operations": [
+                operation.as_dict() for operation in self.declared_operations
+            ],
             "system_id": self.system_id,
             "revision_id": self.revision_id,
             "created_at": self.created_at,
@@ -296,6 +338,142 @@ def validate_policy_declaration(
         )
 
 
+def _approved_api_nodes(workload: AuthorizationWorkload) -> dict[str, dict[str, Any]]:
+    """Return the api nodes the workload's approvals declare, by node id."""
+    nodes: dict[str, dict[str, Any]] = {}
+    for _, payload in workload.approval_needles:
+        for node in payload.get("isr_nodes", ()):
+            if isinstance(node, Mapping) and node.get("type") == "api":
+                node_id = str(node.get("id"))
+                if node_id in nodes:
+                    raise CorpusError(f"api node {node_id!r} is declared twice")
+                nodes[node_id] = dict(node)
+    return nodes
+
+
+def _approved_api_edges(workload: AuthorizationWorkload) -> tuple[dict[str, Any], ...]:
+    edges: list[dict[str, Any]] = []
+    for _, payload in workload.approval_needles:
+        for edge in payload.get("isr_edges", ()):
+            if isinstance(edge, Mapping) and edge.get("type") in ("exposes", "secured_by"):
+                edges.append(dict(edge))
+    return tuple(edges)
+
+
+def validate_declared_operations(workload: AuthorizationWorkload) -> None:
+    """Validate the declared route surface against the approved ISR declarations.
+
+    Every declared operation must be traceable to an approved ``api`` node, be
+    exposed by the same service that owns the policy, be secured by exactly the
+    policies it names, and name an action the policy actually governs. A route
+    declared here but absent from the approvals (or vice versa) is an error, not
+    a silently dropped obligation.
+    """
+    if not workload.declared_operations:
+        return
+
+    api_nodes = _approved_api_nodes(workload)
+    edges = _approved_api_edges(workload)
+    service_id = str(workload.policy_edge.get("source_id", ""))
+    if not service_id:
+        raise CorpusError("the policy edge must name the service that owns the policy")
+
+    rules = (workload.policy_node.get("properties") or {}).get("behavior", {}).get("rules") or ()
+    governed = {
+        (action, str(rule.get("resource")))
+        for rule in rules
+        if isinstance(rule, Mapping)
+        for action in rule.get("actions") or ()
+    }
+
+    keys: set[tuple[str, str]] = set()
+    declared_ids: set[str] = set()
+    for operation in workload.declared_operations:
+        if operation.api_id in declared_ids:
+            raise CorpusError(f"declared operation {operation.api_id!r} appears twice")
+        declared_ids.add(operation.api_id)
+        if operation.method not in _ALLOWED_METHODS:
+            raise CorpusError(
+                f"declared operation {operation.api_id!r} has unsupported method "
+                f"{operation.method!r}"
+            )
+        if not operation.path.startswith("/"):
+            raise CorpusError(f"declared operation {operation.api_id!r} has a non-absolute path")
+        if operation.key in keys:
+            raise CorpusError(
+                f"declared operations collide on {operation.method} {operation.path!r}"
+            )
+        keys.add(operation.key)
+        if not operation.policy_ids:
+            raise CorpusError(
+                f"declared operation {operation.api_id!r} is not bound to a policy"
+            )
+        if (operation.operation, operation.resource) not in governed:
+            raise CorpusError(
+                f"declared operation {operation.api_id!r} names action "
+                f"{operation.operation!r} on {operation.resource!r}, which the "
+                "policy does not govern"
+            )
+
+        node = api_nodes.get(operation.api_id)
+        if node is None:
+            raise CorpusError(
+                f"declared operation {operation.api_id!r} is not approved as an api node"
+            )
+        behavior = (node.get("properties") or {}).get("behavior") or {}
+        if (
+            behavior.get("operation_id") != operation.operation
+            or behavior.get("method") != operation.method
+            or behavior.get("path") != operation.path
+        ):
+            raise CorpusError(
+                f"declared operation {operation.api_id!r} does not match its approved "
+                "api behavior"
+            )
+        request_names = tuple(
+            field.get("name") for field in behavior.get("request_fields") or ()
+        )
+        response_names = tuple(
+            field.get("name") for field in behavior.get("response_fields") or ()
+        )
+        if request_names != operation.request_fields:
+            raise CorpusError(
+                f"declared operation {operation.api_id!r} request fields do not match "
+                "its approved api behavior"
+            )
+        if response_names != operation.response_fields:
+            raise CorpusError(
+                f"declared operation {operation.api_id!r} response fields do not match "
+                "its approved api behavior"
+            )
+
+        exposes = [
+            edge for edge in edges
+            if edge.get("type") == "exposes" and edge.get("target_id") == operation.api_id
+        ]
+        if len(exposes) != 1 or exposes[0].get("source_id") != service_id:
+            raise CorpusError(
+                f"declared operation {operation.api_id!r} must be exposed by exactly "
+                f"service {service_id!r}"
+            )
+        secured = {
+            str(edge.get("target_id")) for edge in edges
+            if edge.get("type") == "secured_by" and edge.get("source_id") == operation.api_id
+        }
+        if secured != set(operation.policy_ids):
+            raise CorpusError(
+                f"declared operation {operation.api_id!r} secured_by edges "
+                f"{sorted(secured)} do not match its declared policies "
+                f"{sorted(operation.policy_ids)}"
+            )
+
+    unapproved = sorted(set(api_nodes) - declared_ids)
+    if unapproved:
+        raise CorpusError(
+            f"approved api nodes {unapproved} are missing from the declared operations"
+        )
+
+
 def validate_workload(workload: AuthorizationWorkload) -> None:
     """Validate a corpus entry end to end."""
     if not workload.source_text.strip():
@@ -311,6 +489,7 @@ def validate_workload(workload: AuthorizationWorkload) -> None:
             raise CorpusError(f"approval for {requirement_id!r} must state acceptance criteria")
     statement = _statement_for(workload.source_text, policy_requirement_id)
     validate_policy_declaration(workload, statement=statement)
+    validate_declared_operations(workload)
 
 
 def build_workload(
@@ -328,6 +507,7 @@ def build_workload(
     revision_id: str,
     created_at: str,
     mutations: Sequence[MutationCase] = (),
+    declared_operations: Sequence[DeclaredOperation] = (),
 ) -> AuthorizationWorkload:
     """Build and validate one corpus entry, including its mutation cases."""
     workload = AuthorizationWorkload(
@@ -344,6 +524,7 @@ def build_workload(
         revision_id=revision_id,
         created_at=created_at,
         mutations=tuple(mutations),
+        declared_operations=tuple(declared_operations),
     )
     validate_workload(workload)
     for mutation in workload.mutations:

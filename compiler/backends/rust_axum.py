@@ -15,8 +15,11 @@ from decimal import Decimal
 from compiler.core.plan import CompilationPlan
 from compiler.core.behavior_oracle import reference_evaluate, sample_context
 from compiler.core.capabilities import BackendCapabilities, SemanticFeature, UnsupportedSemanticsError, assert_plan_supported
+from compiler.core.declared_api import DeclaredRoute, declared_routes
+from compiler.core.isr_parity import assert_contract_slice
 from compiler.core.repository import GeneratedRepository, build_repository
 from compiler.core.conformance import CHECKER, ConformanceReport
+from compiler.core.semantic_obligations import manifest_from_plan
 from compiler.core.protocol import BackendClass, BackendIdentity, TestSpec
 from compiler.backends._naming import (
     plan_entities,
@@ -39,6 +42,8 @@ class RustAxumBackend:
         SemanticFeature.EXPRESSIONS,
         SemanticFeature.BUSINESS_RULES,
         SemanticFeature.STATE_TRANSITIONS,
+        SemanticFeature.API_CONTRACTS,
+        SemanticFeature.AUTHORIZATION_POLICIES,
         SemanticFeature.EFFECT_POLICY_PRESERVATION,
         SemanticFeature.EFFECT_BINDING_PRESERVATION,
         SemanticFeature.CONSEQUENCE_PRESERVATION,
@@ -89,6 +94,7 @@ class RustAxumBackend:
 
     def compile(self, plan: CompilationPlan) -> GeneratedRepository:
         assert_plan_supported(plan, BackendCapabilities(backend_id=self.name, version=self.version, supported_features=self.supported_features))
+        assert_contract_slice(declared_routes(plan))
         f: dict[str, str] = {}
         for path in dict.fromkeys(self.element_paths(plan).values()):
             f[path] = self._emit(path, plan)
@@ -135,7 +141,7 @@ class RustAxumBackend:
         if path == "Dockerfile":
             return self._dockerfile()
         if path == "Cargo.toml":
-            return self._cargo()
+            return self._cargo(plan)
         if path == "src/main.rs":
             return self._main(plan)
         if path == "src/infrastructure/repositories.rs":
@@ -155,12 +161,7 @@ class RustAxumBackend:
         if path == "docs/architecture.md":
             return self._docs(plan)
         if path == "docs/semantic-obligations.json":
-            return json.dumps({
-                "schema_version": "1",
-                "effects": [item.model_dump(mode="json") for item in plan.effects],
-                "effect_bindings": [item.model_dump(mode="json") for item in plan.effect_bindings],
-                "consequences": [item.model_dump(mode="json") for item in plan.consequences],
-            }, sort_keys=True, indent=2)
+            return json.dumps(manifest_from_plan(plan), sort_keys=True, indent=2)
         if path == "openapi.json":
             return self._openapi(plan)
         if path.startswith("src/domain/"):
@@ -185,7 +186,10 @@ class RustAxumBackend:
             'CMD ["app"]\n'
         )
 
-    def _cargo(self) -> str:
+    def _cargo(self, plan: CompilationPlan | None = None) -> str:
+        declared = ""
+        if plan is not None and declared_routes(plan):
+            declared = 'hmac = "0.12"\nsha2 = "0.10"\nbase64 = "0.22"\n'
         return (
             "[package]\n"
             'name = "generated"\n'
@@ -197,6 +201,7 @@ class RustAxumBackend:
             'serde = { version = "1", features = ["derive"] }\n'
             'serde_json = "1"\n'
             'rust_decimal = { version = "1", features = ["serde"] }\n'
+            + declared
         )
 
     def _repositories(self) -> str:
@@ -612,7 +617,11 @@ mod tests {
         stem = path.rsplit("/", 1)[-1][: -len(".rs")]
         effect = next((item for item in plan.effects if _slug(item.name) == stem), None)
         if effect is None or effect.behavior is None:
-            return "//! Effect contract unavailable; this module is not executable.\n"
+            return (
+                "//! Preserved source effect. This module has no executable contract.\n"
+                "pub const EXECUTABLE: bool = false;\n"
+                'pub const REASON: &str = "preserved source effect; no executable contract";\n'
+            )
         spec_json = json.dumps(effect.behavior.model_dump(mode="json"))
         spec_literal = json.dumps(spec_json)
         lines = [
@@ -761,15 +770,15 @@ mod tests {
                 "}",
                 "",
             ]
-        if service is not None and service.effects:
+        executable_effects = [
+            effect for effect in (service.effects if service is not None else [])
+            if effect.behavior is not None
+        ]
+        if executable_effects:
             lines[1] = "use serde_json::{json, Value};"
             lines.insert(2, "use std::collections::HashMap;")
             effect_arms = []
-            for effect in service.effects:
-                if effect.behavior is None:
-                    raise UnsupportedSemanticsError(
-                        f"Service {service.id!r} has an effect without typed semantics"
-                    )
+            for effect in executable_effects:
                 spec = effect.behavior.model_dump(mode="json")
                 effect_arms.append(
                     f"            {json.dumps(effect.id)} => json!({json.dumps(spec)}),"
@@ -825,7 +834,322 @@ mod tests {
             "}\n"
         )
 
+    def _declared_main(self, plan: CompilationPlan, routes: tuple[DeclaredRoute, ...]) -> str:
+        key = next(route.path_fields[0].name for route in routes if route.path_fields)
+        post = next(route for route in routes if route.method == "POST")
+        specs = [
+            {
+                "name": field.name,
+                "kind": field.value_type.value,
+                "required": field.required,
+                "precision": field.precision,
+                "scale": field.scale,
+            }
+            for field in post.body_fields
+        ]
+        rules: dict[str, list[dict]] = {}
+        for route in routes:
+            bucket = rules.setdefault(route.action, [])
+            if bucket:
+                continue
+            for policy in route.policies:
+                assert policy.behavior is not None
+                for rule in policy.behavior.rules:
+                    if rule.resource not in (route.resource, "*"):
+                        continue
+                    if "*" not in rule.actions and route.action not in rule.actions:
+                        continue
+                    bucket.append({
+                        "effect": rule.effect,
+                        "roles": list(rule.roles),
+                        "actions": list(rule.actions),
+                        "resource": rule.resource,
+                    })
+        responses = {
+            route.method: [field.name for field in route.response_fields]
+            for route in routes
+        }
+        read = next(route for route in routes if route.method == "GET")
+        delete = next(route for route in routes if route.method == "DELETE")
+        if read.path != delete.path:
+            raise UnsupportedSemanticsError(
+                "api_contracts: the contract slice requires read and delete "
+                "to use the same path"
+            )
+        require_key = "true" if plan.security else "false"
+        return f'''//! Declared ISR routes. Generic CRUD is not part of this contract.
+use axum::extract::{{Path, State}};
+use axum::http::{{HeaderMap, StatusCode}};
+use axum::routing::{{delete, get, post}};
+use axum::{{Json, Router}};
+use base64::engine::general_purpose::{{URL_SAFE, URL_SAFE_NO_PAD}};
+use base64::Engine;
+use hmac::{{Hmac, Mac}};
+use serde_json::{{json, Value}};
+use sha2::Sha256;
+use std::collections::HashMap;
+use std::sync::{{Arc, Mutex}};
+use std::time::{{SystemTime, UNIX_EPOCH}};
+
+pub mod application;
+pub mod core;
+pub mod domain;
+pub mod effects;
+pub mod events;
+pub mod infrastructure;
+
+type HmacSha256 = Hmac<Sha256>;
+
+#[derive(Clone)]
+pub struct AppState {{
+    rows: Arc<Mutex<HashMap<String, Value>>>,
+    api_key: String,
+    auth_secret: String,
+}}
+
+pub fn new_state() -> AppState {{
+    AppState {{
+        rows: Arc::new(Mutex::new(HashMap::new())),
+        api_key: std::env::var("GENERATED_API_KEY").unwrap_or_default(),
+        auth_secret: std::env::var("GENERATED_AUTH_SECRET").unwrap_or_default(),
+    }}
+}}
+
+const SPECS: &str = {json.dumps(json.dumps(specs))};
+const RULES: &str = {json.dumps(json.dumps(rules))};
+const CREATE_FIELDS: &str = {json.dumps(json.dumps(responses["POST"]))};
+const READ_FIELDS: &str = {json.dumps(json.dumps(responses["GET"]))};
+const DELETE_FIELDS: &str = {json.dumps(json.dumps(responses["DELETE"]))};
+const KEY: &str = {json.dumps(key)};
+const REQUIRE_API_KEY: bool = {require_key};
+
+fn names(raw: &str) -> Vec<String> {{
+    serde_json::from_str(raw).unwrap_or_default()
+}}
+
+async fn health() -> Json<Value> {{
+    Json(json!({{"status": "ok"}}))
+}}
+
+async fn openapi_spec() -> impl axum::response::IntoResponse {{
+    ([(axum::http::header::CONTENT_TYPE, "application/json")], include_str!("../openapi.json"))
+}}
+
+fn gate(state: &AppState, headers: &HeaderMap, action: &str) -> Result<(), (StatusCode, Value)> {{
+    if REQUIRE_API_KEY {{
+        let expected = state.api_key.as_str();
+        if expected.is_empty() {{
+            return Err((StatusCode::SERVICE_UNAVAILABLE, json!({{"detail": "GENERATED_API_KEY is not configured"}})));
+        }}
+        let presented = headers.get("x-api-key").and_then(|v| v.to_str().ok()).unwrap_or("");
+        if !keys_match(expected, presented) {{
+            return Err((StatusCode::UNAUTHORIZED, json!({{"detail": "invalid api key"}})));
+        }}
+    }}
+    let roles = principal_roles(&state.auth_secret, headers.get("authorization").and_then(|v| v.to_str().ok()))?;
+    if allowed(action, &roles) {{
+        Ok(())
+    }} else {{
+        Err((StatusCode::FORBIDDEN, json!({{"detail": "unauthorized"}})))
+    }}
+}}
+
+fn keys_match(expected: &str, presented: &str) -> bool {{
+    if expected.len() != presented.len() {{
+        return false;
+    }}
+    let mut diff = 0u8;
+    for (a, b) in expected.bytes().zip(presented.bytes()) {{
+        diff |= a ^ b;
+    }}
+    diff == 0
+}}
+
+fn b64decode(text: &str) -> Option<Vec<u8>> {{
+    let mut padded = text.to_string();
+    while padded.len() % 4 != 0 {{
+        padded.push('=');
+    }}
+    URL_SAFE.decode(padded).ok().or_else(|| URL_SAFE_NO_PAD.decode(text).ok())?
+}}
+
+fn principal_roles(secret: &str, header: Option<&str>) -> Result<Vec<String>, (StatusCode, Value)> {{
+    if secret.is_empty() {{
+        return Err((StatusCode::SERVICE_UNAVAILABLE, json!({{"detail": "GENERATED_AUTH_SECRET is not configured"}})));
+    }}
+    let Some(token) = header.unwrap_or("").trim().strip_prefix("Bearer ").or_else(|| header.unwrap_or("").trim().strip_prefix("bearer ")) else {{
+        return Err((StatusCode::UNAUTHORIZED, json!({{"detail": "bearer token required"}})));
+    }};
+    let Some((body, signature)) = token.split_once('.') else {{
+        return Err((StatusCode::UNAUTHORIZED, json!({{"detail": "malformed token"}})));
+    }};
+    let Some(sig) = b64decode(signature) else {{
+        return Err((StatusCode::UNAUTHORIZED, json!({{"detail": "invalid token"}})));
+    }};
+    let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).map_err(|_| (StatusCode::UNAUTHORIZED, json!({{"detail": "invalid token"}})))?;
+    mac.update(body.as_bytes());
+    if mac.verify_slice(&sig).is_err() {{
+        return Err((StatusCode::UNAUTHORIZED, json!({{"detail": "invalid token"}})));
+    }}
+    let Some(raw) = b64decode(body) else {{
+        return Err((StatusCode::UNAUTHORIZED, json!({{"detail": "invalid token"}})));
+    }};
+    let Ok(claims) = serde_json::from_slice::<Value>(&raw) else {{
+        return Err((StatusCode::UNAUTHORIZED, json!({{"detail": "invalid token"}})));
+    }};
+    let exp = claims.get("exp").and_then(|v| v.as_i64()).unwrap_or(0);
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
+    let sub = claims.get("sub").and_then(|v| v.as_str()).unwrap_or("");
+    if exp < now || sub.is_empty() {{
+        return Err((StatusCode::UNAUTHORIZED, json!({{"detail": "invalid token"}})));
+    }}
+    Ok(claims.get("roles").and_then(|v| v.as_array()).map(|items| {{
+        items.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect()
+    }}).unwrap_or_default())
+}}
+
+fn allowed(action: &str, roles: &[String]) -> bool {{
+    let all: Value = serde_json::from_str(RULES).unwrap_or(json!({{}}));
+    let rules = all.get(action).and_then(|v| v.as_array()).cloned().unwrap_or_default();
+    let matches = |rule: &Value| {{
+        let actions = rule.get("actions").and_then(|v| v.as_array());
+        let action_ok = actions.map(|items| items.iter().any(|v| v.as_str() == Some(action) || v.as_str() == Some("*"))).unwrap_or(false);
+        let role_ok = rule.get("roles").and_then(|v| v.as_array()).map(|items| {{
+            items.iter().any(|v| v.as_str().map(|role| roles.iter().any(|have| have == role)).unwrap_or(false))
+        }}).unwrap_or(false);
+        action_ok && role_ok
+    }};
+    if rules.iter().any(|rule| rule.get("effect").and_then(|v| v.as_str()) == Some("deny") && matches(rule)) {{
+        return false;
+    }}
+    rules.iter().any(|rule| rule.get("effect").and_then(|v| v.as_str()) == Some("allow") && matches(rule))
+}}
+
+fn decimal_ok(value: &str, precision: Option<u64>, scale: Option<u64>) -> bool {{
+    let rest = value.strip_prefix('-').unwrap_or(value);
+    let mut parts = rest.split('.');
+    let Some(whole) = parts.next() else {{ return false; }};
+    let frac = parts.next();
+    if parts.next().is_some() || whole.is_empty() || !whole.chars().all(|c| c.is_ascii_digit()) {{
+        return false;
+    }}
+    if let Some(frac) = frac {{
+        if frac.is_empty() || !frac.chars().all(|c| c.is_ascii_digit()) {{
+            return false;
+        }}
+        if scale.map(|limit| frac.len() > limit as usize).unwrap_or(false) {{
+            return false;
+        }}
+        if precision.map(|limit| whole.len() + frac.len() > limit as usize).unwrap_or(false) {{
+            return false;
+        }}
+    }} else if precision.map(|limit| whole.len() > limit as usize).unwrap_or(false) {{
+        return false;
+    }}
+    true
+}}
+
+fn valid_value(kind: &str, value: &Value, precision: Option<u64>, scale: Option<u64>) -> bool {{
+    match kind {{
+        "money" | "decimal" => value.as_str().map(|text| decimal_ok(text, precision, scale)).unwrap_or(false),
+        "identifier" => value.as_str().map(|text| !text.is_empty()).unwrap_or(false),
+        "string" => value.is_string(),
+        "integer" => value.as_i64().is_some() && !value.as_f64().map(|n| n.fract() != 0.0).unwrap_or(false),
+        "boolean" => value.is_boolean(),
+        _ => false,
+    }}
+}}
+
+fn validate(body: &Value) -> bool {{
+    let Some(obj) = body.as_object() else {{ return false; }};
+    let specs: Vec<Value> = serde_json::from_str(SPECS).unwrap_or_default();
+    let names: Vec<&str> = specs.iter().filter_map(|spec| spec.get("name").and_then(|v| v.as_str())).collect();
+    if obj.keys().any(|key| !names.iter().any(|name| name == key)) {{
+        return false;
+    }}
+    specs.iter().all(|spec| {{
+        let name = spec.get("name").and_then(|v| v.as_str()).unwrap_or("");
+        let kind = spec.get("kind").and_then(|v| v.as_str()).unwrap_or("");
+        let required = spec.get("required").and_then(|v| v.as_bool()).unwrap_or(true);
+        let precision = spec.get("precision").and_then(|v| v.as_u64());
+        let scale = spec.get("scale").and_then(|v| v.as_u64());
+        match obj.get(name) {{
+            None => !required,
+            Some(value) => valid_value(kind, value, precision, scale),
+        }}
+    }})
+}}
+
+fn project(body: &Value, fields_json: &str) -> Value {{
+    let mut out = serde_json::Map::new();
+    if let Some(obj) = body.as_object() {{
+        for name in names(fields_json) {{
+            if let Some(value) = obj.get(&name) {{
+                out.insert(name, value.clone());
+            }}
+        }}
+    }}
+    Value::Object(out)
+}}
+
+async fn create_record(State(state): State<AppState>, headers: HeaderMap, Json(body): Json<Value>) -> (StatusCode, Json<Value>) {{
+    if let Err((code, detail)) = gate(&state, &headers, {json.dumps(post.action)}) {{
+        return (code, Json(detail));
+    }}
+    if !validate(&body) {{
+        return (StatusCode::UNPROCESSABLE_ENTITY, Json(json!({{"detail": "validation"}})));
+    }}
+    let Some(key) = body.get(KEY).and_then(|v| v.as_str()) else {{
+        return (StatusCode::UNPROCESSABLE_ENTITY, Json(json!({{"detail": "validation"}})));
+    }};
+    state.rows.lock().expect("store").insert(key.to_string(), body.clone());
+    (StatusCode::CREATED, Json(project(&body, CREATE_FIELDS)))
+}}
+
+async fn read_record(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> (StatusCode, Json<Value>) {{
+    if let Err((code, detail)) = gate(&state, &headers, {json.dumps(read.action)}) {{
+        return (code, Json(detail));
+    }}
+    match state.rows.lock().expect("store").get(&id).cloned() {{
+        Some(row) => (StatusCode::OK, Json(project(&row, READ_FIELDS))),
+        None => (StatusCode::NOT_FOUND, Json(json!({{"error": "not_found"}}))),
+    }}
+}}
+
+async fn delete_record(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> (StatusCode, Json<Value>) {{
+    if let Err((code, detail)) = gate(&state, &headers, {json.dumps(delete.action)}) {{
+        return (code, Json(detail));
+    }}
+    match state.rows.lock().expect("store").remove(&id) {{
+        Some(row) => (StatusCode::OK, Json(project(&row, DELETE_FIELDS))),
+        None => (StatusCode::NOT_FOUND, Json(json!({{"error": "not_found"}}))),
+    }}
+}}
+
+pub fn build_app(state: AppState) -> Router {{
+    Router::new()
+        .route("/health", get(health))
+        .route("/openapi.json", get(openapi_spec))
+        .route({json.dumps(post.path)}, post(create_record))
+        .route({json.dumps(read.path)}, get(read_record).delete(delete_record))
+        .with_state(state)
+}}
+
+#[tokio::main]
+async fn main() {{
+    let state = new_state();
+    let app = build_app(state);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let port = listener.local_addr().expect("addr").port();
+    std::fs::write("parity.port", port.to_string()).expect("port file");
+    axum::serve(listener, app).await.expect("server exited");
+}}
+'''
+
     def _main(self, plan: CompilationPlan) -> str:
+        routes = declared_routes(plan)
+        if routes:
+            return self._declared_main(plan, routes)
         entities = plan_entities(plan)
         services = plan_services(plan)
         events = plan_events(plan)
@@ -1268,6 +1592,12 @@ mod tests {
         return "\n".join(l) + "\n"
 
     def _openapi(self, plan: CompilationPlan) -> str:
+        routes = declared_routes(plan)
+        if routes:
+            paths: dict = {"/health": {"get": {}}}
+            for route in routes:
+                paths.setdefault(route.path, {})[route.method.lower()] = {}
+            return json.dumps({"openapi": "3.1.0", "info": {"title": plan.isr_id or "generated-service", "version": "1.0.0"}, "paths": paths}, indent=2) + "\n"
         entities = plan_entities(plan)
         events = plan_events(plan)
         secured = self._secured(plan)

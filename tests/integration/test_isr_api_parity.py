@@ -116,8 +116,11 @@ def test_python_executes_the_shared_isr_contract_over_http(tmp_path: Path):
 def _http_send(base: str):
     def send(method: str, path: str, body: object, headers: dict[str, str]):
         data = None if body is None else json.dumps(body).encode("utf-8")
+        request_headers = dict(headers)
+        if data is not None:
+            request_headers.setdefault("Content-Type", "application/json")
         request = urllib.request.Request(
-            base + path, data=data, headers=headers, method=method,
+            base + path, data=data, headers=request_headers, method=method,
         )
         try:
             with urllib.request.urlopen(request, timeout=10) as response:
@@ -374,6 +377,5 @@ def test_canonical_payroll_fixture_is_genuinely_immutable():
     assert contract2["create"]["sample_body"]["employee_id"] != "TAMPERED"
     assert "/injected/route" not in contract2["paths"]
     assert "injected_role" not in contract2["create"]["allow_roles"]
-
 
 

@@ -225,6 +225,16 @@ def _has_windows_sdk_libraries(env: dict[str, str]) -> bool:
     return any((Path(p) / "kernel32.lib").is_file() for p in lib_paths if p)
 
 
+def test_rust_axum_routes_use_axum_parameter_syntax():
+    repo = RustAxumBackend().compile(parity_plan())
+    main = repo.files["src/main.rs"]
+    assert (
+        '.route("/payroll/employees/:employee_id", get(read_record).delete(delete_record))'
+        in main
+    )
+    assert "/payroll/employees/{employee_id}" in repo.files["openapi.json"]
+
+
 def test_rust_executes_the_same_isr_contract_over_http(tmp_path: Path):
     if shutil.which("cargo") is None:
         pytest.fail("cargo is required to execute the shared ISR contract")
@@ -377,5 +387,3 @@ def test_canonical_payroll_fixture_is_genuinely_immutable():
     assert contract2["create"]["sample_body"]["employee_id"] != "TAMPERED"
     assert "/injected/route" not in contract2["paths"]
     assert "injected_role" not in contract2["create"]["allow_roles"]
-
-

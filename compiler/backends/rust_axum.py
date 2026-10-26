@@ -835,6 +835,12 @@ mod tests {
         )
 
     def _declared_main(self, plan: CompilationPlan, routes: tuple[DeclaredRoute, ...]) -> str:
+        def axum_path(route: DeclaredRoute) -> str:
+            path = route.path
+            for field in route.path_fields:
+                path = path.replace(f"{{{field.name}}}", f":{field.name}")
+            return path
+
         key = next(route.path_fields[0].name for route in routes if route.path_fields)
         post = next(route for route in routes if route.method == "POST")
         specs = [
@@ -1130,8 +1136,8 @@ pub fn build_app(state: AppState) -> Router {{
     Router::new()
         .route("/health", get(health))
         .route("/openapi.json", get(openapi_spec))
-        .route({json.dumps(post.path)}, post(create_record))
-        .route({json.dumps(read.path)}, get(read_record).delete(delete_record))
+        .route({json.dumps(axum_path(post))}, post(create_record))
+        .route({json.dumps(axum_path(read))}, get(read_record).delete(delete_record))
         .with_state(state)
 }}
 

@@ -52,6 +52,7 @@
 | Deliverables (TOR §11) | Provide configured/customized software, agreed migration, UAT, user/admin training, documentation, go-live and post-implementation support | Proposed | Deliverable-by-deliverable evidence and buyer sign-off; licensing/subscription model and scope confirmed in contract |
 | Vendor qualifications (TOR §12) | Demonstrate relevant implementation experience, similar-organization references, Kenyan payroll/tax knowledge, local technical support, reliability/security and maintenance capacity | Clarification required | Individual bidder must provide truthful CV/project evidence and references if available; no unverified client references, certifications or prior payroll deployments claimed |
 | Acceptance criteria (TOR §13) | Testing, accurate payroll, statutory compliance, successful integrations, documentation/training and authorized management sign-off | Proposed | Acceptance gates in Implementation and Acceptance Plan; no go-live before evidence and sign-off |
+| Full HRIS, recruitment, time-attendance or leave-system replacement | Not offered unless added by change | Excluded | Requires separate discovery, scope and pricing for any expansion |
 | Direct bank payment execution / custody | Not offered | Excluded | Requires separately scoped banking/security/legal integration |
 
 ## Evidence boundary

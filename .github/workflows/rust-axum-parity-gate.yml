@@ -59,7 +59,8 @@ jobs:
 
       - name: Execute live cross-backend ISR parity gate (Rust Axum, Elixir OTP, Python FastAPI)
         run: |
-          python -m pytest tests/integration/test_isr_api_parity.py -v --tb=short
+          mkdir -p parity-evidence/tmp
+          python -m pytest tests/integration/test_isr_api_parity.py -v --tb=short --basetemp=parity-evidence/tmp
 
 
       - name: Archive execution logs and evidence
@@ -68,6 +69,6 @@ jobs:
         with:
           name: rust-axum-parity-evidence
           path: |
-            **/parity.log
-            **/parity.port
+            parity-evidence/tmp/**/parity.log
+            parity-evidence/tmp/**/parity.port
           retention-days: 90

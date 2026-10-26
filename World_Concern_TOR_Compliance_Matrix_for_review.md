@@ -51,7 +51,8 @@
 | Ruby/C# parity, W12 executable effects, W13 browser-to-live-API journey | Not part of evidence already demonstrated | Not demonstrated | Separate engineering workstreams; not prerequisites for a scoped project bid, but no evidence claim is made |
 | Deliverables (TOR §11) | Provide configured/customized software, agreed migration, UAT, user/admin training, documentation, go-live and post-implementation support | Proposed | Deliverable-by-deliverable evidence and buyer sign-off; licensing/subscription model and scope confirmed in contract |
 | Vendor qualifications (TOR §12) | Demonstrate relevant implementation experience, similar-organization references, Kenyan payroll/tax knowledge, local technical support, reliability/security and maintenance capacity | Clarification required | Individual bidder must provide truthful CV/project evidence and references if available; no unverified client references, certifications or prior payroll deployments claimed |
-| Acceptance criteria (TOR §13) | Testing, accurate payroll, statutory compliance, successful integrations, documentation/training and authorized management sign-off | Proposed | Acceptance gates in Implementation and Acceptance Plan; no go-live before evidence and sign-off |\n| Direct bank payment execution / custody | Not offered | Excluded | Requires separately scoped banking/security/legal integration |
+| Acceptance criteria (TOR §13) | Testing, accurate payroll, statutory compliance, successful integrations, documentation/training and authorized management sign-off | Proposed | Acceptance gates in Implementation and Acceptance Plan; no go-live before evidence and sign-off |
+| Direct bank payment execution / custody | Not offered | Excluded | Requires separately scoped banking/security/legal integration |
 
 ## Evidence boundary
 

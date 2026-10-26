@@ -5,6 +5,7 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from compiler.core.effect_contract import is_supported_record_contract
 from compiler.core.plan import CompilationPlan
 
 
@@ -18,15 +19,21 @@ class SemanticFeature(str, Enum):
     API_CONTRACTS = "api_contracts"
     AUTHORIZATION_POLICIES = "authorization_policies"
     EFFECT_SEMANTICS = "effect_semantics"
+    # Local idempotent record only. This is not a general effect runtime.
+    EFFECT_RECORD_EXECUTION = "effect_record_execution"
     EFFECT_POLICY_PRESERVATION = "effect_policy_preservation"
     EFFECT_BINDING_PRESERVATION = "effect_binding_preservation"
     CONSEQUENCE_PRESERVATION = "consequence_preservation"
     CONSEQUENCE_SEMANTICS = "consequence_semantics"
     INVARIANTS = "invariants"
     TYPED_EVENTS = "typed_events"
+    # Bounded in-process retry and dead-letter. Not a broker or an ordering proof.
+    EVENT_DELIVERY = "event_delivery"
+    # A real database. An in-memory repository does not satisfy this.
     FRONTEND_ROUTES = "frontend_routes"
     FRONTEND_INTERACTIONS = "frontend_interactions"
     FRONTEND_AUTH = "frontend_auth"
+    DURABLE_PERSISTENCE = "durable_persistence"
 
 
 class BackendCapabilities(BaseModel):
@@ -55,10 +62,30 @@ def required_features(plan: CompilationPlan) -> frozenset[SemanticFeature]:
             required.add(SemanticFeature.FIELD_CONSTRAINTS)
         if behavior.invariants:
             required.update({SemanticFeature.INVARIANTS, SemanticFeature.EXPRESSIONS})
+        if behavior.storage == "durable":
+            required.add(SemanticFeature.DURABLE_PERSISTENCE)
 
-    for event in plan.events:
-        if event.behavior is not None and event.behavior.fields:
+    for service in plan.services:
+        for data_model in service.data_models:
+            behavior = data_model.behavior
+            if behavior is not None and behavior.storage == "durable":
+                required.add(SemanticFeature.DURABLE_PERSISTENCE)
+
+    seen_events: set[str] = set()
+    nested_events = list(plan.events)
+    for service in plan.services:
+        nested_events.extend(service.published_events)
+        nested_events.extend(service.consumed_events)
+    for event in nested_events:
+        if event.id in seen_events:
+            continue
+        seen_events.add(event.id)
+        if event.behavior is None:
+            continue
+        if event.behavior.fields:
             required.update({SemanticFeature.TYPED_EVENTS, SemanticFeature.TYPED_FIELDS})
+        if event.behavior.max_attempts is not None:
+            required.add(SemanticFeature.EVENT_DELIVERY)
 
     for service in plan.services:
         behavior = service.behavior
@@ -90,7 +117,13 @@ def required_features(plan: CompilationPlan) -> frozenset[SemanticFeature]:
 
     for effect in plan.effects:
         if effect.behavior is not None:
-            required.add(SemanticFeature.EFFECT_SEMANTICS)
+            if is_supported_record_contract(effect.behavior):
+                required.add(SemanticFeature.EFFECT_RECORD_EXECUTION)
+            else:
+                # Typed, but not the one contract a backend has proven.
+                required.add(SemanticFeature.EFFECT_SEMANTICS)
+        if any(policy.behavior is not None for policy in effect.security_policies):
+            required.add(SemanticFeature.AUTHORIZATION_POLICIES)
         if effect.declared_policy:
             required.add(SemanticFeature.EFFECT_POLICY_PRESERVATION)
     # These features preserve source semantics in a candidate manifest; they

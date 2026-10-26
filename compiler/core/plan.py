@@ -47,6 +47,8 @@ class Effect(BaseModel):
     # Preserve legacy/source-declared policy fields until a typed executable
     # contract can consume them; capability gates must not ignore this payload.
     declared_policy: dict[str, Any] = Field(default_factory=dict)
+    # Policies that govern this effect. They are not service route policies.
+    security_policies: list[SecurityPolicy] = Field(default_factory=list)
 
 
 class Service(BaseModel):
@@ -134,3 +136,6 @@ class CompilationPlan(BaseModel):
     invariants: list[Invariant] = Field(default_factory=list)
     frontend_routes: list[FrontendRoute] = Field(default_factory=list)
     frontend_interactions: list[FrontendInteraction] = Field(default_factory=list)
+    # Content hash of the ISR revision this plan was lowered from.
+    # Hand-built plans leave it empty; they are not a source candidate.
+    obligation_revision: str | None = None

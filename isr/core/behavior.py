@@ -158,11 +158,26 @@ class DataModelBehavior(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     fields: tuple[FieldSpec, ...] = Field(min_length=1)
     invariants: tuple[InvariantSpec, ...] = ()
+    # memory is the only repository Python can currently emit. durable asks
+    # for a database the compiler has not wired to the generated application.
+    storage: Literal["memory", "durable"] = "memory"
 
 
 class EventBehavior(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     fields: tuple[FieldSpec, ...] = ()
+    # Bounded retries. A dead-letter destination is required so exhaustion is
+    # observable. Ordering and broker delivery are not part of this contract.
+    max_attempts: int | None = Field(default=None, ge=1, le=5)
+    dead_letter: bool = False
+
+    @model_validator(mode="after")
+    def validate_delivery(self) -> "EventBehavior":
+        if self.dead_letter and self.max_attempts is None:
+            raise ValueError("a dead-letter destination requires max_attempts")
+        if self.max_attempts is not None and not self.dead_letter:
+            raise ValueError("retries require a dead-letter destination")
+        return self
 
 
 class ServiceBehavior(BaseModel):
@@ -191,15 +206,43 @@ class ApiBehavior(BaseModel):
 
 
 class EffectBehavior(BaseModel):
+    """Side-effect declaration.
+
+    The five execution fields are one contract: precondition, authorized
+    operation, permitted side effect, failure behaviour, and postcondition.
+    A partial contract is invalid. Completeness does not mean a backend can
+    execute the effect; backends still have to prove a supported subset.
+    """
     model_config = ConfigDict(frozen=True, extra="forbid")
     effect_kind: str = Field(min_length=1)
     idempotent: bool = False
     idempotency_key_required: bool = False
+    precondition: Expression | None = None
+    authorized_operation: str | None = Field(default=None, min_length=1)
+    permitted_side_effect: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_]{0,63}$")
+    failure_behavior: Literal["reject_without_commit"] | None = None
+    postcondition: Expression | None = None
 
     @model_validator(mode="after")
     def validate_idempotency(self) -> "EffectBehavior":
         if self.idempotency_key_required and not self.idempotent:
             raise ValueError("idempotency key requirement requires an idempotent effect")
+        execution = (
+            self.precondition,
+            self.authorized_operation,
+            self.permitted_side_effect,
+            self.failure_behavior,
+            self.postcondition,
+        )
+        if any(item is not None for item in execution) and not all(item is not None for item in execution):
+            raise ValueError(
+                "executable effect contract requires precondition, authorized_operation, "
+                "permitted_side_effect, failure_behavior, and postcondition together"
+            )
+        if all(item is not None for item in execution) and not (
+            self.idempotent and self.idempotency_key_required
+        ):
+            raise ValueError("executable effect contract requires an idempotency key")
         return self
 
 

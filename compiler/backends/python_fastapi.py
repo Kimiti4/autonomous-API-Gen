@@ -24,11 +24,13 @@ from compiler.core.authorization import (
 from compiler.core.declared_api import (
     DeclaredRoute,
     declared_routes,
-    normalized_path,
 )
 from compiler.core.capabilities import BackendCapabilities, SemanticFeature, UnsupportedSemanticsError, assert_plan_supported
+from compiler.core.effect_contract import is_supported_record_contract
+from compiler.core.effects import assert_record_effects_executable, bound_service, record_effects
 from compiler.core.repository import GeneratedRepository, build_repository
 from compiler.core.conformance import CHECKER, ConformanceReport
+from compiler.core.semantic_obligations import manifest_from_plan
 from compiler.core.protocol import BackendClass, BackendIdentity, TestSpec
 from compiler.backends._naming import (
     cls_name as _cls,
@@ -56,6 +58,8 @@ class PythonFastAPIBackend:
         SemanticFeature.EFFECT_POLICY_PRESERVATION,
         SemanticFeature.EFFECT_BINDING_PRESERVATION,
         SemanticFeature.CONSEQUENCE_PRESERVATION,
+        SemanticFeature.EFFECT_RECORD_EXECUTION,
+        SemanticFeature.EVENT_DELIVERY,
     })
 
     def identity(self) -> BackendIdentity:
@@ -108,10 +112,15 @@ class PythonFastAPIBackend:
         # point here; an obligation without one fails closed instead of being
         # emitted as an unprotected route.
         assert_authorization_enforceable(plan)
-        self._assert_no_route_collision(plan)
+        assert_record_effects_executable(plan)
         f: dict[str, str] = {}
         for path in dict.fromkeys(self.element_paths(plan).values()):
             f[path] = self._emit(path, plan)
+        if record_effects(plan):
+            f["tests/test_effects.py"] = self._record_effect_tests(plan)
+            f["tests/test_effect_api.py"] = self._record_effect_api_tests(plan)
+        if self._delivery_events(plan):
+            f["tests/test_event_delivery.py"] = self._event_delivery_tests(plan)
         return build_repository(f)
 
     def conformance(self, plan: CompilationPlan, repo: GeneratedRepository) -> ConformanceReport:
@@ -360,29 +369,6 @@ class PythonFastAPIBackend:
         "string": "str", "identifier": "str", "date": "str", "datetime": "str",
         "integer": "int", "decimal": "Decimal", "money": "Decimal", "boolean": "bool",
     }
-
-    def _crud_route_keys(self, plan: CompilationPlan) -> set[tuple[str, str]]:
-        keys = {("GET", "/health"), ("GET", "/api/services")}
-        for entity in self._entities(plan):
-            plural = entity["plural"]
-            keys.add(("GET", f"/api/{plural}"))
-            keys.add(("POST", f"/api/{plural}"))
-            keys.add(("GET", f"/api/{plural}/{{}}"))
-            keys.add(("PUT", f"/api/{plural}/{{}}"))
-            keys.add(("DELETE", f"/api/{plural}/{{}}"))
-        return keys
-
-    def _assert_no_route_collision(self, plan: CompilationPlan) -> None:
-        """A declared route must not shadow or duplicate an emitted CRUD route."""
-        reserved = self._crud_route_keys(plan)
-        for route in declared_routes(plan):
-            key = (route.method, normalized_path(route.path))
-            if key in reserved:
-                raise UnsupportedSemanticsError(
-                    "api_contracts: declared operation "
-                    f"'{route.operation.id}' collides with the emitted "
-                    f"{route.method} route {route.path!r}"
-                )
 
     def _declared_rules(self, route: DeclaredRoute) -> list:
         rules = []
@@ -807,12 +793,7 @@ class PythonFastAPIBackend:
         if path == "docs/architecture.md":
             return self._docs(plan)
         if path == "docs/semantic-obligations.json":
-            return json.dumps({
-                "schema_version": "1",
-                "effects": [item.model_dump(mode="json") for item in plan.effects],
-                "effect_bindings": [item.model_dump(mode="json") for item in plan.effect_bindings],
-                "consequences": [item.model_dump(mode="json") for item in plan.consequences],
-            }, sort_keys=True, indent=2)
+            return json.dumps(manifest_from_plan(plan), sort_keys=True, indent=2)
         if path == "app/infrastructure/repositories.py":
             return self._repositories()
         if path == "app/core/security.py":
@@ -1412,31 +1393,45 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
         if svc:
             semantic_service = next((item for item in plan.services if _slug(item.name) == svc["mod"]), None)
             if semantic_service is not None and semantic_service.effects:
-                effect_specs = []
                 for effect in semantic_service.effects:
                     if effect.behavior is None:
+                        continue
+                    if not is_supported_record_contract(effect.behavior):
                         raise UnsupportedSemanticsError(
-                            f"Service {semantic_service.id!r} has an effect without typed semantics"
+                            f"Service {semantic_service.id!r} effect {effect.id!r} "
+                            "has no supported executable record contract"
                         )
-                    effect_specs.append({"id": effect.id, **effect.behavior.model_dump(mode="json")})
-                lines[2:2] = ["import json", "from app.core.behavior import apply_effect"]
-                lines += [
-                    "",
-                    "    def execute_effect(self, effect_id: str, idempotency_key: str | None, execute, ledger: dict) -> object:",
-                    f"        effects = json.loads({json.dumps(effect_specs)!r})",
-                    "        effect = next((item for item in effects if item['id'] == effect_id), None)",
-                    "        if effect is None:",
-                    "            raise ValueError('unknown effect')",
-                    "        return apply_effect(effect, idempotency_key, execute, ledger)",
-                    "",
-                ]
+                    side_effect = effect.behavior.permitted_side_effect
+                    effect_mod = _slug(effect.name)
+                    lines += [
+                        "",
+                        "    def execute_" + side_effect + "(self, context: dict, principal: dict, idempotency_key: str, ledger_path: str) -> dict:",
+                        f"        from app.effects.{effect_mod} import execute",
+                        "        return execute(context, principal, idempotency_key, ledger_path)",
+                        "",
+                    ]
         return "\n".join(lines).rstrip("\n") + "\n"
+
+    def _delivery_events(self, plan: CompilationPlan) -> list:
+        found = []
+        seen: set[str] = set()
+        nested = list(plan.events)
+        for service in plan.services:
+            nested.extend(service.published_events)
+            nested.extend(service.consumed_events)
+        for event in nested:
+            if event.id in seen or event.behavior is None or event.behavior.max_attempts is None:
+                continue
+            seen.add(event.id)
+            found.append(event)
+        return found
 
     def _event(self, path: str, plan: CompilationPlan) -> str:
         mod = path.rsplit("/", 1)[-1][: -len(".py")]
+        event = next((item for item in self._delivery_events(plan) if _slug(item.name) == mod), None)
         ev = next((e for e in self._events(plan) if e["mod"] == mod), None)
-        name = ev["name"] if ev else mod
-        return (
+        name = event.name if event is not None else (ev["name"] if ev else mod)
+        handler = (
             f'"""Event handler for {name} (generated, validated)."""\n'
             "from __future__ import annotations\n"
             "\n\n"
@@ -1445,6 +1440,75 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
             "    if not isinstance(payload, dict):\n"
             '        raise TypeError("event payload must be a mapping")\n'
             f'    return {{"type": "{name}", "payload": payload}}\n'
+        )
+        if event is None:
+            return handler
+        attempts = event.behavior.max_attempts
+        return (
+            handler
+            + "\nimport json\nimport os\nimport sqlite3\n\n"
+            + f"EVENT_ID = {event.id!r}\n"
+            + f"MAX_ATTEMPTS = {attempts}\n\n"
+            + "class DeliveryFailed(RuntimeError):\n    pass\n\n\n"
+            + "def delivery_counts(ledger_path: str) -> dict[str, int]:\n"
+            + "    if not os.path.exists(ledger_path):\n"
+            + "        return {'attempts': 0, 'dead_letters': 0}\n"
+            + "    connection = sqlite3.connect(ledger_path, timeout=5)\n"
+            + "    try:\n"
+            + "        _prepare(connection)\n"
+            + "        attempts_count = connection.execute(\n"
+            + "            'SELECT COUNT(*) FROM event_attempts WHERE event_id=?', (EVENT_ID,)\n"
+            + "        ).fetchone()[0]\n"
+            + "        dead = connection.execute(\n"
+            + "            'SELECT COUNT(*) FROM event_dead_letters WHERE event_id=?', (EVENT_ID,)\n"
+            + "        ).fetchone()[0]\n"
+            + "        return {'attempts': attempts_count, 'dead_letters': dead}\n"
+            + "    finally:\n"
+            + "        connection.close()\n\n\n"
+            + "def _prepare(connection: sqlite3.Connection) -> None:\n"
+            + "    connection.execute(\n"
+            + "        'CREATE TABLE IF NOT EXISTS event_attempts ('\n"
+            + "        'event_id TEXT NOT NULL, attempt INTEGER NOT NULL, error TEXT NOT NULL)'\n"
+            + "    )\n"
+            + "    connection.execute(\n"
+            + "        'CREATE TABLE IF NOT EXISTS event_dead_letters ('\n"
+            + "        'event_id TEXT NOT NULL, payload_json TEXT NOT NULL, error TEXT NOT NULL, attempts INTEGER NOT NULL)'\n"
+            + "    )\n\n\n"
+            + "def deliver(payload, ledger_path: str) -> dict:\n"
+            + "    if not isinstance(ledger_path, str) or not ledger_path.strip():\n"
+            + "        raise DeliveryFailed('event ledger path is required')\n"
+            + "    parent = os.path.dirname(ledger_path)\n"
+            + "    if parent:\n"
+            + "        os.makedirs(parent, exist_ok=True)\n"
+            + "    last_error = ''\n"
+            + "    connection = sqlite3.connect(ledger_path, timeout=5)\n"
+            + "    try:\n"
+            + "        _prepare(connection)\n"
+            + "        for attempt in range(1, MAX_ATTEMPTS + 1):\n"
+            + "            try:\n"
+            + f"                result = handle_{mod}(payload)\n"
+            + "            except Exception as exc:\n"
+            + "                last_error = str(exc)\n"
+            + "                connection.execute(\n"
+            + "                    'INSERT INTO event_attempts(event_id, attempt, error) VALUES (?, ?, ?)',\n"
+            + "                    (EVENT_ID, attempt, last_error),\n"
+            + "                )\n"
+            + "                connection.commit()\n"
+            + "                continue\n"
+            + "            connection.execute(\n"
+            + "                'INSERT INTO event_attempts(event_id, attempt, error) VALUES (?, ?, ?)',\n"
+            + "                (EVENT_ID, attempt, ''),\n"
+            + "            )\n"
+            + "            connection.commit()\n"
+            + "            return result\n"
+            + "        connection.execute(\n"
+            + "            'INSERT INTO event_dead_letters(event_id, payload_json, error, attempts) VALUES (?, ?, ?, ?)',\n"
+            + "            (EVENT_ID, json.dumps(payload, default=str), last_error, MAX_ATTEMPTS),\n"
+            + "        )\n"
+            + "        connection.commit()\n"
+            + "    finally:\n"
+            + "        connection.close()\n"
+            + "    raise DeliveryFailed(last_error or 'event delivery exhausted')\n"
         )
 
     def _main(self, plan: CompilationPlan) -> str:
@@ -1470,6 +1534,13 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
             )
         if declared:
             imports.append("from app.api.declared import register_declared_routes")
+        if record_effects(plan):
+            imports[0] = imports[0].replace(
+                "from fastapi import ",
+                "from fastapi import Header, ",
+            )
+            imports.append("import os")
+            imports.append("from app.core.authorization import resolve_principal")
 
         lines = [
             '"""Generated FastAPI application — wired CRUD, health, OpenAPI."""',
@@ -1507,8 +1578,10 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
             lines += ["", "SERVICES: list = []"]
         lines.append("")
 
-        # business routes
-        for e in entities:
+        # Generic CRUD is a compiler-invented route set. A declared ISR
+        # contract replaces it so the emitted business routes are the
+        # operations the plan named.
+        for e in ([] if declared else entities):
             svc_var = f"_{e['service_mod']}_service"
             lines += [
                 f"@router.get('/api/{e['plural']}'{self._authorization_dependency(plan, e, 'read')})",
@@ -1540,17 +1613,52 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
                 f'    return {{"deleted": item_id}}',
                 "",
             ]
-        lines += [
-            "@router.get('/api/services')",
-            "def list_services() -> list[dict]:",
-            "    return [svc.catalog() for svc in SERVICES]",
-            "",
-            "",
-        ]
+        if not declared:
+            lines += [
+                "@router.get('/api/services')",
+                "def list_services() -> list[dict]:",
+                "    return [svc.catalog() for svc in SERVICES]",
+                "",
+                "",
+            ]
         if declared:
             lines += [
                 "register_declared_routes(router)",
                 "",
+                "",
+            ]
+        for effect in record_effects(plan):
+            assert effect.behavior is not None
+            side_effect = effect.behavior.permitted_side_effect
+            effect_mod = _slug(effect.name)
+            lines += [
+                f"@router.post('/api/effects/{side_effect}')",
+                f"def post_{side_effect}(payload: dict, idempotency_key: str | None = Header(default=None, alias='Idempotency-Key'), authorization: str | None = Header(default=None)) -> dict:",
+                "    if not isinstance(idempotency_key, str) or not idempotency_key.strip():",
+                "        raise HTTPException(status_code=400, detail='Idempotency-Key is required')",
+                "    if not isinstance(payload, dict):",
+                "        raise HTTPException(status_code=422, detail='request body must be an object')",
+                "    principal = resolve_principal(authorization)",
+                f"    from app.effects.{effect_mod} import EffectRejected, execute, matching_role",
+                "    role = matching_role(principal.roles, dict(principal.attributes))",
+                "    if role is None:",
+                "        raise HTTPException(status_code=403, detail='unauthorized')",
+                "    ledger = os.environ.get('EFFECT_LEDGER_PATH', '')",
+                "    if not ledger:",
+                "        raise HTTPException(status_code=503, detail='EFFECT_LEDGER_PATH is not configured')",
+                "    try:",
+                "        return execute(payload, {'role': role, 'attributes': dict(principal.attributes)}, idempotency_key, ledger)",
+                "    except EffectRejected as exc:",
+                "        message = str(exc)",
+                "        if message == 'precondition rejected':",
+                "            status_code = 422",
+                "        elif message in {'postcondition rejected', 'idempotency conflict'}:",
+                "            status_code = 409",
+                "        elif message == 'unauthorized':",
+                "            status_code = 403",
+                "        else:",
+                "            status_code = 400",
+                "        raise HTTPException(status_code=status_code, detail=message) from exc",
                 "",
             ]
         lines += [
@@ -1606,13 +1714,16 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
             "    business = [p for p in paths if not p.startswith('/health')]",
             "    assert business, 'openapi declares no business endpoints'",
             "",
-            "",
-            "def test_services_catalog():",
-            "    r = client.get('/api/services', headers=HEADERS)",
-            "    assert r.status_code == 200",
-            "    assert isinstance(r.json(), list)",
-            "",
         ]
+        if not declared:
+            lines += [
+                "",
+                "def test_services_catalog():",
+                "    r = client.get('/api/services', headers=HEADERS)",
+                "    assert r.status_code == 200",
+                "    assert isinstance(r.json(), list)",
+                "",
+            ]
         lines += [
             "import pytest",
             "from decimal import Decimal",
@@ -1750,7 +1861,7 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
                         f"    assert service.execute_effect({effect.id!r}, None, lambda: {{'ok': True}}, {{}}) == {{'ok': True}}",
                         "",
                     ]
-        for e in entities:
+        for e in ([] if declared else entities):
             model = next((item for item in plan.data_models if _slug(item.entity_name) == e["mod"]), None)
             if model is not None and model.behavior is not None:
                 payload = {}
@@ -1870,11 +1981,22 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
         lines += self._authorization_tests(plan, entities)
         if declared:
             lines += self._declared_operation_tests(plan, declared)
-        if secured and entities:
+        if secured and not declared and entities:
             first = entities[0]["plural"]
             lines += [
                 "def test_business_routes_require_api_key():",
                 f"    r = client.get('/api/{first}')",
+                "    assert r.status_code == 401",
+                "",
+            ]
+        elif secured and declared:
+            route = next(item for item in declared if item.method == "GET")
+            path = route.path
+            for field in route.path_fields:
+                path = path.replace("{" + field.name + "}", "missing")
+            lines += [
+                "def test_business_routes_require_api_key():",
+                f"    r = client.get({path!r})",
                 "    assert r.status_code == 401",
                 "",
             ]
@@ -1893,7 +2015,7 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
                 "",
             ]
         for effect in plan.effects:
-            if effect.behavior is None:
+            if effect.behavior is None or is_supported_record_contract(effect.behavior):
                 continue
             effect_mod = _slug(effect.name)
             if effect.behavior.idempotent:
@@ -1931,16 +2053,449 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
         effect = next((item for item in plan.effects if _slug(item.name) == mod), None)
         if effect is None or effect.behavior is None:
             return '"""Effect contract unavailable; this module is not executable."""\n'
-        spec = effect.behavior.model_dump(mode="json")
-        spec_json = json.dumps(spec)
+        if not is_supported_record_contract(effect.behavior):
+            raise UnsupportedSemanticsError(
+                f"Effect {effect.id} is not an executable record contract"
+            )
+        service = bound_service(plan, effect)
+        if service is None:
+            raise UnsupportedSemanticsError(
+                f"Effect {effect.id} record contract has no service binding"
+            )
+        policies = [policy_payload(policy) for policy in effect.security_policies if policy.behavior is not None]
+        behavior = effect.behavior
+        contract = {
+            "effect_id": effect.id,
+            "authorized_operation": behavior.authorized_operation,
+            "permitted_side_effect": behavior.permitted_side_effect,
+            "precondition": behavior.precondition.model_dump(mode="json"),
+            "postcondition": behavior.postcondition.model_dump(mode="json"),
+            "policies": policies,
+        }
+        encoded = json.dumps(contract)
         return (
-            '"""Generated effect adapter with explicit idempotency semantics."""\n'
+            '"""Executable local record effect.\n'
+            "\n"
+            "The commit is a row in the candidate ledger. A failed precondition,\n"
+            "authorization check, or postcondition leaves that ledger unchanged.\n"
+            '"""\n'
+            "from __future__ import annotations\n"
+            "\n"
             "import json\n"
-            "from app.core.behavior import apply_effect\n\n"
-            f"EFFECT = json.loads({spec_json!r})\n\n"
-            "def apply(executor, idempotency_key, ledger):\n"
-            "    return apply_effect(EFFECT, idempotency_key, executor, ledger)\n"
+            "import os\n"
+            "import sqlite3\n"
+            "import threading\n"
+            "\n"
+            "from app.core.behavior import authorize, evaluate_expression\n"
+            "\n"
+            f"CONTRACT = json.loads({encoded!r})\n"
+            "_LOCK = threading.Lock()\n"
+            "\n"
+            "\n"
+            "class EffectRejected(RuntimeError):\n"
+            "    pass\n"
+            "\n"
+            "\n"
+            "def ledger_counts(ledger_path: str) -> dict[str, int]:\n"
+            "    if not os.path.exists(ledger_path):\n"
+            "        return {'attempts': 0, 'commits': 0}\n"
+            "    connection = sqlite3.connect(ledger_path, timeout=5)\n"
+            "    try:\n"
+            "        _prepare(connection)\n"
+            "        effect_id = CONTRACT['effect_id']\n"
+            "        attempts = connection.execute(\n"
+            "            'SELECT COUNT(*) FROM effect_attempts WHERE effect_id=?', (effect_id,)\n"
+            "        ).fetchone()[0]\n"
+            "        commits = connection.execute(\n"
+            "            'SELECT COUNT(*) FROM effect_commits WHERE effect_id=?', (effect_id,)\n"
+            "        ).fetchone()[0]\n"
+            "        return {'attempts': attempts, 'commits': commits}\n"
+            "    finally:\n"
+            "        connection.close()\n"
+            "\n"
+            "\n"
+            "def _prepare(connection: sqlite3.Connection) -> None:\n"
+            "    connection.execute(\n"
+            "        'CREATE TABLE IF NOT EXISTS effect_attempts ('\n"
+            "        'effect_id TEXT NOT NULL, idempotency_key TEXT NOT NULL, payload_json TEXT NOT NULL)'\n"
+            "    )\n"
+            "    connection.execute(\n"
+            "        'CREATE TABLE IF NOT EXISTS effect_commits ('\n"
+            "        'effect_id TEXT NOT NULL, idempotency_key TEXT NOT NULL, result_json TEXT NOT NULL,'\n"
+            "        ' PRIMARY KEY (effect_id, idempotency_key))'\n"
+            "    )\n"
+            "\n"
+            "\n"
+            "def _same_request(stored: dict, context: dict) -> bool:\n"
+            "    return stored.get('amount') == context.get('amount') and stored.get('approved') is context.get('approved')\n"
+            "\n"
+            "\n"
+            "def matching_role(roles, attributes) -> str | None:\n"
+            "    if not isinstance(attributes, dict):\n"
+            "        return None\n"
+            "    for role in roles or ():\n"
+            "        if isinstance(role, str) and authorize(\n"
+            "            CONTRACT['policies'], role, CONTRACT['authorized_operation'],\n"
+            "            CONTRACT['permitted_side_effect'], attributes,\n"
+            "        ):\n"
+            "            return role\n"
+            "    return None\n"
+            "\n"
+            "\n"
+            "def execute(context: dict, principal: dict, idempotency_key: str, ledger_path: str) -> dict:\n"
+            "    if not isinstance(context, dict) or not isinstance(principal, dict):\n"
+            "        raise EffectRejected('context and principal must be objects')\n"
+            "    if not isinstance(idempotency_key, str) or not idempotency_key.strip():\n"
+            "        raise EffectRejected('idempotency key required')\n"
+            "    if not isinstance(ledger_path, str) or not ledger_path.strip():\n"
+            "        raise EffectRejected('effect ledger path is required')\n"
+            "    if evaluate_expression(CONTRACT['precondition'], context) is not True:\n"
+            "        raise EffectRejected('precondition rejected')\n"
+            "    role = principal.get('role')\n"
+            "    attributes = principal.get('attributes') or {}\n"
+            "    if not isinstance(role, str) or not isinstance(attributes, dict):\n"
+            "        raise EffectRejected('unauthorized')\n"
+            "    allowed = authorize(\n"
+            "        CONTRACT['policies'], role, CONTRACT['authorized_operation'],\n"
+            "        CONTRACT['permitted_side_effect'], attributes,\n"
+            "    )\n"
+            "    if not allowed:\n"
+            "        raise EffectRejected('unauthorized')\n"
+            "    observation = dict(context)\n"
+            "    observation['status'] = 'recorded'\n"
+            "    observation['side_effect'] = CONTRACT['permitted_side_effect']\n"
+            "    parent = os.path.dirname(ledger_path)\n"
+            "    if parent:\n"
+            "        os.makedirs(parent, exist_ok=True)\n"
+            "    with _LOCK:\n"
+            "        connection = sqlite3.connect(ledger_path, timeout=5, isolation_level=None)\n"
+            "        try:\n"
+            "            connection.execute('PRAGMA busy_timeout=5000')\n"
+            "            connection.execute('BEGIN IMMEDIATE')\n"
+            "            _prepare(connection)\n"
+            "            effect_id = CONTRACT['effect_id']\n"
+            "            existing = connection.execute(\n"
+            "                'SELECT result_json FROM effect_commits WHERE effect_id=? AND idempotency_key=?',\n"
+            "                (effect_id, idempotency_key),\n"
+            "            ).fetchone()\n"
+            "            if existing is not None:\n"
+            "                stored = json.loads(existing[0])\n"
+            "                if not _same_request(stored, context):\n"
+            "                    connection.rollback()\n"
+            "                    raise EffectRejected('idempotency conflict')\n"
+            "                connection.rollback()\n"
+            "                return stored\n"
+            "            connection.execute(\n"
+            "                'INSERT INTO effect_attempts(effect_id, idempotency_key, payload_json) VALUES (?, ?, ?)',\n"
+            "                (effect_id, idempotency_key, json.dumps(observation, sort_keys=True)),\n"
+            "            )\n"
+            "            if evaluate_expression(CONTRACT['postcondition'], observation) is not True:\n"
+            "                connection.rollback()\n"
+            "                raise EffectRejected('postcondition rejected')\n"
+            "            connection.execute(\n"
+            "                'INSERT INTO effect_commits(effect_id, idempotency_key, result_json) VALUES (?, ?, ?)',\n"
+            "                (effect_id, idempotency_key, json.dumps(observation, sort_keys=True)),\n"
+            "            )\n"
+            "            connection.commit()\n"
+            "            return observation\n"
+            "        except EffectRejected:\n"
+            "            raise\n"
+            "        except sqlite3.IntegrityError:\n"
+            "            connection.rollback()\n"
+            "            connection.execute('BEGIN IMMEDIATE')\n"
+            "            raced = connection.execute(\n"
+            "                'SELECT result_json FROM effect_commits WHERE effect_id=? AND idempotency_key=?',\n"
+            "                (CONTRACT['effect_id'], idempotency_key),\n"
+            "            ).fetchone()\n"
+            "            connection.rollback()\n"
+            "            if raced is None:\n"
+            "                raise EffectRejected('effect commit raced without a stored result')\n"
+            "            stored = json.loads(raced[0])\n"
+            "            if not _same_request(stored, context):\n"
+            "                raise EffectRejected('idempotency conflict')\n"
+            "            return stored\n"
+            "        finally:\n"
+            "            connection.close()\n"
         )
+
+    def _record_effect_tests(self, plan: CompilationPlan) -> str:
+        lines = [
+            '"""Generated tests for executable record effects.',
+            "",
+            "These tests call the generated service and then read the SQLite ledger.",
+            '"""',
+            "from __future__ import annotations",
+            "",
+            "import threading",
+            "",
+            "import pytest",
+            "",
+        ]
+        for effect in record_effects(plan):
+            service = bound_service(plan, effect)
+            assert service is not None and effect.behavior is not None
+            service_cls = f"{_cls(_slug(service.name))}Service"
+            service_mod = _slug(service.name)
+            effect_mod = _slug(effect.name)
+            side_effect = effect.behavior.permitted_side_effect
+            operation = effect.behavior.authorized_operation
+            role = next(
+                role
+                for policy in effect.security_policies
+                if policy.behavior is not None
+                for rule in policy.behavior.rules
+                if rule.effect == "allow" and operation in rule.actions and rule.resource == side_effect
+                for role in rule.roles
+            )
+            lines += [
+                f"def test_{side_effect}_retry_commits_once(tmp_path):",
+                f"    from app.application.{service_mod} import {service_cls}",
+                f"    from app.effects.{effect_mod} import ledger_counts",
+                "    ledger = str(tmp_path / 'effects.sqlite')",
+                f"    service = {service_cls}()",
+                "    context = {'amount': 10, 'approved': True}",
+                f"    principal = {{'role': '{role}', 'attributes': {{}}}}",
+                f"    first = service.execute_{side_effect}(context, principal, 'key-1', ledger)",
+                f"    second = service.execute_{side_effect}(context, principal, 'key-1', ledger)",
+                "    assert first == second",
+                "    assert first['status'] == 'recorded'",
+                "    assert ledger_counts(ledger) == {'attempts': 1, 'commits': 1}",
+                "",
+                f"def test_{side_effect}_precondition_failure_writes_nothing(tmp_path):",
+                f"    from app.application.{service_mod} import {service_cls}",
+                f"    from app.effects.{effect_mod} import EffectRejected, ledger_counts",
+                "    ledger = str(tmp_path / 'effects.sqlite')",
+                f"    service = {service_cls}()",
+                "    with pytest.raises(EffectRejected, match='precondition rejected'):",
+                f"        service.execute_{side_effect}({{'amount': 0, 'approved': True}}, {{'role': '{role}', 'attributes': {{}}}}, 'key-2', ledger)",
+                "    assert ledger_counts(ledger) == {'attempts': 0, 'commits': 0}",
+                "",
+                f"def test_{side_effect}_unauthorized_principal_writes_nothing(tmp_path):",
+                f"    from app.application.{service_mod} import {service_cls}",
+                f"    from app.effects.{effect_mod} import EffectRejected, ledger_counts",
+                "    ledger = str(tmp_path / 'effects.sqlite')",
+                f"    service = {service_cls}()",
+                "    with pytest.raises(EffectRejected, match='unauthorized'):",
+                f"        service.execute_{side_effect}({{'amount': 10, 'approved': True}}, {{'role': 'intruder', 'attributes': {{}}}}, 'key-3', ledger)",
+                "    assert ledger_counts(ledger) == {'attempts': 0, 'commits': 0}",
+                "",
+                f"def test_{side_effect}_postcondition_failure_rolls_back(tmp_path):",
+                f"    from app.application.{service_mod} import {service_cls}",
+                f"    from app.effects.{effect_mod} import EffectRejected, ledger_counts",
+                "    ledger = str(tmp_path / 'effects.sqlite')",
+                f"    service = {service_cls}()",
+                "    with pytest.raises(EffectRejected, match='postcondition rejected'):",
+                f"        service.execute_{side_effect}({{'amount': 10, 'approved': False}}, {{'role': '{role}', 'attributes': {{}}}}, 'key-4', ledger)",
+                "    assert ledger_counts(ledger) == {'attempts': 0, 'commits': 0}",
+                "",
+                f"def test_{side_effect}_concurrent_retries_commit_once(tmp_path):",
+                f"    from app.application.{service_mod} import {service_cls}",
+                f"    from app.effects.{effect_mod} import ledger_counts",
+                "    ledger = str(tmp_path / 'effects.sqlite')",
+                f"    service = {service_cls}()",
+                "    barrier = threading.Barrier(2)",
+                "    results = []",
+                "    errors = []",
+                "    def _run():",
+                "        try:",
+                "            barrier.wait()",
+                f"            results.append(service.execute_{side_effect}({{'amount': 10, 'approved': True}}, {{'role': '{role}', 'attributes': {{}}}}, 'key-5', ledger))",
+                "        except Exception as exc:",
+                "            errors.append(exc)",
+                "    workers = [threading.Thread(target=_run), threading.Thread(target=_run)]",
+                "    for worker in workers:",
+                "        worker.start()",
+                "    for worker in workers:",
+                "        worker.join()",
+                "    assert errors == []",
+                "    assert results[0] == results[1]",
+                "    assert ledger_counts(ledger) == {'attempts': 1, 'commits': 1}",
+                "",
+                f"def test_{side_effect}_conflicting_retry_keeps_the_first_commit(tmp_path):",
+                f"    from app.application.{service_mod} import {service_cls}",
+                f"    from app.effects.{effect_mod} import EffectRejected, ledger_counts",
+                "    ledger = str(tmp_path / 'effects.sqlite')",
+                f"    service = {service_cls}()",
+                f"    principal = {{'role': '{role}', 'attributes': {{}}}}",
+                f"    first = service.execute_{side_effect}({{'amount': 10, 'approved': True}}, principal, 'key-6', ledger)",
+                "    with pytest.raises(EffectRejected, match='idempotency conflict'):",
+                f"        service.execute_{side_effect}({{'amount': 11, 'approved': True}}, principal, 'key-6', ledger)",
+                "    assert first['amount'] == 10",
+                "    replay = service.execute_" + side_effect + "({'amount': 10, 'approved': True}, principal, 'key-6', ledger)",
+                "    assert replay == first",
+                "    assert ledger_counts(ledger) == {'attempts': 1, 'commits': 1}",
+                "",
+                f"def test_{side_effect}_distinct_key_commits_again(tmp_path):",
+                f"    from app.application.{service_mod} import {service_cls}",
+                f"    from app.effects.{effect_mod} import ledger_counts",
+                "    ledger = str(tmp_path / 'effects.sqlite')",
+                f"    service = {service_cls}()",
+                f"    principal = {{'role': '{role}', 'attributes': {{}}}}",
+                f"    first = service.execute_{side_effect}({{'amount': 10, 'approved': True}}, principal, 'key-7', ledger)",
+                f"    second = service.execute_{side_effect}({{'amount': 12, 'approved': True}}, principal, 'key-8', ledger)",
+                "    assert first['amount'] == 10",
+                "    assert second['amount'] == 12",
+                "    assert first != second",
+                "    assert ledger_counts(ledger) == {'attempts': 2, 'commits': 2}",
+                "",
+            ]
+        return "\n".join(lines)
+
+    def _record_effect_api_tests(self, plan: CompilationPlan) -> str:
+        lines = [
+            '"""HTTP checks for generated record effects.',
+            "",
+            "The client is the generated ASGI app. Ledger assertions read SQLite.",
+            '"""',
+            "from __future__ import annotations",
+            "",
+            "import os",
+            "",
+            'os.environ["GENERATED_API_KEY"] = "generated-dev-key"',
+            'os.environ["GENERATED_AUTH_SECRET"] = "generated-dev-secret"',
+            "",
+            "from fastapi.testclient import TestClient",
+            "",
+            "from app.core.authorization import issue_token",
+            "from app.main import app",
+            "",
+            "client = TestClient(app)",
+            "",
+            "",
+            "def _auth(role: str) -> dict[str, str]:",
+            "    token = issue_token('caller', roles=[role])",
+            "    return {'X-API-Key': 'generated-dev-key', 'Authorization': f'Bearer {token}'}",
+            "",
+        ]
+        for effect in record_effects(plan):
+            assert effect.behavior is not None
+            side_effect = effect.behavior.permitted_side_effect
+            effect_mod = _slug(effect.name)
+            operation = effect.behavior.authorized_operation
+            role = next(
+                item
+                for policy in effect.security_policies
+                if policy.behavior is not None
+                for rule in policy.behavior.rules
+                if rule.effect == "allow" and operation in rule.actions and rule.resource == side_effect
+                for item in rule.roles
+            )
+            path = f"/api/effects/{side_effect}"
+            lines += [
+                f"def test_{side_effect}_http_retry_commits_once(tmp_path, monkeypatch):",
+                f"    from app.effects.{effect_mod} import ledger_counts",
+                "    ledger = str(tmp_path / 'effects.sqlite')",
+                "    monkeypatch.setenv('EFFECT_LEDGER_PATH', ledger)",
+                "    body = {'amount': 10, 'approved': True}",
+                f"    headers = {{**_auth({role!r}), 'Idempotency-Key': 'http-1'}}",
+                f"    first = client.post({path!r}, json=body, headers=headers)",
+                f"    second = client.post({path!r}, json=body, headers=headers)",
+                "    assert first.status_code == 200, first.text",
+                "    assert second.status_code == 200, second.text",
+                "    assert first.json() == second.json()",
+                "    assert ledger_counts(ledger) == {'attempts': 1, 'commits': 1}",
+                "",
+                f"def test_{side_effect}_http_missing_key_writes_nothing(tmp_path, monkeypatch):",
+                f"    from app.effects.{effect_mod} import ledger_counts",
+                "    ledger = str(tmp_path / 'effects.sqlite')",
+                "    monkeypatch.setenv('EFFECT_LEDGER_PATH', ledger)",
+                f"    response = client.post({path!r}, json={{'amount': 10, 'approved': True}}, headers=_auth({role!r}))",
+                "    assert response.status_code == 400",
+                "    assert ledger_counts(ledger) == {'attempts': 0, 'commits': 0}",
+                "",
+                f"def test_{side_effect}_http_missing_token_is_unauthorized(tmp_path, monkeypatch):",
+                "    ledger = str(tmp_path / 'effects.sqlite')",
+                "    monkeypatch.setenv('EFFECT_LEDGER_PATH', ledger)",
+                f"    response = client.post({path!r}, json={{'amount': 10, 'approved': True}}, headers={{'X-API-Key': 'generated-dev-key', 'Idempotency-Key': 'http-2'}})",
+                "    assert response.status_code == 401",
+                "",
+                f"def test_{side_effect}_http_denied_role_writes_nothing(tmp_path, monkeypatch):",
+                f"    from app.effects.{effect_mod} import ledger_counts",
+                "    ledger = str(tmp_path / 'effects.sqlite')",
+                "    monkeypatch.setenv('EFFECT_LEDGER_PATH', ledger)",
+                f"    headers = {{**_auth('intruder'), 'Idempotency-Key': 'http-3'}}",
+                f"    response = client.post({path!r}, json={{'amount': 10, 'approved': True}}, headers=headers)",
+                "    assert response.status_code == 403",
+                "    assert ledger_counts(ledger) == {'attempts': 0, 'commits': 0}",
+                "",
+                f"def test_{side_effect}_http_precondition_failure_writes_nothing(tmp_path, monkeypatch):",
+                f"    from app.effects.{effect_mod} import ledger_counts",
+                "    ledger = str(tmp_path / 'effects.sqlite')",
+                "    monkeypatch.setenv('EFFECT_LEDGER_PATH', ledger)",
+                f"    headers = {{**_auth({role!r}), 'Idempotency-Key': 'http-4'}}",
+                f"    response = client.post({path!r}, json={{'amount': 0, 'approved': True}}, headers=headers)",
+                "    assert response.status_code == 422",
+                "    assert ledger_counts(ledger) == {'attempts': 0, 'commits': 0}",
+                "",
+                f"def test_{side_effect}_http_postcondition_conflict_rolls_back(tmp_path, monkeypatch):",
+                f"    from app.effects.{effect_mod} import ledger_counts",
+                "    ledger = str(tmp_path / 'effects.sqlite')",
+                "    monkeypatch.setenv('EFFECT_LEDGER_PATH', ledger)",
+                f"    headers = {{**_auth({role!r}), 'Idempotency-Key': 'http-5'}}",
+                f"    response = client.post({path!r}, json={{'amount': 10, 'approved': False}}, headers=headers)",
+                "    assert response.status_code == 409",
+                "    assert ledger_counts(ledger) == {'attempts': 0, 'commits': 0}",
+                "",
+                f"def test_{side_effect}_http_conflicting_retry_keeps_the_first_commit(tmp_path, monkeypatch):",
+                f"    from app.effects.{effect_mod} import ledger_counts",
+                "    ledger = str(tmp_path / 'effects.sqlite')",
+                "    monkeypatch.setenv('EFFECT_LEDGER_PATH', ledger)",
+                f"    headers = {{**_auth({role!r}), 'Idempotency-Key': 'http-7'}}",
+                f"    first = client.post({path!r}, json={{'amount': 10, 'approved': True}}, headers=headers)",
+                f"    conflict = client.post({path!r}, json={{'amount': 11, 'approved': True}}, headers=headers)",
+                "    assert first.status_code == 200, first.text",
+                "    assert conflict.status_code == 409",
+                "    assert conflict.json()['detail'] == 'idempotency conflict'",
+                "    assert first.json()['amount'] == 10",
+                "    assert ledger_counts(ledger) == {'attempts': 1, 'commits': 1}",
+                "",
+                f"def test_{side_effect}_http_rejects_a_non_object_body(monkeypatch, tmp_path):",
+                "    monkeypatch.setenv('EFFECT_LEDGER_PATH', str(tmp_path / 'effects.sqlite'))",
+                f"    headers = {{**_auth({role!r}), 'Idempotency-Key': 'http-6'}}",
+                f"    response = client.post({path!r}, json=['not', 'an', 'object'], headers=headers)",
+                "    assert response.status_code == 422",
+                "",
+                f"def test_{side_effect}_openapi_declares_the_idempotency_header():",
+                "    spec = client.get('/openapi.json').json()",
+                f"    operation = spec['paths'][{path!r}]['post']",
+                "    assert 'Idempotency-Key' in str(operation)",
+                "",
+            ]
+        return "\n".join(lines)
+
+    def _event_delivery_tests(self, plan: CompilationPlan) -> str:
+        lines = [
+            '"""Generated retry and dead-letter checks.',
+            "",
+            "Counts come from the SQLite ledger the consumer writes.",
+            '"""',
+            "from __future__ import annotations",
+            "",
+            "import pytest",
+            "",
+        ]
+        for event in self._delivery_events(plan):
+            assert event.behavior is not None and event.behavior.max_attempts is not None
+            mod = _slug(event.name)
+            attempts = event.behavior.max_attempts
+            lines += [
+                f"def test_{mod}_delivery_records_one_attempt(tmp_path):",
+                f"    from app.events.{mod} import deliver, delivery_counts",
+                "    ledger = str(tmp_path / 'events.sqlite')",
+                "    result = deliver({'k': 1}, ledger)",
+                f"    assert result['type'] == {event.name!r}",
+                "    assert result['payload'] == {'k': 1}",
+                "    assert delivery_counts(ledger) == {'attempts': 1, 'dead_letters': 0}",
+                "",
+                f"def test_{mod}_exhaustion_writes_one_dead_letter(tmp_path):",
+                f"    from app.events.{mod} import DeliveryFailed, deliver, delivery_counts",
+                "    ledger = str(tmp_path / 'events.sqlite')",
+                "    with pytest.raises(DeliveryFailed, match='mapping'):",
+                "        deliver(['not', 'a', 'mapping'], ledger)",
+                f"    assert delivery_counts(ledger) == {{'attempts': {attempts}, 'dead_letters': 1}}",
+                "",
+            ]
+        return "\n".join(lines)
 
     def _k8s(self) -> str:
         return (
@@ -2020,14 +2575,19 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
         lines.append("")
         lines.append("## HTTP surface")
         lines.append("- `GET /health` — liveness")
-        lines.append("- `GET /api/services` — service catalog")
-        for e in entities:
-            lines.append(
-                f"- `/api/{e['plural']}` — CRUD for `{e['entity']}` "
-                "(GET, POST, GET/PUT/DELETE by id)"
-            )
-        if not entities:
-            lines.append("- (plan contains no data models)")
+        declared_docs = declared_routes(plan)
+        if declared_docs:
+            for route in declared_docs:
+                lines.append(f"- `{route.method} {route.path}` — declared operation `{route.action}`")
+        else:
+            lines.append("- `GET /api/services` — service catalog")
+            for e in entities:
+                lines.append(
+                    f"- `/api/{e['plural']}` — CRUD for `{e['entity']}` "
+                    "(GET, POST, GET/PUT/DELETE by id)"
+                )
+            if not entities:
+                lines.append("- (plan contains no data models)")
         lines.append("")
         if events:
             lines.append("## Events")

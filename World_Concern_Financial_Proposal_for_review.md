@@ -13,11 +13,11 @@
 |---|---:|---|
 | One-time implementation | 1,310,000 | Paid against the implementation-only milestone schedule in section 3 |
 | Annual maintenance and technical support | 240,000/year | Separately invoiced recurring service, subject to agreed SLA and renewal terms |
-| Hosting, backups and monitoring | 10,000/month; 120,000/year | Separately invoiced recurring service, subject to provider quotation and selection |
+| Indicative hosting allowance (hosting, backups and monitoring) | 10,000/month; 120,000/year | Provisional allowance only; subject to provider quotation, technical/data-protection requirements and selection. No provider is selected or contracted. |
 | **Indicative first-year total** | **1,670,000** | Implementation plus one year of the two recurring items |
 | **Indicative annual recurring total from year two** | **360,000/year** | Maintenance/support plus hosting at the provisional rates; subject to renewal and provider pricing |
 
-The first-year estimate is arithmetic, not an authorized spending ceiling. No World Concern budget has been provided. Provisional negotiation range previously considered is KES 1,400,000–1,550,000 for year one if scope and costs support it; this is not a quoted offer or approved discount.
+The first-year estimate is arithmetic, not an authorized spending ceiling. No World Concern budget has been provided. KES 1,670,000 is an indicative first-year estimate only; it is not the buyer's budget ceiling or an approved final offer.
 
 ## 2. Itemized one-time implementation
 
@@ -61,8 +61,8 @@ If statutory, security, UAT or parallel-run acceptance is not met, the relevant 
 ## 5. Licensing, tax and third-party costs
 
 - **Separate software licence:** KES 0 is the provisional estimate for a separate Tiannara ESAP licence charge for the initially agreed project scope only. This is not a statement that source-code ownership, perpetual rights, transfer rights or reuse rights are included. Those rights and any licence must be expressly agreed in the contract before work starts.
-- **VAT and taxes:** The bidder's VAT/tax status and applicable tax treatment are unconfirmed. Amounts are exclusive of any applicable taxes; no VAT PIN or tax registration is claimed. Confirm treatment and show any applicable tax separately before signature.
-- **Hosting:** KES 10,000/month is a planning assumption, not a cloud-provider quotation, secured contract, reserved region or data-residency guarantee. Kenya/East Africa location is preferred only if a provider meets approved security, privacy, availability and recovery requirements.
+- **VAT, taxes and eTIMS:** All prices are provisional and exclusive of any applicable taxes. The bidder's tax obligations, VAT registration status, eTIMS obligations and applicable treatment of the proposed services will be confirmed before contract execution. VAT will be charged only where legally applicable and where the bidder is authorized or required to charge it. Any applicable taxes will be itemized in accordance with Kenyan law. No VAT PIN or tax registration is claimed.
+- **Hosting:** KES 10,000/month is an indicative hosting allowance only, subject to provider quotations, selected architecture, security and data-protection requirements, backup/recovery requirements and confirmation of hosting region. No provider has been selected or contracted; no reserved region, data-residency guarantee or provider commitment is claimed. Kenya/East Africa location is preferred only if a provider meets the approved requirements.
 - **Excluded third-party charges:** SMS/email consumption, premium hosting, bank/payment services, existing HR/accounting vendor API fees, additional licences, data migration beyond scope and non-standard interfaces are not priced. Identify and approve such charges before commitment.
 - **Budget ceiling:** Unknown. KES 1,670,000 is an indicative first-year estimate, not the buyer's ceiling or an authorized final offer.
 

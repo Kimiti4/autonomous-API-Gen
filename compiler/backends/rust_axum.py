@@ -970,7 +970,7 @@ fn b64decode(text: &str) -> Option<Vec<u8>> {{
     while padded.len() % 4 != 0 {{
         padded.push('=');
     }}
-    URL_SAFE.decode(padded).ok().or_else(|| URL_SAFE_NO_PAD.decode(text).ok())?
+    URL_SAFE.decode(padded).ok().or_else(|| URL_SAFE_NO_PAD.decode(text).ok())
 }}
 
 fn principal_roles(secret: &str, header: Option<&str>) -> Result<Vec<String>, (StatusCode, Value)> {{

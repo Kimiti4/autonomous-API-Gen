@@ -78,6 +78,34 @@ class Evidence:
     note: str = ""
 
 
+class CompilerDisposition(str, Enum):
+    REFERENCE = "reference"
+    FAIL_CLOSED = "fail_closed"
+    RUNTIME_PROVEN = "runtime_proven"
+    SHELL = "shell"
+    INTEGRATION_UNPROVEN = "integration_unproven"
+
+
+class CompilerGate(str, Enum):
+    PRESERVATION = "preservation"
+    EXECUTION = "execution"
+    PARITY = "parity"
+    INTEGRATION = "integration"
+
+
+@dataclass(frozen=True)
+class CompilerTarget:
+    """A tracked compiler path. Registration is not a production-ready claim."""
+
+    target_id: str
+    family: str
+    disposition: CompilerDisposition
+    gate: CompilerGate
+    work_package: str
+    note: str
+    production_ready: bool = False
+
+
 @dataclass(frozen=True)
 class WorkPackage:
     id: str
@@ -126,7 +154,8 @@ KNOWN_PRS: dict[int, str] = {
     140: "MERGED",
     152: "MERGED",
     156: "MERGED",
-    157: "OPEN",
+    157: "MERGED",
+    165: "MERGED",
 }
 
 
@@ -215,8 +244,10 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
             _code("certification/authorization/workload_orders.py"),
             _code("certification/authorization/workload_inventory.py"),
             _code("certification/authorization/workload_shipments.py"),
+            _code("certification/authorization/workload_declared_api.py"),
             _test("tests/cbc1/test_campaign_a.py"),
             _test("tests/test_source_bound_behavioral_projection.py"),
+            _test("tests/test_behavioral_capability_gate.py"),
             _test("tests/test_authorization_enforcement.py"),
             _test("tests/authorization/test_authorization_campaign.py"),
             _test("tests/integration/test_generated_backend_behavior_builds.py"),
@@ -224,7 +255,8 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
             _workflow(".github/workflows/authorization-campaign.yml"),
             _pr(137, "typed behavioural ISR contract merged; end-to-end emitter consumption remains a separate closure gate"),
             _pr(152, "source-bound typed behavior reaches Python, Rust, and React plans"),
-            _pr(157, "trusted principal resolution and per-route policy enforcement in the Python backend"),
+            _pr(157, "trusted principal resolution and per-route policy enforcement merged"),
+            _pr(165, "declared API operation enforcement and five-workload authorization lane merged"),
         ),
         closure_gate=(
             "Representative requirements produce typed ISR semantics with explicit "
@@ -232,11 +264,13 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         ),
         claimed_tiers=(CertificationTier.STRUCTURAL, CertificationTier.BEHAVIORAL),
         limitations=(
-            "Main ISR carries entities, edges, events and security only.",
-            "Source-bound typed fields, rules, transitions, API contracts, and frontend interactions reach plans and generated artifacts; authorization is enforced for service-scoped policies on the Python backend only.",
-            "Declared API operations are still not emitted, so obligations bound to them fail closed; the Rust backend still refuses every authorization obligation.",
-            "The authorization certification lane covers four source-bound workloads on the Python backend with a Rust negative control; it does not change the 39-workload, 78-trial Campaign A scope.",
-            "The lane's acceptance criteria are tracked in repository issue #158 and its corpus expansion in issue #161; W02 stays IN_PROGRESS until every remaining gate passes.",
+            "The TOR path does not extract effects or observable consequences from requirement prose; effect and consequence nodes are reviewer-authored declarations, not derived intent.",
+            "Source-bound typed fields, rules, transitions, API contracts, and frontend interactions reach plans and generated artifacts; authorization is enforced for service- and API-operation-scoped policies on the Python backend only.",
+            "The Rust backend still refuses every authorization obligation, including declared API operations; the Python backend now emits and enforces declared operations, and the authorization lane certifies them.",
+            "The authorization certification lane covers five source-bound workloads on the Python backend (payroll, orders, inventory, shipments, and a declared-API workload) with a Rust negative control; it does not change the 39-workload, 78-trial Campaign A scope.",
+            "Consequence nodes, CAUSES_EFFECT bindings from services and APIs, and source-declared effect policies survive lowering. The candidate manifest carries the source revision hash, and conformance rejects a manifest from another revision. That preservation is not executable semantics and does not close W02.",
+            "The only executable effect contract is a Python local record (positive amount, approved postcondition, one allow rule, SQLite commit with rollback). Rust refuses it, and every other effect kind or formula still fails closed.",
+            "The lane's acceptance criteria are tracked in repository issue #158; the issue #161 corpus expansion is closed, and W02 stays IN_PROGRESS until every remaining gate passes.",
         ),
     ),
     WorkPackage(
@@ -263,7 +297,7 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         claimed_tiers=(CertificationTier.STRUCTURAL, CertificationTier.BEHAVIORAL),
         limitations=(
             "Requirement to test-oracle edges are not first-class.",
-            "Campaign A binds only the requirement-graph hash.",
+            "Campaign A binds source-to-mapping-to-candidate hashes, but not a requirement-to-oracle traceability chain.",
         ),
     ),
     WorkPackage(
@@ -332,8 +366,11 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         evidence=(
             _code("compiler/core/plan.py"),
             _code("compiler/core/lowering.py"),
+            _code("compiler/core/semantic_obligations.py"),
+            _test("tests/test_adversarial_preservation.py"),
             _test("tests/cbc1/test_campaign_a.py"),
-            _pr(137, "plan carriers for behavioural semantics drafted, unmerged"),
+            _test("tests/test_source_bound_behavioral_projection.py"),
+            _pr(137, "typed behavioural ISR contract and plan carriers merged"),
         ),
         closure_gate=(
             "Round-trip and contract tests prove no mandatory semantic element is lost "
@@ -341,9 +378,9 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         ),
         claimed_tiers=(CertificationTier.STRUCTURAL, CertificationTier.BEHAVIORAL),
         limitations=(
-            "Main plan carries structural carriers only.",
-            "No-loss projection tests for behavioural carriers exist only in draft "
-            "#137 and its head is currently red in CI.",
+            "Lowering checks effects, consequence bindings, and CAUSES_EFFECT edges against the source graph. Both real backends emit that set with the source revision hash, and conformance rejects an altered manifest.",
+            "Adversarial checks cover a dropped effect, a missing or rewritten cause, an unresolved consequence, a missing service or API binding, a stale revision hash, and a same-hash payload from another candidate. Those checks do not prove execution and do not close W06.",
+            "Preservation is not execution. Consequence semantics and general effect formulas are still refused, so the no-loss gate is not closed for every semantic category.",
         ),
     ),
     WorkPackage(
@@ -360,6 +397,9 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
             _code("compiler/backends/rust_axum.py"),
             _code("tiannara/application/compilation/backend_capability_registry.py"),
             _test("tests/test_no_passing_stubs.py"),
+            _code("compiler/core/isr_parity.py"),
+            _test("tests/integration/test_isr_api_parity.py"),
+            _test("tests/integration/test_toolchain_parity.py"),
             _test("tests/cbc1/test_campaign_a.py"),
             _workflow(".github/workflows/cbc1-campaign-a.yml"),
             _artifact("cbc1-a-evidence", "78/78 CERTIFIED at d8f2a88e, real Docker"),
@@ -375,9 +415,10 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
             CertificationTier.BEHAVIORAL,
         ),
         limitations=(
-            "Capability declarations are registry metadata, not enforced compiler gates.",
-            "Behavioural semantics are unsupported by both certified emitters.",
+            "Compiler capability gates are enforced in both real backends; remaining gaps are backend parity (Rust omits API contracts, authorization, typed events, invariants, and frontend carriers) and effect semantics, which neither backend supports.",
             "Node/Express targets are not exercised by Campaign A.",
+            "Ruby and ASP.NET Core execute a fixed in-memory /api/records smoke test. Rails is still not booted. That smoke is not the ISR-derived API contract.",
+            "tests/integration/test_isr_api_parity.py runs one declared ISR contract through Python, Elixir, and Rust. Each emits the declared routes plus GET /health and enforces validation, projection, authorization, authorized delete, and unchanged state after a denial. Ruby and C# still refuse api_contracts. Durable storage, bank_transfer, and shapes outside the slice stay refused.",
         ),
     ),
     WorkPackage(
@@ -401,8 +442,8 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         ),
         claimed_tiers=(CertificationTier.BUILD, CertificationTier.OPERATIONAL),
         limitations=(
-            "Generated DDL is never applied against a real database in tests.",
-            "downgrade() is a no-op and there is no migration chain.",
+            "postgres.schema now emits upgrade and downgrade SQL. tests/integration/test_postgres_schema_runtime.py applies both to a temporary PostgreSQL cluster and checks unique and foreign-key failures. The test skips when server binaries are absent, so it is not yet a universal CI gate.",
+            "Generated FastAPI and Rust applications still use in-memory repositories. The constitutional Alembic downgrade remains a no-op, and there is still no multi-revision migration chain.",
         ),
     ),
     WorkPackage(
@@ -419,6 +460,7 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
             _code("compiler/backends/python_fastapi.py"),
             _code("certification/stages/docker_stages.py"),
             _test("tests/test_no_passing_stubs.py"),
+            _test("tests/integration/test_generated_effect_execution.py"),
             _workflow(".github/workflows/cbc1-campaign-a.yml"),
         ),
         closure_gate=(
@@ -431,8 +473,8 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
             CertificationTier.BEHAVIORAL,
         ),
         limitations=(
-            "Versioning, pagination and idempotency are not ISR-driven generated API "
-            "concepts.",
+            "The Python record-effect route requires Idempotency-Key and is exercised through the generated ASGI app, including a missing key, a denied role, a malformed body, and a postcondition conflict. Removing the retry guard fails that suite.",
+            "Versioning and pagination are still not ISR-driven API concepts. The idempotency header is limited to the supported record-effect route, and Rust does not expose it.",
         ),
     ),
     WorkPackage(
@@ -448,6 +490,7 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
             _code("compiler/backends/python_fastapi.py"),
             _code("compiler/backends/rust_axum.py"),
             _test("tests/test_no_passing_stubs.py"),
+            _test("tests/integration/test_generated_event_delivery.py"),
         ),
         closure_gate=(
             "End-to-end event tests prove payload conformance, retry behaviour, "
@@ -455,9 +498,8 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         ),
         claimed_tiers=(CertificationTier.BUILD, CertificationTier.RUNTIME),
         limitations=(
-            "Emitted consumers exist, but retries, dead-letter queues and ordering "
-            "are not generated.",
-            "No end-to-end asynchronous delivery tests exist for generated systems.",
+            "Python can retry a generated consumer up to a declared maximum and write one dead letter after exhaustion. The generated tests read that SQLite ledger, and shortening the retry loop fails the exhaustion test.",
+            "Rust refuses event delivery. There is no broker, ordering guarantee, duplicate-delivery protocol, or recovery after a transient failure.",
         ),
     ),
     WorkPackage(
@@ -471,8 +513,14 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         dependencies=("W09",),
         evidence=(
             _code("tiannara/application/enterprise/authorization.py"),
+            _code("compiler/core/authorization.py"),
+            _code("compiler/backends/python_fastapi.py"),
             _test("tests/test_authorization_policy_engine.py"),
+            _test("tests/test_authorization_enforcement.py"),
+            _test("tests/authorization/test_authorization_campaign.py"),
+            _workflow(".github/workflows/authorization-campaign.yml"),
             _pr(125, "merged deny-by-default RBAC/ABAC policy engine"),
+            _pr(165, "generated route authorization and operation-bound enforcement merged"),
         ),
         closure_gate=(
             "Independent tests prove allow and deny for every protected operation, "
@@ -480,8 +528,8 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         ),
         claimed_tiers=(CertificationTier.SECURITY,),
         limitations=(
-            "Generated routes enforce API-key authentication only; the RBAC/ABAC "
-            "engine is not yet wired into generated enforcement points.",
+            "Generated Python routes enforce signed-principal RBAC/ABAC for service- and API-operation-scoped policies, and the authorization lane certifies five source-bound workloads; Rust refuses authorization obligations and other advertised backends remain unproven.",
+            "W11 remains open because closure requires every protected operation, tenant-isolation case, and escalation attempt to be independently exercised across all supported backends, not only the Python authorization lane.",
         ),
     ),
     WorkPackage(
@@ -496,7 +544,13 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         evidence=(
             _code("autonomous-api/app/engine/full_stack_verification.py"),
             _code("autonomous-api/app/engine/effect_consequences.py"),
+            _code("isr/core/behavior.py"),
+            _code("compiler/core/effect_contract.py"),
+            _code("compiler/core/effects.py"),
+            _code("compiler/backends/python_fastapi.py"),
             _code("certification/campaign/runner.py"),
+            _test("tests/test_behavioral_capability_gate.py"),
+            _test("tests/integration/test_generated_effect_execution.py"),
             _test("tests/cbc1/test_candidate_bound_full_stack_gate.py"),
             _test("tests/cbc1/test_source_bound_full_stack_projection.py"),
         ),
@@ -506,9 +560,9 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         ),
         claimed_tiers=(CertificationTier.BEHAVIORAL, CertificationTier.OPERATIONAL),
         limitations=(
-            "Idempotency-Key is not emitted into generated services.",
-            "Effect coherence is verified on the campaign path, not for every "
-            "backend.",
+            "Python executes one local record contract: one SQLite commit per idempotency key, replay of the same amount and approval, conflict rejection when that key is reused with a different payload, a separate commit for a different key, precondition rejection, authorization denial, and postcondition rollback. Generated pytest reads the ledger. Removing rollback or the conflict check fails the suite.",
+            "That contract is not general effect semantics. Other formulas, external side effects, compensation, outbox publication, and cross-process recovery stay unsupported. Rust refuses the record contract and every typed effect.",
+            "Campaign effect nodes remain declaration-level. Both backends still fail closed on EFFECT_SEMANTICS.",
         ),
     ),
     WorkPackage(
@@ -527,7 +581,7 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
             _code("constitutional_architecture/compilers/frontend/react/compiler.py"),
             _test("tests/test_frontend_targets.py"),
             _test("tests/test_react_compiler.py"),
-            _pr(139, "buildable React frontend draft, unmerged"),
+            _pr(139, "buildable React frontend merged; browser-level evidence still missing"),
         ),
         closure_gate=(
             "Generated frontend packages install, compile, run and pass browser-level "
@@ -535,10 +589,11 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         ),
         claimed_tiers=(CertificationTier.BUILD, CertificationTier.BEHAVIORAL),
         limitations=(
-            "No npm install, build or browser tests run in CI.",
+            "CI runs npm install, Vitest, and a production build for the generated frontend, but no real-browser test exists.",
             "Registered frontend targets explicitly declare themselves not "
             "production-ready.",
             "PR #139 is merged; its frontend fixture uses a mocked API and does not prove live generated UI-to-API-to-persistence integration.",
+            "React/Vite, the nine Tiannara frontend targets, and the constitutional React compiler are separate paths in COMPILER_TARGETS. None is a production compiler, and no browser journey against a live generated API has been run.",
         ),
     ),
     WorkPackage(
@@ -553,7 +608,7 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         evidence=(
             _code("autonomous-api/app/engine/source_bound_full_stack.py"),
             _test("tests/cbc1/test_source_bound_full_stack_projection.py"),
-            _pr(140, "union draft open; Campaign A and React certification currently red"),
+            _pr(140, "union integration merged; end-to-end generated journey still missing"),
         ),
         closure_gate=(
             "A clean-environment build and deployment exercise real user journeys "
@@ -562,7 +617,7 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         claimed_tiers=(CertificationTier.BEHAVIORAL, CertificationTier.OPERATIONAL),
         limitations=(
             "No generated UI-to-API-to-persistence end-to-end journey exists.",
-            "Union draft #140 fails Campaign A and React frontend certification.",
+            "PR #140 is merged, but its union integration does not establish a generated UI-to-API-to-persistence journey.",
         ),
     ),
     WorkPackage(
@@ -888,6 +943,94 @@ DEFECTS: tuple[Defect, ...] = (
 )
 
 
+COMPILER_TARGETS: tuple[CompilerTarget, ...] = (
+    CompilerTarget(
+        "python-fastapi", "canonical-backend", CompilerDisposition.REFERENCE, CompilerGate.EXECUTION, "W12",
+        "Reference runtime for the supported record effect. General effect execution is still refused.",
+    ),
+    CompilerTarget(
+        "rust-axum", "canonical-backend", CompilerDisposition.FAIL_CLOSED, CompilerGate.PARITY, "W07",
+        "Axum implementation of the declared payroll HTTP contract is in progress (routes, validation, projection, authorization, shared error statuses). Parity is not established; build prerequisites and host linker environment are under investigation. Not production-ready.",
+    ),
+    CompilerTarget(
+        "react-vite", "canonical-frontend", CompilerDisposition.SHELL, CompilerGate.INTEGRATION, "W13",
+        "Canonical React/Vite path. Distinct from the Tiannara targets and the constitutional React compiler.",
+    ),
+    CompilerTarget(
+        "react_ts", "tiannara-frontend", CompilerDisposition.SHELL, CompilerGate.PARITY, "W13",
+        "Tiannara React target. A title page and Vitest check are not a production compiler.",
+    ),
+    CompilerTarget(
+        "vue_ts", "tiannara-frontend", CompilerDisposition.SHELL, CompilerGate.PARITY, "W13",
+        "Advertised Vue target. Not a production compiler.",
+    ),
+    CompilerTarget(
+        "angular_ts", "tiannara-frontend", CompilerDisposition.SHELL, CompilerGate.PARITY, "W13",
+        "Advertised Angular target. Not a production compiler.",
+    ),
+    CompilerTarget(
+        "next_ts", "tiannara-frontend", CompilerDisposition.SHELL, CompilerGate.PARITY, "W13",
+        "Advertised Next target. Not a production compiler.",
+    ),
+    CompilerTarget(
+        "nuxt_ts", "tiannara-frontend", CompilerDisposition.SHELL, CompilerGate.PARITY, "W13",
+        "Advertised Nuxt target. Not a production compiler.",
+    ),
+    CompilerTarget(
+        "svelte_ts", "tiannara-frontend", CompilerDisposition.SHELL, CompilerGate.PARITY, "W13",
+        "Advertised Svelte target. Not a production compiler.",
+    ),
+    CompilerTarget(
+        "phoenix_liveview", "tiannara-frontend", CompilerDisposition.SHELL, CompilerGate.PARITY, "W13",
+        "Advertised Phoenix LiveView target. Not a production compiler.",
+    ),
+    CompilerTarget(
+        "hologram", "tiannara-frontend", CompilerDisposition.SHELL, CompilerGate.PARITY, "W13",
+        "Advertised Hologram target. Not a production compiler.",
+    ),
+    CompilerTarget(
+        "scenic", "tiannara-frontend", CompilerDisposition.SHELL, CompilerGate.PARITY, "W13",
+        "Advertised Scenic target. Not a production compiler.",
+    ),
+    CompilerTarget(
+        "constitutional-react", "constitutional-frontend", CompilerDisposition.SHELL, CompilerGate.PARITY, "W13",
+        "Constitutional React compiler. Fixing React/Vite or Tiannara React does not cover this path.",
+    ),
+    CompilerTarget(
+        "node-express", "advertised-backend", CompilerDisposition.FAIL_CLOSED, CompilerGate.PARITY, "W07",
+        "No Node/Express compiler is in Campaign A. The target is tracked so it cannot be implied by omission.",
+    ),
+    CompilerTarget(
+        "postgres-schema", "production-stack", CompilerDisposition.INTEGRATION_UNPROVEN, CompilerGate.INTEGRATION, "W08",
+        "Emits upgrade and downgrade SQL. Generated FastAPI and Rust applications do not use that schema yet.",
+    ),
+    CompilerTarget(
+        "docker-deployment", "production-stack", CompilerDisposition.INTEGRATION_UNPROVEN, CompilerGate.INTEGRATION, "W18",
+        "Deployment artifacts are emitted. Generated applications are not proven to deploy from them.",
+    ),
+    CompilerTarget(
+        "github-actions", "production-stack", CompilerDisposition.INTEGRATION_UNPROVEN, CompilerGate.INTEGRATION, "W18",
+        "CI manifests are emitted. Emission is not a proven release pipeline for a generated application.",
+    ),
+    CompilerTarget(
+        "elixir-phoenix", "canonical-backend", CompilerDisposition.RUNTIME_PROVEN, CompilerGate.EXECUTION, "W07",
+        "Executes the declared payroll HTTP contract over OTP :gen_tcp: routes, validation, projection, authorization, and the shared error statuses. Not production-ready. Phoenix is not booted, durable storage and bank_transfer are refused, and other declared shapes outside that slice are refused.",
+    ),
+    CompilerTarget(
+        "elixir-liveview", "canonical-frontend", CompilerDisposition.RUNTIME_PROVEN, CompilerGate.INTEGRATION, "W13",
+        "Runnable page renderer. ExUnit checks the title, path, and unknown-route rejection. Not a LiveView browser journey and not production-ready.",
+    ),
+    CompilerTarget(
+        "ruby-rails", "advertised-backend", CompilerDisposition.RUNTIME_PROVEN, CompilerGate.PARITY, "W07",
+        "Ruby 4.0 executed the store test and a stdlib HTTP smoke test for health, create, fetch, and a missing id. That smoke is not the ISR-derived API contract. The Rails process was not booted. Not production-ready.",
+    ),
+    CompilerTarget(
+        "aspnet-core", "advertised-backend", CompilerDisposition.RUNTIME_PROVEN, CompilerGate.PARITY, "W07",
+        "The .NET 10 SDK starts the generated ASP.NET Core host and checks health, create, fetch, and a missing id. That smoke is not the ISR-derived API contract. Authorization, effects, and database persistence are not implemented. Not production-ready.",
+    ),
+)
+
+
 def _path_problem(kind: EvidenceKind, ref: str, repo_root: Path) -> str | None:
     if kind is EvidenceKind.CODE:
         path = repo_root / ref
@@ -949,10 +1092,41 @@ def _validate_dependencies(by_id: dict[str, WorkPackage]) -> list[str]:
     return problems
 
 
+def _validate_compiler_targets(
+    targets: Sequence[CompilerTarget],
+    package_ids: set[str],
+) -> list[str]:
+    problems: list[str] = []
+    required = {
+        "python-fastapi", "rust-axum", "react-vite", "react_ts", "vue_ts", "angular_ts",
+        "next_ts", "nuxt_ts", "svelte_ts", "phoenix_liveview", "hologram", "scenic",
+        "constitutional-react", "node-express", "postgres-schema", "docker-deployment",
+        "github-actions", "elixir-phoenix", "elixir-liveview", "ruby-rails", "aspnet-core",
+    }
+    seen: set[str] = set()
+    for target in targets:
+        if target.target_id in seen:
+            problems.append(f"duplicate compiler target: {target.target_id}")
+        seen.add(target.target_id)
+        if target.work_package not in package_ids:
+            problems.append(f"{target.target_id}: unknown work package {target.work_package}")
+        if target.production_ready:
+            problems.append(
+                f"{target.target_id}: production_ready is not claimable from compiler registration"
+            )
+        if not target.note.strip():
+            problems.append(f"{target.target_id}: compiler target requires an explicit note")
+    missing = sorted(required - seen)
+    if missing:
+        problems.append(f"compiler target catalog is missing: {', '.join(missing)}")
+    return problems
+
+
 def validate_register(
     packages: Sequence[WorkPackage],
     defects: Sequence[Defect],
     repo_root: Path = REPO_ROOT,
+    compiler_targets: Sequence[CompilerTarget] = COMPILER_TARGETS,
 ) -> list[str]:
     problems: list[str] = []
     expected_ids = [f"W{index:02d}" for index in range(1, 23)]
@@ -1018,6 +1192,7 @@ def validate_register(
             problems.append(f"{package.id}: IN_PROGRESS requires explicit limitations")
 
     problems.extend(_validate_dependencies(by_id) if len(by_id) == len(packages) else [])
+    problems.extend(_validate_compiler_targets(compiler_targets, set(by_id)))
 
     seen_defects: set[str] = set()
     for defect in defects:
@@ -1076,6 +1251,18 @@ def register_payload() -> dict:
             for defect in DEFECTS
         ],
         "known_prs": {f"PR#{number}": state for number, state in KNOWN_PRS.items()},
+        "compiler_targets": [
+            {
+                "target_id": target.target_id,
+                "family": target.family,
+                "disposition": target.disposition.value,
+                "gate": target.gate.value,
+                "work_package": target.work_package,
+                "production_ready": target.production_ready,
+                "note": target.note,
+            }
+            for target in COMPILER_TARGETS
+        ],
     }
 
 

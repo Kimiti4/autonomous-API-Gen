@@ -35,7 +35,7 @@ The supplied TOR describes approximately 50 staff in five offices, including con
 
 The TOR requests employee records and history; payroll components and adjustments; monthly, bi-weekly and weekly pay frequencies; statutory calculations and returns; payslips and ESS; reports and bank schedules; web and mobile access; role controls; backup/recovery; audit records; common data formats; training; support; upgrades; SLA and performance reviews.
 
-The supplied TOR text has a Security Requirements heading without enumerated controls and omits sections 11–13. It does not identify the existing HR/accounting products, statutory rule versions, pay calendars, calculation tolerances or approved budget. The full TOR and these details must be confirmed before scope and fixed price are finalized.
+The original five-page TOR includes enumerated security controls in §10 and deliverables, vendor qualifications and acceptance criteria in §§11–13. It does not identify the existing HR/accounting products, statutory rule versions, pay calendars, calculation tolerances or approved budget. The full TOR and these details must be confirmed before scope and fixed price are finalized.
 
 ## 4. Proposed solution and functional scope
 

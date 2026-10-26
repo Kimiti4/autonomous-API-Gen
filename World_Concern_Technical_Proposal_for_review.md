@@ -19,7 +19,7 @@ This is a proposal to deliver a payroll system, not a claim that the complete sy
 
 The provisional delivery plan is 18 weeks from contract start, dependent on World Concern's timely approvals, data, statutory review, integration access and payroll calendar. Two consecutive parallel payroll runs, independent calculation checks, statutory-source approval and management sign-off are required before production use. If those gates need more time, the schedule will move rather than waive them.
 
-The separate financial proposal gives an indicative first-year planning estimate of **KES 1,670,000**: **KES 1,310,000** implementation plus **KES 360,000** annual hosting, backups, monitoring, maintenance and support. It is not a supplier-backed fixed quote or spending ceiling; final price and tax treatment require approval and confirmation.
+The separate financial proposal gives an indicative first-year planning estimate of **KES 1,670,000**: **KES 1,310,000** implementation plus **KES 360,000** combined annual recurring maintenance/support and indicative hosting, backups and monitoring. The hosting allowance is subject to provider quotation and technical/data-protection requirements; no provider is selected or contracted. This is not a supplier-backed fixed quote or spending ceiling; final price and tax treatment require approval and confirmation.
 
 ## 2. Bidder and evidence statement
 

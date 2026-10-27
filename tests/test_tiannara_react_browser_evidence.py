@@ -7,34 +7,16 @@ emits a real browser test whose assertions are derived from the ISR.
 
 from __future__ import annotations
 
+from scripts.tiannara_react_fixture import fixture_files, fixture_model
 from tiannara.application.compiler.react_frontend import ReactFrontend
-from tiannara.domain.models.system_model import (
-    AbstractFieldType,
-    DataModelSpec,
-    FieldSpec,
-    RequirementsReference,
-    SystemModel,
-)
 
 
-def _model(names: tuple[str, ...] = ("Payment", "Invoice")) -> SystemModel:
-    return SystemModel(
-        system_name="Billing Platform",
-        requirements_ref=RequirementsReference(graph_id="graph-1", graph_hash="hash-1"),
-        data_models=[
-            DataModelSpec(
-                id=f"dm_{name.lower()}",
-                name=name,
-                owning_service_id="svc_billing",
-                fields=[FieldSpec(name="amount", type=AbstractFieldType.DECIMAL)],
-            )
-            for name in names
-        ],
-    )
+def _model(names: tuple[str, ...] = ("Payment", "Invoice")):
+    return fixture_model(names)
 
 
-def _files(model: SystemModel) -> dict[str, str]:
-    return ReactFrontend().generate(model).files
+def _files(model) -> dict[str, str]:
+    return fixture_files(model)
 
 
 def test_generated_bundle_declares_browser_evidence() -> None:

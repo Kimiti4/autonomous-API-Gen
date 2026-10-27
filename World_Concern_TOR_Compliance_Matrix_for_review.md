@@ -38,20 +38,21 @@
 | Audit/custom reports | Agreed audit extracts and configurable report requirements | Proposed / Clarification required | Specify fields, filters, retention and approval |
 | HR and accounting integration | One agreed HR and one accounting interface or approved structured-file exchange | Proposed / Clarification required | System names, field maps, sandbox/API access, vendor permissions and reconciliation rules |
 | Web/cloud and mobile/browser support | Responsive web target; provider/region chosen after review | Proposed | Agreed browser/device matrix, privacy/security approval and provider quote |
-| Role-based, multi-user access | Least privilege and separated payroll roles | Proposed | Complete security TOR, role matrix and negative authorization tests |
+| Role-based, multi-user access | Least privilege and separated payroll roles | Proposed | Map to TOR sections 9–10; role matrix, password policy, MFA, secure authentication, encryption, audit-log coverage and negative authorization tests |
 | Backups and recovery | Protected backups and witnessed restore test | Proposed | Provider selection; RPO/RTO and recovery objectives to be agreed |
 | Audit trail | Record agreed sensitive user and payroll events | Proposed | Event coverage, access and retention tests |
-| Security requirements section | Obtain missing detailed controls; implement agreed control set | Clarification required | Supplied TOR has a heading but no enumerated controls; no security certification claimed |
+| Security requirements (TOR §10) | Implement the agreed controls: applicable data-protection compliance, encryption of sensitive payroll data, secure authentication, password policies and MFA, detailed audit logs, and secure backup/disaster recovery | Proposed / Clarification required | Design and test each control; confirm data-protection roles, threat model, retention, incident handling and recovery objectives with buyer; no security certification claimed |
 | Common import/export formats | Agreed CSV/Excel/PDF input/output | Proposed | Format, encoding, totals and malformed-data tests |
 | Helpdesk, updates, upgrades, SLA, reviews | Provisional annual support, agreed-hours helpdesk and review | Proposed / Clarification required | Support window, severity, response targets, exclusions and fees agreed in contract; no existing SLA claimed |
 | Acceptance: testing, accuracy, statutory compliance, integration, training, sign-off | Evidence-bound acceptance plan and release gates | Proposed | Separate Implementation and Acceptance Plan; authorized management sign-off required |
 | Software licence / implementation / training / annual maintenance / recurring charges | Itemized provisional estimate | Proposed / Clarification required | Separate Financial Proposal; prices are not final, provider/tax costs unverified |
 | Existing three-backend parity | Bounded declared payroll HTTP contract exercised in CI | Demonstrated, limited | [Workflow run 40305413032](https://github.com/Kimiti4/autonomous-API-Gen/actions/runs/40305413032), tested SHA `254a540a12a909c068ee871a54e2f8d469090cab`; does not prove complete payroll behavior |
-| Full payroll certification / production readiness | Not claimed | Not demonstrated | Payroll readiness remains `NOT_CERTIFIED`; statutory, frontend, source mapping and broad runtime evidence are project deliverables |
-| Ruby/C# parity, W12 executable effects, W13 browser-to-live-API journey | Not part of evidence already demonstrated | Not demonstrated | Separate engineering workstreams; not prerequisites for a scoped project bid, but no evidence claim is made |
-| Sections 11–13 of TOR | Obtain full source and confirm requirements | Clarification required | Text absent from supplied TOR copy |
+| Complete payroll application / production readiness | Not claimed | Not demonstrated | Payroll functionality, statutory calculations, security, integrations and operational acceptance must be verified against the agreed payroll requirements before production use |
+| Deliverables (TOR §11) | Provide configured/customized software, agreed migration, UAT, user/admin training, documentation, go-live and post-implementation support | Proposed | Deliverable-by-deliverable evidence and buyer sign-off; licensing/subscription model and scope confirmed in contract |
+| Vendor qualifications (TOR §12) | Demonstrate relevant implementation experience, similar-organization references, Kenyan payroll/tax knowledge, local technical support, reliability/security and maintenance capacity | Clarification required | Individual bidder must provide truthful CV/project evidence and references if available; no unverified client references, certifications or prior payroll deployments claimed |
+| Acceptance criteria (TOR §13) | Testing, accurate payroll, statutory compliance, successful integrations, documentation/training and authorized management sign-off | Proposed | Acceptance gates in Implementation and Acceptance Plan; no go-live before evidence and sign-off |
+| Full HRIS, recruitment, time-attendance or leave-system replacement | Not offered unless added by change | Excluded | Requires separate discovery, scope and pricing for any expansion |
 | Direct bank payment execution / custody | Not offered | Excluded | Requires separately scoped banking/security/legal integration |
-| Full HRIS, recruitment, time-attendance or leave-system replacement | Not offered unless added by change | Excluded | Scope change, discovery and separate estimate required |
 
 ## Evidence boundary
 

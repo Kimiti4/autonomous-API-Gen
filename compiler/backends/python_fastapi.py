@@ -17,6 +17,7 @@ from compiler.core.authorization import (
     ROUTE_VERBS,
     assert_authorization_enforceable,
     canonical_action,
+    effect_owning_service,
     policy_payload,
     protected_services,
     service_policies,
@@ -663,7 +664,7 @@ class PythonFastAPIBackend:
         if creates:
             body = creates[0]
             payload = self._declared_payload(body)
-            payload_json = json.dumps(payload, sort_keys=True)
+            payload_literal = repr(dict(sorted(payload.items())))
             headers = "HEADERS_DECLARED" if guarded else "HEADERS"
             lines += [
                 "",
@@ -697,13 +698,13 @@ class PythonFastAPIBackend:
         if creates:
             body = creates[0]
             payload = self._declared_payload(body)
-            payload_json = json.dumps(payload, sort_keys=True)
+            payload_literal = repr(dict(sorted(payload.items())))
             if positive:
                 lines += [
                     "",
                     "",
                     "def test_declared_operation_authorized_create_and_read():",
-                    f"    created = client.post({body.path!r}, json={payload_json}, headers=HEADERS_DECLARED)",
+                    f"    created = client.post({body.path!r}, json={payload_literal}, headers=HEADERS_DECLARED)",
                     "    assert created.status_code == 201",
                     "    item = created.json()",
                 ]
@@ -740,7 +741,7 @@ class PythonFastAPIBackend:
                         "def test_declared_operation_denial_does_not_mutate_state():",
                         f"    before = client.get({reads[0].path!r}, headers=HEADERS_DECLARED).json()",
                         "    token = issue_token('intruder', ['no_such_role'])",
-                        f"    denied = client.post({body.path!r}, json={payload_json}, headers={{**HEADERS, 'Authorization': f'Bearer {{token}}'}})",
+                        f"    denied = client.post({body.path!r}, json={payload_literal}, headers={{**HEADERS, 'Authorization': f'Bearer {{token}}'}})",
                         "    assert denied.status_code == 403",
                         f"    after = client.get({reads[0].path!r}, headers=HEADERS_DECLARED).json()",
                         "    assert after == before",
@@ -758,7 +759,7 @@ class PythonFastAPIBackend:
                         "",
                         "",
                         "def test_declared_operation_explicit_deny_wins():",
-                        f"    created = client.post({body.path!r}, json={payload_json}, headers=HEADERS_DECLARED)",
+                        f"    created = client.post({body.path!r}, json={payload_literal}, headers=HEADERS_DECLARED)",
                         "    item = created.json()",
                         f"    {field} = item[{field!r}]",
                         f"    denied = client.delete(f'{deny.path}', headers=HEADERS_DECLARED)",
@@ -1109,12 +1110,16 @@ def require_authorization(action: str, resource: str,
 from __future__ import annotations
 
 import re
+import threading
 from decimal import Decimal
 from typing import Any
 
 
 class BehaviorError(ValueError):
     pass
+
+
+_EFFECT_LOCK = threading.Lock()
 
 
 def _resolve(path: str, context: dict[str, Any]) -> Any:
@@ -1270,24 +1275,89 @@ def authorize(policies: list[dict[str, Any]], role: str, action: str, resource: 
     return matched_allow
 
 
+def _require_precondition(effect: dict[str, Any], context: dict[str, Any]) -> None:
+    if not bool(evaluate_expression(effect["precondition"], context)):
+        raise BehaviorError("effect precondition rejected")
+
+
+def _require_postcondition(effect: dict[str, Any], executable: bool,
+                           context: dict[str, Any] | None, result: Any) -> Any:
+    if not executable:
+        return result
+    state = dict(context or {})
+    if isinstance(result, dict):
+        state.update(result)
+    else:
+        state["result"] = result
+    if not bool(evaluate_expression(effect["postcondition"], state)):
+        raise BehaviorError("effect postcondition rejected")
+    return result
+
+
 def apply_effect(effect: dict[str, Any], idempotency_key: str | None, execute,
-                 ledger: dict[str, Any]) -> Any:
+                 ledger: dict[str, Any], context: dict[str, Any] | None = None,
+                 principal: dict[str, Any] | None = None,
+                 policies: list[dict[str, Any]] | None = None) -> Any:
+    """Execute an effect with the declared contract enforced before commit.
+
+    Order is authorization, replay lookup, precondition, execution,
+    postcondition, commit. Authorization runs first so an unprivileged caller
+    can never read another principal's recorded result. A replayed key returns
+    the recorded result without re-running the effect.
+
+    ``failure_behavior="reject_without_commit"`` means the runtime records no
+    ledger entry when a precondition or postcondition rejects the attempt, so
+    the failure is never reported as a committed effect. It does not roll back
+    side effects the executor already performed; atomicity of the external
+    side effect is the executor's obligation.
+
+    The lock and ledger are in-process only. Cross-process or durable
+    guarantees require a backend that explicitly advertises them.
+    """
     if not callable(execute):
         raise BehaviorError("effect executor is required")
+    executable = all(
+        effect.get(key) is not None
+        for key in (
+            "precondition", "authorized_operation", "permitted_side_effect",
+            "failure_behavior", "postcondition",
+        )
+    )
+    if executable:
+        if effect.get("failure_behavior") != "reject_without_commit":
+            raise BehaviorError("unsupported effect failure behavior")
+        if not isinstance(context, dict):
+            raise BehaviorError("effect context required")
+        if not isinstance(principal, dict) or not principal.get("role"):
+            raise BehaviorError("effect principal required")
+        allowed = authorize(
+            policies or [],
+            str(principal["role"]),
+            str(effect["authorized_operation"]),
+            str(effect["permitted_side_effect"]),
+            principal.get("attributes"),
+        )
+        if not allowed:
+            raise BehaviorError("effect operation not authorized")
     if effect.get("idempotency_key_required") and not idempotency_key:
         raise BehaviorError("idempotency key required")
-    if effect.get("idempotent"):
-        if not idempotency_key:
-            raise BehaviorError("idempotent effect requires a key")
-        key = f"{effect.get('effect_kind')}:{idempotency_key}"
+    if not effect.get("idempotent"):
+        if idempotency_key:
+            raise BehaviorError("non-idempotent effect cannot claim keyed deduplication")
+        if executable:
+            _require_precondition(effect, context)
+        return _require_postcondition(effect, executable, context, execute())
+    if not idempotency_key:
+        raise BehaviorError("idempotent effect requires a key")
+    key = f"{effect.get('effect_kind')}:{idempotency_key}"
+    with _EFFECT_LOCK:
         if key in ledger:
             return ledger[key]
-        result = execute()
+        if executable:
+            _require_precondition(effect, context)
+        result = _require_postcondition(effect, executable, context, execute())
         ledger[key] = result
         return result
-    if idempotency_key:
-        raise BehaviorError("non-idempotent effect cannot claim keyed deduplication")
-    return execute()
 
 def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
                     current_state: str, context: dict[str, Any]) -> str:
@@ -1421,14 +1491,19 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
                         )
                     effect_specs.append({"id": effect.id, **effect.behavior.model_dump(mode="json")})
                 lines[2:2] = ["import json", "from app.core.behavior import apply_effect"]
+                policies = [
+                    policy_payload(policy)
+                    for policy in service_policies(semantic_service)
+                ]
                 lines += [
                     "",
-                    "    def execute_effect(self, effect_id: str, idempotency_key: str | None, execute, ledger: dict) -> object:",
+                    "    def execute_effect(self, effect_id: str, idempotency_key: str | None, execute, ledger: dict, context: dict | None = None, principal: dict | None = None) -> object:",
                     f"        effects = json.loads({json.dumps(effect_specs)!r})",
+                    f"        policies = json.loads({json.dumps(policies)!r})",
                     "        effect = next((item for item in effects if item['id'] == effect_id), None)",
                     "        if effect is None:",
                     "            raise ValueError('unknown effect')",
-                    "        return apply_effect(effect, idempotency_key, execute, ledger)",
+                    "        return apply_effect(effect, idempotency_key, execute, ledger, context, principal, policies)",
                     "",
                 ]
         return "\n".join(lines).rstrip("\n") + "\n"
@@ -1727,6 +1802,12 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
             for effect in service.effects:
                 if effect.behavior is None:
                     continue
+                if effect.behavior.is_executable():
+                    # The executable contract needs a caller-supplied context
+                    # and principal, so its coverage lives in the source-bound
+                    # runtime suite rather than the generic idempotency
+                    # template, which would fail on missing context.
+                    continue
                 if effect.behavior.idempotent:
                     lines += [
                         f"def test_generated_effect_{_slug(effect.id)}_is_idempotent():",
@@ -1777,14 +1858,18 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
                 tested_field = model.behavior.fields[0].name
                 expected_created = repr(payload[tested_field])
                 expected_updated = repr(updated_payload[tested_field])
-                payload_json = json.dumps(payload, sort_keys=True)
-                updated_json = json.dumps(updated_payload, sort_keys=True)
+                # These payloads are embedded in Python source, not JSON text:
+                # ``true``/``false``/``null`` are not Python literals, so a
+                # boolean or nullable field would emit a test module that
+                # fails to import.
+                payload_literal = repr(dict(sorted(payload.items())))
+                updated_literal = repr(dict(sorted(updated_payload.items())))
             else:
                 tested_field = "name"
                 expected_created = repr("alpha")
                 expected_updated = repr("beta")
-                payload_json = json.dumps({"name": "alpha"})
-                updated_json = json.dumps({"name": "beta"})
+                payload_literal = repr({"name": "alpha"})
+                updated_literal = repr({"name": "beta"})
             protected = self._protected_service_for(plan, e) is not None
             allowed = self._allowed_verbs(plan, e)
             if protected:
@@ -1812,14 +1897,14 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
             body = [f"def test_crud_{e['plural']}():"]
             if create_allowed:
                 body += [
-                    f"    created = client.post('/api/{e['plural']}', json={payload_json}, headers={header_var})",
+                    f"    created = client.post('/api/{e['plural']}', json={payload_literal}, headers={header_var})",
                     "    assert created.status_code == 201",
                     "    item_id = created.json()['id']",
                     f"    assert created.json()[{tested_field!r}] == {expected_created}",
                 ]
             else:
                 body += [
-                    f"    denied_create = client.post('/api/{e['plural']}', json={payload_json}, headers={header_var})",
+                    f"    denied_create = client.post('/api/{e['plural']}', json={payload_literal}, headers={header_var})",
                     "    assert denied_create.status_code == 403",
                 ]
             if read_allowed:
@@ -1842,13 +1927,13 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
             if create_allowed:
                 if update_allowed:
                     body += [
-                        f"    updated = client.put(f'/api/{e['plural']}/{{item_id}}', json={updated_json}, headers={header_var})",
+                        f"    updated = client.put(f'/api/{e['plural']}/{{item_id}}', json={updated_literal}, headers={header_var})",
                         "    assert updated.status_code == 200",
                         f"    assert updated.json()[{tested_field!r}] == {expected_updated}",
                     ]
                 else:
                     body += [
-                        f"    denied_update = client.put(f'/api/{e['plural']}/{{item_id}}', json={updated_json}, headers={header_var})",
+                        f"    denied_update = client.put(f'/api/{e['plural']}/{{item_id}}', json={updated_literal}, headers={header_var})",
                         "    assert denied_update.status_code == 403",
                     ]
                 if delete_allowed:
@@ -1896,6 +1981,8 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
         for effect in plan.effects:
             if effect.behavior is None:
                 continue
+            if effect.behavior.is_executable():
+                continue
             effect_mod = _slug(effect.name)
             if effect.behavior.idempotent:
                 lines += [
@@ -1934,13 +2021,22 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
             return '"""Effect contract unavailable; this module is not executable."""\n'
         spec = effect.behavior.model_dump(mode="json")
         spec_json = json.dumps(spec)
+        policies: list[dict[str, Any]] = []
+        if effect.behavior.is_executable():
+            service = effect_owning_service(plan, effect.id)
+            if service is not None:
+                policies = [
+                    policy_payload(policy) for policy in service_policies(service)
+                ]
+        policies_json = json.dumps(policies)
         return (
-            '"""Generated effect adapter with explicit idempotency semantics."""\n'
+            '"""Generated effect adapter with executable contract enforcement."""\n'
             "import json\n"
             "from app.core.behavior import apply_effect\n\n"
-            f"EFFECT = json.loads({spec_json!r})\n\n"
-            "def apply(executor, idempotency_key, ledger):\n"
-            "    return apply_effect(EFFECT, idempotency_key, executor, ledger)\n"
+            f"EFFECT = json.loads({spec_json!r})\n"
+            f"POLICIES = json.loads({policies_json!r})\n\n"
+            "def apply(executor, idempotency_key, ledger, context=None, principal=None):\n"
+            "    return apply_effect(EFFECT, idempotency_key, executor, ledger, context, principal, POLICIES)\n"
         )
 
     def _k8s(self) -> str:

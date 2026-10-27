@@ -14,7 +14,20 @@ from compiler.core.capabilities import (
     required_features,
 )
 from compiler.core.plan import ApiOperation, CompilationPlan, Consequence, DataModel, Effect, SecurityPolicy, Service
-from isr.core.behavior import ApiBehavior, ConsequenceBehavior, DataModelBehavior, EffectBehavior, Expression
+from isr.core.behavior import (
+    ApiBehavior,
+    AuthorizationRule,
+    ConsequenceBehavior,
+    DataModelBehavior,
+    EffectBehavior,
+    Expression,
+    SecurityBehavior,
+)
+from tests.support.execution_effect import (
+    AUTHORIZED_OPERATION,
+    PERMITTED_SIDE_EFFECT,
+    executable_plan,
+)
 
 
 def test_structural_plan_requires_no_behavioral_features():
@@ -307,11 +320,9 @@ def test_executable_effect_contract_full_fields_ok():
     assert beh.postcondition.op == "equal"
 
 
-def test_effect_execution_contract_claimed_by_python_only():
-    """Plans with full executable contract require EFFECT_EXECUTION."""
-    effect = Effect(
-        id="effect:record", name="Record",
-        behavior=EffectBehavior(
+def test_full_executable_effect_contract_rejects_an_unsupported_failure_behavior():
+    with pytest.raises(ValueError):
+        EffectBehavior(
             effect_kind="record",
             idempotent=True,
             idempotency_key_required=True,
@@ -319,25 +330,146 @@ def test_effect_execution_contract_claimed_by_python_only():
                 Expression(op="field", field_ref="amount"),
                 Expression(op="literal", value=0),
             )),
-            authorized_operation="payment.record",
-            permitted_side_effect="payment_instruction",
-            failure_behavior="reject_without_commit",
+            authorized_operation="payment.create",
+            permitted_side_effect="Payment",
+            failure_behavior="retry_forever",  # only reject_without_commit is defined
             postcondition=Expression(op="equal", args=(
                 Expression(op="field", field_ref="approved"),
                 Expression(op="literal", value=True),
             )),
-        ),
-    )
-    plan = CompilationPlan(plan_id="exec-plan", isr_id="system", effects=[effect])
+        )
+
+
+def test_effect_execution_contract_claimed_by_python_only():
+    """Plans with a bound, enforceable executable contract require EFFECT_EXECUTION."""
+    plan = executable_plan()
+    assert SemanticFeature.EFFECT_EXECUTION in required_features(plan)
     # Python supports the execution contract flag
     assert SemanticFeature.EFFECT_EXECUTION in PythonFastAPIBackend().supported_features
     # Rust does not yet advertise it
     assert SemanticFeature.EFFECT_EXECUTION not in RustAxumBackend().supported_features
     # Python should compile the plan (execution contract is supported)
     repo = PythonFastAPIBackend().compile(plan)
+    effect_module = repo.files["app/effects/RecordPayment.py"]
+    assert "apply_effect(EFFECT, idempotency_key, executor, ledger, context, principal, POLICIES)" in effect_module
+    # Preservation is not execution: the declared contract is carried in the
+    # manifest, while the runtime suite is what proves the behaviour.
+    manifest = json.loads(repo.files["docs/semantic-obligations.json"])
+    declared = manifest["effects"][0]["behavior"]
+    assert declared["authorized_operation"] == AUTHORIZED_OPERATION
+    assert declared["permitted_side_effect"] == PERMITTED_SIDE_EFFECT
+    assert declared["failure_behavior"] == "reject_without_commit"
+    assert declared["precondition"]["op"] == "greater_than"
+    assert declared["postcondition"]["op"] == "equal"
     # Rust should raise UnsupportedSemanticsError with "effect_execution"
     with pytest.raises(UnsupportedSemanticsError, match="effect_execution"):
         RustAxumBackend().compile(plan)
+
+
+def test_executable_effect_without_a_service_has_no_enforcement_point():
+    plan = CompilationPlan(
+        plan_id="unbound-exec-plan", isr_id="system",
+        effects=[Effect(
+            id="effect:record", name="Record",
+            behavior=EffectBehavior(
+                effect_kind="record",
+                idempotent=True,
+                idempotency_key_required=True,
+                precondition=Expression(op="greater_than", args=(
+                    Expression(op="field", field_ref="amount"),
+                    Expression(op="literal", value=0),
+                )),
+                authorized_operation="payment.create",
+                permitted_side_effect="Payment",
+                failure_behavior="reject_without_commit",
+                postcondition=Expression(op="equal", args=(
+                    Expression(op="field", field_ref="approved"),
+                    Expression(op="literal", value=True),
+                )),
+            ),
+        )],
+    )
+    with pytest.raises(UnsupportedSemanticsError, match="exactly one service"):
+        PythonFastAPIBackend().compile(plan)
+
+
+def _replace_effect_property(name: str, value: object) -> CompilationPlan:
+    plan = executable_plan()
+    effect = plan.effects[0]
+    behavior = effect.behavior.model_copy(update={name: value})
+    service = plan.services[0]
+    replaced_effect = Effect(
+        id=effect.id, name=effect.name, behavior=behavior,
+        declared_policy=effect.declared_policy,
+    )
+    replaced_service = Service(
+        id=service.id,
+        name=service.name,
+        data_models=list(service.data_models),
+        published_events=list(service.published_events),
+        consumed_events=list(service.consumed_events),
+        effects=[replaced_effect],
+        behavior=service.behavior,
+        security_policies=list(service.security_policies),
+    )
+    return CompilationPlan(
+        plan_id=plan.plan_id,
+        isr_id=plan.isr_id,
+        services=[replaced_service],
+        data_models=list(plan.data_models),
+        security=list(plan.security),
+        effects=[replaced_effect],
+        effect_bindings=list(plan.effect_bindings),
+    )
+
+
+def test_executable_effect_must_name_a_route_the_service_emits():
+    plan = _replace_effect_property("authorized_operation", "payment.approve")
+    with pytest.raises(UnsupportedSemanticsError, match="does not emit"):
+        PythonFastAPIBackend().compile(plan)
+
+
+def test_executable_effect_side_effect_must_match_the_governed_resource():
+    plan = _replace_effect_property("permitted_side_effect", "AuditLog")
+    with pytest.raises(UnsupportedSemanticsError, match="governs 'Payment'"):
+        PythonFastAPIBackend().compile(plan)
+
+
+def test_executable_effect_requires_a_granting_allow_rule():
+    plan = executable_plan()
+    deny_only = SecurityPolicy(
+        policy_id="security:clerk",
+        behavior=SecurityBehavior(
+            roles=("clerk",),
+            rules=(AuthorizationRule(
+                rule_id="deny-everything",
+                effect="deny",
+                roles=("clerk",),
+                actions=(AUTHORIZED_OPERATION,),
+                resource=PERMITTED_SIDE_EFFECT,
+            ),),
+        ),
+    )
+    service = plan.services[0]
+    replaced_service = Service(
+        id=service.id,
+        name=service.name,
+        data_models=list(service.data_models),
+        effects=list(service.effects),
+        behavior=service.behavior,
+        security_policies=[deny_only],
+    )
+    broken = CompilationPlan(
+        plan_id=plan.plan_id,
+        isr_id=plan.isr_id,
+        services=[replaced_service],
+        data_models=list(plan.data_models),
+        security=[deny_only],
+        effects=list(plan.effects),
+        effect_bindings=list(plan.effect_bindings),
+    )
+    with pytest.raises(UnsupportedSemanticsError, match="no principal could ever execute"):
+        PythonFastAPIBackend().compile(broken)
 
 
 def test_preservation_only_effect_still_requires_semantics():

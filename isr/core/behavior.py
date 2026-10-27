@@ -191,14 +191,22 @@ class ApiBehavior(BaseModel):
 
 
 class EffectBehavior(BaseModel):
+    """Declared effect contract.
+
+    The base fields describe an effect's idempotency. The execution fields form
+    an all-or-nothing extension: a plan that sets any of them must state every
+    precondition, authorization binding, permitted side effect, failure
+    behavior, and observable postcondition, or the contract is rejected. A
+    partially specified executable effect is never guessed at.
+    """
     model_config = ConfigDict(frozen=True, extra="forbid")
     effect_kind: str = Field(min_length=1)
     idempotent: bool = False
     idempotency_key_required: bool = False
     # Executable contract fields – all-or-nothing when set
     precondition: Expression | None = None
-    authorized_operation: str | None = None
-    permitted_side_effect: str | None = None
+    authorized_operation: str | None = Field(default=None, min_length=1)
+    permitted_side_effect: str | None = Field(default=None, min_length=1)
     failure_behavior: Literal["reject_without_commit"] | None = None
     postcondition: Expression | None = None
 
@@ -231,6 +239,23 @@ class EffectBehavior(BaseModel):
                     "must be set"
                 )
         return self
+
+    def is_executable(self) -> bool:
+        """True only for a complete executable contract.
+
+        The validator above makes the fields all-or-nothing, so one field is
+        sufficient evidence; the full conjunction keeps the predicate honest
+        if the validator is ever relaxed.
+        """
+        return all((
+            self.precondition is not None,
+            self.authorized_operation is not None,
+            self.permitted_side_effect is not None,
+            self.failure_behavior is not None,
+            self.postcondition is not None,
+            self.idempotent,
+            self.idempotency_key_required,
+        ))
 
 
 class ConsequenceBehavior(BaseModel):

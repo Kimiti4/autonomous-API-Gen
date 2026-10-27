@@ -31,20 +31,8 @@ class SemanticFeature(str, Enum):
 
 
 def _is_executable_effect_contract(behavior: "EffectBehavior") -> bool:
-    """Return true when all executable contract fields are present and invariants satisfied."""
-    if behavior.precondition is not None or behavior.authorized_operation is not None:
-        if behavior.permitted_side_effect is None:
-            return False
-    if behavior.precondition is not None or behavior.permitted_side_effect is not None:
-        if not (behavior.authorized_operation and behavior.failure_behavior and behavior.postcondition):
-            return False
-    return all([
-        behavior.precondition is not None,
-        behavior.authorized_operation is not None,
-        behavior.permitted_side_effect is not None,
-        behavior.failure_behavior is not None,
-        behavior.postcondition is not None,
-    ])
+    """Return true when the effect states a complete executable contract."""
+    return behavior.is_executable()
 
 
 class BackendCapabilities(BaseModel):
@@ -109,7 +97,13 @@ def required_features(plan: CompilationPlan) -> frozenset[SemanticFeature]:
     for effect in plan.effects:
         if effect.behavior is not None:
             if _is_executable_effect_contract(effect.behavior):
-                required.add(SemanticFeature.EFFECT_EXECUTION)
+                # An executable contract is evaluated (pre/postconditions) and
+                # requires enforced authorization, not just preserved policy.
+                required.update({
+                    SemanticFeature.EFFECT_EXECUTION,
+                    SemanticFeature.EXPRESSIONS,
+                    SemanticFeature.AUTHORIZATION_POLICIES,
+                })
             else:
                 required.add(SemanticFeature.EFFECT_SEMANTICS)
         if effect.declared_policy:

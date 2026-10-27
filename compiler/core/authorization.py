@@ -74,6 +74,87 @@ def service_policies(service: Service) -> list[SecurityPolicy]:
     return [policy for policy in service.security_policies if _typed(policy)]
 
 
+def effect_owning_service(plan: CompilationPlan, effect_id: str) -> Service | None:
+    """Return the single service that causes ``effect_id``, or ``None``.
+
+    More than one owner (or an owner that is not a service) means the effect's
+    authorization enforcement point is ambiguous; callers must fail closed.
+    """
+    services = {service.id: service for service in plan.services}
+    owners = {
+        binding.source_id
+        for binding in plan.effect_bindings
+        if binding.effect_id == effect_id
+    }
+    if len(owners) != 1:
+        return None
+    return services.get(next(iter(owners)))
+
+
+def _route_actions(service: Service) -> dict[str, str]:
+    """Map every canonical route action to the resource it governs."""
+    return {
+        canonical_action(model.entity_name, verb): model.entity_name
+        for model in service.data_models
+        for verb in ROUTE_VERBS
+    }
+
+
+def assert_effect_contracts_enforceable(plan: CompilationPlan) -> None:
+    """An executable effect must bind to an enforcement point this plan emits.
+
+    ``authorized_operation`` uses the same canonical ``<entity>.<verb>``
+    vocabulary as the emitted routes, and ``permitted_side_effect`` must name
+    the resource that action governs. An operation the owning service does not
+    emit, a side effect it does not own, or a contract no typed allow rule can
+    ever grant has no enforcement point: the effect would be refused for every
+    principal or checked against an empty policy set. Such plans fail closed
+    instead of emitting a runtime that merely looks enforced.
+    """
+    for effect in plan.effects:
+        behavior = effect.behavior
+        if behavior is None or not behavior.is_executable():
+            continue
+        service = effect_owning_service(plan, effect.id)
+        if service is None:
+            raise UnsupportedSemanticsError(
+                "effect_execution: effect "
+                f"'{effect.id}' declares an executable contract but is not "
+                "caused by exactly one service, so it has no authorization "
+                "enforcement point"
+            )
+        action = behavior.authorized_operation
+        resource = behavior.permitted_side_effect
+        governed = _route_actions(service).get(action or "")
+        if governed is None:
+            raise UnsupportedSemanticsError(
+                "effect_execution: effect "
+                f"'{effect.id}' declares authorized operation '{action}', "
+                f"which service '{service.id}' does not emit"
+            )
+        if resource != governed:
+            raise UnsupportedSemanticsError(
+                "effect_execution: effect "
+                f"'{effect.id}' permits a side effect on '{resource}', but "
+                f"operation '{action}' governs '{governed}'"
+            )
+        granting = [
+            rule
+            for policy in service_policies(service)
+            for rule in policy.behavior.rules
+            if rule.effect == "allow"
+            and ("*" in rule.actions or action in rule.actions)
+            and rule.resource in (governed, "*")
+        ]
+        if not granting:
+            raise UnsupportedSemanticsError(
+                "effect_execution: effect "
+                f"'{effect.id}' declares authorized operation '{action}' but "
+                f"no typed allow rule of service '{service.id}' governs it, so "
+                "no principal could ever execute the effect"
+            )
+
+
 def declaration_only_policies(plan: CompilationPlan) -> list[SecurityPolicy]:
     """Return policies that declare a boundary without stating an enforceable rule."""
     declared: list[SecurityPolicy] = []
@@ -139,6 +220,8 @@ def assert_authorization_enforceable(plan: CompilationPlan) -> None:
                         f"resource '{rule.resource}', which service "
                         f"'{service.id}' does not own"
                     )
+
+    assert_effect_contracts_enforceable(plan)
 
 
 def protected_services(plan: CompilationPlan) -> dict[str, list[SecurityPolicy]]:

@@ -195,11 +195,41 @@ class EffectBehavior(BaseModel):
     effect_kind: str = Field(min_length=1)
     idempotent: bool = False
     idempotency_key_required: bool = False
+    # Executable contract fields – all-or-nothing when set
+    precondition: Expression | None = None
+    authorized_operation: str | None = None
+    permitted_side_effect: str | None = None
+    failure_behavior: Literal["reject_without_commit"] | None = None
+    postcondition: Expression | None = None
 
     @model_validator(mode="after")
     def validate_idempotency(self) -> "EffectBehavior":
         if self.idempotency_key_required and not self.idempotent:
             raise ValueError("idempotency key requirement requires an idempotent effect")
+        # All-or-nothing executable contract enforcement
+        has_exec = (
+            self.precondition is not None or
+            self.authorized_operation is not None or
+            self.permitted_side_effect is not None or
+            self.failure_behavior is not None or
+            self.postcondition is not None
+        )
+        if has_exec:
+            if not (
+                self.precondition is not None and
+                self.authorized_operation is not None and
+                self.permitted_side_effect is not None and
+                self.failure_behavior is not None and
+                self.postcondition is not None and
+                self.idempotent is True and
+                self.idempotency_key_required is True
+            ):
+                raise ValueError(
+                    "when any executable effect field is present, all fields "
+                    "(precondition, authorized_operation, permitted_side_effect, "
+                    "failure_behavior, postcondition, idempotent, idempotency_key_required) "
+                    "must be set"
+                )
         return self
 
 

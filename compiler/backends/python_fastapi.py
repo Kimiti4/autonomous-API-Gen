@@ -56,6 +56,7 @@ class PythonFastAPIBackend:
         SemanticFeature.EFFECT_POLICY_PRESERVATION,
         SemanticFeature.EFFECT_BINDING_PRESERVATION,
         SemanticFeature.CONSEQUENCE_PRESERVATION,
+        SemanticFeature.EFFECT_EXECUTION,
     })
 
     def identity(self) -> BackendIdentity:

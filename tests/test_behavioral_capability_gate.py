@@ -14,7 +14,7 @@ from compiler.core.capabilities import (
     required_features,
 )
 from compiler.core.plan import ApiOperation, CompilationPlan, Consequence, DataModel, Effect, SecurityPolicy, Service
-from isr.core.behavior import ApiBehavior, ConsequenceBehavior, DataModelBehavior, EffectBehavior
+from isr.core.behavior import ApiBehavior, ConsequenceBehavior, DataModelBehavior, EffectBehavior, Expression
 
 
 def test_structural_plan_requires_no_behavioral_features():
@@ -266,3 +266,93 @@ def test_source_declared_effect_policy_is_preserved_without_claiming_execution()
         repo = backend.compile(plan)
         manifest = json.loads(repo.files["docs/semantic-obligations.json"])
         assert manifest["effects"][0]["declared_policy"]["failure_policy"] == "rollback"
+
+
+def test_executable_effect_contract_partial_fields_raise_error():
+    """Setting only some execution contract fields raises ValueError."""
+    with pytest.raises(ValueError):
+        EffectBehavior(
+            effect_kind="record",
+            idempotent=True,
+            idempotency_key_required=True,
+            precondition=Expression(op="greater_than", args=(
+                Expression(op="field", field_ref="amount"),
+                Expression(op="literal", value=0),
+            )),
+        )
+
+
+def test_executable_effect_contract_full_fields_ok():
+    """All execution contract fields present with idempotent+key → valid."""
+    beh = EffectBehavior(
+        effect_kind="record",
+        idempotent=True,
+        idempotency_key_required=True,
+        precondition=Expression(op="greater_than", args=(
+            Expression(op="field", field_ref="amount"),
+            Expression(op="literal", value=0),
+        )),
+        authorized_operation="payment.record",
+        permitted_side_effect="payment_instruction",
+        failure_behavior="reject_without_commit",
+        postcondition=Expression(op="equal", args=(
+            Expression(op="field", field_ref="approved"),
+            Expression(op="literal", value=True),
+        )),
+    )
+    assert beh.precondition.op == "greater_than"
+    assert beh.authorized_operation == "payment.record"
+    assert beh.permitted_side_effect == "payment_instruction"
+    assert beh.failure_behavior == "reject_without_commit"
+    assert beh.postcondition.op == "equal"
+
+
+def test_effect_execution_contract_claimed_by_python_only():
+    """Plans with full executable contract require EFFECT_EXECUTION."""
+    effect = Effect(
+        id="effect:record", name="Record",
+        behavior=EffectBehavior(
+            effect_kind="record",
+            idempotent=True,
+            idempotency_key_required=True,
+            precondition=Expression(op="greater_than", args=(
+                Expression(op="field", field_ref="amount"),
+                Expression(op="literal", value=0),
+            )),
+            authorized_operation="payment.record",
+            permitted_side_effect="payment_instruction",
+            failure_behavior="reject_without_commit",
+            postcondition=Expression(op="equal", args=(
+                Expression(op="field", field_ref="approved"),
+                Expression(op="literal", value=True),
+            )),
+        ),
+    )
+    plan = CompilationPlan(plan_id="exec-plan", isr_id="system", effects=[effect])
+    # Python supports the execution contract flag
+    assert SemanticFeature.EFFECT_EXECUTION in PythonFastAPIBackend().supported_features
+    # Rust does not yet advertise it
+    assert SemanticFeature.EFFECT_EXECUTION not in RustAxumBackend().supported_features
+    # Python should compile the plan (execution contract is supported)
+    repo = PythonFastAPIBackend().compile(plan)
+    # Rust should raise UnsupportedSemanticsError with "effect_execution"
+    with pytest.raises(UnsupportedSemanticsError, match="effect_execution"):
+        RustAxumBackend().compile(plan)
+
+
+def test_preservation_only_effect_still_requires_semantics():
+    """Existing effect with only behavior fields (no execution) still requires
+    EFFECT_SEMANTICS and fails on both backends — unchanged behavior."""
+    effect = Effect(
+        id="effect:transfer", name="transfer",
+        behavior=EffectBehavior(
+            effect_kind="bank_transfer",
+            idempotent=True,
+            idempotency_key_required=True,
+        ),
+    )
+    plan = CompilationPlan(plan_id="pres-plan", isr_id="system", effects=[effect])
+    assert SemanticFeature.EFFECT_SEMANTICS in required_features(plan)
+    for backend in (PythonFastAPIBackend(), RustAxumBackend()):
+        with pytest.raises(UnsupportedSemanticsError, match="effect_semantics"):
+            backend.compile(plan)

@@ -18,6 +18,7 @@ class SemanticFeature(str, Enum):
     API_CONTRACTS = "api_contracts"
     AUTHORIZATION_POLICIES = "authorization_policies"
     EFFECT_SEMANTICS = "effect_semantics"
+    EFFECT_EXECUTION = "effect_execution"
     EFFECT_POLICY_PRESERVATION = "effect_policy_preservation"
     EFFECT_BINDING_PRESERVATION = "effect_binding_preservation"
     CONSEQUENCE_PRESERVATION = "consequence_preservation"
@@ -27,6 +28,23 @@ class SemanticFeature(str, Enum):
     FRONTEND_ROUTES = "frontend_routes"
     FRONTEND_INTERACTIONS = "frontend_interactions"
     FRONTEND_AUTH = "frontend_auth"
+
+
+def _is_executable_effect_contract(behavior: "EffectBehavior") -> bool:
+    """Return true when all executable contract fields are present and invariants satisfied."""
+    if behavior.precondition is not None or behavior.authorized_operation is not None:
+        if behavior.permitted_side_effect is None:
+            return False
+    if behavior.precondition is not None or behavior.permitted_side_effect is not None:
+        if not (behavior.authorized_operation and behavior.failure_behavior and behavior.postcondition):
+            return False
+    return all([
+        behavior.precondition is not None,
+        behavior.authorized_operation is not None,
+        behavior.permitted_side_effect is not None,
+        behavior.failure_behavior is not None,
+        behavior.postcondition is not None,
+    ])
 
 
 class BackendCapabilities(BaseModel):
@@ -90,7 +108,10 @@ def required_features(plan: CompilationPlan) -> frozenset[SemanticFeature]:
 
     for effect in plan.effects:
         if effect.behavior is not None:
-            required.add(SemanticFeature.EFFECT_SEMANTICS)
+            if _is_executable_effect_contract(effect.behavior):
+                required.add(SemanticFeature.EFFECT_EXECUTION)
+            else:
+                required.add(SemanticFeature.EFFECT_SEMANTICS)
         if effect.declared_policy:
             required.add(SemanticFeature.EFFECT_POLICY_PRESERVATION)
     # These features preserve source semantics in a candidate manifest; they

@@ -72,6 +72,20 @@ jobs:
         working-directory: ${{ env.FIXTURE_DIR }}
         run: npm run test:e2e
 
+      - name: Regenerate the bundle with overlapping model names
+        run: python scripts/tiannara_react_fixture.py "${{ env.FIXTURE_DIR }}" "Pay,Payment"
+
+      - name: Browser test (overlapping model names)
+        working-directory: ${{ env.FIXTURE_DIR }}
+        run: npm run test:e2e
+
+      - name: Regenerate the bundle with no data models
+        run: python scripts/tiannara_react_fixture.py "${{ env.FIXTURE_DIR }}" ""
+
+      - name: Browser test (empty model list)
+        working-directory: ${{ env.FIXTURE_DIR }}
+        run: npm run test:e2e
+
       - name: Upload failure artifacts
         if: failure()
         uses: actions/upload-artifact@v4

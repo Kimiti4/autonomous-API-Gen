@@ -109,7 +109,7 @@ Before contract signature, agree software ownership, permitted use, source-code 
 
 The initial estimate assumes approximately 50 employees, five offices, one Kenyan employing/payroll entity, one initial migration from validated spreadsheet/CSV data, and one HR plus one accounting exchange. World Concern provides lawful, complete source data, payroll policies and baseline control totals; nominates payroll, finance, HR, security and acceptance reviewers; provides interface/vendor access; and approves statutory and security decisions in the agreed review period.
 
-Excluded unless agreed in a signed change: direct bank payment initiation; a complete HRIS or time-and-attendance replacement; multiple entities or migrations beyond the agreed scope; additional interfaces/custom reports; historical-document digitization; statutory filing/payment on the employer's behalf; legal/tax opinions; 24/7 support; independent certifications; third-party email/SMS, vendor API, bank, licensing or premium hosting charges. Changes are scoped, priced and approved before implementation.
+Excluded unless agreed in a signed change: direct bank payment initiation or custody; full HRIS, recruitment, time-attendance or leave-system replacement; multiple entities or migrations beyond the agreed scope; additional interfaces/custom reports; historical-document digitization; statutory filing/payment on the employer's behalf; legal/tax opinions; 24/7 support; independent certifications; third-party email/SMS, vendor API, bank, licensing or premium hosting charges. Changes are scoped, priced and approved before implementation.
 
 ## 10. Bidder declaration
 
@@ -118,4 +118,5 @@ I submit this technical proposal as Amos Kimiti Kariuki, an independent individu
 **Bidder:** Amos Kimiti Kariuki  
 **Signature:** ______________________________  
 **Date:** ______________________________  
-**Telephone / email:** To be completed before submission
+**Telephone:** +254774656373  
+**Email:** karamos473@gmail.com

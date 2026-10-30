@@ -19,6 +19,7 @@ port adapter that materializes it to ``output_dir`` and returns a bundle.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from tiannara.application.compiler.build_profile import BackendBuildProfile
@@ -93,6 +94,7 @@ class FastAPIHexagonalBackend:
             f"{slug}/__init__.py": "",
             f"{slug}/config.py": self._config_py(system_model),
             f"{slug}/logging_config.py": self._logging_py(),
+            f"{slug}/observability.py": self._observability_py(),
             f"{slug}/domain/__init__.py": "",
             f"{slug}/domain/models.py": self._models_py(models),
             f"{slug}/domain/repositories.py": self._repositories_py(slug, models),
@@ -107,6 +109,7 @@ class FastAPIHexagonalBackend:
             f"{slug}/api/deps.py": self._deps_py(slug),
             f"{slug}/api/routes.py": self._routes_py(slug, models),
             f"{slug}/main.py": self._main_py(slug, models),
+            f"{slug}/observability-map.json": self._observability_map(system_model),
             f"{slug}/tests/__init__.py": "",
             f"{slug}/tests/test_api.py": self._tests_py(slug, models),
             "requirements.txt": self._requirements(),
@@ -365,6 +368,8 @@ class FastAPIHexagonalBackend:
                 f'    app_name: str = "{default_name}"',
                 '    api_key: str = ""',
                 '    log_level: str = "INFO"',
+                '    app_version: str = "unknown"',
+                '    deployment_id: str = "local"',
                 "",
                 "",
                 "def load_settings() -> Settings:",
@@ -372,6 +377,8 @@ class FastAPIHexagonalBackend:
                 f'        app_name=os.getenv("APP_NAME", "{default_name}"),',
                 '        api_key=os.getenv("API_KEY", ""),',
                 '        log_level=os.getenv("LOG_LEVEL", "INFO"),',
+                '        app_version=os.getenv("APP_VERSION", "unknown"),',
+                '        deployment_id=os.getenv("DEPLOYMENT_ID", "local"),',
                 "    )",
                 "",
             ]
@@ -395,6 +402,13 @@ class FastAPIHexagonalBackend:
                 '            "logger": record.name,',
                 '            "timestamp": self.formatTime(record),',
                 "        }",
+                "        for name in (",
+                '            "request_id", "correlation_id", "trace_id", "span_id",',
+                '            "parent_span_id", "method", "route", "status_code",',
+                '            "duration_seconds", "error_id", "app_version", "deployment_id",',
+                "        ):",
+                "            if hasattr(record, name):",
+                "                payload[name] = getattr(record, name)",
                 "        return json.dumps(payload)",
                 "",
                 "",
@@ -408,6 +422,270 @@ class FastAPIHexagonalBackend:
                 "",
             ]
         )
+
+    def _observability_py(self) -> str:
+        return '''from __future__ import annotations
+
+import logging
+import re
+import threading
+import time
+import uuid
+from collections import Counter
+
+from fastapi import Request
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+
+logger = logging.getLogger("generated.observability")
+_SAFE_ID = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
+_TRACEPARENT = re.compile(r"^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$")
+
+
+def _header_id(value: str | None) -> str:
+    if value and _SAFE_ID.fullmatch(value):
+        return value
+    return uuid.uuid4().hex
+
+
+def _trace(value: str | None) -> tuple[str, str, str | None, str]:
+    match = _TRACEPARENT.fullmatch(value or "")
+    if match and set(match.group(1)) != {"0"} and set(match.group(2)) != {"0"}:
+        trace_id, parent_span_id, flags = match.groups()
+        return trace_id, uuid.uuid4().hex[:16], parent_span_id, flags
+    return uuid.uuid4().hex, uuid.uuid4().hex[:16], None, "01"
+
+
+class RequestMetrics:
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._counts: Counter[tuple[str, str, int]] = Counter()
+        self._durations: Counter[tuple[str, str, int]] = Counter()
+
+    def observe(self, method: str, route: str, status_code: int, elapsed: float) -> None:
+        key = (method, route, status_code)
+        with self._lock:
+            self._counts[key] += 1
+            self._durations[key] += elapsed
+
+    @staticmethod
+    def _escape(value: str) -> str:
+        return value.replace("\\\\", "\\\\\\\\").replace('"', '\\\\"').replace("\\n", "\\\\n")
+
+    def render(self, app_name: str, app_version: str, deployment_id: str) -> str:
+        with self._lock:
+            counts = sorted(self._counts.items())
+            durations = dict(self._durations)
+        lines = [
+            "# HELP generated_http_requests_total Completed HTTP requests.",
+            "# TYPE generated_http_requests_total counter",
+        ]
+        for (method, route, status), count in counts:
+            labels = f'method="{self._escape(method)}",route="{self._escape(route)}",status_code="{status}"'
+            lines.append(f"generated_http_requests_total{{{labels}}} {count}")
+        lines.extend([
+            "# HELP generated_http_request_duration_seconds_sum Total request duration.",
+            "# TYPE generated_http_request_duration_seconds_sum counter",
+        ])
+        for (method, route, status), _count in counts:
+            labels = f'method="{self._escape(method)}",route="{self._escape(route)}",status_code="{status}"'
+            lines.append(f"generated_http_request_duration_seconds_sum{{{labels}}} {durations[(method, route, status)]:.9f}")
+        identity = ",".join(
+            f'{key}="{self._escape(value)}"'
+            for key, value in (
+                ("app_name", app_name),
+                ("app_version", app_version),
+                ("deployment_id", deployment_id),
+            )
+        )
+        lines.extend([
+            "# HELP generated_app_info Generated application identity.",
+            "# TYPE generated_app_info gauge",
+            f"generated_app_info{{{identity}}} 1",
+        ])
+        return "\\n".join(lines) + "\\n"
+
+
+class ObservabilityMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app, metrics: RequestMetrics, app_version: str, deployment_id: str):
+        super().__init__(app)
+        self.metrics = metrics
+        self.app_version = app_version
+        self.deployment_id = deployment_id
+
+    async def dispatch(self, request: Request, call_next):
+        request_id = _header_id(request.headers.get("x-request-id"))
+        correlation_id = _header_id(request.headers.get("x-correlation-id"))
+        trace_id, span_id, parent_span_id, flags = _trace(request.headers.get("traceparent"))
+        request.state.request_id = request_id
+        request.state.correlation_id = correlation_id
+        request.state.trace_id = trace_id
+        request.state.error_id = None
+        started = time.perf_counter()
+        response = await call_next(request)
+        elapsed = time.perf_counter() - started
+        route = getattr(request.scope.get("route"), "path", "unmatched")
+        status = response.status_code
+        self.metrics.observe(request.method, route, status, elapsed)
+        response.headers["X-Request-ID"] = request_id
+        response.headers["X-Correlation-ID"] = correlation_id
+        response.headers["traceparent"] = f"00-{trace_id}-{span_id}-{flags}"
+        if request.state.error_id:
+            response.headers["X-Error-ID"] = request.state.error_id
+        logger.info(
+            "http.request.completed",
+            extra={
+                "request_id": request_id,
+                "correlation_id": correlation_id,
+                "trace_id": trace_id,
+                "span_id": span_id,
+                "parent_span_id": parent_span_id,
+                "method": request.method,
+                "route": route,
+                "status_code": status,
+                "duration_seconds": round(elapsed, 9),
+                "error_id": request.state.error_id,
+                "app_version": self.app_version,
+                "deployment_id": self.deployment_id,
+            },
+        )
+        return response
+
+
+async def internal_error(request: Request, exc: Exception) -> JSONResponse:
+    error_id = uuid.uuid4().hex
+    request.state.error_id = error_id
+    settings = getattr(request.app.state, "settings", None)
+    logger.exception(
+        "http.request.failed",
+        exc_info=(type(exc), exc, exc.__traceback__),
+        extra={
+            "request_id": getattr(request.state, "request_id", ""),
+            "correlation_id": getattr(request.state, "correlation_id", ""),
+            "trace_id": getattr(request.state, "trace_id", ""),
+            "error_id": error_id,
+            "app_version": getattr(settings, "app_version", "unknown"),
+            "deployment_id": getattr(settings, "deployment_id", "local"),
+        },
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error", "error_id": error_id},
+        headers={"X-Error-ID": error_id},
+    )
+'''
+
+    def _observability_map(self, sm: SystemModel) -> str:
+        components = [
+            {"id": service.id, "name": service.name}
+            for service in sorted(sm.services, key=lambda item: item.id)
+        ]
+        if not components:
+            components = [
+                {"id": capability.id, "name": capability.name}
+                for capability in sorted(sm.capabilities, key=lambda item: item.id)
+            ]
+        component_ids = [component["id"] for component in components]
+        bindings = {
+            "structured_logging": {
+                "status": "SUPPORTED",
+                "runtime_events": ["http.request.completed", "http.request.failed"],
+                "signals": ["structured_log"],
+                "evidence": ["logs"],
+            },
+            "metrics": {
+                "status": "SUPPORTED",
+                "runtime_events": ["http.request.completed"],
+                "signals": ["request_counter", "duration_total"],
+                "evidence": ["/metrics"],
+            },
+            "distributed_tracing": {
+                "status": "PARTIAL",
+                "runtime_events": ["http.request.completed"],
+                "signals": ["trace_context"],
+                "evidence": ["logs", "response_headers"],
+                "limitations": ["Trace context is propagated locally; no external exporter is configured."],
+            },
+            "health_checks": {
+                "status": "SUPPORTED",
+                "runtime_events": ["service.health"],
+                "signals": ["liveness"],
+                "evidence": ["/health/live"],
+            },
+            "readiness_checks": {
+                "status": "SUPPORTED",
+                "runtime_events": ["service.health"],
+                "signals": ["readiness"],
+                "evidence": ["/health/ready"],
+            },
+            "audit_events": {
+                "status": "NOT_IMPLEMENTED",
+                "runtime_events": [],
+                "signals": [],
+                "evidence": [],
+                "limitations": ["Business audit-event generation is not implemented by this backend."],
+            },
+        }
+        requirement_bindings = [
+            {
+                "requirement": requirement.value,
+                "component_ids": component_ids,
+                **bindings.get(
+                    requirement.value,
+                    {
+                        "status": "NOT_IMPLEMENTED",
+                        "runtime_events": [],
+                        "signals": [],
+                        "evidence": [],
+                        "limitations": ["No backend mapping is defined for this requirement."],
+                    },
+                ),
+            }
+            for requirement in sm.operational_policies.observability_requirements
+        ]
+        payload = {
+            "schema_version": "1.0",
+            "requirements_source": {
+                "graph_id": sm.requirements_ref.graph_id,
+                "graph_hash": sm.requirements_ref.graph_hash,
+                "observability_requirements": [
+                    requirement.value
+                    for requirement in sm.operational_policies.observability_requirements
+                ],
+            },
+            "components": components,
+            "requirement_bindings": requirement_bindings,
+            "runtime_events": [
+                {
+                    "name": "http.request.completed",
+                    "signals": [
+                        "structured_log",
+                        "request_counter",
+                        "duration_total",
+                        "trace_context",
+                    ],
+                    "component_ids": component_ids,
+                    "evidence": ["logs", "/metrics", "response_headers"],
+                },
+                {
+                    "name": "http.request.failed",
+                    "signals": ["structured_error_log", "error_id"],
+                    "component_ids": component_ids,
+                    "evidence": ["logs", "X-Error-ID"],
+                },
+                {
+                    "name": "service.health",
+                    "signals": ["liveness", "readiness"],
+                    "component_ids": component_ids,
+                    "evidence": ["/health/live", "/health/ready"],
+                },
+            ],
+            "limitations": [
+                "Metrics are process-local and reset on restart.",
+                "Trace context is propagated and logged locally; no external trace exporter is configured.",
+            ],
+        }
+        return json.dumps(payload, sort_keys=True, indent=2) + "\n"
 
     def _models_py(self, models: list[TypedDataModelSpec]) -> str:
         needs_datetime = any(
@@ -740,6 +1018,7 @@ class FastAPIHexagonalBackend:
             "from typing import Optional",
             "",
             "from fastapi import FastAPI",
+            "from fastapi.responses import PlainTextResponse",
             "",
             f"from {slug}.api.deps import make_auth_dependency",
         ]
@@ -753,6 +1032,9 @@ class FastAPIHexagonalBackend:
                 f"from {slug}.infrastructure.memory_repositories import " + repo_imports
             )
         lines.append(f"from {slug}.logging_config import configure_logging")
+        lines.append(
+            f"from {slug}.observability import ObservabilityMiddleware, RequestMetrics, internal_error"
+        )
         lines += [
             "",
             "",
@@ -760,15 +1042,32 @@ class FastAPIHexagonalBackend:
             "    settings = settings or load_settings()",
             "    configure_logging(settings.log_level)",
             "    app = FastAPI(title=settings.app_name)",
+            "    app.state.settings = settings",
+            "    app.state.request_metrics = RequestMetrics()",
+            "    app.add_middleware(",
+            "        ObservabilityMiddleware,",
+            "        metrics=app.state.request_metrics,",
+            "        app_version=settings.app_version,",
+            "        deployment_id=settings.deployment_id,",
+            "    )",
+            "    app.add_exception_handler(Exception, internal_error)",
             "    auth_dependency = make_auth_dependency(settings)",
             "",
+            '    @app.get("/health/live")',
             '    @app.get("/health")',
             "    def health() -> dict:",
-            '        return {"status": "ok"}',
+            '        return {"status": "alive"}',
             "",
+            '    @app.get("/health/ready")',
             '    @app.get("/readiness")',
             "    def readiness() -> dict:",
             '        return {"status": "ready"}',
+            "",
+            '    @app.get("/metrics", response_class=PlainTextResponse)',
+            "    def metrics() -> str:",
+            "        return app.state.request_metrics.render(",
+            "            settings.app_name, settings.app_version, settings.deployment_id",
+            "        )",
             "",
         ]
         for model in models:
@@ -900,6 +1199,11 @@ class FastAPIHexagonalBackend:
                 "- `application/` — services / use cases (depends on domain)",
                 "- `infrastructure/` — adapters (in-memory repositories)",
                 "- `api/` — FastAPI routers, schemas, dependencies",
+                "- `observability-map.json` — requirement/component/runtime-signal/evidence traceability",
+                "- `/health/live`, `/health/ready`, and `/metrics` — generated operational surfaces",
+                "- Request and correlation IDs plus W3C trace context are logged and returned in headers.",
+                "- Metrics are process-local; trace context is not exported to an external collector.",
+                "- Business audit events are not generated; see `observability-map.json` for requirement status.",
                 "",
                 "Evolution notes:",
                 "",
@@ -940,5 +1244,19 @@ class FastAPIHexagonalBackend:
                 BundleCapability.DOCUMENTATION,
                 BundleCapability.RELEASE,
             ],
-            metadata={"language": "python", "framework": "fastapi", "style": "hexagonal"},
+            metadata={
+                "language": "python",
+                "framework": "fastapi",
+                "style": "hexagonal",
+                "observability": {
+                    "structured_request_logs": True,
+                    "request_correlation": True,
+                    "process_local_metrics": True,
+                    "trace_context_propagation": True,
+                    "external_trace_export": False,
+                    "health_endpoints": ["/health/live", "/health/ready"],
+                    "error_identity": True,
+                    "audit_events": False,
+                },
+            },
         )

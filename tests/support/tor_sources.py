@@ -16,6 +16,12 @@ BACKEND_TOR = """1. FUNCTIONAL REQUIREMENTS
 - The system shall calculate gross pay from base salary and allowances.
 """
 
+AUTHORIZED_TOR = """1. FUNCTIONAL REQUIREMENTS
+- The system shall manage employee payroll records.
+- The system shall calculate gross pay from base salary and allowances.
+- The system shall restrict employee payroll records to payroll approvers.
+"""
+
 FULL_STACK_TOR = """1. FUNCTIONAL REQUIREMENTS
 - The system shall manage employee payroll records.
 - The system shall calculate gross pay from base salary and allowances.
@@ -138,6 +144,46 @@ def _payroll_service(requirement_id: str, data_requirement_id: str) -> tuple[dic
     return service, persist
 
 
+def _security_policy(requirement_id: str) -> dict:
+    return _declaration(
+        requirement_id,
+        "security:payroll-approver",
+        "security_policy",
+        {
+            "label": "PayrollApprover",
+            "behavior": {
+                "roles": ["payroll_approver"],
+                "rules": [
+                    {
+                        "rule_id": "payroll.employee.read",
+                        "effect": "allow",
+                        "roles": ["payroll_approver"],
+                        "actions": ["employee.read", "employee.create", "employee.update"],
+                        "resource": "Employee",
+                    },
+                    {
+                        "rule_id": "payroll.employee.delete.deny",
+                        "effect": "deny",
+                        "roles": ["payroll_approver"],
+                        "actions": ["employee.delete"],
+                        "resource": "Employee",
+                    },
+                ],
+            },
+        },
+    )
+
+
+def _secured_by(requirement_id: str) -> dict:
+    return _edge(
+        requirement_id,
+        "secure:payroll",
+        "secured_by",
+        "service:payroll",
+        "security:payroll-approver",
+    )
+
+
 def _api(requirement_id: str) -> dict:
     return _declaration(
         requirement_id,
@@ -240,6 +286,34 @@ def full_stack_projection() -> TORISRProjection:
 
 def backend_plan() -> CompilationPlan:
     return isr_to_plan(backend_projection().revision)
+
+
+def authorized_backend_projection() -> TORISRProjection:
+    """A source-bound projection that declares a typed authorization policy."""
+    draft = extract_tor_text(AUTHORIZED_TOR, "payroll-authorized-tor.md")
+    manage = candidate(draft, "manage employee payroll records")
+    calculate = candidate(draft, "calculate gross pay")
+    restrict = candidate(draft, "restrict employee payroll records")
+    service, persist = _payroll_service(calculate.requirement_id, manage.requirement_id)
+    approvals = {
+        manage.requirement_id: approval(nodes=(_data_model(manage.requirement_id),)),
+        calculate.requirement_id: approval(nodes=(service,), edges=(persist,)),
+        restrict.requirement_id: approval(
+            nodes=(_security_policy(restrict.requirement_id),),
+            edges=(_secured_by(restrict.requirement_id),),
+        ),
+    }
+    return project_tor_to_isr(
+        draft,
+        approvals,
+        system_id="payroll-authorized-source",
+        revision_id="rev-authorized-source-1",
+        created_at="2026-01-01T00:00:00Z",
+    )
+
+
+def authorized_backend_plan() -> CompilationPlan:
+    return isr_to_plan(authorized_backend_projection().revision)
 
 
 def full_stack_plan() -> CompilationPlan:

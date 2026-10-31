@@ -11,8 +11,21 @@ from __future__ import annotations
 import json
 from decimal import Decimal
 
-from compiler.core.plan import CompilationPlan
+from compiler.core.plan import CompilationPlan, Service
 from compiler.core.behavior_oracle import reference_evaluate, sample_context
+from compiler.core.authorization import (
+    ROUTE_VERBS,
+    assert_authorization_enforceable,
+    canonical_action,
+    policy_payload,
+    protected_services,
+    service_policies,
+)
+from compiler.core.declared_api import (
+    DeclaredRoute,
+    declared_routes,
+    normalized_path,
+)
 from compiler.core.capabilities import BackendCapabilities, SemanticFeature, UnsupportedSemanticsError, assert_plan_supported
 from compiler.core.repository import GeneratedRepository, build_repository
 from compiler.core.conformance import CHECKER, ConformanceReport
@@ -38,6 +51,8 @@ class PythonFastAPIBackend:
         SemanticFeature.EXPRESSIONS,
         SemanticFeature.BUSINESS_RULES,
         SemanticFeature.STATE_TRANSITIONS,
+        SemanticFeature.API_CONTRACTS,
+        SemanticFeature.AUTHORIZATION_POLICIES,
     })
 
     def identity(self) -> BackendIdentity:
@@ -72,14 +87,24 @@ class PythonFastAPIBackend:
             "infra:main": "app/main.py",
             "infra:repositories": "app/infrastructure/repositories.py",
             "infra:behavior": "app/core/behavior.py",
+            "infra:authorization": "app/core/authorization.py",
+            "infra:policies": "app/core/policies.py",
             "infra:docs": "docs/architecture.md",
             "infra:requirements": "requirements.txt",
             "infra:test": "tests/test_app.py",
         })
+        if any(api.behavior is not None for api in plan.apis):
+            p["infra:declared_apis"] = "app/api/declared.py"
         return p
 
     def compile(self, plan: CompilationPlan) -> GeneratedRepository:
         assert_plan_supported(plan, BackendCapabilities(backend_id=self.name, version=self.version, supported_features=self.supported_features))
+        # The capability says this backend implements authorization enforcement.
+        # This check says whether *this* plan's obligations have an enforcement
+        # point here; an obligation without one fails closed instead of being
+        # emitted as an unprotected route.
+        assert_authorization_enforceable(plan)
+        self._assert_no_route_collision(plan)
         f: dict[str, str] = {}
         for path in dict.fromkeys(self.element_paths(plan).values()):
             f[path] = self._emit(path, plan)
@@ -101,6 +126,662 @@ class PythonFastAPIBackend:
 
     def _secured(self, plan: CompilationPlan) -> bool:
         return bool(plan.security)
+
+    def _protected_service_for(self, plan: CompilationPlan, entity: dict) -> Service | None:
+        """Return the service that owns the entity when it carries typed policies."""
+        protected = protected_services(plan)
+        for service in plan.services:
+            if _slug(service.name) != entity["service_mod"]:
+                continue
+            policies = protected.get(service.id)
+            if policies:
+                return service
+        return None
+
+    def _has_protected_routes(self, plan: CompilationPlan) -> bool:
+        """True when at least one emitted route carries an authorization obligation."""
+        return any(
+            self._protected_service_for(plan, entity) is not None
+            for entity in self._entities(plan)
+        )
+
+    def _authorization_dependency(self, plan: CompilationPlan, entity: dict, verb: str) -> str:
+        """Return the route dependency that authorizes this route before it runs."""
+        service = self._protected_service_for(plan, entity)
+        if service is None:
+            return ""
+        action = canonical_action(entity["entity"], verb)
+        return (
+            ", dependencies=[Depends(require_authorization("
+            f"action=\"{action}\", resource=\"{entity['cls']}\", "
+            f"policies=SERVICE_POLICIES[\"{_slug(service.name)}\"]))]"
+        )
+
+    def _authorization_rules_for(self, plan: CompilationPlan, entity: dict) -> list:
+        """Return the policy rules that can match this entity's routes."""
+        service = self._protected_service_for(plan, entity)
+        if service is None:
+            return []
+        rules = []
+        for policy in service_policies(service):
+            rules.extend(policy.behavior.rules)
+        return rules
+
+    def _allowed_verbs(self, plan: CompilationPlan, entity: dict) -> set[str]:
+        """Return the route verbs an allow rule covers for this entity."""
+        allowed: set[str] = set()
+        for rule in self._authorization_rules_for(plan, entity):
+            if rule.effect != "allow" or rule.resource not in (entity["cls"], "*"):
+                continue
+            for verb in ROUTE_VERBS:
+                action = canonical_action(entity["entity"], verb)
+                if "*" in rule.actions or action in rule.actions:
+                    allowed.add(verb)
+        return allowed
+
+    def _authorization_expectations(self, plan: CompilationPlan, entity: dict) -> dict[str, tuple[set[str], set[str]]]:
+        """Return (allowed_roles, denied_roles) per route verb."""
+        expectations: dict[str, tuple[set[str], set[str]]] = {}
+        for verb in ROUTE_VERBS:
+            action = canonical_action(entity["entity"], verb)
+            allowed: set[str] = set()
+            denied: set[str] = set()
+            for rule in self._authorization_rules_for(plan, entity):
+                if rule.resource not in (entity["cls"], "*"):
+                    continue
+                if not ("*" in rule.actions or action in rule.actions):
+                    continue
+                if rule.effect == "allow":
+                    allowed.update(rule.roles)
+                else:
+                    denied.update(rule.roles)
+            expectations[verb] = (allowed, denied)
+        return expectations
+
+    def _authorization_roles(self, plan: CompilationPlan, entity: dict) -> list[str]:
+        """Return the roles granted for this entity's routes.
+
+        Roles that a deny rule covers for every route are excluded, so the
+        emitted test exercises the grant the policy actually makes.
+        """
+        expectations = self._authorization_expectations(plan, entity)
+        granted: list[str] = []
+        for allowed, denied in expectations.values():
+            for role in sorted(allowed - denied):
+                if role not in granted:
+                    granted.append(role)
+        return granted
+
+    def _authorization_attributes(self, plan: CompilationPlan, entity: dict) -> dict[str, object]:
+        """Return the subject attributes an allow rule requires for this entity."""
+        attributes: dict[str, object] = {}
+        for verb in ROUTE_VERBS:
+            action = canonical_action(entity["entity"], verb)
+            for rule in self._authorization_rules_for(plan, entity):
+                if rule.effect != "allow" or rule.resource not in (entity["cls"], "*"):
+                    continue
+                if not ("*" in rule.actions or action in rule.actions):
+                    continue
+                for key, value in (rule.conditions or {}).items():
+                    attributes.setdefault(str(key), value)
+        return attributes
+
+    def _authorization_tests(self, plan: CompilationPlan, entities: list[dict]) -> list[str]:
+        """Emit the runtime and route level authorization tests."""
+        protected = [e for e in entities if self._protected_service_for(plan, e) is not None]
+        if not protected:
+            return []
+        target = protected[0]
+        plural = target["plural"]
+        expectations = self._authorization_expectations(plan, target)
+        roles = self._authorization_roles(plan, target)
+        granted = set(roles)
+        readable = bool(granted & expectations["read"][0]) and not (granted & expectations["read"][1])
+        attributes = self._authorization_attributes(plan, target)
+        lines = [
+            "",
+            "",
+            "def test_authorization_requires_a_signed_token():",
+            f"    r = client.get('/api/{plural}', headers=HEADERS)",
+            "    assert r.status_code == 401",
+            "",
+            "",
+            "def test_authorization_rejects_a_tampered_token():",
+            "    token = issue_token('someone', ['no_such_role'])",
+            "    tampered = token[:-1] + ('a' if token[-1] != 'a' else 'b')",
+            f"    r = client.get('/api/{plural}', headers={{**HEADERS, 'Authorization': f'Bearer {{tampered}}'}})",
+            "    assert r.status_code == 401",
+            "",
+            "",
+            "def test_authorization_denies_a_principal_without_a_grant():",
+            "    token = issue_token('intruder', ['no_such_role'])",
+            f"    r = client.get('/api/{plural}', headers={{**HEADERS, 'Authorization': f'Bearer {{token}}'}})",
+            "    assert r.status_code == 403",
+            "",
+            "",
+            "def test_authorization_rejects_an_expired_token():",
+            "    token = issue_token('someone', ['no_such_role'], ttl_seconds=-1)",
+            f"    r = client.get('/api/{plural}', headers={{**HEADERS, 'Authorization': f'Bearer {{token}}'}})",
+            "    assert r.status_code == 401",
+            "",
+            "",
+            "def test_authorization_ignores_spoofed_role_and_tenant_headers():",
+            "    token = issue_token('intruder', ['no_such_role'])",
+            f"    spoofed = {{**HEADERS, 'Authorization': f'Bearer {{token}}', 'X-Role': 'payroll_approver', 'X-Tenant': 'tenant-a'}}",
+            f"    r = client.get('/api/{plural}', headers=spoofed)",
+            "    assert r.status_code == 403",
+            "",
+            "",
+            "def test_denied_request_does_not_mutate_state():",
+        ]
+        if readable:
+            lines += [
+                f"    allowed = client.get('/api/{plural}', headers=HEADERS_{plural.upper()}).json()",
+                "    token = issue_token('intruder', ['no_such_role'])",
+                f"    denied = client.delete('/api/{plural}/missing-item', headers={{**HEADERS, 'Authorization': f'Bearer {{token}}'}})",
+                "    assert denied.status_code == 403",
+                f"    after = client.get('/api/{plural}', headers=HEADERS_{plural.upper()}).json()",
+                "    assert after == allowed",
+            ]
+        else:
+            lines += [
+                "    token = issue_token('intruder', ['no_such_role'])",
+                f"    denied = client.post('/api/{plural}', json={{}}, headers={{**HEADERS, 'Authorization': f'Bearer {{token}}'}})",
+                "    assert denied.status_code == 403",
+            ]
+        lines += [
+            "",
+            "",
+        ]
+        if attributes:
+            lines += [
+                "def test_authorization_denies_a_principal_without_the_required_attribute():",
+                f"    token = issue_token('someone', {sorted(self._authorization_roles(plan, target))!r})",
+                f"    r = client.get('/api/{plural}', headers={{**HEADERS, 'Authorization': f'Bearer {{token}}'}})",
+                "    assert r.status_code == 403",
+                "",
+                "",
+            ]
+        lines += [
+            "def test_authorization_runtime_denies_by_default():",
+            "    from app.core.authorization import Principal, evaluate",
+            "    principal = Principal(principal_id='p1', roles=frozenset({'reader'}))",
+            "    allowed, reason = evaluate([], principal, 'employee.read', 'Employee')",
+            "    assert allowed is False",
+            "    assert 'default deny' in reason",
+            "",
+            "",
+            "def test_authorization_runtime_explicit_deny_wins_over_allow():",
+            "    from app.core.authorization import Principal, evaluate",
+            "    policies = [{'policy_id': 'p', 'rules': [",
+            "        {'rule_id': 'allow', 'effect': 'allow', 'roles': ['reader'], 'actions': ['employee.read'], 'resource': 'Employee', 'conditions': {}},",
+            "        {'rule_id': 'deny', 'effect': 'deny', 'roles': ['reader'], 'actions': ['employee.read'], 'resource': 'Employee', 'conditions': {}},",
+            "    ]}]",
+            "    principal = Principal(principal_id='p1', roles=frozenset({'reader'}))",
+            "    allowed, reason = evaluate(policies, principal, 'employee.read', 'Employee')",
+            "    assert allowed is False",
+            "    assert 'explicit deny' in reason",
+            "",
+            "",
+            "def test_authorization_runtime_missing_attribute_never_grants():",
+            "    from app.core.authorization import Principal, evaluate",
+            "    policies = [{'policy_id': 'p', 'rules': [",
+            "        {'rule_id': 'allow', 'effect': 'allow', 'roles': ['reader'], 'actions': ['employee.read'], 'resource': 'Employee', 'conditions': {'department': 'finance'}},",
+            "    ]}]",
+            "    principal = Principal(principal_id='p1', roles=frozenset({'reader'}))",
+            "    allowed, _ = evaluate(policies, principal, 'employee.read', 'Employee')",
+            "    assert allowed is False",
+            "    granted = Principal(principal_id='p1', roles=frozenset({'reader'}), attributes={'department': 'finance'})",
+            "    allowed, _ = evaluate(policies, granted, 'employee.read', 'Employee')",
+            "    assert allowed is True",
+            "",
+            "",
+            "def test_authorization_runtime_isolates_tenants():",
+            "    from app.core.authorization import Principal, evaluate",
+            "    principal = Principal(principal_id='p1', roles=frozenset({'reader'}), tenant_id='tenant-a')",
+            "    allowed, reason = evaluate([], principal, 'employee.read', 'Employee', {'tenant_id': 'tenant-b'})",
+            "    assert allowed is False",
+            "    assert 'different tenant' in reason",
+            "    anonymous = Principal(principal_id='p2', roles=frozenset({'reader'}))",
+            "    allowed, reason = evaluate([], anonymous, 'employee.read', 'Employee', {'tenant_id': 'tenant-a'})",
+            "    assert allowed is False",
+            "    assert 'tenant identity is missing' in reason",
+            "",
+        ]
+        return lines
+
+    # -- declared API operation emission ----------------------------------
+
+    _DECLARED_ANNOTATIONS = {
+        "string": "str", "identifier": "str", "date": "str", "datetime": "str",
+        "integer": "int", "decimal": "Decimal", "money": "Decimal", "boolean": "bool",
+    }
+
+    def _crud_route_keys(self, plan: CompilationPlan) -> set[tuple[str, str]]:
+        keys = {("GET", "/health"), ("GET", "/api/services")}
+        for entity in self._entities(plan):
+            plural = entity["plural"]
+            keys.add(("GET", f"/api/{plural}"))
+            keys.add(("POST", f"/api/{plural}"))
+            keys.add(("GET", f"/api/{plural}/{{}}"))
+            keys.add(("PUT", f"/api/{plural}/{{}}"))
+            keys.add(("DELETE", f"/api/{plural}/{{}}"))
+        return keys
+
+    def _assert_no_route_collision(self, plan: CompilationPlan) -> None:
+        """A declared route must not shadow or duplicate an emitted CRUD route."""
+        reserved = self._crud_route_keys(plan)
+        for route in declared_routes(plan):
+            key = (route.method, normalized_path(route.path))
+            if key in reserved:
+                raise UnsupportedSemanticsError(
+                    "api_contracts: declared operation "
+                    f"'{route.operation.id}' collides with the emitted "
+                    f"{route.method} route {route.path!r}"
+                )
+
+    def _declared_rules(self, route: DeclaredRoute) -> list:
+        rules = []
+        for policy in route.policies:
+            for rule in policy.behavior.rules:
+                if rule.resource not in (route.resource, "*"):
+                    continue
+                if "*" in rule.actions or route.action in rule.actions:
+                    rules.append(rule)
+        return rules
+
+    def _declared_roles(self, route: DeclaredRoute) -> list[str]:
+        allowed: set[str] = set()
+        denied: set[str] = set()
+        for rule in self._declared_rules(route):
+            if rule.effect == "allow":
+                allowed.update(rule.roles)
+            else:
+                denied.update(rule.roles)
+        return sorted(allowed - denied)
+
+    def _declared_deny_roles(self, route: DeclaredRoute) -> list[str]:
+        denied: set[str] = set()
+        for rule in self._declared_rules(route):
+            if rule.effect == "deny":
+                denied.update(rule.roles)
+        return sorted(denied)
+
+    def _declared_attributes(self, route: DeclaredRoute) -> dict[str, object]:
+        attributes: dict[str, object] = {}
+        for rule in self._declared_rules(route):
+            if rule.effect != "allow":
+                continue
+            for key, value in (rule.conditions or {}).items():
+                attributes.setdefault(str(key), value)
+        return attributes
+
+    def _declared_names(self, routes: tuple[DeclaredRoute, ...]) -> list[str]:
+        used: set[str] = set()
+        names: list[str] = []
+        for route in routes:
+            base = _cls(_slug(route.operation.name))
+            candidate = base
+            index = 2
+            while candidate in used:
+                candidate = f"{base}{index}"
+                index += 1
+            used.add(candidate)
+            names.append(candidate)
+        return names
+
+    def _declared_annotation(self, field, *, optional: bool = False) -> str:
+        annotation = self._DECLARED_ANNOTATIONS[field.value_type.value]
+        return f"{annotation} | None" if optional else annotation
+
+    def _declared_constraint_args(self, field) -> list[str]:
+        args: list[str] = []
+        kind = field.value_type.value
+        if field.precision is not None and kind in ("decimal", "money"):
+            args.append(f"max_digits={field.precision}")
+        if field.scale is not None and kind in ("decimal", "money"):
+            args.append(f"decimal_places={field.scale}")
+        for constraint in field.constraints:
+            operator = constraint.operator.value
+            if operator == "min":
+                args.append(f"ge={constraint.value!r}")
+            elif operator == "max":
+                args.append(f"le={constraint.value!r}")
+            elif operator == "min_length":
+                args.append(f"min_length={int(constraint.value)}")
+            elif operator == "max_length":
+                args.append(f"max_length={int(constraint.value)}")
+            elif operator == "pattern":
+                args.append(f"pattern={str(constraint.value)!r}")
+        return args
+
+    def _declared_model(self, class_name: str, fields: tuple) -> list[str]:
+        lines = [
+            f"class {class_name}(BaseModel):",
+            "    model_config = ConfigDict(extra='forbid')",
+        ]
+        for field in fields:
+            optional = field.nullable or not field.required
+            annotation = self._declared_annotation(field, optional=optional)
+            default = "None" if optional else "..."
+            args = [default, *self._declared_constraint_args(field)]
+            lines.append(
+                f"    {field.name}: {annotation} = Field({', '.join(args)})"
+            )
+        return lines
+
+    def _declared_handler(self, route: DeclaredRoute, base: str, names: tuple[str, ...]) -> list[str]:
+        handler = f"_declared_{_slug(route.operation.name)}"
+        parameters: list[str] = []
+        for field in route.path_fields:
+            parameters.append(f"{field.name}: {self._declared_annotation(field)}")
+        if route.body_fields:
+            parameters.append(f"body: {base}Request")
+        signature = ", ".join(parameters)
+        module = route.resource_module
+        names_literal = repr(names)
+        if route.method == "GET":
+            if route.path_fields:
+                return [
+                    f"def {handler}({signature}) -> dict:",
+                    f"    return _get({module!r}, {route.path_fields[0].name!r}, "
+                    f"{route.path_fields[0].name}, {names_literal})",
+                ]
+            return [
+                f"def {handler}({signature}) -> list[dict]:",
+                f"    return _list({module!r}, {names_literal})",
+            ]
+        if route.method == "POST":
+            return [
+                f"def {handler}({signature}) -> dict:",
+                f"    return _create({module!r}, body.model_dump(mode='json'), "
+                f"{names_literal})",
+            ]
+        if route.method in ("PUT", "PATCH"):
+            return [
+                f"def {handler}({signature}) -> dict:",
+                f"    return _update({module!r}, {route.path_fields[0].name!r}, "
+                f"{route.path_fields[0].name}, body.model_dump(mode='json'), "
+                f"{names_literal}, merge={route.method == 'PATCH'})",
+            ]
+        return [
+            f"def {handler}({signature}) -> dict:",
+            f"    return _delete({module!r}, {route.path_fields[0].name!r}, "
+            f"{route.path_fields[0].name}, {names_literal})",
+        ]
+
+    def _declared_apis(self, plan: CompilationPlan) -> str:
+        routes = declared_routes(plan)
+        bases = self._declared_names(routes)
+        secured = any(route.policies for route in routes)
+        lines = [
+            '"""Declared API operations bound through explicit ISR EXPOSES relations.',
+            "",
+            "A route is emitted only because the plan names its owning service,",
+            "resolves the resource it governs, and binds a typed policy that",
+            "actually governs the declared action. Nothing is inferred from",
+            "names, paths, or request fields.",
+            '"""',
+            "from __future__ import annotations",
+            "",
+            "from decimal import Decimal",
+            "",
+            "from fastapi import Depends, HTTPException",
+            "from pydantic import BaseModel, ConfigDict, Field",
+            "",
+        ]
+        if secured:
+            lines += [
+                "from app.core.authorization import require_authorization",
+                "from app.core.policies import OPERATION_POLICIES",
+            ]
+        lines += [
+            "from app.infrastructure.repositories import repository_for",
+            "",
+            "",
+        ]
+        for route, base in zip(routes, bases):
+            if route.body_fields:
+                lines += self._declared_model(f"{base}Request", route.body_fields)
+                lines += ["", ""]
+            if route.response_fields:
+                lines += self._declared_model(f"{base}Response", route.response_fields)
+                lines += ["", ""]
+        lines += [
+            "def _project(record: dict, names: tuple[str, ...]) -> dict:",
+            "    return {name: record.get(name) for name in names} if names else dict(record)",
+            "",
+            "",
+            "def _create(module: str, payload: dict, names: tuple[str, ...]) -> dict:",
+            "    return _project(repository_for(module).create(payload), names)",
+            "",
+            "",
+            "def _list(module: str, names: tuple[str, ...]) -> list[dict]:",
+            "    return [_project(record, names) for record in repository_for(module).list()]",
+            "",
+            "",
+            "def _find(module: str, field: str, value: object) -> dict:",
+            "    record = repository_for(module).find(field, value)",
+            "    if record is None:",
+            "        raise HTTPException(status_code=404, detail=f'{module} not found')",
+            "    return record",
+            "",
+            "",
+            "def _get(module: str, field: str, value: object, names: tuple[str, ...]) -> dict:",
+            "    return _project(_find(module, field, value), names)",
+            "",
+            "",
+            "def _update(module: str, field: str, value: object, payload: dict,",
+            "            names: tuple[str, ...], merge: bool) -> dict:",
+            "    repository = repository_for(module)",
+            "    existing = _find(module, field, value)",
+            "    if merge:",
+            "        payload = {**existing, **payload}",
+            "    record = repository.update(existing['id'], payload)",
+            "    if record is None:",
+            "        raise HTTPException(status_code=404, detail=f'{module} not found')",
+            "    return _project(record, names)",
+            "",
+            "",
+            "def _delete(module: str, field: str, value: object, names: tuple[str, ...]) -> dict:",
+            "    repository = repository_for(module)",
+            "    existing = _find(module, field, value)",
+            "    repository.delete(existing['id'])",
+            "    return _project(existing, names)",
+            "",
+            "",
+        ]
+        for route, base in zip(routes, bases):
+            names = tuple(field.name for field in route.response_fields)
+            lines += self._declared_handler(route, base, names)
+            lines += ["", ""]
+        lines += [
+            "def register_declared_routes(router) -> None:",
+            '    """Register each declared route with its exact method, path, and guard."""',
+        ]
+        for route, base in zip(routes, bases):
+            handler = f"_declared_{_slug(route.operation.name)}"
+            name = f"declared_{_slug(route.operation.name)}"
+            arguments = [
+                f"        {route.path!r},",
+                f"        {handler},",
+                f"        methods=[{route.method!r}],",
+                f"        name={name!r},",
+            ]
+            if route.method == "POST":
+                arguments.append("        status_code=201,")
+            if route.response_fields:
+                model = f"{base}Response"
+                if route.method == "GET" and not route.path_fields:
+                    model = f"list[{model}]"
+                arguments.append(f"        response_model={model},")
+            if route.policies:
+                arguments.append(
+                    "        dependencies=[Depends(require_authorization("
+                    f"action={route.action!r}, resource={route.resource!r}, "
+                    f"policies=OPERATION_POLICIES[{route.operation.id!r}]))],"
+                )
+            lines.append("    router.add_api_route(")
+            lines += arguments
+            lines.append("    )")
+        lines += [
+            "",
+            "",
+            "def declared_route_metadata() -> list[dict]:",
+            '    """The exact routes this module registered, for independent checks."""',
+            "    return [",
+        ]
+        for route in routes:
+            lines.append("        " + repr(route.as_dict()) + ",")
+        lines += [
+            "    ]",
+        ]
+        return "\n".join(lines) + "\n"
+
+    def _declared_operation_tests(self, plan: CompilationPlan, routes: tuple[DeclaredRoute, ...]) -> list[str]:
+        reads = [r for r in routes if r.method == "GET" and not r.path_fields]
+        singles = [r for r in routes if r.method == "GET" and r.path_fields]
+        creates = [r for r in routes if r.method == "POST"]
+        deletes = [r for r in routes if r.method == "DELETE"]
+        guarded = [r for r in routes if r.policies]
+
+        lines = [
+            "",
+            "",
+            "def test_declared_operation_emits_the_exact_route():",
+            "    paths = client.get('/openapi.json').json()['paths']",
+        ]
+        for route in routes:
+            lines.append(
+                f"    assert {route.method.lower()!r} in paths[{route.path!r}]"
+            )
+        if creates:
+            body = creates[0]
+            payload = self._declared_payload(body)
+            payload_json = json.dumps(payload, sort_keys=True)
+            headers = "HEADERS_DECLARED" if guarded else "HEADERS"
+            lines += [
+                "",
+                "",
+                "def test_declared_operation_rejects_a_malformed_payload():",
+                f"    r = client.post({body.path!r}, json={{'__unexpected__': 'invalid'}}, headers={headers})",
+                "    assert r.status_code == 422",
+            ]
+        if not guarded:
+            return lines
+
+        positive = next((self._declared_roles(r) for r in guarded if self._declared_roles(r)), [])
+        attributes = self._declared_attributes(guarded[0])
+        lines += [
+            "",
+            "",
+            f"TOKEN_DECLARED = issue_token('service-account', {positive!r}, attributes={attributes!r})",
+            "HEADERS_DECLARED = {**HEADERS, 'Authorization': f'Bearer {TOKEN_DECLARED}'}",
+            "",
+            "",
+            "def test_declared_operation_requires_a_signed_token():",
+            f"    r = client.{guarded[0].method.lower()}({guarded[0].path!r}, headers=HEADERS)",
+            "    assert r.status_code == 401",
+            "",
+            "",
+            "def test_declared_operation_denies_a_principal_without_a_grant():",
+            "    token = issue_token('intruder', ['no_such_role'])",
+            f"    r = client.{guarded[0].method.lower()}({guarded[0].path!r}, headers={{**HEADERS, 'Authorization': f'Bearer {{token}}'}})",
+            "    assert r.status_code == 403",
+        ]
+        if creates:
+            body = creates[0]
+            payload = self._declared_payload(body)
+            payload_json = json.dumps(payload, sort_keys=True)
+            if positive:
+                lines += [
+                    "",
+                    "",
+                    "def test_declared_operation_authorized_create_and_read():",
+                    f"    created = client.post({body.path!r}, json={payload_json}, headers=HEADERS_DECLARED)",
+                    "    assert created.status_code == 201",
+                    "    item = created.json()",
+                ]
+                target = next(
+                    (
+                        single for single in singles
+                        if single.service.id == body.service.id
+                        and single.resource == body.resource
+                        and single.path_fields[0].name in payload
+                    ),
+                    None,
+                )
+                if target is not None:
+                    field = target.path_fields[0].name
+                    lines += [
+                        f"    {field} = item[{field!r}]",
+                        f"    fetched = client.get(f'{target.path}', headers=HEADERS_DECLARED)",
+                        "    assert fetched.status_code == 200",
+                        f"    assert fetched.json()[{field!r}] == item[{field!r}]",
+                    ]
+                if reads:
+                    read = reads[0]
+                    lines += [
+                        f"    listed = client.get({read.path!r}, headers=HEADERS_DECLARED)",
+                        "    entries = listed.json()",
+                        "    shared = [name for name in item if entries and name in entries[0]]",
+                        "    assert shared",
+                        "    assert item[shared[0]] in [entry[shared[0]] for entry in entries]",
+                    ]
+                if reads:
+                    lines += [
+                        "",
+                        "",
+                        "def test_declared_operation_denial_does_not_mutate_state():",
+                        f"    before = client.get({reads[0].path!r}, headers=HEADERS_DECLARED).json()",
+                        "    token = issue_token('intruder', ['no_such_role'])",
+                        f"    denied = client.post({body.path!r}, json={payload_json}, headers={{**HEADERS, 'Authorization': f'Bearer {{token}}'}})",
+                        "    assert denied.status_code == 403",
+                        f"    after = client.get({reads[0].path!r}, headers=HEADERS_DECLARED).json()",
+                        "    assert after == before",
+                    ]
+                deny = next(
+                    (
+                        deletion for deletion in deletes
+                        if set(positive) & set(self._declared_deny_roles(deletion))
+                    ),
+                    None,
+                )
+                if deny is not None and target is not None:
+                    field = target.path_fields[0].name
+                    lines += [
+                        "",
+                        "",
+                        "def test_declared_operation_explicit_deny_wins():",
+                        f"    created = client.post({body.path!r}, json={payload_json}, headers=HEADERS_DECLARED)",
+                        "    item = created.json()",
+                        f"    {field} = item[{field!r}]",
+                        f"    denied = client.delete(f'{deny.path}', headers=HEADERS_DECLARED)",
+                        "    assert denied.status_code == 403",
+                        f"    still_there = client.get(f'{target.path}', headers=HEADERS_DECLARED)",
+                        "    assert still_there.status_code == 200",
+                    ]
+        return lines
+
+    def _declared_payload(self, route: DeclaredRoute) -> dict:
+        payload: dict = {}
+        for field in route.body_fields:
+            kind = field.value_type.value
+            if kind == "integer":
+                payload[field.name] = 1
+            elif kind in ("decimal", "money"):
+                payload[field.name] = "10.00"
+            elif kind == "boolean":
+                payload[field.name] = True
+            elif kind == "date":
+                payload[field.name] = "2026-01-01"
+            elif kind == "datetime":
+                payload[field.name] = "2026-01-01T00:00:00Z"
+            elif kind == "identifier":
+                payload[field.name] = f"{field.name}-alpha"
+            else:
+                payload[field.name] = "alpha"
+        return payload
 
     # -- emitters ----------------------------------------------------------
 
@@ -125,8 +806,14 @@ class PythonFastAPIBackend:
             return self._repositories()
         if path == "app/core/security.py":
             return self._security()
+        if path == "app/core/authorization.py":
+            return self._authorization()
+        if path == "app/core/policies.py":
+            return self._policies(plan)
         if path == "app/core/behavior.py":
             return self._behavior_runtime()
+        if path == "app/api/declared.py":
+            return self._declared_apis(plan)
         if path.startswith("app/domain/"):
             return self._domain(path, plan)
         if path.startswith("app/application/"):
@@ -171,6 +858,12 @@ class PythonFastAPIBackend:
             "    def list(self) -> list[dict]:\n"
             "        with self._lock:\n"
             "            return [dict(v) for k, v in sorted(self._items.items())]\n\n"
+            "    def find(self, field: str, value: object) -> dict | None:\n"
+            "        with self._lock:\n"
+            "            for record in self._items.values():\n"
+            "                if record.get(field) == value:\n"
+            "                    return dict(record)\n"
+            "            return None\n\n"
             "    def get(self, item_id: str) -> dict | None:\n"
             "        with self._lock:\n"
             "            item = self._items.get(item_id)\n"
@@ -212,6 +905,190 @@ class PythonFastAPIBackend:
             "        )\n"
             "    if not x_api_key or not secrets.compare_digest(x_api_key, expected):\n"
             '        raise HTTPException(status_code=401, detail="invalid API key")\n'
+        )
+
+    def _authorization(self) -> str:
+        return '''"""Generated authorization runtime.
+
+Identity is established by a token signed by a trusted provider. Roles and
+tenant identity are read only from verified token claims; caller-supplied
+headers are never trusted. Decisions are deny-by-default and an explicit deny
+rule always wins over an allow rule.
+"""
+from __future__ import annotations
+
+import base64
+import hashlib
+import hmac
+import json
+import os
+import time
+from dataclasses import dataclass, field
+from typing import Any, Callable, Mapping, Sequence
+
+from fastapi import HTTPException, Request
+
+
+class AuthorizationError(Exception):
+    """Raised when the authorization boundary cannot be established."""
+
+
+@dataclass(frozen=True)
+class Principal:
+    """The authenticated identity, resolved from verified token claims."""
+
+    principal_id: str
+    roles: frozenset[str] = frozenset()
+    tenant_id: str | None = None
+    attributes: Mapping[str, Any] = field(default_factory=dict)
+
+
+def _secret() -> bytes:
+    raw = os.environ.get("GENERATED_AUTH_SECRET", "")
+    if not raw:
+        raise AuthorizationError("GENERATED_AUTH_SECRET is not configured")
+    return raw.encode("utf-8")
+
+
+def _b64(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).decode("ascii").rstrip("=")
+
+
+def _unb64(text: str) -> bytes:
+    padding = "=" * (-len(text) % 4)
+    return base64.urlsafe_b64decode(text + padding)
+
+
+def issue_token(principal_id: str, roles: Sequence[str] = (), tenant_id: str | None = None,
+                attributes: Mapping[str, Any] | None = None, ttl_seconds: int = 3600) -> str:
+    """Mint a signed token for the trusted provider that authenticated the caller."""
+    claims = {
+        "sub": principal_id,
+        "roles": list(roles),
+        "tenant_id": tenant_id,
+        "attributes": dict(attributes or {}),
+        "exp": int(time.time()) + int(ttl_seconds),
+    }
+    body = _b64(json.dumps(claims, sort_keys=True, separators=(",", ":")).encode("utf-8"))
+    signature = _b64(hmac.new(_secret(), body.encode("ascii"), hashlib.sha256).digest())
+    return f"{body}.{signature}"
+
+
+def resolve_principal(authorization: str | None) -> Principal:
+    """Establish identity from a signed token, or refuse the request."""
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="bearer token required")
+    token = authorization.split(" ", 1)[1].strip()
+    if token.count(".") != 1:
+        raise HTTPException(status_code=401, detail="malformed token")
+    body, signature = token.split(".", 1)
+    expected = _b64(hmac.new(_secret(), body.encode("ascii"), hashlib.sha256).digest())
+    if not hmac.compare_digest(signature, expected):
+        raise HTTPException(status_code=401, detail="invalid token signature")
+    try:
+        claims = json.loads(_unb64(body).decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        raise HTTPException(status_code=401, detail="malformed token")
+    if not isinstance(claims, dict):
+        raise HTTPException(status_code=401, detail="malformed token")
+    if int(claims.get("exp") or 0) < int(time.time()):
+        raise HTTPException(status_code=401, detail="token expired")
+    principal_id = str(claims.get("sub") or "")
+    if not principal_id:
+        raise HTTPException(status_code=401, detail="token carries no subject")
+    return Principal(
+        principal_id=principal_id,
+        roles=frozenset(str(role) for role in claims.get("roles") or ()),
+        tenant_id=claims.get("tenant_id"),
+        attributes=dict(claims.get("attributes") or {}),
+    )
+
+
+def _matches(rule: Mapping[str, Any], principal: Principal, action: str,
+             resource: str, attributes: Mapping[str, Any]) -> bool:
+    if rule.get("resource") not in (resource, "*"):
+        return False
+    actions = rule.get("actions") or ()
+    if "*" not in actions and action not in actions:
+        return False
+    if not set(rule.get("roles") or ()).intersection(principal.roles):
+        return False
+    subject_attributes = dict(principal.attributes or {})
+    for key, expected in (rule.get("conditions") or {}).items():
+        if key in attributes:
+            actual = attributes[key]
+        elif key in subject_attributes:
+            actual = subject_attributes[key]
+        else:
+            # Absence of a required attribute never grants access.
+            return False
+        if actual != expected:
+            return False
+    return True
+
+
+def evaluate(policies: Sequence[Mapping[str, Any]], principal: Principal, action: str,
+             resource: str, resource_attributes: Mapping[str, Any] | None = None) -> tuple[bool, str]:
+    """Decide an access request. Deny by default; an explicit deny always wins."""
+    attributes = dict(resource_attributes or {})
+    resource_tenant = attributes.get("tenant_id")
+    if resource_tenant is not None:
+        if not principal.tenant_id:
+            return False, "tenant identity is missing"
+        if principal.tenant_id != resource_tenant:
+            return False, "resource belongs to a different tenant"
+    for policy in policies:
+        for rule in policy.get("rules", []):
+            if rule.get("effect") != "deny":
+                continue
+            if _matches(rule, principal, action, resource, attributes):
+                return False, f"explicit deny rule '{rule.get('rule_id')}' matched"
+    for policy in policies:
+        for rule in policy.get("rules", []):
+            if rule.get("effect") != "allow":
+                continue
+            if _matches(rule, principal, action, resource, attributes):
+                return True, f"allow rule '{rule.get('rule_id')}' matched"
+    return False, "no matching allow rule; default deny"
+
+
+def require_authorization(action: str, resource: str,
+                          policies: Sequence[Mapping[str, Any]],
+                          resource_attributes: Callable[[], Mapping[str, Any]] | None = None):
+    """Build a route dependency that authorizes before the handler can mutate."""
+
+    async def dependency(request: Request) -> Principal:
+        principal = resolve_principal(request.headers.get("authorization"))
+        attributes = resource_attributes() if resource_attributes is not None else {}
+        allowed, reason = evaluate(policies, principal, action, resource, attributes)
+        if not allowed:
+            raise HTTPException(status_code=403, detail=reason)
+        return principal
+
+    return dependency
+'''
+
+    def _policies(self, plan: CompilationPlan) -> str:
+        protected = protected_services(plan)
+        service_payload: dict[str, list[dict]] = {}
+        for service in plan.services:
+            policies = protected.get(service.id)
+            if not policies:
+                continue
+            service_payload[_slug(service.name)] = [policy_payload(policy) for policy in policies]
+        operation_payload = {
+            route.operation.id: [policy_payload(policy) for policy in route.policies]
+            for route in declared_routes(plan)
+        }
+        return (
+            '"""Declared authorization policies bound to the emitted routes."""\n'
+            "from __future__ import annotations\n\n"
+            "SERVICE_POLICIES: dict[str, list[dict]] = "
+            + json.dumps(service_payload, indent=2, sort_keys=True)
+            + "\n\n"
+            "OPERATION_POLICIES: dict[str, list[dict]] = "
+            + json.dumps(operation_payload, indent=2, sort_keys=True)
+            + "\n"
         )
 
 
@@ -563,18 +1440,25 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
         entities = self._entities(plan)
         services = self._services(plan)
         secured = self._secured(plan)
+        declared = declared_routes(plan)
         title = plan.isr_id or "generated-service"
 
         imports = ["from fastapi import APIRouter, FastAPI, HTTPException"]
         if secured:
             imports[0] = "from fastapi import APIRouter, Depends, FastAPI, HTTPException"
             imports.append("from app.core.security import require_api_key")
+        if self._has_protected_routes(plan):
+            imports[0] = "from fastapi import APIRouter, Depends, FastAPI, HTTPException"
+            imports.append("from app.core.authorization import require_authorization")
+            imports.append("from app.core.policies import SERVICE_POLICIES")
         for e in entities:
             imports.append(f"from app.domain.{e['mod']} import {e['cls']}")
         for s in services:
             imports.append(
                 f"from app.application.{s['mod']} import {s['cls']}Service"
             )
+        if declared:
+            imports.append("from app.api.declared import register_declared_routes")
 
         lines = [
             '"""Generated FastAPI application — wired CRUD, health, OpenAPI."""',
@@ -616,29 +1500,29 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
         for e in entities:
             svc_var = f"_{e['service_mod']}_service"
             lines += [
-                f"@router.get('/api/{e['plural']}')",
+                f"@router.get('/api/{e['plural']}'{self._authorization_dependency(plan, e, 'read')})",
                 f"def list_{e['plural']}() -> list[dict]:",
                 f"    return {svc_var}.list_{e['mod']}()",
                 "",
-                f"@router.post('/api/{e['plural']}', status_code=201)",
+                f"@router.post('/api/{e['plural']}', status_code=201{self._authorization_dependency(plan, e, 'create')})",
                 f"def create_{e['mod']}(payload: {e['cls']}) -> dict:",
                 f"    return {svc_var}.create_{e['mod']}(payload.model_dump())",
                 "",
-                f"@router.get('/api/{e['plural']}/{{item_id}}')",
+                f"@router.get('/api/{e['plural']}/{{item_id}}'{self._authorization_dependency(plan, e, 'read')})",
                 f"def get_{e['mod']}(item_id: str) -> dict:",
                 f"    item = {svc_var}.get_{e['mod']}(item_id)",
                 "    if item is None:",
                 f'        raise HTTPException(status_code=404, detail="{e["plural"]} not found")',
                 "    return item",
                 "",
-                f"@router.put('/api/{e['plural']}/{{item_id}}')",
+                f"@router.put('/api/{e['plural']}/{{item_id}}'{self._authorization_dependency(plan, e, 'update')})",
                 f"def update_{e['mod']}(item_id: str, payload: {e['cls']}) -> dict:",
                 f"    item = {svc_var}.update_{e['mod']}(item_id, payload.model_dump())",
                 "    if item is None:",
                 f'        raise HTTPException(status_code=404, detail="{e["plural"]} not found")',
                 "    return item",
                 "",
-                f"@router.delete('/api/{e['plural']}/{{item_id}}')",
+                f"@router.delete('/api/{e['plural']}/{{item_id}}'{self._authorization_dependency(plan, e, 'delete')})",
                 f"def delete_{e['mod']}(item_id: str) -> dict:",
                 f"    if not {svc_var}.delete_{e['mod']}(item_id):",
                 f'        raise HTTPException(status_code=404, detail="{e["plural"]} not found")',
@@ -651,6 +1535,14 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
             "    return [svc.catalog() for svc in SERVICES]",
             "",
             "",
+        ]
+        if declared:
+            lines += [
+                "register_declared_routes(router)",
+                "",
+                "",
+            ]
+        lines += [
             "app.include_router(router)",
             "",
         ]
@@ -660,15 +1552,31 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
         entities = self._entities(plan)
         events = self._events(plan)
         secured = self._secured(plan)
+        declared = declared_routes(plan)
+        authorized = self._has_protected_routes(plan) or any(
+            route.policies for route in declared
+        )
         lines = [
             "import os",
             "",
             'os.environ.setdefault("GENERATED_API_KEY", "generated-dev-key")',
             'API_KEY = os.environ["GENERATED_API_KEY"]',
+        ]
+        if authorized:
+            lines += [
+                'os.environ.setdefault("GENERATED_AUTH_SECRET", "generated-dev-secret")',
+            ]
+        lines += [
             "",
             "from fastapi.testclient import TestClient",
             "",
             "from app.main import app",
+        ]
+        if authorized:
+            lines += [
+                "from app.core.authorization import issue_token",
+            ]
+        lines += [
             "",
             "",
             "client = TestClient(app)",
@@ -865,26 +1773,92 @@ def apply_transition(transitions: list[dict[str, Any]], transition_id: str,
                 expected_updated = repr("beta")
                 payload_json = json.dumps({"name": "alpha"})
                 updated_json = json.dumps({"name": "beta"})
-            lines += [
-                f"def test_crud_{e['plural']}():",
-                f"    created = client.post('/api/{e['plural']}', json={payload_json}, headers=HEADERS)",
-                "    assert created.status_code == 201",
-                "    item_id = created.json()['id']",
-                f"    assert created.json()[{tested_field!r}] == {expected_created}",
-                f"    listed = client.get('/api/{e['plural']}', headers=HEADERS)",
-                f"    assert item_id in [i['id'] for i in listed.json()]",
-                f"    fetched = client.get(f'/api/{e['plural']}/{{item_id}}', headers=HEADERS)",
-                "    assert fetched.status_code == 200",
-                f"    assert fetched.json()[{tested_field!r}] == {expected_created}",
-                f"    updated = client.put(f'/api/{e['plural']}/{{item_id}}', json={updated_json}, headers=HEADERS)",
-                "    assert updated.status_code == 200",
-                f"    assert updated.json()[{tested_field!r}] == {expected_updated}",
-                f"    deleted = client.delete(f'/api/{e['plural']}/{{item_id}}', headers=HEADERS)",
-                "    assert deleted.status_code == 200",
-                f"    gone = client.get(f'/api/{e['plural']}/{{item_id}}', headers=HEADERS)",
-                "    assert gone.status_code == 404",
-                "",
-            ]
+            protected = self._protected_service_for(plan, e) is not None
+            allowed = self._allowed_verbs(plan, e)
+            if protected:
+                header_var = f"HEADERS_{e['plural'].upper()}"
+                roles = self._authorization_roles(plan, e)
+                attributes = self._authorization_attributes(plan, e)
+                expectations = self._authorization_expectations(plan, e)
+                granted = set(roles)
+                expected_verb = {
+                    verb: bool(granted & allow_roles) and not (granted & deny_roles)
+                    for verb, (allow_roles, deny_roles) in expectations.items()
+                }
+                lines += [
+                    f"TOKEN_{e['plural'].upper()} = issue_token('service-account', {roles!r}, attributes={attributes!r})",
+                    f"{header_var} = {{**HEADERS, 'Authorization': f'Bearer {{TOKEN_{e['plural'].upper()}}}'}}",
+                    "",
+                ]
+            else:
+                header_var = "HEADERS"
+                expected_verb = {verb: True for verb in ROUTE_VERBS}
+            create_allowed = expected_verb["create"]
+            read_allowed = expected_verb["read"]
+            update_allowed = expected_verb["update"]
+            delete_allowed = expected_verb["delete"]
+            body = [f"def test_crud_{e['plural']}():"]
+            if create_allowed:
+                body += [
+                    f"    created = client.post('/api/{e['plural']}', json={payload_json}, headers={header_var})",
+                    "    assert created.status_code == 201",
+                    "    item_id = created.json()['id']",
+                    f"    assert created.json()[{tested_field!r}] == {expected_created}",
+                ]
+            else:
+                body += [
+                    f"    denied_create = client.post('/api/{e['plural']}', json={payload_json}, headers={header_var})",
+                    "    assert denied_create.status_code == 403",
+                ]
+            if read_allowed:
+                body += [f"    listed = client.get('/api/{e['plural']}', headers={header_var})"]
+                if create_allowed:
+                    body += ["    assert item_id in [i['id'] for i in listed.json()]"]
+                else:
+                    body += ["    assert isinstance(listed.json(), list)"]
+                if create_allowed:
+                    body += [
+                        f"    fetched = client.get(f'/api/{e['plural']}/{{item_id}}', headers={header_var})",
+                        "    assert fetched.status_code == 200",
+                        f"    assert fetched.json()[{tested_field!r}] == {expected_created}",
+                    ]
+            else:
+                body += [
+                    f"    denied_read = client.get('/api/{e['plural']}', headers={header_var})",
+                    "    assert denied_read.status_code == 403",
+                ]
+            if create_allowed:
+                if update_allowed:
+                    body += [
+                        f"    updated = client.put(f'/api/{e['plural']}/{{item_id}}', json={updated_json}, headers={header_var})",
+                        "    assert updated.status_code == 200",
+                        f"    assert updated.json()[{tested_field!r}] == {expected_updated}",
+                    ]
+                else:
+                    body += [
+                        f"    denied_update = client.put(f'/api/{e['plural']}/{{item_id}}', json={updated_json}, headers={header_var})",
+                        "    assert denied_update.status_code == 403",
+                    ]
+                if delete_allowed:
+                    body += [
+                        f"    deleted = client.delete(f'/api/{e['plural']}/{{item_id}}', headers={header_var})",
+                        "    assert deleted.status_code == 200",
+                    ]
+                    if read_allowed:
+                        body += [
+                            f"    gone = client.get(f'/api/{e['plural']}/{{item_id}}', headers={header_var})",
+                            "    assert gone.status_code == 404",
+                        ]
+                else:
+                    body += [
+                        f"    denied_delete = client.delete(f'/api/{e['plural']}/{{item_id}}', headers={header_var})",
+                        "    assert denied_delete.status_code == 403",
+                    ]
+            body += [""]
+            lines += body
+        lines += self._authorization_tests(plan, entities)
+        if declared:
+            lines += self._declared_operation_tests(plan, declared)
         if secured and entities:
             first = entities[0]["plural"]
             lines += [

@@ -124,7 +124,9 @@ KNOWN_PRS: dict[int, str] = {
     138: "CLOSED",
     139: "MERGED",
     140: "MERGED",
-    152: "OPEN",
+    152: "MERGED",
+    156: "MERGED",
+    157: "OPEN",
 }
 
 
@@ -201,12 +203,28 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
             _code("reqgraph/core/invariants.py"),
             _code("reqgraph/adapters/tor_isr.py"),
             _code("compiler/core/lowering.py"),
+            _code("compiler/core/authorization.py"),
+            _code("compiler/backends/python_fastapi.py"),
+            _code("certification/authorization/corpus.py"),
+            _code("certification/authorization/candidate.py"),
+            _code("certification/authorization/runtime.py"),
+            _code("certification/authorization/campaign.py"),
+            _code("certification/authorization/verifier.py"),
+            _code("certification/authorization/workloads.py"),
+            _code("certification/authorization/workload_payroll.py"),
+            _code("certification/authorization/workload_orders.py"),
+            _code("certification/authorization/workload_inventory.py"),
+            _code("certification/authorization/workload_shipments.py"),
             _test("tests/cbc1/test_campaign_a.py"),
             _test("tests/test_source_bound_behavioral_projection.py"),
+            _test("tests/test_authorization_enforcement.py"),
+            _test("tests/authorization/test_authorization_campaign.py"),
             _test("tests/integration/test_generated_backend_behavior_builds.py"),
             _workflow(".github/workflows/react-frontend-compiler.yml"),
+            _workflow(".github/workflows/authorization-campaign.yml"),
             _pr(137, "typed behavioural ISR contract merged; end-to-end emitter consumption remains a separate closure gate"),
-            _pr(152, "source-bound typed behavior reaches Python, Rust, and React plans under review"),
+            _pr(152, "source-bound typed behavior reaches Python, Rust, and React plans"),
+            _pr(157, "trusted principal resolution and per-route policy enforcement in the Python backend"),
         ),
         closure_gate=(
             "Representative requirements produce typed ISR semantics with explicit "
@@ -215,7 +233,10 @@ WORK_PACKAGES: tuple[WorkPackage, ...] = (
         claimed_tiers=(CertificationTier.STRUCTURAL, CertificationTier.BEHAVIORAL),
         limitations=(
             "Main ISR carries entities, edges, events and security only.",
-            "Source-bound typed fields, rules, transitions, API contracts, and frontend interactions now reach plans and generated artifacts in PR #152; authorization, effects, and consequence semantics remain Stage 2-3 work.",
+            "Source-bound typed fields, rules, transitions, API contracts, and frontend interactions reach plans and generated artifacts; authorization is enforced for service-scoped policies on the Python backend only.",
+            "Declared API operations are still not emitted, so obligations bound to them fail closed; the Rust backend still refuses every authorization obligation.",
+            "The authorization certification lane covers four source-bound workloads on the Python backend with a Rust negative control; it does not change the 39-workload, 78-trial Campaign A scope.",
+            "The lane's acceptance criteria are tracked in repository issue #158 and its corpus expansion in issue #161; W02 stays IN_PROGRESS until every remaining gate passes.",
         ),
     ),
     WorkPackage(

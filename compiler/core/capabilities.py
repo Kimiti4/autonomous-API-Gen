@@ -71,8 +71,14 @@ def required_features(plan: CompilationPlan) -> frozenset[SemanticFeature]:
     for api in plan.apis:
         if api.behavior is not None:
             required.add(SemanticFeature.API_CONTRACTS)
-            if api.behavior.authorization_policy_ids or api.security_policies:
-                required.add(SemanticFeature.AUTHORIZATION_POLICIES)
+        # A policy bound to an operation is an authorization obligation in its
+        # own right. It must not disappear from capability checks just because
+        # the policy carries no typed behavior, and it must not disappear
+        # because the operation has no behavior payload of its own.
+        if api.security_policies or (
+            api.behavior is not None and api.behavior.authorization_policy_ids
+        ):
+            required.add(SemanticFeature.AUTHORIZATION_POLICIES)
 
     for policy in plan.security:
         if policy.behavior is not None:

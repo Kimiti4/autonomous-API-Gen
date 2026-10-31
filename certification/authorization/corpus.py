@@ -1,0 +1,544 @@
+"""Versioned authorization corpus — source-bound, typed, operation-bound policies.
+
+The corpus is certification-owned and separate from the general Campaign A
+substrate matrix. Campaign A covers 39 workloads across two backends; adding
+mandatory typed authorization there would make the Rust matrix fail for a
+known unsupported feature and obscure the result. This corpus instead carries
+explicit, reviewable authorization workloads for the Python backend, with the
+Rust backend kept as a negative control.
+
+Every workload in this corpus declares, in its own source text:
+
+* the role that governs the operation,
+* the operations that role may perform, and
+* the operation that role may not perform.
+
+The reviewer-authored approval then binds that source requirement to a typed
+ISR policy. No policy is inferred from prose, and the declared behaviour must
+be traceable back to the statement that authorised it.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+from dataclasses import dataclass
+from typing import Any, Mapping, Sequence
+
+from compiler.core.authorization import ROUTE_VERBS, canonical_action
+from reqgraph.ingestion.tor_extractor import HumanApproval
+
+CORPUS_SCHEMA_ID = "tiannara.authorization.corpus"
+CORPUS_VERSION = "1.1.0"
+
+#: The operation/resource vocabulary is platform-defined, not invented per app.
+_ALLOWED_EFFECTS = ("allow", "deny")
+_ALLOWED_METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE")
+
+
+class CorpusError(ValueError):
+    """Raised when a corpus entry violates the authorization corpus contract."""
+
+
+@dataclass(frozen=True)
+class OperationBinding:
+    """A named operation a policy governs."""
+
+    operation: str
+    resource: str
+    effect: str
+    roles: tuple[str, ...]
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "operation": self.operation,
+            "resource": self.resource,
+            "effect": self.effect,
+            "roles": list(self.roles),
+        }
+
+    @property
+    def key(self) -> tuple[str, str, str]:
+        return (self.operation, self.resource, self.effect)
+
+
+@dataclass(frozen=True)
+class MutationCase:
+    """A policy mutation that must invalidate the previous candidate evidence.
+
+    The corpus authors its own mutations because a mutation is only valid when
+    the source still authorises the changed policy. Each case therefore
+    rewrites the source statement and the approval together.
+    """
+
+    kind: str
+    description: str
+    apply: Any
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"kind": self.kind, "description": self.description}
+
+
+@dataclass(frozen=True)
+class DeclaredOperation:
+    """A declared API route the corpus requires the candidate to emit.
+
+    The entry mirrors the ISR ``api`` declaration: the compiler validates the
+    same bindings, and the campaign proves the emitted route, its service
+    owner, and its policy binding match this record exactly.
+    """
+
+    api_id: str
+    operation: str
+    method: str
+    path: str
+    resource: str
+    policy_ids: tuple[str, ...]
+    request_fields: tuple[str, ...] = ()
+    response_fields: tuple[str, ...] = ()
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "api_id": self.api_id,
+            "operation": self.operation,
+            "method": self.method,
+            "path": self.path,
+            "resource": self.resource,
+            "policy_ids": list(self.policy_ids),
+            "request_fields": list(self.request_fields),
+            "response_fields": list(self.response_fields),
+        }
+
+    @property
+    def key(self) -> tuple[str, str]:
+        from compiler.core.declared_api import normalized_path
+
+        return (self.method, normalized_path(self.path))
+
+
+@dataclass(frozen=True)
+class AuthorizationWorkload:
+    """One source-bound authorization workload.
+
+    Requirements are addressed by a stable needle inside the source statement,
+    because the extractor's requirement identifiers are derived from the
+    source digest and the line number.
+    """
+
+    workload_id: str
+    source_name: str
+    source_text: str
+    approval_needles: tuple[tuple[str, dict[str, Any]], ...]
+    policy_requirement_needle: str
+    policy_node_id: str
+    policy_node: dict[str, Any]
+    policy_edge: dict[str, Any]
+    bound_operations: tuple[OperationBinding, ...]
+    system_id: str
+    revision_id: str
+    created_at: str
+    mutations: tuple[MutationCase, ...] = ()
+    declared_operations: tuple[DeclaredOperation, ...] = ()
+
+    def resolve_requirements(self, draft: Any) -> tuple[dict[str, HumanApproval], str]:
+        """Bind the corpus needles to the draft's requirement identifiers."""
+        approvals: dict[str, HumanApproval] = {}
+        policy_requirement_id = ""
+        for needle, payload in self.approval_needles:
+            matches = [c for c in draft.candidates if needle in c.statement]
+            if len(matches) != 1:
+                raise CorpusError(
+                    f"expected exactly one requirement matching {needle!r}, got {len(matches)}"
+                )
+            requirement_id = matches[0].requirement_id
+            if needle == self.policy_requirement_needle:
+                policy_requirement_id = requirement_id
+            approvals[requirement_id] = HumanApproval.model_validate(
+                _bind_requirement_id(payload, requirement_id)
+            )
+        if not policy_requirement_id:
+            raise CorpusError("the policy requirement needle matched no requirement")
+        return approvals, policy_requirement_id
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "workload_id": self.workload_id,
+            "source_name": self.source_name,
+            "source_text": self.source_text,
+            "approval_needles": [
+                {"needle": needle, "payload": payload}
+                for needle, payload in self.approval_needles
+            ],
+            "policy_requirement_needle": self.policy_requirement_needle,
+            "policy_node_id": self.policy_node_id,
+            "policy_node": self.policy_node,
+            "policy_edge": self.policy_edge,
+            "bound_operations": [binding.as_dict() for binding in self.bound_operations],
+            "declared_operations": [
+                operation.as_dict() for operation in self.declared_operations
+            ],
+            "system_id": self.system_id,
+            "revision_id": self.revision_id,
+            "created_at": self.created_at,
+            "mutation_kinds": [mutation.kind for mutation in self.mutations],
+        }
+
+
+def _canonical(obj: Any) -> str:
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+#: Placeholder replaced with the approving requirement identifier at bind time.
+REQUIREMENT_ID_TOKEN = "$requirement_id"
+
+
+def _bind_requirement_id(payload: Any, requirement_id: str) -> Any:
+    """Replace the requirement-id placeholder inside a declaration payload."""
+    if isinstance(payload, str):
+        return requirement_id if payload == REQUIREMENT_ID_TOKEN else payload
+    if isinstance(payload, Mapping):
+        return {
+            key: _bind_requirement_id(value, requirement_id)
+            for key, value in payload.items()
+        }
+    if isinstance(payload, (list, tuple)):
+        return [_bind_requirement_id(value, requirement_id) for value in payload]
+    return payload
+
+
+def corpus_hash(workloads: Sequence[AuthorizationWorkload]) -> str:
+    """Deterministic digest of the whole corpus, including source text."""
+    payload = [workload.as_dict() for workload in workloads]
+    return hashlib.sha256(_canonical(payload).encode("utf-8")).hexdigest()
+
+
+def _statement_for(source_text: str, requirement_id: str) -> str:
+    from reqgraph.ingestion.tor_extractor import extract_tor_text
+
+    draft = extract_tor_text(source_text, "authorization-corpus.md")
+    for candidate in draft.candidates:
+        if candidate.requirement_id == requirement_id:
+            return candidate.statement
+    raise CorpusError(f"requirement {requirement_id!r} is not present in the source text")
+
+
+def _route_vocabulary(resource: str) -> set[str]:
+    return {canonical_action(resource, verb) for verb in ROUTE_VERBS}
+
+
+def validate_policy_declaration(
+    workload: AuthorizationWorkload,
+    *,
+    statement: str,
+) -> None:
+    """Validate the typed policy declaration against the authorization contract.
+
+    The declaration must be a typed security policy, bound to the service that
+    owns the named resource, and every role, verb, and resource it names must
+    be traceable to the statement that authorised it.
+    """
+    node = workload.policy_node
+    node_id = node.get("id")
+    if node_id != workload.policy_node_id:
+        raise CorpusError("policy node id does not match the corpus entry")
+    if node.get("type") != "security_policy":
+        raise CorpusError(f"policy node {node_id!r} must be a security_policy node")
+
+    properties = node.get("properties")
+    if not isinstance(properties, Mapping):
+        raise CorpusError(f"policy node {node_id!r} needs a properties mapping")
+    behavior = properties.get("behavior")
+    if not isinstance(behavior, Mapping):
+        raise CorpusError(f"policy node {node_id!r} must carry typed behavior")
+    roles = behavior.get("roles")
+    if not isinstance(roles, (list, tuple)) or not roles:
+        raise CorpusError(f"policy node {node_id!r} must declare at least one role")
+    rules = behavior.get("rules")
+    if not isinstance(rules, (list, tuple)) or not rules:
+        raise CorpusError(f"policy node {node_id!r} must declare at least one rule")
+
+    edge = workload.policy_edge
+    if edge.get("type") != "secured_by":
+        raise CorpusError("the policy must be bound with a secured_by edge")
+    if edge.get("target_id") != workload.policy_node_id:
+        raise CorpusError("the secured_by edge must target the declared policy")
+
+    statement_lower = statement.lower()
+    declared: dict[tuple[str, str, str], OperationBinding] = {}
+    for rule in rules:
+        if not isinstance(rule, Mapping):
+            raise CorpusError("each policy rule must be a mapping")
+        rule_id = rule.get("rule_id")
+        effect = rule.get("effect")
+        rule_roles = rule.get("roles")
+        actions = rule.get("actions")
+        resource = rule.get("resource")
+        if not isinstance(rule_id, str) or not rule_id:
+            raise CorpusError("each policy rule needs a rule_id")
+        if effect not in _ALLOWED_EFFECTS:
+            raise CorpusError(f"rule {rule_id!r} must have effect allow or deny")
+        if not isinstance(rule_roles, (list, tuple)) or not rule_roles:
+            raise CorpusError(f"rule {rule_id!r} must name the roles it governs")
+        if not isinstance(actions, (list, tuple)) or not actions:
+            raise CorpusError(f"rule {rule_id!r} must name the operations it governs")
+        if not isinstance(resource, str) or not resource:
+            raise CorpusError(f"rule {rule_id!r} must name the resource it governs")
+
+        vocabulary = _route_vocabulary(resource)
+        for action in actions:
+            if action not in vocabulary:
+                raise CorpusError(
+                    f"rule {rule_id!r} names action {action!r}, which is not a route "
+                    f"operation of resource {resource!r}"
+                )
+            verb = action.rsplit(".", 1)[1]
+            if verb not in statement_lower:
+                raise CorpusError(
+                    f"rule {rule_id!r} names operation {action!r}, but the source "
+                    "statement does not authorise it"
+                )
+        if resource.lower() not in statement_lower:
+            raise CorpusError(
+                f"rule {rule_id!r} names resource {resource!r}, which the source "
+                "statement does not authorise"
+            )
+        for role in (*roles, *rule_roles):
+            if str(role).lower() not in statement_lower:
+                raise CorpusError(
+                    f"rule {rule_id!r} names role {role!r}, which the source "
+                    "statement does not authorise"
+                )
+        for key, value in (rule.get("conditions") or {}).items():
+            if not isinstance(key, str) or not key:
+                raise CorpusError(f"rule {rule_id!r} has a condition without an attribute name")
+            if isinstance(value, str) and value.lower() not in statement_lower:
+                raise CorpusError(
+                    f"rule {rule_id!r} requires attribute {key!r}={value!r}, which the "
+                    "source statement does not authorise"
+                )
+        binding = OperationBinding(
+            operation=actions[0] if len(actions) == 1 else "*, ".join(actions),
+            resource=resource,
+            effect=effect,
+            roles=tuple(str(role) for role in rule_roles),
+        )
+        for action in actions:
+            key = (action, resource, effect)
+            declared[key] = OperationBinding(
+                operation=action,
+                resource=resource,
+                effect=effect,
+                roles=tuple(str(role) for role in rule_roles),
+            )
+
+    expected = {binding.key for binding in workload.bound_operations}
+    if expected != set(declared):
+        raise CorpusError(
+            "the declared bound operations do not match the typed policy rules: "
+            f"declared={sorted(declared)} expected={sorted(expected)}"
+        )
+
+
+def _approved_api_nodes(workload: AuthorizationWorkload) -> dict[str, dict[str, Any]]:
+    """Return the api nodes the workload's approvals declare, by node id."""
+    nodes: dict[str, dict[str, Any]] = {}
+    for _, payload in workload.approval_needles:
+        for node in payload.get("isr_nodes", ()):
+            if isinstance(node, Mapping) and node.get("type") == "api":
+                node_id = str(node.get("id"))
+                if node_id in nodes:
+                    raise CorpusError(f"api node {node_id!r} is declared twice")
+                nodes[node_id] = dict(node)
+    return nodes
+
+
+def _approved_api_edges(workload: AuthorizationWorkload) -> tuple[dict[str, Any], ...]:
+    edges: list[dict[str, Any]] = []
+    for _, payload in workload.approval_needles:
+        for edge in payload.get("isr_edges", ()):
+            if isinstance(edge, Mapping) and edge.get("type") in ("exposes", "secured_by"):
+                edges.append(dict(edge))
+    return tuple(edges)
+
+
+def validate_declared_operations(workload: AuthorizationWorkload) -> None:
+    """Validate the declared route surface against the approved ISR declarations.
+
+    Every declared operation must be traceable to an approved ``api`` node, be
+    exposed by the same service that owns the policy, be secured by exactly the
+    policies it names, and name an action the policy actually governs. A route
+    declared here but absent from the approvals (or vice versa) is an error, not
+    a silently dropped obligation.
+    """
+    if not workload.declared_operations:
+        return
+
+    api_nodes = _approved_api_nodes(workload)
+    edges = _approved_api_edges(workload)
+    service_id = str(workload.policy_edge.get("source_id", ""))
+    if not service_id:
+        raise CorpusError("the policy edge must name the service that owns the policy")
+
+    rules = (workload.policy_node.get("properties") or {}).get("behavior", {}).get("rules") or ()
+    governed = {
+        (action, str(rule.get("resource")))
+        for rule in rules
+        if isinstance(rule, Mapping)
+        for action in rule.get("actions") or ()
+    }
+
+    keys: set[tuple[str, str]] = set()
+    declared_ids: set[str] = set()
+    for operation in workload.declared_operations:
+        if operation.api_id in declared_ids:
+            raise CorpusError(f"declared operation {operation.api_id!r} appears twice")
+        declared_ids.add(operation.api_id)
+        if operation.method not in _ALLOWED_METHODS:
+            raise CorpusError(
+                f"declared operation {operation.api_id!r} has unsupported method "
+                f"{operation.method!r}"
+            )
+        if not operation.path.startswith("/"):
+            raise CorpusError(f"declared operation {operation.api_id!r} has a non-absolute path")
+        if operation.key in keys:
+            raise CorpusError(
+                f"declared operations collide on {operation.method} {operation.path!r}"
+            )
+        keys.add(operation.key)
+        if not operation.policy_ids:
+            raise CorpusError(
+                f"declared operation {operation.api_id!r} is not bound to a policy"
+            )
+        if (operation.operation, operation.resource) not in governed:
+            raise CorpusError(
+                f"declared operation {operation.api_id!r} names action "
+                f"{operation.operation!r} on {operation.resource!r}, which the "
+                "policy does not govern"
+            )
+
+        node = api_nodes.get(operation.api_id)
+        if node is None:
+            raise CorpusError(
+                f"declared operation {operation.api_id!r} is not approved as an api node"
+            )
+        behavior = (node.get("properties") or {}).get("behavior") or {}
+        if (
+            behavior.get("operation_id") != operation.operation
+            or behavior.get("method") != operation.method
+            or behavior.get("path") != operation.path
+        ):
+            raise CorpusError(
+                f"declared operation {operation.api_id!r} does not match its approved "
+                "api behavior"
+            )
+        request_names = tuple(
+            field.get("name") for field in behavior.get("request_fields") or ()
+        )
+        response_names = tuple(
+            field.get("name") for field in behavior.get("response_fields") or ()
+        )
+        if request_names != operation.request_fields:
+            raise CorpusError(
+                f"declared operation {operation.api_id!r} request fields do not match "
+                "its approved api behavior"
+            )
+        if response_names != operation.response_fields:
+            raise CorpusError(
+                f"declared operation {operation.api_id!r} response fields do not match "
+                "its approved api behavior"
+            )
+
+        exposes = [
+            edge for edge in edges
+            if edge.get("type") == "exposes" and edge.get("target_id") == operation.api_id
+        ]
+        if len(exposes) != 1 or exposes[0].get("source_id") != service_id:
+            raise CorpusError(
+                f"declared operation {operation.api_id!r} must be exposed by exactly "
+                f"service {service_id!r}"
+            )
+        secured = {
+            str(edge.get("target_id")) for edge in edges
+            if edge.get("type") == "secured_by" and edge.get("source_id") == operation.api_id
+        }
+        if secured != set(operation.policy_ids):
+            raise CorpusError(
+                f"declared operation {operation.api_id!r} secured_by edges "
+                f"{sorted(secured)} do not match its declared policies "
+                f"{sorted(operation.policy_ids)}"
+            )
+
+    unapproved = sorted(set(api_nodes) - declared_ids)
+    if unapproved:
+        raise CorpusError(
+            f"approved api nodes {unapproved} are missing from the declared operations"
+        )
+
+
+def validate_workload(workload: AuthorizationWorkload) -> None:
+    """Validate a corpus entry end to end."""
+    if not workload.source_text.strip():
+        raise CorpusError("workload source text must not be empty")
+    from reqgraph.ingestion.tor_extractor import extract_tor_text
+
+    draft = extract_tor_text(workload.source_text, workload.source_name)
+    approvals, policy_requirement_id = workload.resolve_requirements(draft)
+    for requirement_id, approval in approvals.items():
+        if not approval.reviewer_id or not approval.approval_ref:
+            raise CorpusError(f"approval for {requirement_id!r} must name a reviewer and a reference")
+        if not approval.acceptance_criteria:
+            raise CorpusError(f"approval for {requirement_id!r} must state acceptance criteria")
+    statement = _statement_for(workload.source_text, policy_requirement_id)
+    validate_policy_declaration(workload, statement=statement)
+    validate_declared_operations(workload)
+
+
+def build_workload(
+    *,
+    workload_id: str,
+    source_name: str,
+    source_text: str,
+    approval_needles: Sequence[tuple[str, dict[str, Any]]],
+    policy_requirement_needle: str,
+    policy_node_id: str,
+    policy_node: dict[str, Any],
+    policy_edge: dict[str, Any],
+    bound_operations: Sequence[OperationBinding],
+    system_id: str,
+    revision_id: str,
+    created_at: str,
+    mutations: Sequence[MutationCase] = (),
+    declared_operations: Sequence[DeclaredOperation] = (),
+) -> AuthorizationWorkload:
+    """Build and validate one corpus entry, including its mutation cases."""
+    workload = AuthorizationWorkload(
+        workload_id=workload_id,
+        source_name=source_name,
+        source_text=source_text,
+        approval_needles=tuple(approval_needles),
+        policy_requirement_needle=policy_requirement_needle,
+        policy_node_id=policy_node_id,
+        policy_node=policy_node,
+        policy_edge=policy_edge,
+        bound_operations=tuple(bound_operations),
+        system_id=system_id,
+        revision_id=revision_id,
+        created_at=created_at,
+        mutations=tuple(mutations),
+        declared_operations=tuple(declared_operations),
+    )
+    validate_workload(workload)
+    for mutation in workload.mutations:
+        mutated = mutation.apply(workload)
+        if mutated.workload_id != workload.workload_id:
+            raise CorpusError(
+                f"mutation {mutation.kind!r} of {workload.workload_id!r} changes the workload id"
+            )
+        validate_workload(mutated)
+    return workload
+
+
+def rebuild_workload(workload: AuthorizationWorkload, **changes: Any) -> AuthorizationWorkload:
+    """Return a modified copy of a workload, keeping its mutation cases."""
+    import dataclasses
+
+    return dataclasses.replace(workload, **changes)

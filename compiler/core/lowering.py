@@ -40,6 +40,7 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
     svc_security: dict[str, list[SecurityPolicy]] = {}
     svc_effects: dict[str, list[Effect]] = {}
     api_security: dict[str, list[SecurityPolicy]] = {}
+    api_services: dict[str, list[str]] = {}
     services: list[Service] = []
     apis: list[ApiOperation] = []
     effects: list[Effect] = []
@@ -72,9 +73,12 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
             invariants.append(Invariant(id=node_id, name=label, behavior=_behavior(node)))
 
     effects_by_id = {effect.id: effect for effect in effects}
+    api_ids = {api.id for api in apis}
 
     for edge in graph.edges.values():
-        if edge.type == EdgeType.CAUSES_EFFECT and edge.target_id in effects_by_id:
+        if edge.type == EdgeType.EXPOSES and edge.target_id in api_ids:
+            api_services.setdefault(edge.target_id, []).append(edge.source_id)
+        elif edge.type == EdgeType.CAUSES_EFFECT and edge.target_id in effects_by_id:
             svc_effects.setdefault(edge.source_id, []).append(effects_by_id[edge.target_id])
         elif edge.type == EdgeType.PERSISTS and edge.target_id in dm_by_id:
             svc_data_models.setdefault(edge.source_id, []).append(dm_by_id[edge.target_id])
@@ -88,7 +92,23 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
             else:
                 svc_security.setdefault(edge.source_id, []).append(sec_by_id[edge.target_id])
 
-    apis = [api.model_copy(update={"security_policies": api_security.get(api.id, [])}) for api in apis]
+    ambiguous_api_services = {
+        api_id: sorted(set(service_ids))
+        for api_id, service_ids in api_services.items()
+        if len(set(service_ids)) != 1
+    }
+    if ambiguous_api_services:
+        raise ValueError(
+            "API operations must have exactly one explicit EXPOSES service binding: "
+            f"{ambiguous_api_services}"
+        )
+    apis = [
+        api.model_copy(update={
+            "security_policies": api_security.get(api.id, []),
+            "service_id": next(iter(api_services.get(api.id, ())), None),
+        })
+        for api in apis
+    ]
 
     api_by_id = {api.id: api for api in apis}
     frontend_interactions: dict[str, FrontendInteraction] = {}

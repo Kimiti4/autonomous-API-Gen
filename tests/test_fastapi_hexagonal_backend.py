@@ -103,6 +103,8 @@ def test_compile_emits_expected_files():
         f"{slug}/api/routes.py",
         f"{slug}/api/schemas.py",
         f"{slug}/api/deps.py",
+        f"{slug}/observability.py",
+        f"{slug}/observability-map.json",
         f"{slug}/tests/test_api.py",
         "requirements.txt",
         "requirements-dev.txt",
@@ -127,6 +129,9 @@ def test_capability_manifest_is_honest():
     assert BundleCapability.INFRASTRUCTURE_PROVISION not in caps
     assert BundleCapability.DATABASE_MIGRATION not in caps
     assert result.capability_manifest.backend_id == "fastapi_hexagonal"
+    observability = result.capability_manifest.metadata["observability"]
+    assert observability["external_trace_export"] is False
+    assert observability["audit_events"] is False
 
 
 def test_generated_python_files_compile(generated):
@@ -263,6 +268,76 @@ def test_generated_api_behaviour(generated):
     assert client.get("/items", headers=headers).status_code == 200
     assert client.delete(f"/items/{item_id}", headers=headers).status_code == 204
     assert client.get(f"/items/{item_id}", headers=headers).status_code == 404
+
+
+def test_generated_observability_contract(generated):
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    slug, _tmp, result = generated
+    main = importlib.import_module(f"{slug}.main")
+    config = importlib.import_module(f"{slug}.config")
+    settings = config.Settings(api_key="secret", app_version="1.2.3", deployment_id="test-deploy")
+    client = TestClient(main.create_app(settings), raise_server_exceptions=False)
+    trace_id = "1" * 32
+    parent_span_id = "2" * 16
+    response = client.get(
+        "/health/live",
+        headers={
+            "X-Request-ID": "req-123",
+            "X-Correlation-ID": "corr-456",
+            "traceparent": f"00-{trace_id}-{parent_span_id}-01",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json() == {"status": "alive"}
+    assert response.headers["X-Request-ID"] == "req-123"
+    assert response.headers["X-Correlation-ID"] == "corr-456"
+    _, response_trace_id, response_span_id, _ = response.headers["traceparent"].split("-")
+    assert response_trace_id == trace_id
+    assert response_span_id != parent_span_id
+
+    assert client.get("/health/ready").json() == {"status": "ready"}
+    assert client.get("/health").status_code == 200
+    assert client.get("/readiness").status_code == 200
+    metrics = client.get("/metrics")
+    assert metrics.status_code == 200
+    assert "generated_http_requests_total" in metrics.text
+    assert 'route="/health/live"' in metrics.text
+    assert 'app_version="1.2.3"' in metrics.text
+    assert 'deployment_id="test-deploy"' in metrics.text
+
+    observability_map = __import__("json").loads(
+        result.files[f"{slug}/observability-map.json"]
+    )
+    assert observability_map["requirements_source"]["graph_id"] == "g"
+    assert any(event["name"] == "http.request.completed" for event in observability_map["runtime_events"])
+    assert any("no external trace exporter" in limitation for limitation in observability_map["limitations"])
+    requirement_status = {
+        item["requirement"]: item["status"]
+        for item in observability_map["requirement_bindings"]
+    }
+    assert requirement_status["distributed_tracing"] == "PARTIAL"
+    assert requirement_status["audit_events"] == "NOT_IMPLEMENTED"
+
+
+def test_generated_internal_errors_have_safe_error_identity(generated):
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    slug, _tmp, _result = generated
+    main = importlib.import_module(f"{slug}.main")
+    app = main.create_app()
+
+    @app.get("/test-failure")
+    def fail():
+        raise RuntimeError("sensitive internal detail")
+
+    response = TestClient(app, raise_server_exceptions=False).get("/test-failure")
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Internal server error"
+    assert response.json()["error_id"] == response.headers["X-Error-ID"]
+    assert "sensitive internal detail" not in response.text
 
 
 def test_generated_bundle_runs_smoke(tmp_path):

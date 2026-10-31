@@ -1,0 +1,35 @@
+name: Tiannara Nuxt Browser Evidence
+on:
+  pull_request:
+    paths: ["tiannara/application/compiler/nuxt_frontend.py", "scripts/tiannara_nuxt_fixture.py", "tests/test_tiannara_nuxt_browser_evidence.py", ".github/workflows/tiannara-nuxt-browser-evidence.yml"]
+  workflow_dispatch:
+permissions: { contents: read }
+env: { FIXTURE_DIR: tiannara-nuxt-fixture }
+jobs:
+  generated-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - run: python -m pip install "pydantic>=2.7,<3" pytest
+      - run: python -m pytest tests/test_tiannara_nuxt_browser_evidence.py -q
+      - run: python scripts/tiannara_nuxt_fixture.py "${{ env.FIXTURE_DIR }}" "Payment,Invoice"
+      - working-directory: ${{ env.FIXTURE_DIR }}
+        run: npm install --no-audit --no-fund
+      - working-directory: ${{ env.FIXTURE_DIR }}
+        run: npm run build
+      - working-directory: ${{ env.FIXTURE_DIR }}
+        run: npm test
+      - working-directory: ${{ env.FIXTURE_DIR }}
+        run: npx playwright install --with-deps chromium
+      - working-directory: ${{ env.FIXTURE_DIR }}
+        run: npm run test:e2e
+      - run: python scripts/tiannara_nuxt_fixture.py "${{ env.FIXTURE_DIR }}" --negative-control
+      - working-directory: ${{ env.FIXTURE_DIR }}
+        shell: bash
+        run: |
+          if npm run test:e2e; then echo negative control passed >&2; exit 1; else echo rejected; fi

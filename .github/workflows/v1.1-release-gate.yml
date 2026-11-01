@@ -219,7 +219,7 @@ jobs:
             ${{ env.DASHBOARD_DIR }}/package-lock.json
 
       - name: Restore observation-client build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: observation-client-dist
           path: ${{ env.OBSERVATION_CLIENT_DIR }}/dist
@@ -339,7 +339,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Download integration evidence
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: v1.1-evidence-*
           path: release/evidence-downloaded/

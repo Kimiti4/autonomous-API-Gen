@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build the actual autonomous-api image
         run: docker build -t esap-maintenance-outbox-volume-test -f autonomous-api/Dockerfile autonomous-api
       - name: Verify a pending outbox row survives replacement using the same host directory

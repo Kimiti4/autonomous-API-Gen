@@ -388,7 +388,7 @@ jobs:
 
       - name: Dashboard image metadata
         id: dashboard-meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.GHCR_IMAGE }}/dashboard
           tags: |
@@ -410,7 +410,7 @@ jobs:
 
       - name: Platform API image metadata
         id: platform-meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.GHCR_IMAGE }}/platform-api
           tags: |

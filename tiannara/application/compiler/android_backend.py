@@ -142,7 +142,7 @@ dependencies {
             files=files,
             capability_manifest=CapabilityManifest(
                 backend_id=self.backend_id,
-                capabilities=[BundleCapability.BUILD, BundleCapability.TEST, BundleCapability.DOCUMENTATION],
+                capabilities=[BundleCapability.BUILD, BundleCapability.DOCUMENTATION],
                 metadata={"platform": "android", "scope": "static-model-shell", "runtime_features": []},
             ),
         )

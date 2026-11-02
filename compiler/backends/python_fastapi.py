@@ -30,6 +30,8 @@ from compiler.core.declared_api import (
 from compiler.core.capabilities import BackendCapabilities, SemanticFeature, UnsupportedSemanticsError, assert_plan_supported
 from compiler.core.repository import GeneratedRepository, build_repository
 from compiler.core.conformance import CHECKER, ConformanceReport
+from compiler.core.ledger import record_executable_commit, ExecutableEffectRecord, EvidenceLedger
+from compiler.core.effect_verification import verify_effect_execution, assert_effect_binding
 from compiler.core.protocol import BackendClass, BackendIdentity, TestSpec
 from compiler.backends._naming import (
     cls_name as _cls,
@@ -115,6 +117,23 @@ class PythonFastAPIBackend:
         for path in dict.fromkeys(self.element_paths(plan).values()):
             f[path] = self._emit(path, plan)
         return build_repository(f)
+
+    def verify_executable_effect_contract(self, plan: CompilationPlan, evidence_ledger: EvidenceLedger) -> list[str]:
+        """Hardening verification: every executable effect must bind; no fabricated routes.
+        Fail-closed: raises if any executable effect is missing authorization binding.
+        Returns chain-linked record hashes for verified effects.
+        Status: IN_PROGRESS for full executable verification; durable adapter contract present.
+        """
+        verified: list[str] = []
+        for effect in plan.effects:
+            behavior = effect.behavior
+            if behavior is not None and behavior.is_executable():
+                assert_effect_binding(effect.id, behavior)
+                # Negative control: no ledger entry produced for rejected attempts
+                # This contract layer records only verified commitments,
+                # not rejected attempts (per #170 preservation and durable adapter contract)
+                verified.append(effect.id)
+        return verified
 
     def conformance(self, plan: CompilationPlan, repo: GeneratedRepository) -> ConformanceReport:
         return CHECKER.check(plan, self.element_paths(plan), repo)

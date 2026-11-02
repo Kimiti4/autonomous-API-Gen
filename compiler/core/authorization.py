@@ -21,6 +21,8 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
+from compiler.core.effect_verification import verify_effect_execution
+
 from compiler.core.capabilities import SemanticFeature, UnsupportedSemanticsError
 from compiler.core.plan import CompilationPlan, SecurityPolicy, Service
 

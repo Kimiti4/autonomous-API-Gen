@@ -11,178 +11,224 @@ on:
         description: "Exact source revision to build"
         required: true
         type: string
+      requirements_model_path:
+        description: "Repository-relative path to the authoritative, serialized SystemModel derived from ESAP-APP-001"
+        required: true
+        type: string
   pull_request:
     paths:
-      - "compiler/core/ledger.py"
-      - "compiler/core/effect_verification.py"
-      - "compiler/core/authorization.py"
-      - "compiler/core/clickhouse_telemetry.py"
-      - "compiler/backends/python_fastapi.py"
-      - "tests/cbc1/test_clickhouse_hardening.py"
-      - "tests/cbc1/test_fastapi_hardening.py"
-      - "tests/cbc1/test_w14_authorization_hardening.py"
-      - "tests/cbc1/test_w02_w06_executable_effect_contract.py"
+      - "tiannara/application/compiler/android_backend.py"
+      - "tiannara/application/compiler/composition.py"
+      - "tests/test_android_backend.py"
       - ".github/workflows/android-cloud-build-certification.yml"
 
 permissions:
   contents: read
 
 jobs:
+  android-backend-tests:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install project dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install -e ".[dev]"
+      - name: Run Android backend tests
+        run: python -m pytest -q tests/test_android_backend.py
+
   android-cloud-build:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      ANDROID_HOME: /opt/android
-      ANDROID_SDK_ROOT: /opt/android
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
     steps:
-      - name: Checkout
+      - name: Checkout exact candidate source
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.event.inputs.source_revision }}
+          ref: ${{ inputs.source_revision }}
+          fetch-depth: 0
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - uses: actions/setup-python@v5
         with:
-          distribution: "temurin"
+          python-version: "3.12"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
           java-version: "17"
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v3
         with:
-          api-level: "34"
-          build-tools: "34.0.0"
-          components: "platform-tools,cmdline-tools"
+          api-level: "35"
+          build-tools: "35.0.0"
+          components: "platform-tools"
+      - uses: gradle/actions/setup-gradle@v4
 
-      - name: Verify SDK and toolchain
-        id: toolchain
+      - name: Install project dependencies
         run: |
-          set -euo pipefail
-          echo "SDK_ROOT=${ANDROID_SDK_ROOT}"
-          java -version
-          "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --version
-          echo "toolchain_ok=true" >> $GITHUB_OUTPUT
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install -e ".[dev]"
 
-      - name: Verify Android compiler exists
+      - name: Verify Android compiler registration
         id: compiler_check
+        shell: bash
         run: |
-          set -euo pipefail
-          python - <<'PY'
+          set -uo pipefail
+          python - <<'PY' >> "$GITHUB_OUTPUT"
           from tiannara.application.compiler.composition import build_compiler_registry
           registry = build_compiler_registry()
-          try:
-              backend = registry.backend("android")
-              print("android_compiler_exists=true")
-          except Exception:
+          if "android" not in registry:
               print("android_compiler_exists=false")
+              print("reason=backend_not_registered")
               raise SystemExit(1)
+          declaration = registry.declaration("android")
+          if declaration.metadata.get("scope") != "static-model-shell":
+              print("android_compiler_exists=false")
+              print("reason=unexpected_capability_scope")
+              raise SystemExit(1)
+          print("android_compiler_exists=true")
+          print("reason=registered_static_model_shell")
           PY
 
-      - name: Generate ESAP Android candidate
+      - name: Validate authoritative model and generate exact candidate
         id: generate
-        if: steps.compiler_check.outputs.android_compiler_exists == 'true'
+        shell: bash
         run: |
           set -euo pipefail
-          echo "android_compiler_exists=${{ steps.compiler_check.outputs.android_compiler_exists }}"
-          if [ "${{ steps.compiler_check.outputs.android_compiler_exists }}" != "true" ]; then
-            echo "Android compiler missing (BLOCKED)"
-            exit 1
-          fi
           python - <<'PY'
+          import hashlib, json, os
           from pathlib import Path
           from tiannara.application.compiler.composition import build_compiler_registry
           from tiannara.application.compiler.writer import write_bundle
-          from tiannara.domain.models.system_model import RequirementsReference, SystemModel
-          import hashlib, json
+          from tiannara.domain.models.system_model import SystemModel
 
-          registry = build_compiler_registry()
-          model = SystemModel(
-              system_name="${{ inputs.candidate_id || 'ESAP-Android-CI' }}",
-              problem_statement="ESAP-APP-001 Stage A cloud-build benchmark",
-              requirements_ref=RequirementsReference(graph_id="ci-android", graph_hash="ci-android"),
-          )
+          model_path = Path(os.environ["MODEL_PATH"])
+          if not model_path.is_file():
+              raise SystemExit(f"authoritative SystemModel not found: {model_path}")
+          raw = model_path.read_bytes()
+          model = SystemModel.model_validate_json(raw)
+          model_hash = model.content_hash()
+          declared_hash = model.requirements_ref.graph_hash
+          if declared_hash != hashlib.sha256(raw).hexdigest():
+              raise SystemExit(
+                  "requirements_ref.graph_hash must equal SHA-256 of the exact "
+                  "serialized SystemModel input; refusing unbound model"
+              )
+          result = build_compiler_registry().backend("android").generate(model)
           root = Path("/tmp/esap-android-candidate")
-          backend = registry.backend("android")
-          bundle = backend.generate(model)
-          write_bundle(bundle, str(root))
-          print(f"Generated Android candidate: {len(bundle.files)} files")
+          write_bundle(result, str(root))
+          manifest = {
+              "candidate_id": os.environ["CANDIDATE_ID"],
+              "source_revision": os.environ["GITHUB_SHA"],
+              "requirements_model_path": str(model_path),
+              "requirements_file_sha256": hashlib.sha256(raw).hexdigest(),
+              "system_model_content_hash": model_hash,
+              "backend_id": result.backend_id,
+              "capability_manifest": result.capability_manifest.model_dump(mode="json"),
+              "generated_files": sorted(result.files),
+          }
+          (root / "candidate-binding.json").write_text(
+              json.dumps(manifest, sort_keys=True, indent=2) + "\n"
+          )
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              print(f"candidate_model_hash={model_hash}", file=out)
+              print(f"candidate_file_count={len(result.files)}", file=out)
           PY
+        env:
+          MODEL_PATH: ${{ inputs.requirements_model_path }}
+          CANDIDATE_ID: ${{ inputs.candidate_id }}
 
-      - name: Verify Gradle Wrapper
-        id: wrapper
-        run: |
-          set -euo pipefail
-          if [ ! -f /tmp/esap-android-candidate/gradlew ]; then
-            echo "gradlew_missing=true" >> $GITHUB_OUTPUT
-            exit 1
-          fi
-          chmod +x /tmp/esap-android-candidate/gradlew
-          echo "gradlew_ok=true" >> $GITHUB_OUTPUT
-
-      - name: Build APK
+      - name: Build and test Android candidate
         id: build
+        shell: bash
         run: |
-          set -euo pipefail
+          set +e
           cd /tmp/esap-android-candidate
-          ./gradlew assembleDebug --no-daemon 2>&1 | tee /tmp/esap-android-build.log
-          echo "build_exit=$?" >> $GITHUB_OUTPUT
-
-      - name: Verify APK artifact
-        id: artifact
-        run: |
-          set -euo pipefail
-          APK=$(find /tmp/esap-android-candidate -name "*.apk" -type f | head -1)
-          if [ -z "$APK" ]; then
-            echo "apk_missing=true" >> $GITHUB_OUTPUT
+          gradle :app:testDebugUnitTest --no-daemon 2>&1 | tee /tmp/esap-android-tests.log
+          TEST_EXIT=${PIPESTATUS[0]}
+          gradle :app:assembleDebug --no-daemon 2>&1 | tee /tmp/esap-android-build.log
+          BUILD_EXIT=${PIPESTATUS[0]}
+          {
+            echo "test_exit=$TEST_EXIT"
+            echo "build_exit=$BUILD_EXIT"
+          } >> "$GITHUB_OUTPUT"
+          if [ "$TEST_EXIT" -ne 0 ] || [ "$BUILD_EXIT" -ne 0 ]; then
             exit 1
           fi
-          SHA=$(sha256sum "$APK" | awk '{print $1}')
-          echo "apk_path=$APK" >> $GITHUB_OUTPUT
-          echo "apk_sha256=$SHA" >> $GITHUB_OUTPUT
-          echo "apk_size=$(stat -c%s "$APK")" >> $GITHUB_OUTPUT
 
-      - name: Verify candidate binding
-        id: binding
+      - name: Independently inspect APK and bind evidence
+        id: artifact
+        if: always() && steps.generate.outcome == 'success'
+        shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
-          import hashlib, json
+          import hashlib, json, os, zipfile
           from pathlib import Path
-          from compiler.core.ledger import record_executable_commit, ExecutableEffectRecord
-          from compiler.core.effect_verification import verify_effect_execution, assert_effect_binding
-          from compiler.core.authorization import assert_authorization_enforceable
-
-          # Candidate binding: artifact hash must be recorded in evidence
-          apk = Path("${{ steps.artifact.outputs.apk_path }}")
-          sha = "${{ steps.artifact.outputs.apk_sha256 }}"
-          assert apk.exists(), "APK not found"
-          content = apk.read_bytes()
-          computed = hashlib.sha256(content).hexdigest()
-          assert computed == sha, f"APK hash mismatch: {computed} != {sha}"
-          print(f"APK verified: {sha} ({len(content)} bytes)")
-          print("candidate_binding_ok=true")
+          root = Path("/tmp/esap-android-candidate")
+          apks = sorted(root.glob("app/build/outputs/apk/debug/*.apk"))
+          if len(apks) != 1:
+              raise SystemExit(f"expected exactly one debug APK, found {len(apks)}")
+          apk = apks[0]
+          if not zipfile.is_zipfile(apk):
+              raise SystemExit("APK is not a valid ZIP container")
+          with zipfile.ZipFile(apk) as archive:
+              names = set(archive.namelist())
+              if "AndroidManifest.xml" not in names:
+                  raise SystemExit("APK lacks AndroidManifest.xml")
+              if not any(name.startswith("classes") and name.endswith(".dex") for name in names):
+                  raise SystemExit("APK lacks compiled DEX bytecode")
+          binding_path = root / "candidate-binding.json"
+          binding = json.loads(binding_path.read_text())
+          binding["apk_sha256"] = hashlib.sha256(apk.read_bytes()).hexdigest()
+          binding["apk_size_bytes"] = apk.stat().st_size
+          binding["apk_path"] = str(apk)
+          binding["apk_inspection"] = "zip_manifest_and_dex_verified"
+          binding_path.write_text(json.dumps(binding, sort_keys=True, indent=2) + "\n")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              print(f"apk_sha256={binding['apk_sha256']}", file=out)
+              print(f"apk_path={apk}", file=out)
           PY
 
       - name: Stage A verdict
+        id: verdict
         if: always()
+        shell: bash
         run: |
           set -euo pipefail
-          BUILD_EXIT="${{ steps.build.outputs.build_exit }}"
-          APK_PATH="${{ steps.artifact.outputs.apk_path }}"
-          COMPILER_OK="${{ steps.compiler_check.outputs.android_compiler_exists }}"
-          if [ "$COMPILER_OK" != "true" ]; then
-            echo "STAGE_A_RESULT=BLOCKED" >> $GITHUB_OUTPUT
-            echo "Android compiler not established (BLOCKED)"
-            exit 0
+          RESULT=BLOCKED
+          REASON="independent governance/effect/authorization evidence gates are not yet wired to this candidate"
+          if [ "${{ steps.compiler_check.outcome }}" != "success" ]; then
+            REASON="Android compiler registration check failed"
+          elif [ "${{ steps.generate.outcome }}" != "success" ]; then
+            REASON="authoritative model validation or candidate generation failed"
+          elif [ "${{ steps.build.outputs.test_exit }}" != "0" ] || [ "${{ steps.build.outputs.build_exit }}" != "0" ]; then
+            REASON="Android unit test or APK build failed"
+          elif [ "${{ steps.artifact.outcome }}" != "success" ]; then
+            REASON="APK structure/hash inspection failed"
           fi
-          if [ "$BUILD_EXIT" != "0" ]; then
-            echo "STAGE_A_RESULT=FAILED" >> $GITHUB_OUTPUT
-            echo "Gradle compilation failed"
-            exit 0
-          fi
-          if [ -z "$APK_PATH" ]; then
-            echo "STAGE_A_RESULT=FAILED" >> $GITHUB_OUTPUT
-            echo "APK missing"
-            exit 0
-          fi
-          echo "STAGE_A_RESULT=PASSED" >> $GITHUB_OUTPUT
-          echo "APK built and verified: $APK_PATH"
+          {
+            echo "stage_a_result=$RESULT"
+            echo "stage_a_reason=$REASON"
+          } >> "$GITHUB_OUTPUT"
+          echo "STAGE_A_RESULT=$RESULT"
+          echo "STAGE_A_REASON=$REASON"
+
+      - name: Upload candidate and evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: esap-android-stage-a-evidence
+          path: |
+            /tmp/esap-android-candidate/
+            /tmp/esap-android-tests.log
+            /tmp/esap-android-build.log
+          if-no-files-found: warn

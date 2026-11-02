@@ -62,10 +62,31 @@ jobs:
           "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --version
           echo "toolchain_ok=true" >> $GITHUB_OUTPUT
 
-      - name: Generate ESAP Android candidate
-        id: generate
+      - name: Verify Android compiler exists
+        id: compiler_check
         run: |
           set -euo pipefail
+          python - <<'PY'
+          from tiannara.application.compiler.composition import build_compiler_registry
+          registry = build_compiler_registry()
+          try:
+              backend = registry.backend("android")
+              print("android_compiler_exists=true")
+          except Exception:
+              print("android_compiler_exists=false")
+              raise SystemExit(1)
+          PY
+
+      - name: Generate ESAP Android candidate
+        id: generate
+        if: steps.compiler_check.outputs.android_compiler_exists == 'true'
+        run: |
+          set -euo pipefail
+          echo "android_compiler_exists=${{ steps.compiler_check.outputs.android_compiler_exists }}"
+          if [ "${{ steps.compiler_check.outputs.android_compiler_exists }}" != "true" ]; then
+            echo "Android compiler missing (BLOCKED)"
+            exit 1
+          fi
           python - <<'PY'
           from pathlib import Path
           from tiannara.application.compiler.composition import build_compiler_registry
@@ -147,6 +168,12 @@ jobs:
           set -euo pipefail
           BUILD_EXIT="${{ steps.build.outputs.build_exit }}"
           APK_PATH="${{ steps.artifact.outputs.apk_path }}"
+          COMPILER_OK="${{ steps.compiler_check.outputs.android_compiler_exists }}"
+          if [ "$COMPILER_OK" != "true" ]; then
+            echo "STAGE_A_RESULT=BLOCKED" >> $GITHUB_OUTPUT
+            echo "Android compiler not established (BLOCKED)"
+            exit 0
+          fi
           if [ "$BUILD_EXIT" != "0" ]; then
             echo "STAGE_A_RESULT=FAILED" >> $GITHUB_OUTPUT
             echo "Gradle compilation failed"

@@ -57,6 +57,10 @@ jobs:
           ref: ${{ inputs.source_revision }}
           fetch-depth: 0
 
+      - name: Verify checked-out revision
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ inputs.source_revision }}"
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -75,7 +79,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install -e ".[dev]"
+          pip install pytest pydantic fastapi
 
       - name: Verify Android compiler registration
         id: compiler_check

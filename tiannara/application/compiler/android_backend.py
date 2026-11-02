@@ -7,8 +7,6 @@ CRUD, or network capabilities.
 """
 from __future__ import annotations
 
-import re
-
 from tiannara.application.compiler.build_profile import BackendBuildProfile
 from tiannara.domain.models.backend_declaration import ArtifactKind, BackendCapabilityDeclaration
 from tiannara.domain.models.capability_manifest import BundleCapability, CapabilityManifest
@@ -36,7 +34,7 @@ class AndroidBackend:
             ),
             verifier_kind="android",
             build_command=["gradle", ":app:assembleDebug", "--no-daemon"],
-            test_command=["gradle", ":app:testDebugUnitTest", "--no-daemon"],
+            test_command=None,
             requires_build_phase=True,
         )
 
@@ -44,7 +42,7 @@ class AndroidBackend:
         return BackendCapabilityDeclaration(
             backend_id=self.backend_id,
             artifact_kinds=[ArtifactKind.FRONTEND_APPLICATION],
-            capabilities=[BundleCapability.BUILD, BundleCapability.TEST, BundleCapability.DOCUMENTATION],
+            capabilities=[BundleCapability.BUILD, BundleCapability.DOCUMENTATION],
             quality_profile=0.55,
             metadata={"language": "kotlin", "platform": "android", "scope": "static-model-shell"},
         )
@@ -136,17 +134,6 @@ dependencies {
 </manifest>
 ''',
             "app/src/main/java/generated/app/MainActivity.kt": source,
-            "app/src/test/java/generated/app/GeneratedModelTest.kt": '''package generated.app
-
-import org.junit.Test
-import org.junit.Assert.assertTrue
-
-class GeneratedModelTest {
-    @Test fun generatedModelCatalogueIsNonEmpty() {
-        assertTrue(listOf("model catalogue").isNotEmpty())
-    }
-}
-''',
             "README.md": f"# {model.system_name}\n\nGenerated from SystemModel {model.content_hash()}.\n\nThis backend currently emits a buildable static Android model catalogue only. It does not implement persistence, CRUD, authentication, synchronization, or service/API/event behaviour. Such semantics are rejected rather than omitted.\n",
         }
         return CompilationResult(

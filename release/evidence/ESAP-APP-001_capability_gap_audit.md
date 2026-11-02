@@ -21,6 +21,8 @@ Baseline from hardening checkpoint (Nov 02 2026):
 - Actual emitted-filter / filter-expression negative control preserved (raises if expression drifted).
 - Nothing here proves an Android APK executes; execution evidence is in-process (Python) and compiler-output (frontend fixtures), not device-level.
 
+W14 evidence reconciliation: `tests/cbc1/test_w14_authorization_hardening.py` exercises nine frontend targets against three unsupported authorization models and verifies refusal. It also verifies required bundle files for LiveView, Scenic, and Hologram, and that those targets do not claim DEPLOY. These are compile-time fail-closed and structural checks only. They do not test a generated authorization runtime, principal/session handling, policy evaluation, or an allowed/denied operation against a running application. W14 therefore remains IN_PROGRESS.
+
 3. Missing infrastructure (explicitly unsupported; no fabrication):
 - Android SDK / Gradle build pipeline not present.
 - Emulator automation (Android Emulator / device farm) not present.
@@ -47,7 +49,7 @@ Status preservation (hard constraint from W02/W06/W12/W13):
 - W12: IN_PROGRESS (preservation work, not executable verification)
 - W13: IN_PROGRESS (merge count ≠ certification)
 - W03: verified (durable adapter + ClickHouse)
-- W14: verified (fixtures + authorization)
+- W14: IN_PROGRESS (frontend fixtures prove fail-closed refusal of unsupported RBAC/ABAC/policy-based declarations; they do not prove generated authorization execution or runtime enforcement).
 - ESAP-APP-001: audit-only at this stage; first benchmark = smallest Android end-to-end with real APK execution on emulator; no portfolio expansion until benchmark passes.
 
 File references (working branch — independent confirmation blocked by 404 on default branch):

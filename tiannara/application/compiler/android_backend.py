@@ -125,8 +125,8 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
 }
 ''',
-            "app/src/main/AndroidManifest.xml": '''<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application android:label="Generated application" android:theme="@android:style/Theme.Material.Light.NoActionBar">
+            "app/src/main/AndroidManifest.xml": f'''<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:label="{self._xml_attribute(model.system_name)}" android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
         </activity>
@@ -150,3 +150,8 @@ dependencies {
     @staticmethod
     def _kotlin_string(value: str) -> str:
         return value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ")
+
+    @staticmethod
+    def _xml_attribute(value: str) -> str:
+        return (value.replace("&", "&amp;").replace('"', "&quot;")
+                .replace("<", "&lt;").replace(">", "&gt;"))

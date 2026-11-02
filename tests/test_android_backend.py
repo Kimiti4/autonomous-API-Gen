@@ -25,7 +25,7 @@ def test_android_backend_is_registered_and_declares_only_supported_capabilities(
     declaration = registry.declaration("android")
     assert backend.backend_id == "android"
     assert declaration.metadata["scope"] == "static-model-shell"
-    assert {item.value for item in declaration.capabilities} == {"build", "test", "documentation"}
+    assert {item.value for item in declaration.capabilities} == {"build", "documentation"}
 
 
 def test_android_generation_emits_real_android_application_structure():

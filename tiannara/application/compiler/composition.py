@@ -96,6 +96,8 @@ def build_compiler_registry() -> CompilerRegistry:
     registry.register(phoenix_backend, phoenix_backend.build_profile_declaration())
     ktor_backend = KtorBackend()
     registry.register(ktor_backend, ktor_backend.build_profile_declaration())
+    android_backend = AndroidBackend()
+    registry.register(android_backend, android_backend.build_profile_declaration())
     react_frontend = ReactFrontend()
     registry.register(react_frontend, react_frontend.build_profile_declaration())
     express_backend = ExpressBackend()

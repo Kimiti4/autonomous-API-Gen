@@ -32,6 +32,12 @@ W14 evidence reconciliation: `tests/cbc1/test_w14_authorization_hardening.py` ex
 - Cross-device synchronization (realtime sync, conflict resolution) not represented in ISR behavior.
 - Mobile UI test automation (Espresso / UI Automator / Appium) not present; Playwright artifacts cover web, not Android native.
 
+Compiler-lineage gap confirmed during source inspection:
+- The Android emitter currently accepts `tiannara.domain.models.system_model.SystemModel` directly. It does not consume the technology-neutral `compiler.core.plan.CompilationPlan` produced by `compiler.core.lowering.isr_to_plan`.
+- The `CompilationPlan` carries typed services, data models, events, security policies, API operations, effects, explicit effect bindings, consequences, invariants, and frontend routes/interactions. The current Android backend only renders names from `SystemModel.data_models` into a static Compose catalogue.
+- Therefore, the present Android workflow does not yet demonstrate ISRRevision → CompilationPlan → Android emitter traceability, nor preservation/enforcement of those plan semantics. A non-empty `requirements_ref.graph_id` and `graph_hash` alone do not prove the referenced graph exists, matches the model, or was used to derive the candidate.
+- Required remediation: bind the Android candidate to an authoritative ISR revision/content hash, lower that revision through the canonical lowering path, validate required semantic features against an explicit Android capability declaration, and retain the plan hash plus source-to-output mapping. Reject unsupported plan semantics before emission. Do not claim the current `SystemModel` shell meets this gate.
+
 4. Remediation — reusable vs Android-specific:
 - Reusable ESAP fixes: effect-contract verification (`effect_verification.py`), authorization enforcement (`authorization.py`), durable ledger adapter (`ledger.py`), fail-closed negative controls. These apply to any backend, including Android.
 - Android-specific: Gradle build profile, APK emission, emulator execution, mobile auth, persistent storage adapter, native UI automation. These require new backend/compiler targets or adapter ports, not just ESAP fixes.

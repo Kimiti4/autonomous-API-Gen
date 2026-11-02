@@ -31,6 +31,7 @@ def test_android_backend_is_registered_and_declares_only_supported_capabilities(
 def test_android_generation_emits_real_android_application_structure():
     result = build_compiler_registry().backend("android").generate(model())
     assert result.files["app/src/main/AndroidManifest.xml"].find("MAIN") >= 0
+    assert 'android:label="Sample Catalogue"' in result.files["app/src/main/AndroidManifest.xml"]
     source = result.files["app/src/main/java/generated/app/MainActivity.kt"]
     assert "ComponentActivity" in source
     assert "GroceryItem" in source

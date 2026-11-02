@@ -144,9 +144,10 @@ jobs:
           PY
         env:
           MODEL_PATH: ${{ inputs.requirements_model_path }}
-          CANDIDATE_ID: ${{ inputs.candidate_id }}\n          SOURCE_REVISION: ${{ inputs.source_revision }}
+          CANDIDATE_ID: ${{ inputs.candidate_id }}
+          SOURCE_REVISION: ${{ inputs.source_revision }}
 
-      - name: Build and test Android candidate
+      - name: Build Android candidate
         id: build
         shell: bash
         run: |

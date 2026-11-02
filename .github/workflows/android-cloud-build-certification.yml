@@ -127,7 +127,7 @@ jobs:
           write_bundle(result, str(root))
           manifest = {
               "candidate_id": os.environ["CANDIDATE_ID"],
-              "source_revision": os.environ["GITHUB_SHA"],
+              "source_revision": os.environ["SOURCE_REVISION"],
               "requirements_model_path": str(model_path),
               "requirements_file_sha256": hashlib.sha256(raw).hexdigest(),
               "system_model_content_hash": model_hash,
@@ -144,7 +144,7 @@ jobs:
           PY
         env:
           MODEL_PATH: ${{ inputs.requirements_model_path }}
-          CANDIDATE_ID: ${{ inputs.candidate_id }}
+          CANDIDATE_ID: ${{ inputs.candidate_id }}\n          SOURCE_REVISION: ${{ inputs.source_revision }}
 
       - name: Build and test Android candidate
         id: build

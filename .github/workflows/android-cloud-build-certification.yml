@@ -209,12 +209,14 @@ jobs:
           binding["apk_size_bytes"] = apk.stat().st_size
           binding["apk_path"] = str(apk)
           binding["apk_inspection"] = "zip_manifest_and_dex_verified"
-          binding["emulator_launch"] = "verified"
+          binding["emulator_launch"] = os.environ["EMULATOR_LAUNCH_OUTCOME"]
           binding_path.write_text(json.dumps(binding, sort_keys=True, indent=2) + "\n")
           with open(os.environ["GITHUB_OUTPUT"], "a") as out:
               print(f"apk_sha256={binding['apk_sha256']}", file=out)
               print(f"apk_path={apk}", file=out)
           PY
+        env:
+          EMULATOR_LAUNCH_OUTCOME: ${{ steps.emulator.outcome }}
 
       - name: Stage A verdict
         id: verdict

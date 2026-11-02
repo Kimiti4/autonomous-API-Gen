@@ -141,7 +141,8 @@ jobs:
           with open(os.environ["GITHUB_OUTPUT"], "a") as out:
               print(f"candidate_model_hash={model_hash}", file=out)
               print(f"candidate_file_count={len(result.files)}", file=out)
-          print(f"app_label={model.system_name}", file=out)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              print(f"app_label={model.system_name}", file=out)
           PY
         env:
           MODEL_PATH: ${{ inputs.requirements_model_path }}

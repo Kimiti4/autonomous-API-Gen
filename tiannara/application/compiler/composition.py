@@ -30,6 +30,7 @@ from tiannara.application.compiler.spring_boot_backend import SpringBootBackend
 from tiannara.application.compiler.aspnet_core_backend import AspNetCoreBackend
 from tiannara.application.compiler.phoenix_backend import PhoenixBackend
 from tiannara.application.compiler.ktor_backend import KtorBackend
+from tiannara.application.compiler.android_backend import AndroidBackend
 from tiannara.application.compiler.react_frontend import ReactFrontend
 from tiannara.application.compiler.express_backend import ExpressBackend
 from tiannara.application.compiler.laravel_backend import LaravelBackend

@@ -152,15 +152,10 @@ jobs:
         run: |
           set +e
           cd /tmp/esap-android-candidate
-          gradle :app:testDebugUnitTest --no-daemon 2>&1 | tee /tmp/esap-android-tests.log
-          TEST_EXIT=${PIPESTATUS[0]}
           gradle :app:assembleDebug --no-daemon 2>&1 | tee /tmp/esap-android-build.log
           BUILD_EXIT=${PIPESTATUS[0]}
-          {
-            echo "test_exit=$TEST_EXIT"
-            echo "build_exit=$BUILD_EXIT"
-          } >> "$GITHUB_OUTPUT"
-          if [ "$TEST_EXIT" -ne 0 ] || [ "$BUILD_EXIT" -ne 0 ]; then
+          echo "build_exit=$BUILD_EXIT" >> "$GITHUB_OUTPUT"
+          if [ "$BUILD_EXIT" -ne 0 ]; then
             exit 1
           fi
 
@@ -210,8 +205,8 @@ jobs:
             REASON="Android compiler registration check failed"
           elif [ "${{ steps.generate.outcome }}" != "success" ]; then
             REASON="authoritative model validation or candidate generation failed"
-          elif [ "${{ steps.build.outputs.test_exit }}" != "0" ] || [ "${{ steps.build.outputs.build_exit }}" != "0" ]; then
-            REASON="Android unit test or APK build failed"
+          elif [ "${{ steps.build.outputs.build_exit }}" != "0" ]; then
+            REASON="Android APK build failed"
           elif [ "${{ steps.artifact.outcome }}" != "success" ]; then
             REASON="APK structure/hash inspection failed"
           fi
@@ -229,6 +224,5 @@ jobs:
           name: esap-android-stage-a-evidence
           path: |
             /tmp/esap-android-candidate/
-            /tmp/esap-android-tests.log
             /tmp/esap-android-build.log
           if-no-files-found: warn

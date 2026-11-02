@@ -24,13 +24,13 @@ Baseline from hardening checkpoint (Nov 02 2026):
 W14 evidence reconciliation: `tests/cbc1/test_w14_authorization_hardening.py` exercises nine frontend targets against three unsupported authorization models and verifies refusal. It also verifies required bundle files for LiveView, Scenic, and Hologram, and that those targets do not claim DEPLOY. These are compile-time fail-closed and structural checks only. They do not test a generated authorization runtime, principal/session handling, policy evaluation, or an allowed/denied operation against a running application. W14 therefore remains IN_PROGRESS.
 
 3. Missing infrastructure (explicitly unsupported; no fabrication):
-- Android SDK / Gradle build pipeline not present.
-- Emulator automation (Android Emulator / device farm) not present.
-- APK packaging / signing not present.
+- A manual GitHub Actions workflow now provisions JDK, Android SDK and Gradle and attempts a debug APK build; it has not yet been manually dispatched against an authoritative benchmark model. Therefore no successful APK build is evidenced.
+- The workflow now defines an Android Emulator API 35 launch/UI-observation step, but no emulator execution result is evidenced. Device-farm coverage is not present.
+- Debug APK packaging and ZIP/manifest/DEX inspection are scripted in the workflow, but no APK artifact is evidenced. Release signing, signing-key custody and release-build verification remain unimplemented/unverified.
 - Device-level authentication (Android KeyChain / Biometric / OAuth2 mobile) not implemented.
 - Persistent mobile storage (SQLite / Room / DataStore / encrypted file) not bound to effect contracts.
 - Cross-device synchronization (realtime sync, conflict resolution) not represented in ISR behavior.
-- Mobile UI test automation (Espresso / UI Automator / Appium) not present; Playwright artifacts cover web, not Android native.
+- A basic UI Automator hierarchy dump and title assertion are scripted in the workflow, but no run evidence exists. There is no substantive native interaction suite (for example Espresso/Appium flows); Playwright artifacts cover web, not Android native.
 
 Compiler-lineage gap confirmed during source inspection:
 - The Android emitter currently accepts `tiannara.domain.models.system_model.SystemModel` directly. It does not consume the technology-neutral `compiler.core.plan.CompilationPlan` produced by `compiler.core.lowering.isr_to_plan`.
@@ -58,7 +58,7 @@ Status preservation (hard constraint from W02/W06/W12/W13):
 - W14: IN_PROGRESS (frontend fixtures prove fail-closed refusal of unsupported RBAC/ABAC/policy-based declarations; they do not prove generated authorization execution or runtime enforcement).
 - ESAP-APP-001: audit-only at this stage; first benchmark = smallest Android end-to-end with real APK execution on emulator; no portfolio expansion until benchmark passes.
 
-File references (working branch — independent confirmation blocked by 404 on default branch):
+File references inspected on the remediation branch (some audit/evidence files may be branch-specific):
 - `release/evidence/milestone_status_post_hardening.md`
 - `compiler/core/ledger.py`
 - `tests/cbc1/test_clickhouse_hardening.py`

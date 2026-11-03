@@ -204,7 +204,7 @@ jobs:
             })
             root = Path(os.environ["CANDIDATE_ROOT"])
             (root / "android-cloud-build-evidence.json").write_text(
-                json.dumps(evidence, sort_keys=True, indent=2) + "\\n",
+                json.dumps(evidence, sort_keys=True, indent=2) + "\n",
                 encoding="utf-8",
             )
             print(json.dumps({

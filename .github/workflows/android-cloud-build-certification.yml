@@ -20,6 +20,8 @@ on:
       - "compiler/backends/android.py"
       - "compiler/composition.py"
       - "tests/test_android_campaign_backend.py"
+      - "certification/campaign/android_structural_runner.py"
+      - "tests/test_android_structural_runner.py"
       - "tiannara/application/compiler/android_backend.py"
       - "tiannara/application/compiler/composition.py"
       - "tests/test_android_backend.py"
@@ -44,7 +46,7 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           pip install pytest pydantic fastapi
       - name: Run Android backend contract tests
-        run: python -m pytest -q tests/test_android_backend.py tests/test_android_campaign_backend.py
+        run: python -m pytest -q tests/test_android_backend.py tests/test_android_campaign_backend.py tests/test_android_structural_runner.py
 
   android-cloud-build:
     if: github.event_name == 'workflow_dispatch'

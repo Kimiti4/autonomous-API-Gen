@@ -1,7 +1,7 @@
 {
   "benchmark_id": "ESAP-APP-001",
   "version": "1.0.0",
-  "status": "PROPOSED_AWAITING_REVIEW_AND_HASH_FREEZE",
+  "status": "FROZEN_V1",
   "authority": {
     "problem_statement": "experiments/android/esap-app-001/PROBLEM.md",
     "acceptance_criteria": "experiments/android/esap-app-001/ACCEPTANCE.json",
@@ -17,11 +17,14 @@
   "provenance": {
     "created_because": "Repository search at remediation/esap-android-compiler-stage-a found no approved Android-specific ESAP-APP-001 problem/acceptance artifact.",
     "taskflow_substitution": false,
-    "hashes": "Populate SHA-256 values only after review and freeze; this manifest is not frozen yet."
+    "hashes": "Frozen using Git blob object IDs (SHA-1), which identify the exact repository file bytes; these are not SHA-256 digests.",
+    "freeze_commit": "a9696e997f0567afb1bb3ab90dcdf0d3e5cca7a6",
+    "freeze_policy": "The problem statement and acceptance criteria are frozen at the listed Git blob IDs. Any semantic change requires a version increment and a new freeze record."
   },
   "content_hashes": {
-    "problem_sha256": null,
-    "acceptance_sha256": null
+    "algorithm": "git-blob-sha1",
+    "problem_blob": "c074fbaa3d5f9a25c7a0704218c519c0a329ebd5",
+    "acceptance_blob": "5a6774e3087b8ed0fa2fedffbc502029b0c42c56"
   },
   "compiler_path": {
     "intended": "ISRRevision -> isr_to_plan -> CompilationPlan -> Android CompilerBackend",
@@ -32,6 +35,6 @@
   },
   "certification": {
     "verdict": "BLOCKED",
-    "reason": "Specification requires independent review/hash freeze, compiler-spine integration, and candidate-bound build/emulator/semantic evidence."
+    "reason": "Specification is frozen, but compiler-spine integration and candidate-bound build, emulator, and independent semantic evidence remain unproven."
   }
 }

@@ -74,9 +74,11 @@ jobs:
 
       - name: Verify exact checkout
         shell: bash
+        env:
+          SOURCE_REVISION: ${{ inputs.source_revision }}
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "${{ inputs.source_revision }}"
+          test "$(git rev-parse HEAD)" = "$SOURCE_REVISION"
 
       - uses: actions/setup-python@v5
         with:
@@ -91,6 +93,8 @@ jobs:
           build-tools: "35.0.0"
           components: "platform-tools"
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
 
       - name: Install compiler dependencies
         run: |
@@ -116,6 +120,9 @@ jobs:
               path = Path(value)
               if not value or path.is_absolute() or ".." in path.parts or not path.is_file():
                   raise SystemExit(f"invalid or missing repository file for {key}: {value!r}")
+              resolved = path.resolve()
+              if not resolved.is_relative_to(Path.cwd().resolve()):
+                  raise SystemExit(f"repository file escapes checkout for {key}: {value!r}")
               return path, path.read_bytes()
 
           spec_path, spec_bytes = read_repo_file("SOURCE_SPEC_PATH")

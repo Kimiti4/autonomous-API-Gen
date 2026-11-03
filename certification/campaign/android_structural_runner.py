@@ -16,6 +16,8 @@ from pathlib import Path
 from typing import Callable, Sequence
 
 from compiler.core.repository import GeneratedRepository, build_repository
+from isr.core.revision import ISRRevision
+from compiler.backends.android import AndroidCandidate, compile_isr_revision
 
 
 @dataclass(frozen=True)
@@ -107,6 +109,35 @@ class NativeAndroidStructuralRunner:
             stage=stage, passed=passed, command=tuple(command), exit_code=code,
             output_hash=hashlib.sha256(output.encode("utf-8", errors="replace")).hexdigest(),
             detail=detail,
+        )
+
+    def execute_bound(
+        self,
+        revision: ISRRevision,
+        candidate: AndroidCandidate,
+        candidate_root: str | Path,
+        require_emulator: bool = True,
+    ) -> AndroidStructuralExecution:
+        """Verify canonical ISR -> plan -> candidate binding before execution.
+
+        Recompilation is deliberate: caller-supplied hashes alone are not proof
+        that the repository corresponds to the supplied ISR revision.
+        """
+        expected = compile_isr_revision(revision)
+        if candidate.revision_hash != revision.content_hash:
+            raise ValueError("candidate revision hash does not match supplied ISR revision")
+        if candidate.plan_hash != expected.plan_hash:
+            raise ValueError("candidate plan hash does not match canonical ISR-derived plan")
+        if candidate.repository.content_hash != expected.repository.content_hash:
+            raise ValueError("candidate repository does not match canonical backend output")
+        if build_repository(candidate.repository.files).content_hash != candidate.repository.content_hash:
+            raise ValueError("candidate repository content hash does not match its files")
+        return self.execute(
+            repository=candidate.repository,
+            candidate_root=candidate_root,
+            revision_hash=revision.content_hash,
+            plan_hash=expected.plan_hash,
+            require_emulator=require_emulator,
         )
 
     def execute(

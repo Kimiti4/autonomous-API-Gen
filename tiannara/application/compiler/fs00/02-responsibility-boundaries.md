@@ -91,6 +91,54 @@ Each architectural concern must have exactly one accountable owner. Multiple mod
 **Boundary Integrity remains PARTIAL.** These ten confirmed crossings are not evidence that every crossing has been found.
 
 
-### 8.1 Third ISR family and parallel compiler runtimes
+### 8.1 ISR model-family and envelope reconciliation — live source review
 
-Additional source searches found `constitutional_architecture/core/models/isr.py:UniversalISR`, consumed by `constitutional_architecture/core/contracts/compiler.py`, `constitutional_architecture/compilers/*`, and Tiannara compilation projection/conformance surfaces. The existing compiler inventory says the per-category compiler framework takes `UniversalISR` plus `ArchitectureGenome` and produces `CompilationBundle`, bypassing the root `CompilationPlan` runtime. Therefore the conflict is not only between two ISR classes: at least three ISR families and multiple compiler execution paths coexist. The system-wide authority row remains unresolved until the source-to-consumer inventory and governance disposition cover all of them.
+The earlier three-family count was incomplete. Inspection of the pinned source tree identifies **at least five distinct ISR model definitions/envelopes**. This is a source-surface count, not a claim that all five are active production authorities:
+
+| ID | Definition | Shape / known consumers | Existing disposition evidence |
+|---|---|---|---|
+| ISR-F01 | `isr/core/{graph,revision}.py:ISRRevision` | Frozen Pydantic revision over typed `ISRGraph`; consumed by root lowering, campaign planning, genesis, evolution and ISR stores/adapters. | `folder/POST_R1_D_AUTHORITY_MAP.md` names `isr/core` canonical. |
+| ISR-F02 | `constitutional_architecture/isr/model/isr.py:ISR` | Immutable dataclass over `System`/modules/entities/services/workflows/policies/interfaces/events; has separate serializer, deserializer, snapshot/versioning and Gen-C pipeline. | R1-D1 disposition marks model/runtime RETIRE; semantic validators selectively migrated/deferred. |
+| ISR-F03 | `constitutional_architecture/core/models/isr.py:UniversalISR` | Pydantic graph with `ISRNode.semantic_attributes`, edge list, intent/genome hashes and a 17-node/13-edge vocabulary in the associated R1 inventory. Consumed by `core/pipeline/isr_transpiler.py`, `core/orchestrator/*`, `core/registry/*`, `compilers/*`, and projection/conformance adapters. | R1-D1 disposition marks RETIRE; later boundary documents call category compilers legacy/test-only. |
+| ISR-F04 | `constitutional_architecture/core/models/universal_isr.py:UniversalISR` | A second class with the same exported class name, but a different, smaller model: eight node kinds, node-level `dependencies`, no typed edge list, version and metadata. Exported by `constitutional_architecture/core/__init__.py`; imported by `core/governance.py` and a test. | Not separately identified in the prior ISR disposition table; exact intended relationship to ISR-F03 is unresolved. |
+| ISR-F05 | `tiannara/domain/models/isr.py:IntermediateSoftwareRepresentation` | Separate Pydantic ISR envelope with a legacy flat shape and an additive `system_model.v1` payload; typed architectural content is nested as `SystemModel`. Produced by the Tiannara intent synthesis path and consumed by `ProjectCompiler`, which calls `isr.system_model()` then backend `generate(system_model)`. | Not assigned an explicit row/disposition in the R1 authority map or ISR legacy-disposition table inspected. |
+
+`SystemModel` is the typed payload within ISR-F05, not counted as a sixth outer ISR envelope. Its semantics and canonical hash still require comparison with ISR-F01; it must not be assumed equivalent because both are described as technology-neutral.
+
+### 8.2 Compiler/runtime paths and active-surface distinction
+
+The source tree contains at least five distinct compilation execution surfaces:
+
+1. **Root campaign/compiler path:** `ISRRevision → isr_to_plan → compiler.core.CompilationPlan → compiler.core.CompilerBackend → GeneratedRepository → certification stages`.
+2. **Standalone root UniversalCompiler API:** `compiler/api.py` and `compiler/kernel.py` accept a raw dictionary ISR payload, apply a minimal field validator, resolve a separate backend registry and package output. This is a separate contract from `ISRRevision → CompilationPlan`; its actual deployment/use must be proven independently.
+3. **Constitutional Gen-C pipeline:** rich constitutional `ISR → CompilerContext → eight-pass pipeline → BIR → backend/artifacts`; `intent_entrypoint.py` also exposes source projection/binding into this pipeline. Tests and engine bridge imports remain in the tree despite the R1 retirement classification.
+4. **Per-category compiler/orchestrator path:** `UniversalISR` (ISR-F03) + `ArchitectureGenome` → category compiler contracts → `CompilationBundle` / `SystemDeploymentBundle`. R1 records classify this as legacy/retirement-path; the current source still contains the compiler implementations and consumers.
+5. **Tiannara application compiler path:** `IntermediateSoftwareRepresentation` → typed `SystemModel` → requirement derivation/backend selection → `generate(system_model)` → `CompilationResult` → verifier/materializer. The CLI imports `build_project_compiler`; this path is not the root `ISRRevision`/root `CompilationPlan` pipeline.
+
+A related adapter/conformance surface under `tiannara/application/compilation/` constructs ISR-F03 `UniversalISR` values from `BackendSemanticModel` projections to exercise older category backends. That is an explicit bridge to a legacy input contract, but the authority and lifecycle of this bridge are not reconciled in the R1 authority map.
+
+**Important distinction:** static imports, CLI wiring, API construction, tests and historical architecture documents prove that code paths exist; they do not by themselves prove which path is deployed as the production default. A runtime-entrypoint and deployment-configuration audit is still required. Conversely, labeling a path LEGACY or RETIRE in a document does not prove all imports, adapters, test dependencies or public entry points have been removed or safely fenced.
+
+### 8.3 Root ISR-to-plan mapping evidence
+
+The current `isr/core/graph.py` declares 14 node kinds and 18 edge kinds. Direct inspection of `compiler/core/lowering.py` shows dedicated carriers for 10 node kinds; `DOMAIN`, `CAPABILITY`, `INFRASTRUCTURE_TARGET` and `REQUIREMENT_REF` have no dedicated plan carrier in this lowerer. The lowerer handles 10 edge kinds in some form, but not all semantics are preserved: requirement relation edges, `SATISFIES`, `IMPLEMENTED_BY`, `DEPENDS_ON` and `REQUIRES_INVARIANT` are not represented as first-class plan relations. `CONTAINS` is used for route-to-interaction ownership, not preserved as a general ownership relation.
+
+Two ambiguity gaps are directly visible in the lowerer:
+- A frontend interaction gets a target API only when exactly one `INVOKES` target resolves in the API index; zero, multiple or service targets result in `target_api_operation=None` rather than an explicit rejection.
+- An API may retain `service_id=None` when no `EXPOSES` binding exists; the code rejects multiple distinct service bindings, but does not reject the missing binding at this lowering point.
+
+The `REQUIRES_INVARIANT` edge is declared in the ISR taxonomy but is not consumed in the current edge loop; invariants are carried as a list without a corresponding source-to-invariant binding carrier. These are source-inspection findings, not executed test results.
+
+### 8.4 Authority and migration contradiction to reconcile
+
+R1 documents establish a prior governance direction: `isr/core` is canonical; the rich constitutional ISR and both `UniversalISR` models are classified for retirement; per-category compilers are described as legacy/test-only. That direction is important evidence and must not be silently overridden.
+
+However, the current source also contains:
+- a separate `UniversalISR` definition in `core/models/universal_isr.py` not separately listed in the legacy disposition table;
+- `IntermediateSoftwareRepresentation` / `SystemModel` used by the Tiannara application compiler path;
+- source-level imports and adapter/conformance code that still consume the legacy model families;
+- a source/compiler path inventory that distinguishes several compiler entrypoints, not just the root campaign compiler.
+
+Therefore the prior authority decision does not yet constitute a complete migration/retirement proof for every extant ISR-shaped contract. FS-00 must reconcile these exact surfaces, record which are retained as compatibility adapters versus retired, and prove their runtime reachability is either intentionally governed or fenced. No model consolidation, deletion, adapter rewrite or schema change is authorized by this audit addendum.
+
+**Boundary Integrity remains PARTIAL. System-wide producer/consumer and deployment reachability inventory remains INCOMPLETE.**

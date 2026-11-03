@@ -109,3 +109,56 @@ Likely candidate files for a later migration include `compiler/core/lowering.py`
 | Governance approval | PENDING | independent human approval required |
 
 **FS-00 result: FOUNDATION_NOT_READY.** This document is a review draft and does not authorize FS-01 or any code/schema changes.
+
+
+## Migration and verification matrix (planning only; no code migration authorized)
+
+**Status:** REVIEW DRAFT. This matrix does not approve FS-01, an ISR schema change, or implementation. The proposed ADR must be approved first.
+
+### Migration principles
+
+- Keep ISR, canonical compiler IR, generated repository, runtime instance and evidence as distinct bound objects.
+- Do not expand Android semantics or mutate ISR schema during FS-00.
+- Migrate one backend family at a time; unknown semantics and missing evidence remain non-passing.
+- Mocked toolchains, synthetic APKs and simulated runtime observations cannot satisfy native build/runtime acceptance.
+- Every stage has explicit stop conditions and a rollback point.
+
+| Stage | Scope / precondition | Required verification | Stop / rollback condition |
+|---|---|---|---|
+| M0 — Freeze baseline | After FS-00 approval to begin implementation; pin source, schema, fixtures, backend manifests and workflow definitions. | Clean-checkout baseline suite, hashes and exact commands/results. | Unexplained drift or unavailable baseline input. |
+| M1 — Contract fixtures | FS-01 defines mapping and unknown-semantics policy. | Every ISR node/edge/payload; malformed and unknown kinds; dangling references; deterministic canonical serialization; semantic-correspondence checks. | Any source semantic unaccounted for, silently dropped or ambiguous. |
+| M2 — Canonical IR adapter | M1 fixtures approved; compatibility plan reviewed. | Versioned IR schema, deterministic mapping, source-to-IR trace, compatibility and negative tests. | Missing lineage, unstable hashes or unapproved behavior change. |
+| M3 — Core/backend boundary | M2 accepted; migration patch approved. | Static import-boundary checks, registry conformance, backend capability manifests, unsupported-feature refusal and isolation tests. | Core imports backend; unsupported semantics accepted; compatibility regression. |
+| M4 — Orchestration seam | Canonical IR/backend contracts approved. | Full-stack composition, deterministic selection, retry/idempotency, partial-failure quarantine and lineage tests. | Partial artifacts published or source binding lost. |
+| M5 — Independent evidence | Stable enough to bind source, ISR, IR, backend/version, candidate, artifacts and runtime results. | Tamper tests, fresh-process verifier, anti-vacuity tests, UNKNOWN remains non-pass, secret redaction and verdict regression tests. | Broken chain or verifier result trusted without independently checked predicates. |
+| M6 — One behavioral vertical slice | FS-00 approved; FS-01/FS-03 contracts approved; real Android SDK/Gradle/emulator available. | Real APK build/install/launch; real UI interactions; behavior oracles; durable-state checks across process relaunch; offline and negative cases; source-to-runtime lineage. | Any required criterion missing, mocked, unbound or unverified. |
+| M7 — Backend-family rollout | M6 accepted and rollout plan reviewed. | Per-family feature matrix, native build/run, security and contract tests, negative cases, independent conformance and version matrix. | Capability claimed without evidence or regression on shared semantic fixtures. |
+| M8 — Continuous certification | Stable per-family acceptance criteria. | Reproducible CI, dependency-update tests, evidence retention, deprecation status and rollback drills. | Unsupported combination shown as supported or stale certification presented as current. |
+
+### Minimum ISR-to-IR test matrix
+
+| Construct | Positive coverage | Negative coverage | Evidence |
+|---|---|---|---|
+| Every declared node kind | Documented IR mapping or explicit policy-gated non-executable annotation. | Unknown kind, missing payload, invalid behavior. | Node coverage and source/IR hashes. |
+| Every declared edge kind | First-class relation or documented verified equivalent. | Dangling endpoint, unsupported/conflicting relation, order variation. | Edge coverage and correspondence assertions. |
+| Requirement dependency/conflict/refinement/ownership | Retained in IR and traceability graph. | Unresolved conflict, missing target, ambiguous ownership. | Requirement-to-IR links and resolution record. |
+| Behavior payloads | Validated deterministic canonical form. | Missing/extra/invalid fields, unknown operator, type mismatch. | Validation report and payload hash. |
+| Effects/invariants/consequences | Binding and evaluation obligations remain explicit. | Unbound effect, ambiguous target, violated invariant, unsupported consequence. | Binding map, oracle definitions and negative results. |
+| Frontend routes/interactions | Route, action, target and expected state transition represented. | Missing or ambiguous target/selector; invalid navigation. | Interaction trace and independent state assertions. |
+| Security policies | Required links preserved and checked against backend capability. | Missing/weaker policy or unauthorized action. | Policy-version binding and authorization negative tests. |
+| Determinism/lineage | Pinned inputs/config yield equivalent canonical IR and stable declared outputs. | Input-order change, source hash mismatch, modified manifest, stale backend. | Repeated-run hashes and mismatch diagnostics. |
+
+### ESAP-APP-001 acceptance evidence
+
+A successful Gradle task or APK file is necessary but insufficient. Bind the exact source revision, approved specification/ISR derivation, candidate hash, APK hash, emulator/device identity, install/launch results, real UI interaction traces, durable-state assertions across process relaunch, offline behavior, negative cases and independent semantic-verifier output. Synthetic/mocked observations must be labelled and excluded from certification.
+
+### Rollback and compatibility
+
+- Keep each stage reviewable and separately revertible.
+- Preserve prior entry points during migration only when the approved plan explicitly permits it; compare semantic outputs, not file counts.
+- On divergence, stop and retain both reports; do not automatically prefer the new path.
+- Keep the last known-good commit and evidence bundle until independent acceptance.
+- Revert a failed stage as a unit; never weaken acceptance criteria to make it pass.
+- Schema/version migration requires separate approval and migration/rollback fixtures.
+
+**Migration Safety remains PARTIAL.** This is a planned matrix, not test execution evidence. The full import graph, consumer inventory and actual rollback identifiers remain outstanding.

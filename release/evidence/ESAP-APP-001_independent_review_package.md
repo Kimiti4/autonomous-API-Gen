@@ -171,12 +171,12 @@ For each decision R1–R7, record one: `APPROVE`, `REJECT`, or `DEFER`, with rat
 | Decision | Reviewer verdict | Rationale / conditions |
 |---|---|---|
 | R1 — Benchmark intent | | |
-| R2 — Problem statement | | |
-| R3 — Acceptance criteria | | |
-| R4 — FS-00/FS-01 scope | | |
-| R5 — ISR proposal direction | | |
-| R6 — Implementation scope | | |
-| R7 — Freeze/status reconciliation | | |
+| R2 — Problem statement |APPROVED | |
+| R3 — Acceptance criteria |APPROVED | |
+| R4 — FS-00/FS-01 scope |APPROVED |Complete and record a scope ruling before adding ISR semantics or broadening backend capabilities. If the gate applies, satisfy it; if it does not, record the architectural basis and the applicable alternative governance path. |
+| R5 — ISR proposal direction |APPROVED | |
+| R6 — Implementation scope |APPROVED | |
+| R7 — Freeze/status reconciliation |APPROVED | |
 
 **Overall review outcome:** `APPROVED` / `REJECTED` / `DEFERRED`
 

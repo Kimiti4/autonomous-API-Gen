@@ -161,15 +161,19 @@ jobs:
           }, sort_keys=True))
           PY
 
-      - name: Generate campaign-native Android candidate and run bound build
+      - name: Generate campaign-native Android candidate and run bound build on emulator
         id: android_execution
-        env:
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          script: |
           ISR_REVISION_PATH: ${{ inputs.isr_revision_path }}
           CANDIDATE_ID: ${{ inputs.candidate_id }}
           SOURCE_REVISION: ${{ inputs.source_revision }}
           SOURCE_SPEC_PATH: ${{ inputs.source_spec_path }}
           DERIVATION_MANIFEST_PATH: ${{ inputs.derivation_manifest_path }}
-        run: |
           python - <<'PY'
           import hashlib, json, os
           from pathlib import Path

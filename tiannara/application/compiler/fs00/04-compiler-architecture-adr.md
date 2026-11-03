@@ -162,3 +162,8 @@ A successful Gradle task or APK file is necessary but insufficient. Bind the exa
 - Schema/version migration requires separate approval and migration/rollback fixtures.
 
 **Migration Safety remains PARTIAL.** This is a planned matrix, not test execution evidence. The full import graph, consumer inventory and actual rollback identifiers remain outstanding.
+
+
+## Parallel compiler-runtime scope constraint
+
+The selected core/backend boundary describes the root-level `compiler/core` substrate only. It does not, by itself, resolve the parallel `constitutional_architecture/compiler` Gen-C pipeline, the `constitutional_architecture/compilers/*` per-category runtime consuming `UniversalISR`, or the separate `tiannara/application/compiler` family. Existing R1 inventory documents some of these as legacy-retirement candidates, but those dispositions are not an authorization in this FS-00 draft. The full system-wide authority, consumer graph and approved disposition of these paths remain open prerequisites to FOUNDATION_READY.

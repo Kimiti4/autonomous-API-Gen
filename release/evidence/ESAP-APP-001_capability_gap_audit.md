@@ -122,3 +122,23 @@ Updated disposition:
 - Independent benchmark review/approval: NOT EVIDENCED; authorized reviewer not identified.
 - Benchmark authority: CONFLICTED / REVIEW REQUIRED.
 - ESAP-APP-001 Stage A: BLOCKED. No AC criterion is upgraded by run #36.
+
+
+5.5 Approval-authority and governance-mechanism inspection (2026-11-03):
+- Inspected `folder/masterprompt.md`, `folder/prefull.md`, `folder/31.md`, `constitutional_architecture/governance/schemas.py`, `constitutional_architecture/governance/approval_workflow.py`, `certification/governance/escalation_policy.py`, and compiler ADR-012/ADR-013.
+- `folder/prefull.md` states that FS-00 is non-mutating and its four deliverables must be committed and reviewed; the Compiler Architecture ADR must be approved before the later ISR↔Compiler IR contract and backend/artifact contracts proceed. It identifies review by a human reviewer or lead architect as a precedent, but does not name the person/team/role authorized to independently approve this Android benchmark. The repository path/name search did not identify the four FS-00 deliverables as a complete reviewed package. This is a bounded search; it does not establish that no differently named or external approval artifact exists.
+- `docs/adr/ADR-012-compiler-backend-system.md` and `docs/adr/ADR-013-compiler-behavioral-certification.md` both have status "Proposed (pending certification)". They describe the existing compiler substrate and certification design, but neither designates an ESAP-APP-001 benchmark approver or proves the Android benchmark's authority.
+- `constitutional_architecture/governance/schemas.py` supports approver categories HUMAN, ROLE, ORGANIZATION, AUTONOMOUS_AGENT and FEDERATION_COUNCIL. This is a generic schema vocabulary, not an assignment of an authorized independent reviewer to ESAP-APP-001.
+- `ApprovalWorkflowEngine` in `constitutional_architecture/governance/approval_workflow.py` stores approvals in process-local dictionaries. Its `submit_decision(approval_id, decision, ...)` method does not itself accept or authenticate the identity of the submitting actor. Therefore the existence of this class alone cannot establish reviewer identity, independence, or durable approval evidence. A separate authenticated, durable record or GitHub review by an authorized independent reviewer is still required.
+- `certification/governance/escalation_policy.py` defines escalation triggers and an explicit high-stakes operation allow-list. It documents human escalation as a boundary, but does not itself establish the benchmark's designated reviewer or a benchmark-specific approval workflow.
+- No `.github/CODEOWNERS` or root `CODEOWNERS` file was found at this branch head. PR #201 has no requested reviewers and the review-submission query returned an empty list. This supports "no review recorded here", not "no qualified reviewer exists".
+- Governance scope note: `folder/prefull.md` governs the Full-Stack Compiler's architecture-first construction sequence. PR #201 adds an Android backend plugin to an existing compiler substrate; the inspected material does not conclusively establish whether that work is subject to the FS-00 implementation gate. Do not classify this PR as a proven governance violation without an explicit scope ruling.
+- Required resolution: obtain an explicit designation of the independent reviewer/lead architect and the approval authority applicable to ESAP-APP-001; record the reviewer identity, independence/conflict check, exact reviewed file hashes, findings, decision, timestamp and evidence reference in a durable review artifact. Then reconcile the manifest/problem/acceptance statuses under a versioned decision. Do not infer authority from a generic role enum, an unverified approval class, Git blob hashes, or PR authorship.
+
+Updated disposition:
+- Latest Android campaign backend contract tests: PASS on PR head 6430e33a (run #36).
+- Android cloud build/APK/emulator: NOT RUN (PR event skipped the manual workflow).
+- Independent benchmark review/approval: NOT EVIDENCED; reviewer authority remains unidentified.
+- Existing governance framework: generic human/role approval concepts exist, but no benchmark-specific authorized reviewer mapping or authenticated durable approval record was established by this inspection.
+- Benchmark authority: CONFLICTED / REVIEW REQUIRED.
+- ESAP-APP-001 Stage A: BLOCKED. No AC criterion is upgraded.

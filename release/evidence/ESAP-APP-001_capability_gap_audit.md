@@ -142,3 +142,29 @@ Updated disposition:
 - Existing governance framework: generic human/role approval concepts exist, but no benchmark-specific authorized reviewer mapping or authenticated durable approval record was established by this inspection.
 - Benchmark authority: CONFLICTED / REVIEW REQUIRED.
 - ESAP-APP-001 Stage A: BLOCKED. No AC criterion is upgraded.
+
+
+5.6 Stage A closure feasibility and ISR expressiveness assessment (2026-11-03):
+- Re-read the complete ESAP-APP-001 PROBLEM.md and AC-001..AC-013 acceptance criteria, plus the current campaign ISRRevision, ISR graph taxonomy, behavioral payload schemas, CompilationPlan, lowering, Android backend and structural runner.
+- The current Android backend is deliberately a static model catalogue. It has no supported semantic features and rejects populated services, events, security policies, APIs, effects, effect bindings, consequences, invariants, frontend routes/interactions, and typed data-model behavior. Therefore it cannot generate the benchmark application described by PROBLEM.md; no amount of cloud-build configuration can make the current emitter satisfy AC-002..AC-012.
+- The existing technology-neutral ISR behavior schema can express typed fields, field constraints, expressions/invariants, business rules, state transitions, API contracts, authorization rules, named frontend routes and a limited interaction vocabulary (submit/refresh/delete/toggle). It does not presently provide explicit first-class contracts for case-insensitive local search semantics, durable local-store guarantees, process-death/relaunch lifecycle semantics, offline execution guarantees, or the full UI state/interaction semantics in ESAP-APP-001. The graph's PERSISTS edge expresses a persistence relationship but does not by itself specify durability guarantees or a concrete acceptance oracle. These are representation gaps, not permission to invent backend-specific ISR fields.
+- The AC-001..AC-013 criteria require a real native app, runtime UI tests, before/after durable-state assertions, process relaunch, offline emulator execution, negative-case coverage, exact source-to-plan lineage, independent semantic verification and reproducible CI evidence. The current runner only builds an APK, inspects its ZIP/manifest/DEX and installs/launches it; it has no UI automation, repository-state oracle, offline test harness, lifecycle test harness, or independent semantic verifier. A successful current runner result is therefore structural evidence only.
+- ESAP-APP-001 source files are still self-described as proposed/unreviewed while the manifest says FROZEN_V1. The manifest's Git blob hashes identify exact bytes, but neither hashes nor the freeze commit supply independent approval. No authorized independent reviewer identity, signature/public key, or durable authenticated review record was found. The repository governance approval engine inspected in §5.5 is not a substitute.
+- The repository's FS-00 gate in folder/prefull.md requires a non-mutating architecture reconnaissance, four coherent committed deliverables, five evidence classes and governance approval before FS-01; it also states that the ISR schema is frozen until the ISR/Evolution Audit determines required extensions. Its scope applicability to this benchmark-specific plugin PR remains unresolved. Because this audit found likely ISR expressiveness gaps, implementing ad-hoc Android-specific semantics before an explicit FS-00/FS-01 scope decision would risk violating the repository's own architecture-first sequencing.
+- No new ISRRevision, source-to-ISR manifest, candidate APK, emulator evidence, UI test result, or independent verification report was fabricated or added. No AC criterion is upgraded by this assessment.
+
+Closure work that can be performed within repository control:
+1. Complete and obtain approval for the architecture/ISR scope decision (including whether FS-00/FS-01 gates apply to this Android benchmark).
+2. Have an authorized independent reviewer review the exact source specification and acceptance bytes; reconcile the manifest/problem/acceptance status under a versioned freeze decision.
+3. Define and approve any required technology-neutral ISR contract extensions and an acceptance-oracle mapping for all 13 criteria.
+4. Implement an Android backend that consumes the approved ISR semantics and emits the actual offline inventory app; declare capabilities only after direct implementation tests.
+5. Implement a candidate-bound independent verifier and emulator UI/lifecycle/offline test harness; bind every result to exact source, ISR, plan, candidate and toolchain hashes.
+6. Run the manual cloud workflow against the approved immutable source revision, retain APK and evidence artifacts, resolve all failures, and obtain independent review of the complete evidence package.
+
+Current closure assessment:
+- Repository-side structural Android slice: implemented, narrow, backend tests passed on previously recorded run #36.
+- Full ESAP-APP-001 application generation: NOT IMPLEMENTED; current backend rejects required runtime semantics.
+- ISR expressiveness for all benchmark requirements: INSUFFICIENT / REQUIRES ARCHITECTURAL DECISION.
+- AC-001..AC-013: NONE certified as a complete benchmark result; AC-001 cloud build/emulator evidence is still absent and AC-002..AC-010 runtime evidence is absent; AC-011 independent semantic traceability and AC-013 reproducibility are absent; AC-012 negative-case evidence is absent.
+- Independent benchmark authority/review: NOT EVIDENCED.
+- Stage A: BLOCKED. This is a substantive implementation and governance gap, not merely an untriggered cloud workflow.

@@ -2071,3 +2071,13 @@ This sequence is evidenced structurally; it does **not** prove every stage is co
 ## 8. FS-00 status
 
 **Architectural Evidence: PARTIAL.** The tree snapshot and all scoped paths are inventoried. Semantic classification of all modules, dependency graph completeness, all five evidence classes, and governance approval are not yet established.
+
+
+## 4.1 Cross-cutting finding: two active ISR model families
+
+The path inventory must be read alongside the authority finding in Deliverables 2 and 3. The repository has both:
+
+- `isr/core/{graph,revision,identity}.py` and the newer root-level ISRRevision-based pipeline;
+- `constitutional_architecture/isr/model/*`, its graph/serialization/semantic modules, and the richer ISR consumed by the constitutional compiler path.
+
+The existence of both is directly supported by source and import searches. The root-level compiler path and the constitutional Gen-C path use different input types; repository architecture notes explicitly record this mismatch. The map therefore does **not** assert that either model family is the sole system-wide constitutional ISR. The authoritative model, allowed adapter, and migration strategy remain unresolved and must be decided under governance before FS-00 closes.

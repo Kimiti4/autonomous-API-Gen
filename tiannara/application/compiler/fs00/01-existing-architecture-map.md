@@ -2094,3 +2094,19 @@ Further source search identified a third ISR family, `constitutional_architectur
 **Comparison:** the source snapshot at `68696e2a07595fed98a19e24ee96c3e4e0e5bfeb` is 15 commits behind this head; the comparison reports exactly four changed paths, all four FS-00 deliverables in this directory. No production source path changed between the inventory source commit and the reviewed head. The head tree therefore contains 3,472 blobs: the 3,468-blob source snapshot plus these four audit documents.
 
 The inventory above remains an accurate path inventory for its explicitly pinned source tree. It must not be described as a semantic dependency graph or as a current-head inventory including the four audit documents. The repository's ISR/compiler ownership and consumer findings are expanded in Deliverables 2 and 3 below.
+
+## 10. PR-head tree reconciliation — 2026-11-03
+
+The inventory above remains pinned to source commit `68696e2a07595fed98a19e24ee96c3e4e0e5bfeb` and must not be mistaken for a current-HEAD file count. A separate recursive Git tree read at PR-head commit `058810c9a2027d009dd9f0f0f6291da30bbc0417` returned **3,472 blobs** with `truncated=false`. The earlier baseline count of 3,468 is therefore historically scoped, not the current PR-head count.
+
+The PR-head tree contains these distinct source roots / surfaces relevant to ISR and compilation:
+
+- `isr/core/` — typed root graph/revision and behavioral/invariant validation.
+- `compiler/core/`, `compiler/backends/`, `compiler/api.py`, `compiler/kernel.py` — canonical-plan protocol plus separate UniversalCompiler API/kernel.
+- `constitutional_architecture/isr/` — rich ISR model, semantic validators, serializer/deserializer, graph/EIR, versioning and projection.
+- `constitutional_architecture/compiler/` — Gen-C 8-pass pipeline, BIR, backend protocol and source-binding entrypoint.
+- `constitutional_architecture/core/models/isr.py` and `core/models/universal_isr.py` — two different classes named `UniversalISR`.
+- `constitutional_architecture/compilers/` — per-category compiler contracts and implementations.
+- `tiannara/domain/models/isr.py` and `system_model.py`; `tiannara/application/compiler/` — typed ISR envelope, SystemModel payload and ProjectCompiler path.
+
+The full tree is not itself a dependency graph. This map now cross-references the PR-head source verification and boundary findings in Deliverables 2 and 3. A complete import/consumer inventory, dynamic reachability classification and deployment exposure audit remain outstanding. The source inventory is **not** a declaration that every listed compiler is active or production-ready.

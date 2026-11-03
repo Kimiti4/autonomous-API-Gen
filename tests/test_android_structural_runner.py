@@ -69,3 +69,84 @@ def test_native_runner_requires_source_and_plan_hashes(tmp_path):
         assert "mandatory" in str(exc)
     else:
         raise AssertionError("unbound candidate accepted")
+
+
+
+def _revision_fixture():
+    from isr.core.graph import ISRGraph, Node, NodeType
+    from isr.core.identity import Provenance
+    from isr.core.revision import ISRRevision
+
+    return ISRRevision.create(
+        system_id="inventory",
+        revision_id="rev:bound-test",
+        schema_version="1.0",
+        graph=ISRGraph(nodes={
+            "dm:item": Node(
+                id="dm:item", type=NodeType.DATA_MODEL,
+                properties={"label": "Item"},
+            )
+        }),
+        provenance=Provenance(
+            created_by="test", created_at="2026-11-03T00:00:00Z",
+            requirement_refs=["req:item"], derivation_refs=["test-fixture"],
+        ),
+    )
+
+
+def test_execute_bound_recomputes_isr_plan_and_candidate_binding(tmp_path):
+    from compiler.backends.android import compile_isr_revision
+
+    revision = _revision_fixture()
+    candidate = compile_isr_revision(revision)
+
+    def fake_run(command, **kwargs):
+        if command[0] == "gradle":
+            make_apk(Path(kwargs["cwd"]) / "app/build/outputs/apk/debug/app-debug.apk")
+        return SimpleNamespace(returncode=0, stdout="ok", stderr="")
+
+    result = NativeAndroidStructuralRunner(fake_run).execute_bound(
+        revision, candidate, tmp_path / "bound-candidate", require_emulator=True
+    )
+    assert result.passed
+    assert result.revision_hash == revision.content_hash
+    assert result.plan_hash == candidate.plan_hash
+    assert result.candidate_hash == candidate.repository.content_hash
+    assert result.verdict == "STRUCTURAL_CHECKS_ONLY"
+
+
+def test_execute_bound_rejects_candidate_from_different_revision(tmp_path):
+    from dataclasses import replace
+    from compiler.backends.android import compile_isr_revision
+
+    revision = _revision_fixture()
+    candidate = compile_isr_revision(revision)
+    altered = replace(candidate, revision_hash="0" * 64)
+    try:
+        NativeAndroidStructuralRunner().execute_bound(
+            revision, altered, tmp_path / "must-not-run", require_emulator=False
+        )
+    except ValueError as exc:
+        assert "revision hash" in str(exc)
+    else:
+        raise AssertionError("candidate bound to another revision was accepted")
+    assert not (tmp_path / "must-not-run").exists()
+
+
+def test_execute_bound_rejects_tampered_candidate_repository(tmp_path):
+    from dataclasses import replace
+    from compiler.backends.android import compile_isr_revision
+
+    revision = _revision_fixture()
+    candidate = compile_isr_revision(revision)
+    altered_repo = build_repository({**candidate.repository.files, "README.md": "tampered"})
+    altered = replace(candidate, repository=altered_repo)
+    try:
+        NativeAndroidStructuralRunner().execute_bound(
+            revision, altered, tmp_path / "must-not-run", require_emulator=False
+        )
+    except ValueError as exc:
+        assert "canonical backend output" in str(exc)
+    else:
+        raise AssertionError("tampered candidate repository was accepted")
+    assert not (tmp_path / "must-not-run").exists()

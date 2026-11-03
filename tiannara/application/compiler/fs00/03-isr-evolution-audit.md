@@ -249,3 +249,17 @@ The PR-head source reads establish materially different persistence contracts:
 **New finding ISR-A17 — canonical durable persistence not demonstrated (High):** the canonical ISR has a store port and in-memory implementation, but the audit has not located a durable adapter or demonstrated that the production intent/compiler/evolution path reads and writes authoritative root revisions through this port. Before asserting system-wide canonical persistence, trace the runtime store binding, storage backend, transaction/immutability behavior, recovery, schema migration invocation and audit evidence. A protocol docstring or test-only in-memory adapter is insufficient.
 
 The model-family reconciliation must therefore cover not only schema shape and compiler entrypoints, but also which store is authoritative, whether snapshots are immutable/deletable, which hash scope is used as the identity key, how schema migrations are invoked, and whether lineage is included or deliberately excluded from each digest.
+
+
+### 10.7 Canonical ISR deserialization integrity gap
+
+A further integrity issue is visible in the current root model and authorization verifier:
+
+- `ISRRevision.create()` (`isr/core/revision.py:41-63`) is the factory that calls `validate_invariants`, `validate_behavioral_graph` and `compute_content_hash`.
+- The `ISRRevision` model itself declares fields and a schema-version format validator, but no model-level validator that recomputes the content hash or reruns graph/behavioral invariants when an object is reconstructed.
+- `certification/authorization/verifier.py:102-115` deserializes the on-disk ISR using `ISRRevision.model_validate(_read_json(isr_path))`, then checks only whether the deserialized `revision.content_hash` string equals the manifest's `candidate.isr_content_hash`. That code does not recompute `compute_content_hash(revision.schema_version, revision.graph)` or rerun `validate_invariants` / `validate_behavioral_graph` on the deserialized graph.
+- Existing round-trip tests in `tests/test_isr_substrate_v12.py:92-103` confirm a valid object can be serialized and revalidated, but do not test graph tampering while retaining the old content_hash.
+
+**Finding ISR-A18 — persisted ISR payload hash is not independently recomputed at this verifier boundary (Critical):** the verifier's ISR integrity check trusts the serialized content_hash field as evidence of graph identity. A modified graph paired with the original hash field can satisfy this individual equality check. Other candidate checks may detect some inconsistencies, but they do not substitute for recomputing the ISR hash from the exact deserialized schema version and graph. The present source therefore does not establish tamper detection for the ISR payload itself at this boundary.
+
+Required later remediation (not authorized in FS-00): add an independent recomputation-and-invariant check at every trust boundary that loads an ISR revision; reject a hash mismatch and invalid graph before consuming it; test mutation of node properties, edges, schema version and provenance while preserving stale declared hashes. The implementation must also define whether provenance is intentionally outside the content hash and bind it separately where required. Do not change the model or verifier in this audit phase.

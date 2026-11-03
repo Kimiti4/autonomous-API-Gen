@@ -2081,3 +2081,8 @@ The path inventory must be read alongside the authority finding in Deliverables 
 - `constitutional_architecture/isr/model/*`, its graph/serialization/semantic modules, and the richer ISR consumed by the constitutional compiler path.
 
 The existence of both is directly supported by source and import searches. The root-level compiler path and the constitutional Gen-C path use different input types; repository architecture notes explicitly record this mismatch. The map therefore does **not** assert that either model family is the sole system-wide constitutional ISR. The authoritative model, allowed adapter, and migration strategy remain unresolved and must be decided under governance before FS-00 closes.
+
+
+## 4.2 Additional substrate: UniversalISR and parallel compiler runtimes
+
+Further source search identified a third ISR family, `constitutional_architecture/core/models/isr.py:UniversalISR`, consumed by the per-category compiler framework under `constitutional_architecture/compilers/*`, the constitutional core contracts/orchestrator and Tiannara compilation projection/conformance surfaces. Existing `folder/R1_D2_COMPILER_INVENTORY.md` describes these per-category compilers as a separate runtime that bypasses `compiler.core.CompilationPlan`. Thus this inventory now identifies **at least three ISR model families** and multiple compiler runtimes, not merely two. Exact authority and the disposition of each family remain governed unresolved questions.

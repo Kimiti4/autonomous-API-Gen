@@ -164,61 +164,62 @@ jobs:
       - name: Generate campaign-native Android candidate and run bound build on emulator
         id: android_execution
         uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 35
-          arch: x86_64
-          profile: pixel_2
-          script: |
+        env:
           ISR_REVISION_PATH: ${{ inputs.isr_revision_path }}
           CANDIDATE_ID: ${{ inputs.candidate_id }}
           SOURCE_REVISION: ${{ inputs.source_revision }}
           SOURCE_SPEC_PATH: ${{ inputs.source_spec_path }}
           DERIVATION_MANIFEST_PATH: ${{ inputs.derivation_manifest_path }}
-          python - <<'PY'
-          import hashlib, json, os
-          from pathlib import Path
-          from isr.core.revision import ISRRevision
-          from compiler.backends.android import compile_isr_revision
-          from certification.campaign.android_structural_runner import NativeAndroidStructuralRunner
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          script: |
+            python - <<'PY'
+            import hashlib, json, os
+            from pathlib import Path
+            from isr.core.revision import ISRRevision
+            from compiler.backends.android import compile_isr_revision
+            from certification.campaign.android_structural_runner import NativeAndroidStructuralRunner
 
-          revision_bytes = Path(os.environ["ISR_REVISION_PATH"]).read_bytes()
-          revision = ISRRevision.model_validate_json(revision_bytes)
-          candidate = compile_isr_revision(revision)
-          result = NativeAndroidStructuralRunner(timeout_seconds=2400).execute_bound(
-              revision=revision,
-              candidate=candidate,
-              candidate_root=os.environ["CANDIDATE_ROOT"],
-              require_emulator=True,
-          )
-          evidence = result.to_dict()
-          evidence.update({
-              "candidate_id": os.environ["CANDIDATE_ID"],
-              "source_revision": os.environ["SOURCE_REVISION"],
-              "source_spec_path": os.environ["SOURCE_SPEC_PATH"],
-              "source_spec_sha256": hashlib.sha256(
-                  Path(os.environ["SOURCE_SPEC_PATH"]).read_bytes()
-              ).hexdigest(),
-              "isr_revision_file_sha256": hashlib.sha256(revision_bytes).hexdigest(),
-              "derivation_manifest_path": os.environ["DERIVATION_MANIFEST_PATH"],
-          })
-          root = Path(os.environ["CANDIDATE_ROOT"])
-          (root / "android-cloud-build-evidence.json").write_text(
-              json.dumps(evidence, sort_keys=True, indent=2) + "\n",
-              encoding="utf-8",
-          )
-          print(json.dumps({
-              "passed": result.passed,
-              "verdict": result.verdict,
-              "revision_hash": result.revision_hash,
-              "plan_hash": result.plan_hash,
-              "candidate_hash": result.candidate_hash,
-              "apk_hash": result.apk_hash,
-              "stages": [{"stage": x.stage, "passed": x.passed, "exit_code": x.exit_code}
-                         for x in result.evidence]
-          }, sort_keys=True))
-          if not result.passed:
-              raise SystemExit("Android structural cloud execution did not pass all required stages")
-          PY
+            revision_bytes = Path(os.environ["ISR_REVISION_PATH"]).read_bytes()
+            revision = ISRRevision.model_validate_json(revision_bytes)
+            candidate = compile_isr_revision(revision)
+            result = NativeAndroidStructuralRunner(timeout_seconds=2400).execute_bound(
+                revision=revision,
+                candidate=candidate,
+                candidate_root=os.environ["CANDIDATE_ROOT"],
+                require_emulator=True,
+            )
+            evidence = result.to_dict()
+            evidence.update({
+                "candidate_id": os.environ["CANDIDATE_ID"],
+                "source_revision": os.environ["SOURCE_REVISION"],
+                "source_spec_path": os.environ["SOURCE_SPEC_PATH"],
+                "source_spec_sha256": hashlib.sha256(
+                    Path(os.environ["SOURCE_SPEC_PATH"]).read_bytes()
+                ).hexdigest(),
+                "isr_revision_file_sha256": hashlib.sha256(revision_bytes).hexdigest(),
+                "derivation_manifest_path": os.environ["DERIVATION_MANIFEST_PATH"],
+            })
+            root = Path(os.environ["CANDIDATE_ROOT"])
+            (root / "android-cloud-build-evidence.json").write_text(
+                json.dumps(evidence, sort_keys=True, indent=2) + "\\n",
+                encoding="utf-8",
+            )
+            print(json.dumps({
+                "passed": result.passed,
+                "verdict": result.verdict,
+                "revision_hash": result.revision_hash,
+                "plan_hash": result.plan_hash,
+                "candidate_hash": result.candidate_hash,
+                "apk_hash": result.apk_hash,
+                "stages": [{"stage": x.stage, "passed": x.passed, "exit_code": x.exit_code}
+                           for x in result.evidence]
+            }, sort_keys=True))
+            if not result.passed:
+                raise SystemExit("Android structural cloud execution did not pass all required stages")
+            PY
 
       - name: Preserve structural-only verdict
         if: always()

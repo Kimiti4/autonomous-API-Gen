@@ -110,23 +110,62 @@ The Phase 31 closeout ADR records B3-v2 as **NOT_CERTIFIED**: 443 trials complet
 **Evidence reference:** `folder/PHASE31_CLOSEOUT_ADR.md`, sections 2–3 (443 completed; NOT_CERTIFIED; runtime budget exhausted) and the ledger/chain integrity record. No new campaign was run in this audit.
 
 
-## 9. Multiple ISR model families and system-wide authority gap
+## 9. ISR model-family and compiler-runtime authority reconciliation
 
-This audit must not be interpreted as proof that root-level `isr/core` is the sole ISR used throughout the repository. Source searches and existing architecture inventories identify **at least three** model families:
+The earlier count of three ISR model families was incomplete. The pinned source tree contains **at least five distinct ISR model definitions/envelopes**. They are not interchangeable, and their existence does not imply equal production status.
 
-1. **Root-level typed ISR:** `isr/core/{graph,revision,identity}.py` defines `ISRGraph` and content-addressed `ISRRevision`. The newer root-level compiler path lowers this revision through `compiler/core/lowering.py`; root-level requirement graph, genesis, evolution and certification paths consume it.
-2. **Constitutional architecture ISR:** `constitutional_architecture/isr/model/isr.py` and related graph/serialization/semantic modules define a richer `ISR` consumed by `constitutional_architecture/compiler/compiler_context.py`, `constitutional_architecture/isr/isr_graph.py`, and `tiannara/application/evolution/isr_capability_audit.py`.
-3. **UniversalISR:** `constitutional_architecture/core/models/isr.py` defines `UniversalISR`, consumed by `constitutional_architecture/core/contracts/compiler.py`, `constitutional_architecture/compilers/*`, the core orchestrator and Tiannara compilation projection/conformance surfaces. The R1 compiler inventory identifies the per-category compiler framework as a separate runtime producing `CompilationBundle` and bypassing root `CompilationPlan`.
+1. **Root typed ISR — `isr/core`:** `ISRGraph` + frozen, content-addressed `ISRRevision`; 14 node kinds and 18 edge kinds in the inspected source. Root lowering, campaign planning, genesis, evolution and stores/adapters consume it.
+2. **Constitutional rich ISR — `constitutional_architecture/isr/model/isr.py:ISR`:** immutable dataclass over `System` and rich module/entity/service/workflow/policy/interface/event structures; separate serialization, deserialization, versioning and Gen-C pipeline. Existing R1-D1 records classify the model/runtime RETIRE, while source imports remain in compiler, engine, verification, snapshot and evolution-related modules.
+3. **Graph `UniversalISR` — `constitutional_architecture/core/models/isr.py`:** Pydantic graph with `ISRNode.semantic_attributes`, typed edge list, intent/genome hashes and a distinct 17-node/13-edge vocabulary in the R1 inventory. It feeds a separate `ArchitectureGenome + UniversalISR → CompilationBundle` per-category compiler/orchestrator contract and Tiannara projection/conformance adapters. Existing R1 records classify it RETIRE / legacy.
+4. **Second `UniversalISR` — `constitutional_architecture/core/models/universal_isr.py`:** a separate class with the same exported class name but a different eight-node, dependency-list model and no typed edge list. It is exported from `constitutional_architecture/core/__init__.py` and used by `core/governance.py` plus tests. The earlier disposition table did not identify this second definition separately.
+5. **Tiannara ISR envelope — `tiannara/domain/models/isr.py:IntermediateSoftwareRepresentation`:** Pydantic envelope retaining a legacy flat payload and supporting a `system_model.v1` typed payload nested as `SystemModel`. The Tiannara intent compiler creates this envelope; `ProjectCompiler` reads `system_model()`, plans backend generation from the typed model and receives `CompilationResult`. The Tiannara CLI imports the project compiler composition root. This envelope is not assigned a clear disposition in the R1 ISR authority/disposition documents inspected.
 
-The root-level compiler, constitutional Gen-C pipeline and per-category compiler runtime have distinct contracts and input types. Existing repository records differ in how they label the authoritative substrate, so a single system-wide canonical ISR/compiler path is **not demonstrated**. The earlier R1 audit's recommendation to retire legacy paths is a documented proposal, not permission in this FS-00 task to delete them or silently convert data.
+`SystemModel` is the typed payload inside the fifth envelope, not counted as a sixth outer ISR. Its schema, canonicalization and semantic correspondence to the root ISR remain unproven.
 
-**Required resolution before FS-00 can close:**
+### 9.1 Existing authority decision versus implementation evidence
 
-- obtain the authorized architectural decision identifying the constitutional source of truth and disposition of each ISR/compiler family;
-- enumerate production producers/consumers, persistence adapters, serializers, migrations, hashes and provenance paths for all families;
-- map each compiler runtime's inputs, outputs, active entry points, tests, generated artifacts and certification status;
-- document and test any conversion as a versioned semantics-preserving adapter, including security policy, requirement references, effects/invariants/consequences, deployment intents and evolution metadata;
-- prove unknown/unrepresentable constructs block conversion rather than disappear;
-- define compatibility, retirement and rollback plans, and update Deliverables 1–4 consistently.
+The R1 authority map and canonical ISR contract establish a prior decision that `isr/core` is the single canonical ISR authority. R1-D1 classifies the rich constitutional ISR and graph `UniversalISR` as RETIRE, and R1-D follow-up records describe the category compilers as legacy/test-only. This is a governance decision and must be respected unless explicitly superseded by an authorized decision.
 
-No ISR schema changes, model consolidation or legacy retirement are authorized by this finding. **System-wide ISR/compiler authority: UNRESOLVED; Architectural Evidence, Contract Completeness and Boundary Integrity remain PARTIAL.**
+The current source nevertheless contains additional or still-reachable surfaces:
+- the second `UniversalISR` class in `core/models/universal_isr.py`, not separately classified in the disposition table;
+- the Tiannara `IntermediateSoftwareRepresentation` / `SystemModel` envelope used by the separate ProjectCompiler/CLI path;
+- a `tiannara/application/compilation` projection/conformance adapter that constructs the legacy graph `UniversalISR` for backend conformance;
+- rich-ISR Gen-C pipeline, source-binding entrypoint, engine bridge and serializer/versioning code, despite the retirement classification;
+- a standalone root `compiler/api.py` / `compiler/kernel.py` path accepting a dictionary ISR envelope with a minimal pre-compilation validator, separate from `ISRRevision → CompilationPlan`.
+
+These findings do not prove that every legacy surface is a production default. They do prove that a documentation-only retirement classification is not, by itself, a complete runtime-reachability, compatibility or deletion proof. The audit must distinguish production entrypoints, explicitly invoked compatibility adapters, test-only references, historical modules and unreachable code using import-walk, CLI/API wiring, packaging, deployment configuration and clean-environment execution evidence.
+
+### 9.2 Root ISR-to-CompilerPlan coverage is still incomplete
+
+The inspected root lowerer constructs carriers for 10 of the 14 declared node kinds. It does not provide first-class plan carriers for `DOMAIN`, `CAPABILITY`, `INFRASTRUCTURE_TARGET` or `REQUIREMENT_REF`. It consumes 10 of 18 edge kinds, but does not preserve requirement dependency/conflict/refinement/ownership edges, `SATISFIES`, `IMPLEMENTED_BY`, `DEPENDS_ON` or `REQUIRES_INVARIANT` as first-class plan relations. General `CONTAINS` ownership is reduced to the frontend-route/interaction case.
+
+The lowerer also does not fail closed for every ambiguous or missing binding:
+- `INVOKES` produces a target only when exactly one target is an API; zero, multiple or service targets leave `target_api_operation=None`.
+- API service ownership is rejected when multiple distinct `EXPOSES` sources exist, but missing ownership may remain `service_id=None`.
+- Invariants are carried as a collection, but the `REQUIRES_INVARIANT` edge is not mapped into a source-bound invariant binding.
+
+The presence of typed behavior carriers and fail-closed checks for some bindings does not establish total semantic preservation. These uncovered constructs remain blockers for claiming the current `CompilationPlan` is a complete canonical Compiler IR.
+
+### 9.3 Compiler paths requiring one governed disposition
+
+At least five compilation surfaces must be reconciled:
+
+1. Root campaign path: `ISRRevision → isr_to_plan → CompilationPlan → compiler.core backend → GeneratedRepository → certification`.
+2. Standalone root UniversalCompiler API: raw dictionary ISR → minimal validator → separate backend registry/kernel → packaged output.
+3. Constitutional Gen-C: rich constitutional ISR → BIR → Gen-C backend/pipeline and source-binding entrypoint.
+4. Per-category compiler/orchestrator: graph `UniversalISR` + `ArchitectureGenome` → category compilers → `CompilationBundle` / `SystemDeploymentBundle`.
+5. Tiannara ProjectCompiler: `IntermediateSoftwareRepresentation` → `SystemModel` → capability-derived plan → backend `generate()` → `CompilationResult` → verification/materialization.
+
+The `tiannara/application/compilation` backend-conformance path additionally adapts a semantic projection into the legacy `UniversalISR` input shape. Its relationship to the Tiannara ProjectCompiler and root canonical compiler must be established rather than assumed.
+
+### 9.4 Required resolution before FS-00 can close
+
+- Reaffirm or amend the existing canonical authority decision through the authorized governance process; this audit does not make that decision.
+- Add the two distinct `UniversalISR` definitions and the Tiannara `IntermediateSoftwareRepresentation` envelope to the authoritative inventory and migration register.
+- Trace each model's producers, consumers, serializers/deserializers, persistence, hashes, schema migrations, API/CLI entrypoints, tests, packaging and deployment reachability.
+- Determine whether `SystemModel` is a one-way projection, an independent semantic authority or a transitional typed payload; prove correspondence to canonical ISR before it can authorize compilation.
+- Reconcile the per-category conformance adapter with the retirement decision; specify whether it is an approved, bounded legacy bridge, test-only harness or prohibited path.
+- Prove all RETIRE classifications are actually fenced from canonical production entrypoints, while preserving any explicitly authorized compatibility adapter with versioned semantics and rollback.
+- For every conversion, test semantic preservation for security policy, requirements, effects, invariants, consequences, deployment intents, provenance and evolution metadata. Unknown or unrepresentable semantics must block conversion.
+
+**System-wide ISR/compiler authority: GOVERNANCE DIRECTION EXISTS (`isr/core` canonical), BUT IMPLEMENTATION/MIGRATION RECONCILIATION IS INCOMPLETE.** Architectural Evidence, Contract Completeness and Boundary Integrity remain PARTIAL. No schema changes, model consolidation, deletion, adapter rewrite or legacy retirement are authorized by this audit.

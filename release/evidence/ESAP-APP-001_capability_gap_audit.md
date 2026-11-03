@@ -105,3 +105,20 @@ Current disposition:
 - Approved source-to-ISR derivation: NOT ESTABLISHED; no approved derivation manifest or authoritative ISR revision is present.
 - Benchmark authority: CONFLICTED / REVIEW REQUIRED.
 - ESAP-APP-001 Stage A: BLOCKED. No AC criterion is upgraded by the backend-test run.
+
+
+5.4 Latest CI and governance-review gate reconciliation (2026-11-03):
+- Re-fetched PR #201 at head 6430e33a0dd600b0ccd9c472f9bc2ff5d70455cd and queried commit-associated pull-request workflow runs.
+- GitHub Actions run 41636374374 (run #36) completed successfully on this head. Job android-backend-tests succeeded. Job android-cloud-build was skipped. This supersedes the earlier statement that no workflow run was found for the latest audit commit.
+- The successful job is the campaign Android backend contract test suite only. It does not establish a Gradle build, APK, emulator install/launch, native UI behavior, source-to-ISR semantic derivation, or any AC-001 through AC-013 benchmark pass.
+- Reviewed folder/prefull.md, “FS-00 — Full-Stack Compiler Architectural Reconnaissance & Foundation Gate”, especially §3.2 and §10.6. It requires the four FS-00 deliverables to be reviewed and states that a human reviewer (or lead architect) approves after the evidence classes are met. This is a repository governance precedent for explicit human approval; it does not by itself designate the authorized independent reviewer for ESAP-APP-001.
+- PR #201 currently has no requested reviewers and no review/comment records returned by the PR discussion endpoint. Therefore no independent benchmark review or approval is evidenced in this PR.
+- Required action before changing benchmark authority: identify the authorized independent reviewer (or lead architect if that role is permitted for this benchmark), provide the exact PROBLEM.md, ACCEPTANCE.json and manifest bytes/hashes for review, record findings and approval/rejection in a durable review artifact or signed/traceable PR review, and only then reconcile the three status fields under an explicit versioned freeze decision. A PR author’s commit or matching Git blob hashes are not independent approval.
+- No benchmark files or status fields were changed in this checkpoint.
+
+Updated disposition:
+- Latest Android campaign backend contract tests on head 6430e33a: PASS (run #36).
+- Android cloud build/APK/emulator: NOT RUN (job skipped).
+- Independent benchmark review/approval: NOT EVIDENCED; authorized reviewer not identified.
+- Benchmark authority: CONFLICTED / REVIEW REQUIRED.
+- ESAP-APP-001 Stage A: BLOCKED. No AC criterion is upgraded by run #36.

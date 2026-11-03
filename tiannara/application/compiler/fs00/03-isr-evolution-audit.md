@@ -99,3 +99,12 @@ Unknown/corrupt/missing evidence must not yield PASS. The backend must reject un
 ## 9. FS-00 status
 
 **ISR/Evolution Audit: PARTIAL; acceptance criterion not demonstrated.** Do not change ISR schema or add backend semantics in this phase. Reconcile these findings with Deliverables 1, 2 and 4 and submit for independent review.
+
+
+## 8. Phase 31 / B3-v2 closeout reconciliation
+
+The Phase 31 closeout ADR records B3-v2 as **NOT_CERTIFIED**: 443 trials completed against a planned 936 before the 12-hour runtime budget expired. This is a campaign verdict, not proof that all Phase 31 implementation is invalid; equally, passing Tier A / certification tests does not upgrade the B3-v2 campaign verdict. The closeout states the ledger chain is intact and distinguishes Phase 31 implementation completeness from B3 campaign certification.
+
+**Effect on FS-00:** the B3-v2 verdict is an input to this ISR/Evolution audit, not the FS-00 output. It does not authorize schema changes or imply evolutionary/compiler capability is certified. The evidence supports keeping the ISR schema frozen during FS-00 and treating candidate/evolution-to-ISR transformations as requiring explicit lineage and verification. Any future claim that relies on B3 certification must remain blocked until a separately authorized campaign achieves its acceptance target and produces verified evidence.
+
+**Evidence reference:** `folder/PHASE31_CLOSEOUT_ADR.md`, sections 2–3 (443 completed; NOT_CERTIFIED; runtime budget exhausted) and the ledger/chain integrity record. No new campaign was run in this audit.

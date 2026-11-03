@@ -61,3 +61,31 @@ Each architectural concern must have exactly one accountable owner. Multiple mod
 ## 6. Status
 
 **Boundary Integrity: PARTIAL.** Several concrete seams exist, but cross-boundary dependency enumeration is not exhaustive for all modules in the nine roots. Ownership is proposed where source evidence is strong and explicitly marked unresolved where it is not.
+
+
+## 7. Dependency-crossing register (source inspection supplement)
+
+**Completeness:** BOUNDED / PARTIAL. This register records concrete crossings confirmed by source inspection; it is not a complete static dependency graph. Dynamic imports, indirect dependencies, test-only edges, packaging configuration and imports outside the inspected files may be missing.
+
+| ID | From → to | Observed relationship | Assessment / required disposition |
+|---|---|---|---|
+| DEP-01 | `compiler/core/lowering.py` → `isr/core/{behavior,graph,revision}.py` | Lowerer consumes ISRRevision, graph enums and behavior validation. | Expected adapter direction; FS-01 must define coverage for every node, edge and payload and fail closed for unknown semantics. |
+| DEP-02 | `compiler/backends/android.py` → `isr/core/revision.py` and `compiler/core/lowering.py` | Android backend imports ISRRevision and lowering helpers; a source-bound helper is exposed from the backend module. | Boundary leak; after ADR approval, consider moving source binding/lowering to orchestration/adapter layer with compatibility tests. |
+| DEP-03 | `compiler/backends/_naming.py` → `compiler/core/plan.py` | Backend helper consumes shared plan carrier. | Acceptable only while plan remains target-neutral. |
+| DEP-04 | `compiler/backends/react_frontend.py` → `compiler/core/{capabilities,plan,repository}.py` | Frontend backend consumes shared plan/capability/repository contracts. | Expected direction; require versioned capability and conformance tests. |
+| DEP-05 | `compiler/composition.py` → `compiler/core/registry.py` and concrete backend implementations | Composition root wires registry and emitters. | Appropriate if registry/core do not import concrete emitters; verify by static scan. |
+| DEP-06 | `certification/campaign/plan_builder.py` → compiler lowering, evolution, genesis, ISR and requirement graph | Campaign builder constructs workload artifacts across multiple domains. | Mixed responsibility; distinguish campaign construction from production orchestration. |
+| DEP-07 | `certification/campaign/runner.py` → `app.engine.source_bound_full_stack` | Runner imports application-engine verifier via package bootstrap. | Packaging/path coupling; test clean-checkout execution and consider a stable verifier protocol. |
+| DEP-08 | `compiler/core/{protocol,conformance,capabilities,authorization,behavior_oracle}.py` → `compiler/core/plan.py` | Shared contracts and validators operate on CompilationPlan. | Stabilization carrier coupling; canonical IR contract/version is not yet demonstrated complete. |
+| DEP-09 | `certification/campaign/verdict.py` → `compiler/core/protocol.py` | Campaign verdict logic imports backend protocol definitions. | Potential ownership inversion; keep certification authority independent of backend protocol constants. |
+| DEP-10 | `autonomous-api/app/main.py` → app-local ISR observation provider | `_DbGenerationProvider.get_isr()` raises `NotImplementedError`. | Concrete incomplete observation contract; authoritative ISR store and API contract remain to be assigned. |
+
+### Required completion of the dependency audit
+
+1. Pin exact source commit and tool versions.
+2. Run a repository-wide static import/dependency scan over production code, tests, scripts and packaging configuration; include dynamic imports and path manipulation.
+3. Classify edges as allowed, conditional, legacy, test-only or violation; identify owner and evidence for each exception.
+4. Validate results with targeted searches and clean-environment tests.
+5. Reconcile all crossings against the chosen boundary and update this matrix before FS-00 closure.
+
+**Boundary Integrity remains PARTIAL.** These ten confirmed crossings are not evidence that every crossing has been found.

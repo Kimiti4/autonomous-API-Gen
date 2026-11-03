@@ -89,3 +89,14 @@ Each architectural concern must have exactly one accountable owner. Multiple mod
 5. Reconcile all crossings against the chosen boundary and update this matrix before FS-00 closure.
 
 **Boundary Integrity remains PARTIAL.** These ten confirmed crossings are not evidence that every crossing has been found.
+
+
+## 8. ISR authority reconciliation — unresolved conflict
+
+The repository contains at least two materially different ISR model families, so the authority row above must not be read as a settled system-wide decision:
+
+- `isr/core/{graph,revision}.py` defines the typed `ISRGraph` / immutable `ISRRevision` consumed by the newer root-level `compiler/core/lowering.py`, `reqgraph`, `genesis`, `evolution/core` and certification paths. R1-D1 reports no canonical consumer imports from `constitutional_architecture/isr/*` in that newer path.
+- `constitutional_architecture/isr/model/isr.py` and related model/graph/serialization modules define a richer `ISR` model consumed by the constitutional compiler pipeline, including `constitutional_architecture/compiler/compiler_context.py`, and by `tiannara/application/evolution/isr_capability_audit.py`.
+- Repository-level architecture notes describe the richer model as the main constitutional compiler input, while the R1 inventories describe the root `isr/core` family as canonical for the newer runtime. These claims refer to different active paths and cannot be collapsed into a single authority claim without a constitutional decision.
+
+**Finding:** System-wide canonical ISR authority is **UNRESOLVED**. Do not delete either model, silently translate between them, or declare one authoritative based only on directory names or local consumer counts. Before FS-00 closure, identify the constitutional authority, map all producers/consumers and transformation adapters for both families, record the allowed compatibility period, and state how hashes, provenance, schema versions, security obligations and requirement lineage survive conversion. Until that is done, system-wide architectural evidence and contract completeness remain PARTIAL.

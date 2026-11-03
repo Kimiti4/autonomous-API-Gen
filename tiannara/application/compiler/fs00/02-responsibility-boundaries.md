@@ -142,3 +142,27 @@ However, the current source also contains:
 Therefore the prior authority decision does not yet constitute a complete migration/retirement proof for every extant ISR-shaped contract. FS-00 must reconcile these exact surfaces, record which are retained as compatibility adapters versus retired, and prove their runtime reachability is either intentionally governed or fenced. No model consolidation, deletion, adapter rewrite or schema change is authorized by this audit addendum.
 
 **Boundary Integrity remains PARTIAL. System-wide producer/consumer and deployment reachability inventory remains INCOMPLETE.**
+
+
+## 8. PR-head boundary verification — 2026-11-03
+
+The following direct source paths were confirmed at PR-head commit `78283fff71ba616832269cea1b862a08481f48b6`. These are observed crossings, not approved ownership assignments.
+
+| Source boundary | Observed input → output | Boundary issue / required control |
+|---|---|---|
+| Intent extraction → constitutional compilation | `IntermediateSoftwareRepresentation.system_model()` → `project_intent_to_constitutional_isr` → rich constitutional `ISR` → Gen-C `CompilerPipeline` | Source/graph/SystemModel binding is checked, but this path does not first convert to root `ISRRevision`; reconcile with the canonical ISR authority decision |
+| Intent extraction → Tiannara ProjectCompiler | `IntermediateSoftwareRepresentation` → typed `SystemModel` → capability plan → `backend.generate(SystemModel)` | Separate plan, backend protocol, result and verification boundary; semantic equivalence to root ISR and Gen-C is not established |
+| Root ISR → root compiler | `ISRRevision` → `CompilationPlan` → `CompilerBackend` → `GeneratedRepository` | Canonical path candidate; still requires total semantic coverage and per-backend conformance evidence |
+| Raw compiler HTTP API → UniversalCompiler | `CompilationRequest.isr` payload → independent validation/kernel/optimization/backend/package path | Separate externally reachable API surface; deployment exposure, source binding, authorization and evidence parity need verification |
+| Graph UniversalISR → category compilers | `UniversalISR + ArchitectureGenome + context` → `CompilationBundle` | Legacy disposition is documented, but actual call reachability and fencing need proof |
+| Rich ISR → evolution graph | rich `ISR` ↔ `TypedGraph` via `engine/isr_adapter.py` | Adapter is for evolution representation; no canonical root-ISR bridge is demonstrated |
+
+### 8.1 Cross-cutting ownership gaps
+
+- **ISR authority enforcement:** documentation identifies `isr/core` as canonical, but at least three compiler-facing paths consume other model envelopes directly. Governance ownership and runtime enforcement are therefore different states and must be tracked separately.
+- **Model identity and immutability:** frozen root/rich models coexist with mutable UniversalISR models and a mutable typed Tiannara envelope. No common versioned conversion contract or hash-equivalence proof was established.
+- **Compiler verdict authority:** root backend conformance, Gen-C pass diagnostics, Tiannara bundle verification and UniversalCompiler output validation are separate evidence producers. A shared certification authority and normalized failure semantics have not been demonstrated.
+- **Partial projection boundary:** the SystemModel-to-rich-ISR projection does reject known unsupported/incomplete source declarations. That is a useful fail-closed boundary, but it must not be mistaken for a proof that the rich ISR is equivalent to canonical root ISR or that BIR preserves the rich ISR semantics.
+- **Runtime status classification:** a path appearing in a package, registry or API factory is evidence of source-level availability, not proof it is deployed or invoked in production. Production, compatibility, test-only and dead-code classifications remain OPEN until import-walk, CLI/API/deployment configuration and clean-environment execution evidence are gathered.
+
+**Boundary disposition:** no ownership changes, model consolidation, adapter creation, route retirement or deletion is authorized by this audit. FS-00 remains NOT READY pending the full reachability and semantic-preservation register plus independent governance review.

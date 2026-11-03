@@ -169,3 +169,55 @@ The `tiannara/application/compilation` backend-conformance path additionally ada
 - For every conversion, test semantic preservation for security policy, requirements, effects, invariants, consequences, deployment intents, provenance and evolution metadata. Unknown or unrepresentable semantics must block conversion.
 
 **System-wide ISR/compiler authority: GOVERNANCE DIRECTION EXISTS (`isr/core` canonical), BUT IMPLEMENTATION/MIGRATION RECONCILIATION IS INCOMPLETE.** Architectural Evidence, Contract Completeness and Boundary Integrity remain PARTIAL. No schema changes, model consolidation, deletion, adapter rewrite or legacy retirement are authorized by this audit.
+
+
+## 10. PR-head source verification — 2026-11-03
+
+This section supplements the earlier pinned-baseline inventory. It is based on direct reads from PR-head commit `058810c9a2027d009dd9f0f0f6291da30bbc0417` and its complete recursive Git tree (3,472 blobs; tree response reported `truncated=false`). It does not claim an exhaustive dynamic import/reachability proof. The source paths below are confirmed present at this PR head.
+
+### 10.1 Five outer ISR/model envelopes remain distinct
+
+The current source confirms five outer model families, not merely three:
+
+| Family | Definition | Mutability / identity evidence | Direct compiler or system consumers confirmed |
+|---|---|---|---|
+| Canonical typed graph | `isr/core/revision.py:18-63`, `isr/core/graph.py` | Frozen Pydantic revision; create() invokes invariant + behavioral validation and computes content hash | `compiler/core/lowering.py` → `CompilationPlan`; campaign/evolution paths |
+| Rich constitutional ISR | `constitutional_architecture/isr/model/isr.py:55-100`, `model/system.py` | Frozen dataclasses; semantic hash projects `system` | `constitutional_architecture/compiler/intent_entrypoint.py` and 8-pass Gen-C pipeline; serializer/deserializer and snapshot/versioning |
+| Graph UniversalISR A | `constitutional_architecture/core/models/isr.py:9-104` | Pydantic graph; mutable node/edge collections and add_node/add_edge mutation methods; no frozen config/content-hash factory in this model | `constitutional_architecture/core/contracts/compiler.py` and `constitutional_architecture/compilers/backend/base.py`, consuming UniversalISR + ArchitectureGenome and returning CompilationBundle |
+| Graph UniversalISR B | `constitutional_architecture/core/models/universal_isr.py:9-36` | Separate same-named class; eight node types, attributes and dependency lists; mutable Pydantic model and add_node mutation | Exported from core package and used by governance/tests; exact production compilation reachability remains to be proven |
+| Tiannara envelope | `tiannara/domain/models/isr.py:53-125` | Mutable Pydantic envelope; dual legacy / `system_model.v1` payload; typed content is serialization-excluded by default and explicitly reinserted into typed hash; lineage excluded from hash | Intent compiler creates typed envelope; `ProjectCompiler.compile_intent` extracts SystemModel and invokes capability-selected backend generation |
+
+Important distinction: the fifth envelope's `SystemModel` is not an instance of root `isr.core.ISRRevision`. It is a separate typed payload. The rich constitutional ISR is also not the root canonical graph revision. Therefore the existence of a canonical-authority decision in R1 documents does not demonstrate that every current compiler entrypoint actually crosses that canonical boundary.
+
+### 10.2 Active-looking entrypoints demonstrate multiple direct routes
+
+1. **Root typed compiler:** `ISRRevision → compiler.core.lowering.isr_to_plan → CompilationPlan → CompilerBackend → GeneratedRepository`. The protocol is in `compiler/core/protocol.py`; composition registers Python FastAPI, Rust Axum and Android structural backends (`compiler/composition.py`). This route is the clearest implementation of the canonical root ISR decision.
+2. **Constitutional intent entrypoint:** `IntentCompiler.compile_full → IntermediateSoftwareRepresentation.system_model() → project_intent_to_constitutional_isr → rich constitutional ISR → CompilerPipeline`. The entrypoint performs source/graph/SystemModel binding and refuses projection blockers. This is meaningful fail-closed protection, but it compiles a rich constitutional ISR directly; no conversion into root `ISRRevision` is present in this entrypoint.
+3. **Tiannara ProjectCompiler:** `IntermediateSoftwareRepresentation → SystemModel → derive_compilation_requirements → capability plan → backend.generate(SystemModel) → CompilationResult`. This is a distinct execution path from root `CompilationPlan` and from Gen-C.
+4. **Universal Compiler HTTP API:** `compiler/api.py` exposes `/v1/compiler/validate` and `/v1/compiler/compile`; it constructs `UniversalCompiler` over a `CompilationRequest` ISR payload and its own backend registry/kernel/optimization/packaging. It is not the `ISRRevision → CompilationPlan` protocol.
+5. **Per-category compiler contract:** `UniversalISR + ArchitectureGenome + context → CompilationBundle`, with category-specific compiler classes and a separate deployment bundle. Its graph model is distinct from both root `ISRRevision` and the second `UniversalISR`.
+6. **Evolution graph adapter:** `constitutional_architecture/engine/isr_adapter.py` converts rich constitutional ISR to/from `TypedGraph`. This is an evolution representation bridge, not evidence of conversion to root canonical ISR.
+
+The prior five-path list is therefore not the full active-entrypoint picture: the Universal Compiler HTTP API and the rich-ISR evolution graph adapter must be included in the boundary/reachability register.
+
+### 10.3 Concrete semantic and assurance differences
+
+- **Immutability is not uniform.** Root `ISRRevision` and rich constitutional ISR are frozen at their top-level model declarations. Both graph `UniversalISR` models and the Tiannara Pydantic envelope expose mutable state; the UniversalISR A model has mutating add_node/add_edge methods. Hash/provenance semantics cannot be assumed equivalent.
+- **Hash scopes differ.** Root identity hashes schema version + graph; rich constitutional `semantic_content_hash` hashes the system projection; Tiannara typed-v1 envelope hashes the envelope plus typed content but excludes lineage. UniversalISR A carries intent/genome hash strings but has no demonstrated canonical content-hash contract in its model definition; UniversalISR B has metadata/version but no demonstrated content-hash contract.
+- **Validation differs.** Root `ISRRevision.create` calls graph invariants and behavioral validation. Rich ISR exposes a family of semantic validators; the Gen-C validation pass now fails closed for missing/incomplete source binding, projection errors and validator exceptions. UniversalISR A's model-level add_edge checks endpoint existence but does not establish full typed edge compatibility or semantic validation. UniversalISR B's add_node checks duplicate IDs but no complete graph validation is present in the inspected model.
+- **Rich projection is intentionally partial.** `project_intent_to_constitutional_isr` preserves requirement nodes/relations and maps selected SystemModel sections, but explicitly blocks unsupported API/policy contracts, unknown references, unprojected extensions, missing deployment/testing/documentation posture and other incomplete source declarations. This is good fail-closed behavior, but it is not proof of equivalence to root ISR.
+- **Gen-C BIR is visibly lossy relative to the rich ISR.** `LoweringPass.execute` iterates modules, entities, services and service operations; the shown BIR lowering carries entity field names and operation types, but does not encode the complete rich ISR semantic surface (for example API contracts, event guarantees, policy posture, requirement graph metadata, provenance and deployment intents). It must not be described as a complete full-stack lowering without a total mapping/reject contract.
+- **Backend failure semantics differ.** Root protocol separates backend class, test spec, conformance and generated repository. Gen-C has a distinct backend interface and artifact/diagnostic result. Tiannara executor uses collect-all semantics and treats a backend's successful `generate()` return as an outcome success before independent bundle verification. UniversalCompiler has its own request validator, optimizer, output validator and packager. These verdicts are not interchangeable.
+
+### 10.4 Updated blockers and disposition
+
+| ID | Finding | Severity | Required evidence / disposition |
+|---|---|---|---|
+| ISR-A11 | Canonical root ISR authority is not enforced by every compiler entrypoint; rich ISR, SystemModel and raw request routes compile through distinct interfaces | Critical | Trace each entrypoint from CLI/API/deployment composition to runtime invocation; decide which routes are canonical, bounded adapters, test-only or retired |
+| ISR-A12 | Two different classes named `UniversalISR` have materially different schema and mutability semantics | High | Inventory imports/exports and all call sites; resolve naming collision through governed disposition, not blind rename |
+| ISR-A13 | Tiannara typed SystemModel envelope is not proven semantically equivalent to root ISRRevision | Critical | Define field/edge coverage, identity/hash, provenance and unknown-field behavior; build semantic-preservation evidence before it can be an authority or compiler source |
+| ISR-A14 | Rich constitutional ISR → BIR lowering does not visibly preserve the complete rich semantic model | Critical | Produce complete node/field/relationship mapping and fail-closed rejection matrix; verify each BIR pass and backend consumer |
+| ISR-A15 | Universal Compiler HTTP API accepts a separate ISR payload contract and packages artifacts outside the canonical root pipeline | High | Establish API exposure/deployment status and ensure authorization/source binding/evidence gates are equivalent or explicitly quarantine the route |
+| ISR-A16 | Model immutability, hashing, validation and provenance contracts are inconsistent across families | Critical | Compare canonical serialization/hash, mutation controls, schema versioning, provenance and validator failure semantics with executable tests |
+
+**PR-head audit conclusion:** the root canonical ISR decision exists as documented governance direction, but multiple distinct compiler entrypoints still accept non-canonical ISR/model inputs. This is now a demonstrated boundary-enforcement gap, not merely an unresolved inventory question. FS-00 remains **NOT READY**. Do not change schemas, add adapters, delete legacy paths, mark any runtime retired, or begin FS-01 on the strength of this audit alone. The next audit work is exhaustive consumer/reachability tracing (including CLI, API deployment, persistence and test-only classification), semantic mapping tables for each bridge, and a governance disposition for each reachable non-canonical entrypoint.

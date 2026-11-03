@@ -2086,3 +2086,11 @@ The existence of both is directly supported by source and import searches. The r
 ## 4.2 Additional substrate: UniversalISR and parallel compiler runtimes
 
 Further source search identified a third ISR family, `constitutional_architecture/core/models/isr.py:UniversalISR`, consumed by the per-category compiler framework under `constitutional_architecture/compilers/*`, the constitutional core contracts/orchestrator and Tiannara compilation projection/conformance surfaces. Existing `folder/R1_D2_COMPILER_INVENTORY.md` describes these per-category compilers as a separate runtime that bypasses `compiler.core.CompilationPlan`. Thus this inventory now identifies **at least three ISR model families** and multiple compiler runtimes, not merely two. Exact authority and the disposition of each family remain governed unresolved questions.
+
+
+## 4. Live source-review reconciliation — PR #201 head
+
+**Reviewed head:** `d02b2592c41fa546bafdaded75e7d0b55612fc02`  
+**Comparison:** the source snapshot at `68696e2a07595fed98a19e24ee96c3e4e0e5bfeb` is 15 commits behind this head; the comparison reports exactly four changed paths, all four FS-00 deliverables in this directory. No production source path changed between the inventory source commit and the reviewed head. The head tree therefore contains 3,472 blobs: the 3,468-blob source snapshot plus these four audit documents.
+
+The inventory above remains an accurate path inventory for its explicitly pinned source tree. It must not be described as a semantic dependency graph or as a current-head inventory including the four audit documents. The repository's ISR/compiler ownership and consumer findings are expanded in Deliverables 2 and 3 below.

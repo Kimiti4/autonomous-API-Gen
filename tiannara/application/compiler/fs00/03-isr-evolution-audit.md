@@ -108,3 +108,23 @@ The Phase 31 closeout ADR records B3-v2 as **NOT_CERTIFIED**: 443 trials complet
 **Effect on FS-00:** the B3-v2 verdict is an input to this ISR/Evolution audit, not the FS-00 output. It does not authorize schema changes or imply evolutionary/compiler capability is certified. The evidence supports keeping the ISR schema frozen during FS-00 and treating candidate/evolution-to-ISR transformations as requiring explicit lineage and verification. Any future claim that relies on B3 certification must remain blocked until a separately authorized campaign achieves its acceptance target and produces verified evidence.
 
 **Evidence reference:** `folder/PHASE31_CLOSEOUT_ADR.md`, sections 2–3 (443 completed; NOT_CERTIFIED; runtime budget exhausted) and the ledger/chain integrity record. No new campaign was run in this audit.
+
+
+## 9. Dual-ISR model families and system-wide authority gap
+
+This audit must not be interpreted as proof that root-level `isr/core` is the sole ISR used throughout the repository. Source search and existing architecture records reveal two active model families:
+
+1. **Root-level typed ISR:** `isr/core/graph.py`, `isr/core/revision.py`, `isr/core/identity.py` and behavior validation define `ISRGraph` and content-addressed `ISRRevision`. The newer root-level compiler path lowers this revision via `compiler/core/lowering.py`; the root-level requirement graph, genesis, evolution and certification code also consume it.
+2. **Constitutional architecture ISR:** `constitutional_architecture/isr/model/isr.py` and its related node/model/graph/serialization/semantic modules define a richer `ISR` object. Search results show direct consumers including `constitutional_architecture/compiler/compiler_context.py`, `constitutional_architecture/isr/isr_graph.py`, and `tiannara/application/evolution/isr_capability_audit.py`.
+
+The repository's `folder/audit.md` and R1 inventory describe these paths differently: the richer constitutional model feeds the Gen-C compiler path, while the root-level revision is canonical within the newer runtime path. R1-D2 explicitly identifies the mismatch between the Gen-C compiler accepting the rich `ISR` and `isr_to_plan` accepting `ISRRevision`. Therefore the repository does not yet demonstrate one system-wide authoritative ISR contract or one verified conversion boundary.
+
+**Required resolution before FS-00 can close:**
+
+- obtain the authorized architectural decision identifying which model is constitutional authority and which is a derived/legacy/adapter representation;
+- enumerate every production producer, consumer, persistence adapter, serializer, schema migration and hash/provenance path for both model families;
+- document and test any conversion as a semantics-preserving, versioned adapter, including security policy, requirement references, effects/invariants/consequences, deployment intents and evolution metadata;
+- prove unknown or unrepresentable constructs block conversion rather than disappear;
+- define migration compatibility and rollback, and update Deliverables 1–4 consistently.
+
+No ISR schema changes or model consolidation are authorized by this finding. **System-wide ISR authority: UNRESOLVED; Architectural Evidence and Contract Completeness remain PARTIAL.**

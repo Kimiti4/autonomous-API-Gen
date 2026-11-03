@@ -204,3 +204,30 @@ ________________________________________________________________
 **Stage A: BLOCKED.**
 
 This review package is prepared, not approved. The Android structural slice and cloud workflow foundation do not yet constitute the ESAP-APP-001 application or a passing benchmark. No APK, runtime acceptance result, independent verification result, or benchmark certification is claimed here.
+
+
+## 10. Reviewer decisions recorded — partial approval (2026-11-03)
+
+The independent reviewer communicated the following decisions in the project conversation on 2026-11-03:
+
+| Decision | Recorded verdict | Basis |
+|---|---|---|
+| R2 — Problem statement | **APPROVED** | Reviewer explicitly approved R2 at the exact v1.0.0 baseline recorded in Section 2. |
+| R3 — Acceptance criteria | **APPROVED** | Reviewer explicitly approved R3: AC-001 through AC-013 and their strict evidence policy. |
+| R4 — FS-00/FS-01 scope | **APPROVED — gate applies** | Reviewer approved the recommendation to apply the architecture-first gate to this Android compiler target before further ISR/backend semantic expansion. |
+
+This is a partial decision record only. R1, R5, R6, and R7 remain unapproved/unresolved. No PR review event has been submitted on behalf of the reviewer. This record reflects the reviewer's explicit conversational decision; it is not a GitHub APPROVE review and does not certify implementation.
+
+### R4 scope ruling and consequence
+
+**Scope ruling:** The FS-00/FS-01 architecture-first gate applies to ESAP-APP-001 Android backend work. The Android emitter is a compiler backend target in the Full-Stack Compiler architecture, and changes needed to represent the benchmark's missing semantics would affect the technology-neutral ISR/compiler boundary. Treating those changes as an isolated Android plugin implementation would bypass the architecture decision the gate is intended to protect.
+
+**Evidence basis:** `folder/prefull.md` defines FS-00 as read-only architecture reconnaissance and requires four coherent deliverables: Existing Architecture Map, Responsibility Boundaries, ISR/Evolution Audit, and Compiler Architecture ADR. It requires five evidence classes plus governance approval before FS-01. It states that FS-00 findings bind subsequent phases and that compiler code is not to be written ahead of the architecture decision. The current branch tree contains no `tiannara/application/compiler/fs00/` directory and no path matching the four deliverable titles/names. This is a bounded path/tree check, not proof that no differently named or external artifact exists; however, no qualifying committed, coherent, reviewed FS-00 package was located in this repository snapshot.
+
+**Gate status:** `FOUNDATION_NOT_READY` / NOT EVIDENCED COMPLETE. This is not a claim that no prior architectural work exists; it is a finding that the required four deliverables and governance approval record have not been established by the evidence located at this baseline.
+
+**Authorized next work:** proceed with read-only FS-00 reconnaissance and prepare the four required deliverables. Do not extend normative ISR schemas, widen Android backend capabilities, or implement benchmark-specific semantics until the FS-00 evidence converges and the required governance approval is recorded. Existing Android structural foundation code is not retroactively certified by this ruling.
+
+### Normative benchmark handling
+
+R2 and R3 approve the contents of the exact v1.0.0 problem and acceptance artifacts identified in Section 2. Their bytes must remain unchanged. The manifest's `FROZEN_V1` status still conflicts with the problem and acceptance files' proposed/unreviewed status. Do not reconcile those status fields or claim a formal freeze until the remaining applicable review/authority decisions are resolved and the durable freeze record is prepared under R7.

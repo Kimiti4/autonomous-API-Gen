@@ -82,3 +82,26 @@ File references inspected on the remediation branch (some audit/evidence files m
 - The repository's `experiments/compiler-benchmarks/benchmark_manifest.template.json` and `coherence_suite.v1.json` identify TaskFlow and other application domains, but do not identify an ESAP-APP-001 Android source artifact. The coherence suite itself is marked SPECIFIED_NOT_EXECUTED.
 - This corrects the scope of the earlier source-discovery statement: the search did not establish that the repository lacks all canonical application specs; it established that the inspected ESAP-APP-001/Android target has no identified canonical spec. TaskFlow is a separate, concrete source-backed benchmark and cannot be substituted without an explicit benchmark-scope decision.
 - The next Android-specific prerequisite remains locating the actual approved Android benchmark problem statement and acceptance criteria (or receiving explicit authorization to define/freeze them). Do not derive a grocery/catalogue app from TaskFlow, a fixture, or the Android backend's current static model shell.
+
+5.3 Android campaign-backend and benchmark-authority reconciliation (2026-11-03):
+- PR #201 now adds a campaign-protocol Android backend (compiler/backends/android.py) alongside the older tiannara.application.compiler.AndroidBackend. The campaign implementation lowers an ISRRevision through isr_to_plan, compiles a deliberately static Android shell, and refuses runtime-bearing plan features it does not implement. The two Android backends remain distinct; the existence of the campaign backend does not make the older SystemModel backend equivalent or source-bound.
+- The cloud workflow was updated to check out an exact source revision, validate source-spec and ISR-revision file hashes against a pinned derivation manifest, parse the revision, regenerate the candidate through the campaign backend, and bind build/emulator evidence to that candidate. The manifest hash is a pinned assertion supplied at dispatch, not a cryptographic reviewer signature or proof that the ISR faithfully represents the source specification.
+- Workflow runner configuration now explicitly requests Gradle 8.9, JDK 17 and Android API/build-tools 35. It also rejects repository paths that escape the checkout, including through symlinks.
+- GitHub Actions run 41631726532 for commit aa63e5a80e91b14684b2010e025617fe058c9cf2: android-backend-tests succeeded; android-cloud-build was skipped because the event was a pull request. This is backend-test evidence only. It is not a Gradle build, APK, emulator, UI, or benchmark acceptance result.
+- The latest PR head at this audit update is aa63e5a80e91b14684b2010e025617fe058c9cf2. No manual cloud dispatch has been performed. No candidate-bound APK or emulator evidence exists.
+
+Benchmark authority discrepancy (must be resolved before dispatch):
+- experiments/android/esap-app-001/BENCHMARK_MANIFEST.json declares status FROZEN_V1 and records Git blob IDs for PROBLEM.md and ACCEPTANCE.json.
+- The exact referenced PROBLEM.md still declares “Proposed benchmark specification; awaiting independent review and hash freeze.”
+- The exact referenced ACCEPTANCE.json still declares PROPOSED_AWAITING_REVIEW_AND_HASH_FREEZE.
+- The manifest's Git blob IDs match the current file versions inspected at this checkpoint, so this is not simply an old hash pointing at different bytes. It is an internal authority/status contradiction: the manifest says frozen while both normative source artifacts say proposed/unreviewed.
+- The manifest provenance says the benchmark was newly defined after repository search and explicitly does not claim a previously approved organizational requirement. This is transparent provenance, but it is not evidence of independent review/approval.
+- Resolution required: obtain independent review and record its authority/evidence; then reconcile the statuses and freeze policy consistently, or explicitly retain the benchmark as proposed. Do not silently change either status, and do not call the benchmark approved based solely on the manifest.
+- Repository tree inspection at this head found only the three ESAP-APP-001 benchmark files plus the capability-gap audit under matching benchmark/authoritative-specification path terms. No separate esap-app-001-authoritative-specification.md artifact was found in that tree. This is a bounded path/name search, not proof that no differently named source exists elsewhere.
+
+Current disposition:
+- Android campaign backend contract tests: PASS on the latest commit's PR workflow.
+- Android cloud build and emulator: NOT RUN.
+- Approved source-to-ISR derivation: NOT ESTABLISHED; no approved derivation manifest or authoritative ISR revision is present.
+- Benchmark authority: CONFLICTED / REVIEW REQUIRED.
+- ESAP-APP-001 Stage A: BLOCKED. No AC criterion is upgraded by the backend-test run.

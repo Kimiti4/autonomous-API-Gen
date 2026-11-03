@@ -110,21 +110,23 @@ The Phase 31 closeout ADR records B3-v2 as **NOT_CERTIFIED**: 443 trials complet
 **Evidence reference:** `folder/PHASE31_CLOSEOUT_ADR.md`, sections 2–3 (443 completed; NOT_CERTIFIED; runtime budget exhausted) and the ledger/chain integrity record. No new campaign was run in this audit.
 
 
-## 9. Dual-ISR model families and system-wide authority gap
+## 9. Multiple ISR model families and system-wide authority gap
 
-This audit must not be interpreted as proof that root-level `isr/core` is the sole ISR used throughout the repository. Source search and existing architecture records reveal two active model families:
+This audit must not be interpreted as proof that root-level `isr/core` is the sole ISR used throughout the repository. Source searches and existing architecture inventories identify **at least three** model families:
 
-1. **Root-level typed ISR:** `isr/core/graph.py`, `isr/core/revision.py`, `isr/core/identity.py` and behavior validation define `ISRGraph` and content-addressed `ISRRevision`. The newer root-level compiler path lowers this revision via `compiler/core/lowering.py`; the root-level requirement graph, genesis, evolution and certification code also consume it.
-2. **Constitutional architecture ISR:** `constitutional_architecture/isr/model/isr.py` and its related node/model/graph/serialization/semantic modules define a richer `ISR` object. Search results show direct consumers including `constitutional_architecture/compiler/compiler_context.py`, `constitutional_architecture/isr/isr_graph.py`, and `tiannara/application/evolution/isr_capability_audit.py`.
+1. **Root-level typed ISR:** `isr/core/{graph,revision,identity}.py` defines `ISRGraph` and content-addressed `ISRRevision`. The newer root-level compiler path lowers this revision through `compiler/core/lowering.py`; root-level requirement graph, genesis, evolution and certification paths consume it.
+2. **Constitutional architecture ISR:** `constitutional_architecture/isr/model/isr.py` and related graph/serialization/semantic modules define a richer `ISR` consumed by `constitutional_architecture/compiler/compiler_context.py`, `constitutional_architecture/isr/isr_graph.py`, and `tiannara/application/evolution/isr_capability_audit.py`.
+3. **UniversalISR:** `constitutional_architecture/core/models/isr.py` defines `UniversalISR`, consumed by `constitutional_architecture/core/contracts/compiler.py`, `constitutional_architecture/compilers/*`, the core orchestrator and Tiannara compilation projection/conformance surfaces. The R1 compiler inventory identifies the per-category compiler framework as a separate runtime producing `CompilationBundle` and bypassing root `CompilationPlan`.
 
-The repository's `folder/audit.md` and R1 inventory describe these paths differently: the richer constitutional model feeds the Gen-C compiler path, while the root-level revision is canonical within the newer runtime path. R1-D2 explicitly identifies the mismatch between the Gen-C compiler accepting the rich `ISR` and `isr_to_plan` accepting `ISRRevision`. Therefore the repository does not yet demonstrate one system-wide authoritative ISR contract or one verified conversion boundary.
+The root-level compiler, constitutional Gen-C pipeline and per-category compiler runtime have distinct contracts and input types. Existing repository records differ in how they label the authoritative substrate, so a single system-wide canonical ISR/compiler path is **not demonstrated**. The earlier R1 audit's recommendation to retire legacy paths is a documented proposal, not permission in this FS-00 task to delete them or silently convert data.
 
 **Required resolution before FS-00 can close:**
 
-- obtain the authorized architectural decision identifying which model is constitutional authority and which is a derived/legacy/adapter representation;
-- enumerate every production producer, consumer, persistence adapter, serializer, schema migration and hash/provenance path for both model families;
-- document and test any conversion as a semantics-preserving, versioned adapter, including security policy, requirement references, effects/invariants/consequences, deployment intents and evolution metadata;
-- prove unknown or unrepresentable constructs block conversion rather than disappear;
-- define migration compatibility and rollback, and update Deliverables 1–4 consistently.
+- obtain the authorized architectural decision identifying the constitutional source of truth and disposition of each ISR/compiler family;
+- enumerate production producers/consumers, persistence adapters, serializers, migrations, hashes and provenance paths for all families;
+- map each compiler runtime's inputs, outputs, active entry points, tests, generated artifacts and certification status;
+- document and test any conversion as a versioned semantics-preserving adapter, including security policy, requirement references, effects/invariants/consequences, deployment intents and evolution metadata;
+- prove unknown/unrepresentable constructs block conversion rather than disappear;
+- define compatibility, retirement and rollback plans, and update Deliverables 1–4 consistently.
 
-No ISR schema changes or model consolidation are authorized by this finding. **System-wide ISR authority: UNRESOLVED; Architectural Evidence and Contract Completeness remain PARTIAL.**
+No ISR schema changes, model consolidation or legacy retirement are authorized by this finding. **System-wide ISR/compiler authority: UNRESOLVED; Architectural Evidence, Contract Completeness and Boundary Integrity remain PARTIAL.**

@@ -1,0 +1,37 @@
+{
+  "benchmark_id": "ESAP-APP-001",
+  "version": "1.0.0",
+  "status": "PROPOSED_AWAITING_REVIEW_AND_HASH_FREEZE",
+  "authority": {
+    "problem_statement": "experiments/android/esap-app-001/PROBLEM.md",
+    "acceptance_criteria": "experiments/android/esap-app-001/ACCEPTANCE.json",
+    "change_policy": "Any semantic change requires a version increment and new hashes."
+  },
+  "target": {
+    "platform": "native_android",
+    "language": "Kotlin",
+    "ui": "Jetpack Compose",
+    "minimum_api": 26,
+    "offline": true
+  },
+  "provenance": {
+    "created_because": "Repository search at remediation/esap-android-compiler-stage-a found no approved Android-specific ESAP-APP-001 problem/acceptance artifact.",
+    "taskflow_substitution": false,
+    "hashes": "Populate SHA-256 values only after review and freeze; this manifest is not frozen yet."
+  },
+  "content_hashes": {
+    "problem_sha256": null,
+    "acceptance_sha256": null
+  },
+  "compiler_path": {
+    "intended": "ISRRevision -> isr_to_plan -> CompilationPlan -> Android CompilerBackend",
+    "status": "TARGET_CONTRACT_NOT_YET_IMPLEMENTED_OR_VERIFIED",
+    "requirements_graph_hash": null,
+    "isr_revision_hash": null,
+    "compilation_plan_hash": null
+  },
+  "certification": {
+    "verdict": "BLOCKED",
+    "reason": "Specification requires independent review/hash freeze, compiler-spine integration, and candidate-bound build/emulator/semantic evidence."
+  }
+}

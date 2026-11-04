@@ -451,3 +451,107 @@ The workflow-run lookup for exact commit `54aae0132804123530adb21160394788c3b29d
 ### 10.9 Checkpoint 10 disposition
 
 **PARTIAL — differential reference tests and a strong narrow Python effect oracle exist, but general requirement-derived independent acceptance verification, boundary coverage, symmetric backend test vectors, and exact-head Python/Rust execution evidence are not established.** No source, production code, tests, workflows, backend capability declarations, certification states or generated artifacts were changed in this checkpoint. FS-00 remains read-only audit/documentation.
+
+
+---
+
+## Checkpoint 11 — verification evidence and publication authority
+
+**Audit basis:** read-only source/test inspection at `763f16e6481820b7a8f0fcbec63086a2a2ef6e46`. Examined CBC-1 CampaignRunner and its independent process verifier, provenance bundle and evidence ledger, backend SDK certification, Constitutional VerificationEngine/VerificationPass, evidence signing, Autonomous API verification acceptance and artifact collection, production readiness, governed evolution publication, desktop release authorization, and PromotionManager. This checkpoint did not execute tests or modify production behavior.
+
+### 11.1 The strongest integrated path: CBC-1 CampaignRunner
+
+The CBC-1 `CampaignRunner` is the strongest inspected integration of compile, verification and real execution. For a behaviorally eligible backend it requires:
+- structural and semantic conformance before build;
+- an explicit real-Docker build result and image digest;
+- real-Docker test, deployment, runtime probe and destruction stages;
+- independent process verification of the exact candidate files, plan and candidate content hash;
+- source-bound semantic correspondence against the candidate hash;
+- full-stack verification over five canonical IR inputs, also candidate-bound.
+
+Missing adapters, verifier startup errors, timeouts, malformed results, false/missing predicates, missing semantic mapping and failed candidate binding fail closed. The independent verifier runs in a separate process, reconstructs the typed plan, re-reads expected candidate files, recomputes the repository hash and invokes the backend conformance checker. The runner requires explicit Boolean `True` for its verifier predicates. `compose_verdict` requires every defined trial stage to pass before a trial can be CERTIFIED.
+
+This is a substantive integrated certification design. Its authority is nevertheless scoped to callers that actually use this campaign runner. It does not prove that ProjectCompiler CLI, Gen-A, Gen-C, category compilers or Autonomous API publication routes all invoke it.
+
+### 11.2 Evidence is not yet a complete, durable execution envelope
+
+The campaign's immutable `Trial` and `StageEvidence` record stage, pass/fail, timestamps, log hash, details, execution mode, image digest, container ID, resource peak, retries and failure class. The trial also records backend name/class/version, compiler version, repository hash, requirement graph hash, genome hash, ISR revision ID, corpus hash and semantic correspondence.
+
+The `ProvenanceBundle` records corpus, requirement graph, genome, ISR, plan, backend identity/version and application repository hashes. Its verifier recomputes the application hash and checks ISR, genome and requirement graph hashes. This is useful artifact provenance.
+
+The following gaps remain in the inspected composition:
+- The bundle's `ledger_record_hash` parameter defaults to empty, and the CampaignRunner's call to `ProvenanceBundle.emit` does not supply a ledger record hash.
+- `StageEvidence.logs_hash` binds a hash of the runner's detail string; the Trial model does not itself retain raw stdout/stderr or a durable external log locator.
+- The provenance bundle does not bind a source-control commit, compiler source digest, backend implementation digest, verifier/oracle digest or toolchain/container image digest as a complete immutable set.
+- The bundle is written into the temporary candidate directory, and the runner removes that directory in its `finally` block after returning the Trial. The Trial carries the bundle hash, but this function does not itself persist the bundle or raw execution logs to a durable evidence store.
+- The separate hash-chained `EvidenceLedger` is not automatically linked into this bundle by the inspected call.
+
+A hash chain or artifact hash only protects the material actually included. It cannot establish provenance for omitted identities or logs.
+
+### 11.3 Backend SDK certification is a narrower certification claim
+
+`BackendCertificationEngine.certify` runs backend contract tests, a determinism test and compilation-output validation against a sample ISR. It stores reports and events in in-memory dictionaries/lists. The status becomes CERTIFIED when those three checks pass.
+
+The inspected certification request/report does not bind the certification result to a source commit or backend implementation digest, and this certification engine does not run the CBC-1 real-Docker lifecycle. Therefore this status is evidence of the SDK's sample contract/determinism/output-validation suite, not proof of general production application behavior. The same word “certified” must not be treated as equivalent across the SDK and CBC-1 campaign.
+
+### 11.4 Constitutional VerificationEngine can approve with incomplete coverage
+
+The Constitutional VerificationEngine builds a registry of multiple verifier classes and executes those that report `can_verify(ctx)`. The pipeline may stop on timeout, skips verifiers that cannot verify the supplied context, and stops after blockers when configured. The resulting report records skipped checks and verifier results.
+
+However, `approved_for_deployment` is currently computed as `len(blocking_failures) == 0`. A skipped check, a warning, or an error-level failure that is not classified as deployment-blocking does not by itself make that expression false. A pipeline that returns no checks can therefore have no blocking failures. The `VerificationPass` requests a maximum level of L3_SECURITY even though the model defines L4_PERFORMANCE, L5_OPERATIONAL and L6_PRODUCTION. The report records skipped counts, but the pass boundary does not require a declared set of mandatory verifiers/checks to have actually executed.
+
+The VerificationPass does fail closed when the verifier raises or when `approved_for_deployment` is false. This is valuable, but it does not cure the completeness problem in the underlying approval predicate.
+
+### 11.5 Evidence signing is optional and unsigned records remain admissible
+
+The Constitutional evidence recorder uses HMAC-SHA256 when a key is configured. The signing module correctly documents that HMAC is symmetric attestation, not third-party non-repudiation.
+
+The composition factory deliberately falls back to an unsigned recorder when no key is configured and emits a warning. More importantly, `verify_evidence_signature` returns true for records with no signature to preserve compatibility. Thus signature absence is not a hard failure in that verifier. This may be acceptable for legacy records, but a production release policy needs an explicit distinction between legacy unsigned evidence and evidence eligible for current certification/publication. An observability warning is not a cryptographic enforcement gate.
+
+### 11.6 Autonomous API verification acceptance has a vacuous-pass edge case
+
+`assess_verification_suite` correctly detects missing required kinds, failed results, configured timeouts and missing required output artifacts. Its current disposition enum is PASS/FAIL/INCOMPLETE.
+
+Two fail-closed gaps are visible in the function:
+- If `required_kinds=()` and `results=()`, both missing-kind and failed-result collections are empty, so the function returns PASS. There is no explicit non-empty policy/result invariant.
+- The policy checks that required kinds were observed, but does not bind each result to a source revision, candidate/artifact digest, verifier version, workspace revision or immutable run identity. Output artifact collection hashes expected files, but the acceptance result does not itself establish that those files belong to the exact candidate that was approved.
+
+The current tests cover missing required kinds, failed verification, required output collection and timeout failure. They do not cover the empty-policy/empty-result case, stale candidate evidence or source/artifact identity mismatch.
+
+### 11.7 Publication controls are separate, not one shared authority
+
+The repository contains stronger controls in specific publication paths:
+- Autonomous API governed evolution checks for an approving governance decision authorizing the transition before calling `promote_verified_artifact`. Its tests assert that publication is not reached after governance denial and that the publisher is reached after approval.
+- Desktop release assessment validates build evidence and binds authorization to the target and artifact digest; consequential signing, notarization and distribution actions require explicit authorization.
+- The Constitutional VerificationPass blocks when its verifier is unavailable or reports no deployment approval.
+- CBC-1 certification consumes an archived evidence chain and checks for a CERTIFIED aggregate with no missing evidence or failed gates on main.
+
+But these controls are not composed into one universal promotion API. In particular, `PromotionConfig.require_verification` defaults to true, yet `PromotionManager.promote()` does not consult that field, accept verification evidence, check an artifact digest, or bind promotion to a verification result. Its current implementation enforces environment-jump limits and optional approval only. This is a concrete configuration/implementation mismatch; do not count this manager as a verification-enforcing publication boundary.
+
+The older Autonomous API `ProductionReadinessGate` is also not equivalent to certification. It evaluates genome heuristics/metrics and can allow deployment with WARNING when `strict_mode=False`. It should not override evidence-based certification. Its existence illustrates why route reachability and authority resolution matter.
+
+### 11.8 Checkpoint 11 findings
+
+- **FS00-032 — CBC-1 is the strongest integrated verification route, but its use is not universal.** Its real-execution and independent-verification gates apply only where the route invokes CampaignRunner.
+- **FS00-033 — campaign provenance is incomplete as a durable execution envelope.** The inspected bundle call omits the evidence-ledger hash; stage records retain hashes/details rather than raw logs or durable log references; source commit, toolchain, verifier/oracle and backend implementation digests are not all bound.
+- **FS00-034 — SDK backend CERTIFIED is not equivalent to CBC-1 behavioral certification.** The SDK certification uses sample contract/determinism/output validation and in-memory reports; it does not prove the full native application lifecycle.
+- **FS00-035 — Constitutional approval can be vacuous or incomplete.** Approval is based on absence of deployment-blocking failures, without a mandatory executed-check set; skipped verifiers and non-blocking outcomes can coexist with approval. The compiler pass caps the requested level at L3.
+- **FS00-036 — evidence authenticity is optional in the Constitutional recorder.** Missing signatures are accepted by the compatibility verifier; production publication needs a policy that requires signed evidence for current certification while explicitly handling legacy records.
+- **FS00-037 — Autonomous API verification acceptance permits empty-suite PASS.** Empty required kinds plus empty results return PASS. The acceptance path also lacks exact candidate/source/verifier identity binding.
+- **FS00-038 — PromotionManager's require_verification setting is not enforced.** The setting defaults true but is unused in `promote()`; the manager cannot consume or validate artifact-bound verification evidence.
+- **FS00-039 — publication safeguards are path-specific.** Governed evolution and desktop release have useful controls, but no single verified-artifact publication authority is proven to cover every compiler family and route.
+
+### 11.9 Required remediation sequence
+
+1. Establish one authoritative verification-result schema with explicit PASS, FAIL, INCOMPLETE, NOT_RUN, INDETERMINATE and BLOCKED states; prohibit empty-policy/empty-result PASS.
+2. Require policy-defined mandatory checks to execute. A skipped verifier, timeout, missing verifier, warning on a mandatory check or missing artifact must block the relevant certification level unless a governed exception is recorded.
+3. Bind evidence to source commit/tree, requirement graph, ISR, plan, compiler and backend implementation digests, oracle/verifier digests, exact candidate/per-file hashes, toolchain/container image, run ID, environment, raw logs and timestamps.
+4. Persist raw logs and evidence envelopes durably before temporary workspaces are destroyed. Link every trial to its hash-chained ledger record and verify both the chain and signatures.
+5. Make signature requirements explicit by evidence class and release level. Do not silently treat unsigned new production evidence as equivalent to authenticated evidence; define a migration policy for legacy records.
+6. Make all promotion entry points call the same authoritative publication gate. Require exact artifact digest, complete current PASS evidence and the required human/governance authorization. Remove or implement unused `require_verification` controls.
+7. Treat SDK sample certification, static conformance, Constitutional L3 approval, CBC-1 behavioral certification and production release authorization as distinct assurance levels with explicit non-transfer rules.
+8. Audit actual production route reachability and bypass resistance in Checkpoint 12; source-level existence of a gate is not evidence that all callers are forced through it.
+
+### 11.10 Checkpoint 11 disposition
+
+**PARTIAL — CBC-1 demonstrates a strong integrated fail-closed verification sequence, and selected publication paths enforce governance or artifact-bound human authorization. A universal, durable, authenticated verification-to-publication authority is not established.** No production implementation, test, workflow, capability declaration, certification status or artifact was changed. FS-00 remains a read-only audit/documentation activity.

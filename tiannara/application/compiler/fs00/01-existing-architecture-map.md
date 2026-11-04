@@ -2125,3 +2125,66 @@ The earlier section 4.2 was an intermediate discovery and said “third ISR fami
 This count is the current audit classification; it does not imply that all five are independently authoritative or production-reachable. Deliverable 3 records the evidence and remaining reachability limits. The earlier count is retained as historical discovery context, not the final inventory.
 
 The backend inventory is also not a capability inventory. All discovered backend families and target capabilities must be reconciled in the Target Capability Preservation Matrix specified by Deliverable 4 before any implementation is consolidated, deprecated or retired. The intended universal language/framework/platform coverage is a requirement; repository presence alone is not proof of support, and absence of a conformant implementation must remain visible as NOT YET IMPLEMENTED / NOT CERTIFIED.
+
+
+## Backend/frontend hardening split and preliminary target capability matrix — 2026-11-04
+
+**Reviewer clarification:** frontend compiler hardening has been completed as a distinct workstream; backend compiler hardening remains outstanding. This is a scope/status distinction, not a certification upgrade. Each target still requires current, candidate-bound evidence across its own build, runtime, semantic, security and independent-verification obligations. Frontend hardening does not establish backend conformance, and a backend's registration or generated files do not establish a working target.
+
+### Registered compiler inventory
+
+The current `tiannara/application/compiler/composition.py` composition root registers 21 implementations: 12 backend/application targets and 9 frontend targets. This is a registration inventory only; it does not prove all routes are reachable or that all targets build and run.
+
+| Family | Registered targets | Audit treatment |
+|---|---|---|
+| Backend/application | Python/FastAPI Hexagonal; Go; Rust/Axum; NestJS; Spring Boot; ASP.NET Core; Phoenix; Kotlin/Ktor; Android; Express; Laravel; Rails | Backend hardening remains an open audit/remediation stream. Assess each implementation and feature set independently. |
+| Frontend | React; Vue; Angular; Next.js; Nuxt; Svelte; Phoenix LiveView; Hologram; Scenic | Frontend hardening work is recorded as completed by the reviewer. Retain per-target build/test/runtime/semantic/security evidence; do not infer universal certification from hardening completion. |
+
+### Preliminary evidence-backed backend capability rows
+
+The following is a triage matrix, not a final target capability preservation matrix. It records what the inspected source/evidence supports and makes unknowns explicit. The older `docs/compiler-audit/FRAMEWORK_AUDIT_REGISTER.md` is a dated evidence register from a separate compiler-hardening branch; its results are historical evidence, not automatically current-head CI evidence. Revalidate every row against the exact target commit before any certification decision.
+
+| Backend target / implementation | Source and declared scope | Build / test / runtime evidence currently established by inspected material | Semantic/security status | Preliminary disposition |
+|---|---|---|---|---|
+| Python / FastAPI Hexagonal (`tiannara/application/compiler/fastapi_hexagonal_backend.py`) | Source-present; typed `SystemModel` emitter; composition declaration advertises all `BundleCapability` values. That broad declaration is not proof that each capability is implemented. | Framework audit register historically marked generated-app build/test/runtime as unverified. | Source-bound authorization is enforced on the Python path for service-scoped policies in the remediation record, but declared API operations remain un-emitted; full semantic parity and independent certification remain open. | RETAIN for audit; hardening/conformance evidence required. Do not treat broad metadata as enforced capability. |
+| Go / net/http (`go_hexagonal_backend.py`) | Source-present; backend build profile exists. | Historical framework audit register: build and meaningful generated behavior execution unverified. | Semantic, authorization, security and independent verification unknown. | RETAIN for audit; NOT CERTIFIED pending evidence. |
+| Rust / Axum (`rust_axum_backend.py`) | Source-present; build profile and generated project tests exist. | Historical register records host-toolchain `cargo test` (two router tests) and release build passed on a prior CI head; pinned Docker build/runtime probes were pending. Not current-head proof. | Security/auth and source-to-artifact semantic correspondence remain unverified in that register. Separate authorization work has explicitly refused unsupported obligations rather than claiming parity. | RETAIN for audit; partial build evidence only; NOT CERTIFIED. |
+| NestJS / Node | Source-present and registered. | Historical register marked build/test/runtime unverified. | Semantic/security/authorization evidence unknown. | RETAIN for audit; NOT CERTIFIED. |
+| Spring Boot / Java | Source-present and registered. | Historical register marked source only; build/test/runtime unverified. | Semantic/security/authorization evidence unknown. | RETAIN for audit; NOT CERTIFIED. |
+| ASP.NET Core / C# | Source-present and registered. | Historical register marked source only; build/test/runtime unverified. | Semantic/security/authorization evidence unknown. | RETAIN for audit; NOT CERTIFIED. |
+| Phoenix / Elixir | Source-present and registered. | Historical register marked source only; build/test/runtime unverified. | Semantic/security/authorization evidence unknown. | RETAIN for audit; NOT CERTIFIED. |
+| Ktor / Kotlin | Source-present and registered. | Historical register marked source only; build/test/runtime unverified. | Semantic/security/authorization evidence unknown. | RETAIN for audit; NOT CERTIFIED. |
+| Express / Node | Source-present and registered. | Historical register records generated install/build/container and live HTTP checks as added but pending on that snapshot. | Security and semantic correspondence unverified; prior manifest claims were being narrowed to executable operations. | RETAIN for audit; NOT CERTIFIED. |
+| Laravel / PHP | Source-present and registered. | Historical register marked source only; build/test/runtime unverified. | Semantic/security/authorization evidence unknown. | RETAIN for audit; NOT CERTIFIED. |
+| Rails / Ruby | Source-present and registered. | Historical register marked source only; build/test/runtime unverified. | Semantic/security/authorization evidence unknown. | RETAIN for audit; NOT CERTIFIED. |
+| Android / Kotlin Jetpack Compose — Tiannara `AndroidBackend` | Source-present and registered in ProjectCompiler composition. It emits a static model-catalogue shell; declares only BUILD and DOCUMENTATION; rejects services, APIs and events. | PR #201 head `c229dd65b25f26411bb821e29a089512c6741507`: Android backend contract-test job passed. The Android cloud-build job was skipped on the pull-request event (manual dispatch only). The unit runner tests use a fake command runner and synthetic APK fixture; they are not native Gradle/emulator evidence. | No persistence, CRUD, authentication, synchronization or service/API/event runtime semantics claimed. Static-shell scope only. | RETAIN as narrow structural/static-shell implementation; NOT CERTIFIED for application behavior. |
+| Android / Kotlin Jetpack Compose — root campaign `AndroidStructuralBackend` | Separate implementation at `compiler/backends/android.py`; consumes `CompilationPlan`; backend class STRUCTURAL; supported feature set is empty; refuses services, events, policies, APIs, effects, consequences, invariants, frontend routes/interactions and behavioral data models. | Contract tests passed as part of PR #201 head workflow. The native runner test substitutes a fake Gradle/ADB runner and synthetic APK. Actual cloud build/emulator job was skipped. | Candidate/revision/plan hashes are bound in the source path and negative tests, but this is not proof of native Android execution or semantic behavior. | RETAIN as separate campaign structural backend pending route/convergence audit; do not conflate with Tiannara AndroidBackend. |
+
+### Frontend evidence boundary
+
+The historical framework audit register records React and Vue generated projects passing dependency installation, meaningful component tests and production builds on a prior CI head. Angular had a test assertion correction awaiting rerun; Next.js, Nuxt and Svelte generated-project CI checks were added but pending in that snapshot. Phoenix LiveView, Hologram and Scenic were source-only. The register still marked runtime/health, security/authentication, semantic correspondence and independent verification as unverified for all listed frontends.
+
+These historical details do not negate the reviewer-reported completion of the frontend hardening workstream. They identify which evidence must be refreshed and which certification dimensions remain separate from hardening. Record frontend hardening completion as a workstream milestone, not as a universal per-target certification verdict.
+
+### Backend hardening work still required
+
+The backend audit must cover, per implementation and supported feature set:
+
+1. **Governed input and admission:** canonical ISR revision/hash/provenance binding; authorization before selection/invocation; no backend-local authority or bypass.
+2. **Capability enforcement:** declarations must be checked against executable behavior. A registry entry, capability manifest or profile is metadata unless the orchestrator enforces it.
+3. **Semantic completeness:** requirements, entities/fields/invariants, services, API operations/contracts, events/order/delivery, frontend integration dependencies, effects/consequences, security policies, persistence, concurrency and deployment intent must be preserved or explicitly rejected before emission.
+4. **Fail-closed execution:** malformed, stale, ambiguous, unauthorized, unsupported or lossy inputs must result in zero backend invocation and zero deliverable artifacts.
+5. **Artifact purity and quarantine:** backend output must be returned as a candidate artifact set; backends must not publish directly. Publication requires central validation and evidence gates.
+6. **Build/runtime/behavior:** native toolchain build, meaningful tests, process/runtime health, persistence/restart behavior, API and event behavior, negative cases and cleanup.
+7. **Security:** authentication, authorization, tenant isolation, secrets, dependency/supply-chain checks and relevant threat cases.
+8. **Independent certification:** exact source, ISR, transformation, backend/version, toolchain, candidate and artifact hashes; fresh-process verification; UNKNOWN remains non-pass.
+
+### Cross-family issues requiring explicit closure
+
+- The ProjectCompiler registry's declarations are stored separately from backend objects; source inspection of `CompilerRegistry` shows registration and retrieval but no inherent enforcement of declared capabilities. Enforcement must be demonstrated in the selector/executor/orchestrator, not inferred from the registry.
+- The FastAPI declaration currently advertises every `BundleCapability`; this must be reconciled against generated operations and executed evidence before it can be trusted.
+- At least two Android backend implementations exist in different compiler families. Their shared target name does not prove shared authority, shared semantics or route convergence.
+- Root compiler backends, Tiannara ProjectCompiler backends, Gen-C backends and per-category compiler paths remain separate execution families. No wrapper or common directory establishes a single governed lifecycle.
+- The backend matrix must be expanded from these registered implementations to every backend-like implementation, target version, consumer, invocation route and dynamic/deployment entrypoint found in the repository.
+
+**Status:** Frontend hardening is a completed workstream per reviewer direction; backend hardening remains outstanding. This preliminary matrix is PARTIAL and not exhaustive. It does not authorize backend retirement, code/schema changes, FS-01, PR merge or FS-00 closure. All target dispositions remain provisional until the full capability/consumer/reachability matrix and independent evidence review are complete.

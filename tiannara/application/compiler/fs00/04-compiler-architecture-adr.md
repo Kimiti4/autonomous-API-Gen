@@ -252,3 +252,89 @@ The frontend/backend integration must additionally demonstrate that frontend rou
 A green backend contract-test job, source presence, registry declaration or synthetic/fake toolchain test is not native build/runtime certification. The Android backend contract-test job at PR #201 head `c229dd65b25f26411bb821e29a089512c6741507` passed; its Android cloud-build job was skipped on the pull-request event. The two Android implementations remain distinct audit targets.
 
 **Status:** backend hardening remains an open FS-00 finding. This gate does not authorize code/schema changes, FS-01, backend retirement, PR merge or FS-00 closure.
+
+
+## AI capability synthesis with senior frontend/backend engineering practice — reviewer direction 2026-11-04
+
+**Reviewer requirement:** each frontend and backend compiler must combine the complementary strengths of advanced AI-assisted reasoning and generation with the standards, judgement and disciplined execution expected of a senior specialist software engineer. This is a product-quality requirement, not a marketing label or a claim that the current compilers already possess these capabilities.
+
+The goal is not to choose between an AI generator and a conventional senior engineer. ESAP should combine both modes into one governed engineering process:
+
+- **AI strengths:** broad knowledge synthesis; rapid exploration of design alternatives; pattern recognition; cross-domain reasoning; adaptation to requirements; generation of implementation options; discovery of edge cases; iterative refinement; explanation and traceability.
+- **Senior-engineer strengths:** sound architecture; requirements clarification; trade-off judgement; domain modelling; maintainability; simplicity; reliability; performance; security; accessibility/usability; testing strategy; debugging; operational readiness; code review; disciplined delivery.
+- **Combined result:** AI breadth and iteration constrained and improved by senior-level engineering standards, with objective tests and independent verification rather than confidence, verbosity or code volume.
+
+The AI component is an assistive reasoning/generation capability, not a new authority. It must not bypass the canonical ISR, governance, deterministic validation, backend contracts, human approval gates or independent verifier. No external LLM provider is a mandatory architectural dependency; reasoning providers/models may be replaceable and governed, and any model output remains untrusted input until validated. Where a deterministic tool or compiler can establish a fact, it takes precedence over model assertion.
+
+### Frontend compiler — combined capability profile
+
+Every frontend compiler must demonstrate both AI-assisted product/design reasoning and senior frontend engineering discipline, including:
+
+1. **Product and user understanding:** clarify user goals, personas and workflows from approved requirements; identify ambiguity, missing states, conflicting needs and accessibility implications; propose alternatives with explicit trade-offs.
+2. **UX and interaction design:** information architecture, navigation, task flows, interaction patterns, responsive behavior, feedback, loading/empty/error/success states, form behavior, state transitions and recovery paths.
+3. **Visual and design-system quality:** coherent hierarchy, typography, spacing, layout, component composition, tokens, themes, responsive breakpoints and consistent visual language; avoid arbitrary one-off styling and design drift.
+4. **Senior frontend architecture:** appropriate component boundaries, state ownership, data flow, routing, composition, reuse, separation of concerns, typed contracts, predictable side effects and maintainable project structure.
+5. **Accessibility and inclusion:** semantic markup, keyboard operation, focus management, screen-reader semantics, contrast, reduced motion, scalable text and accessible validation; test against an explicit accessibility standard and real interaction cases.
+6. **Performance and resilience:** bundle and rendering budgets, loading strategy, caching where appropriate, hydration/SSR correctness, graceful network failure, browser compatibility and protection against unnecessary complexity.
+7. **Security and privacy:** safe output rendering, input handling, session/token boundaries, dependency hygiene, CSP-compatible patterns where applicable, no secret leakage and secure API integration.
+8. **Verification and refinement:** unit/component, integration, browser end-to-end, accessibility, visual-regression where useful, responsive viewport and negative tests; diagnose failures and refine without weakening acceptance criteria.
+9. **Senior-level review:** inspect generated code for correctness, consistency, readability, maintainability, unnecessary abstractions, dead code, fragile selectors, duplicated logic and hidden coupling.
+10. **Product finish:** polished empty/loading/error states, useful microcopy, consistent feedback, discoverability, responsive details and coherent behavior—not merely a page that renders.
+
+AI should broaden and accelerate design exploration; senior frontend discipline should select, simplify, implement and verify the best solution.
+
+### Backend compiler — combined capability profile
+
+Every backend compiler must demonstrate both AI-assisted systems reasoning and senior backend engineering discipline, including:
+
+1. **Domain and requirements engineering:** derive explicit domain concepts, invariants, ownership, lifecycle, authorization boundaries and failure behavior; detect ambiguity and unresolved business rules before code generation.
+2. **Architecture and service design:** appropriate modularity, bounded contexts where relevant, API/service boundaries, dependency direction, separation of concerns and maintainable evolution paths.
+3. **Data engineering:** correct schemas, constraints, relationships, migrations, transaction boundaries, indexing, query behavior, data integrity, retention and durable persistence where required.
+4. **API and integration engineering:** accurate contracts, validation, versioning, idempotency, pagination, error semantics, compatibility, rate limiting and integration behavior.
+5. **Security engineering:** authentication, authorization at every relevant boundary, least privilege, tenant isolation, secret handling, injection resistance, cryptographic correctness, auditability and threat-aware defaults.
+6. **Concurrency and distributed-systems reasoning:** race conditions, isolation, ordering, retries, deduplication, backpressure, timeouts, cancellation, consistency, delivery guarantees and failure recovery where applicable.
+7. **Reliability and operations:** structured logs, metrics, tracing, health/readiness, graceful shutdown, configuration, resource bounds, backup/recovery, deployment and rollback considerations.
+8. **Performance and scalability:** workload-aware algorithms, query plans, caching, resource usage, load characteristics and explicit performance budgets; no unsupported scalability claims.
+9. **Testing and debugging:** unit, contract, integration, database, API, concurrency, security, migration, failure-injection and end-to-end tests; reproducible diagnosis and regression prevention.
+10. **Senior-level review:** inspect correctness, cohesion, coupling, complexity, duplication, error handling, maintainability, dependency risk and operational consequences.
+11. **Semantic completeness:** preserve ISR-defined requirements, effects, consequences, invariants, policies, events, persistence and deployment intent—or refuse the unsupported scope before backend invocation and artifact emission.
+
+AI should accelerate analysis, compare architectural options and identify non-obvious risks; senior backend discipline should enforce correctness, security, reliability and operational fitness.
+
+### Shared engineering workflow and quality gates
+
+The combined frontend/backend process must follow a governed sequence:
+
+1. **Understand:** bind work to the approved requirement set and canonical ISR; identify missing or conflicting semantics.
+2. **Explore:** generate alternative architectures, designs or implementations with rationale and explicit trade-offs.
+3. **Select:** choose using requirements, constraints, quality attributes, target capability and measurable budgets—not model preference.
+4. **Design:** establish contracts, boundaries, state/data flows, threat model, failure modes and test oracles before emission.
+5. **Implement:** generate through the selected conformant backend/compiler under central authorization and policy.
+6. **Review:** run senior-engineer-style static and semantic review, including adversarial review for omissions, overengineering and unsafe assumptions.
+7. **Verify:** execute target-native builds, tests, security checks, runtime/behavior checks and semantic correspondence tests.
+8. **Refine:** repair failures while preserving the original acceptance criteria; any scope or requirement change must be explicit and traceable.
+9. **Certify:** independent verification binds source, ISR, transformations, compiler/backend version, toolchain, artifacts and test/runtime evidence.
+
+The AI reviewer and generator must not be the sole verifier of their own output. Use independent deterministic checks, test oracles, static analyzers, native toolchains and—where available—separate review processes. Model-generated explanations are not evidence of correctness.
+
+### Quality scorecard and anti-patterns
+
+Each frontend/backend target requires an explicit scorecard with measurable, target-appropriate criteria for:
+
+- requirement and semantic coverage;
+- architectural soundness and maintainability;
+- correctness and behavior;
+- accessibility/usability (frontend) or data/API/security correctness (backend);
+- performance and resource budgets;
+- reliability and failure handling;
+- test depth and negative-case coverage;
+- security and privacy;
+- native build/runtime evidence;
+- traceability and reproducibility;
+- independent verification.
+
+No single aggregate score may hide a critical failure. Hard gates—security, data integrity, semantic preservation, authorization, accessibility obligations where required, and fail-closed behavior—cannot be compensated for by high scores elsewhere.
+
+Prohibited anti-patterns include: treating generated code volume as quality; accepting plausible UI without interaction/accessibility tests; accepting a successful compile as proof of behavior; inventing requirements to fill gaps; silently omitting ISR semantics; overengineering simple requirements; copying fashionable architecture without workload justification; trusting model assertions instead of executable evidence; weakening tests to obtain a pass; and allowing the generator to certify itself.
+
+**Status and scope:** this records the required target capability and quality direction for both frontend and backend compiler families. It does not assert current implementation, authorize code/schema changes or FS-01, upgrade any certification, approve backend retirement, merge PR #201 or close FS-00. Concrete per-target acceptance criteria and evidence must be developed and independently reviewed before implementation is authorized.

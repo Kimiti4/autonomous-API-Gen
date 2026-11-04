@@ -2188,3 +2188,31 @@ The backend audit must cover, per implementation and supported feature set:
 - The backend matrix must be expanded from these registered implementations to every backend-like implementation, target version, consumer, invocation route and dynamic/deployment entrypoint found in the repository.
 
 **Status:** Frontend hardening is a completed workstream per reviewer direction; backend hardening remains outstanding. This preliminary matrix is PARTIAL and not exhaustive. It does not authorize backend retirement, code/schema changes, FS-01, PR merge or FS-00 closure. All target dispositions remain provisional until the full capability/consumer/reachability matrix and independent evidence review are complete.
+
+
+## AI + senior frontend/backend engineering quality requirement — 2026-11-04
+
+The reviewer has added a product-quality requirement: frontend and backend compilers must combine advanced AI reasoning/generation with the judgement and disciplined practices of senior specialist engineers. This is a target architecture/capability requirement, not evidence that existing compilers already meet it.
+
+| Compiler family | AI contribution | Senior specialist engineering contribution | Required outcome |
+|---|---|---|---|
+| Frontend | Broad design exploration, user-workflow reasoning, alternative UI proposals, pattern/edge-case discovery, iterative refinement | Product/UX judgement, information architecture, design systems, interaction/state architecture, accessibility, responsive design, performance, browser resilience, security, testing and maintainability | A polished, accessible, coherent and responsive product whose real interactions and states are tested—not merely rendered screens |
+| Backend | Domain/requirements reasoning, architecture alternatives, API/data design proposals, edge-case and failure-mode discovery, iterative refinement | Domain modelling, service/API architecture, data integrity, persistence/transactions, authorization/security, concurrency, reliability/operations, performance, testing and maintainability | A secure, correct, reliable and operable implementation whose semantics and behavior are verified—not merely generated source |
+| Full stack | Cross-layer reasoning and consistency analysis | Senior integration discipline across API contracts, data models, identity, authorization, effects, error handling and deployment | Verified end-to-end semantic coherence between user interactions and backend behavior |
+
+### Required evidence, not role-play
+
+Each target's quality record must identify:
+- which AI reasoning/generation capabilities are actually available and under what governance;
+- which senior-specialist engineering checks are implemented as deterministic rules, static analysis, tests, review gates or toolchain evidence;
+- measurable quality budgets and mandatory non-compensable gates;
+- defects/risks found and their resolution evidence;
+- independent verifier results tied to exact source, ISR, compiler/backend version and artifacts.
+
+A model claiming that code is secure, accessible, performant or maintainable is not evidence. Require executable checks and appropriate specialist review. The generator must not be the sole reviewer or certifier of its output. No external LLM is a required dependency; any model component is replaceable and governed.
+
+### Status
+
+This requirement applies to all registered and subsequently discovered frontend/backend targets, not just React or FastAPI. Frontend hardening completion remains a workstream milestone; it does not automatically prove that every frontend target meets this richer combined capability profile. Backend hardening remains outstanding. Neither family is certified by this requirement being documented.
+
+**Open work:** translate the quality profiles into target-specific acceptance criteria and evidence fixtures; map each criterion to its responsible compiler stage, verifier, test suite and certification artifact. This remains FS-00 design/audit work until the independent reviewer separately authorizes implementation.

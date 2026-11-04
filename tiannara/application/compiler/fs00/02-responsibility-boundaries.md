@@ -196,3 +196,18 @@ No backend may be consolidated, replaced, deprecated, retired or deleted merely 
 - retirement that removes a unique language/framework/platform capability without an accepted replacement or separately approved roadmap decision.
 
 **Status:** target responsibility allocation accepted; current ownership, route convergence, backend conformance and capability preservation remain unproven. No code/schema changes, backend retirement or FS-01 work is authorized by this section. FS-00 remains NOT READY until the complete route/consumer inventory, capability matrix, semantic-preservation evidence and independent review are complete.
+
+
+## Frontend/backend hardening responsibility split — 2026-11-04
+
+The reviewer has clarified that frontend compiler hardening is complete as a workstream, while backend compiler hardening remains outstanding. This does not grant frontends exemption from per-target evidence or imply that they are independently certified. It does establish a separate remaining backend-hardening obligation.
+
+**Frontend responsibility:** maintain the hardened frontend contract and per-target evidence; preserve route, component, interaction, state-transition and API-integration semantics; reject unsupported interactions; prove generated-project build and meaningful tests; keep runtime, security and independent semantic verification as separate evidence dimensions.
+
+**Backend responsibility (outstanding):** every backend implementation must be brought under the same governed input, capability enforcement, semantic preservation, authorization, effect, artifact quarantine, build/runtime, security and independent-verification obligations. A backend declaration or registry registration is not enforcement. Unsupported semantics must be rejected before backend invocation and must not produce deliverable artifacts.
+
+**Cross-stack responsibility:** full-stack composition must prove that frontend routes/interactions bind to real backend API operations, data contracts, authorization and effects. A hardened frontend paired with a backend that omits or weakens those obligations is not a conformant application.
+
+The two Android implementations are separate audit entries: the Tiannara ProjectCompiler `AndroidBackend` and root campaign `AndroidStructuralBackend`. Their common target platform does not make them one implementation or prove convergence.
+
+**Status:** backend hardening remains open. This is an FS-00 responsibility clarification only; no code/schema change, FS-01 work, backend retirement, merge or certification upgrade is authorized.

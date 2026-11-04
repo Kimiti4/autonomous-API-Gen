@@ -167,3 +167,75 @@ A successful Gradle task or APK file is necessary but insufficient. Bind the exa
 ## Parallel compiler-runtime scope constraint
 
 The selected core/backend boundary describes the root-level `compiler/core` substrate only. It does not, by itself, resolve the parallel `constitutional_architecture/compiler` Gen-C pipeline, the `constitutional_architecture/compilers/*` per-category runtime consuming `UniversalISR`, or the separate `tiannara/application/compiler` family. Existing R1 inventory documents some of these as legacy-retirement candidates, but those dispositions are not an authorization in this FS-00 draft. The full system-wide authority, consumer graph and approved disposition of these paths remain open prerequisites to FOUNDATION_READY.
+
+
+## System-wide authority and universal backend preservation — reviewer decision 2026-11-04
+
+**Independent reviewer decision: ACCEPT the target direction of one governed compilation authority and one authoritative ISR contract.** This decision expands the architectural scope beyond the root-level `compiler/core/` seam described above. The root core/backend boundary is a candidate foundation, not by itself the system-wide authority decision.
+
+### Universal-development requirement
+
+ESAP's intended universal software-developer capability is a requirement to preserve. Backend retirement must not be used as a shortcut for architecture consolidation, nor may a language, framework, platform or application-family capability be silently discarded.
+
+The architecture shall distinguish:
+
+- **Backend implementation:** a concrete emitter/compiler integration, which may be replaced, consolidated, deprecated or retired.
+- **Target capability:** the language, framework, platform, runtime or application capability ESAP intends to provide.
+- **Backend family:** one or more implementations serving a target capability under the common contract.
+- **Certification status:** the evidence-backed state of a particular backend version, target version and supported feature set.
+
+Retiring an implementation does not retire its target capability if a conformant replacement or governed alternative preserves that capability. Conversely, retaining a backend in the repository does not establish that the target is supported.
+
+### Mandatory backend disposition rules
+
+Every discovered backend and backend-like execution path must receive an explicit, evidence-backed disposition:
+
+1. **RETAIN** — unique or useful implementation remains, with a defined owner and conformance obligations.
+2. **CONSOLIDATE** — overlapping implementations converge on one governed implementation; target capability and required semantics remain covered.
+3. **REPLACE** — implementation is superseded only after the replacement meets the applicable contract and migration/rollback criteria.
+4. **DEPRECATE** — existing consumers receive a documented migration path and support window; no premature capability claim is allowed.
+5. **RETIRE** — implementation is removed or fenced only after consumer/reachability analysis, capability-impact analysis, migration evidence and independent approval.
+6. **QUARANTINE** — unsafe, untrusted or non-conformant implementation cannot execute or publish artifacts, but its target capability remains visible as unsupported/not certified until resolved.
+7. **NOT YET IMPLEMENTED** — intended target capability is retained in the capability roadmap without falsely claiming a working backend.
+
+No backend may be retired solely because it is inconvenient, uses a different technology, is outside the proposed directory layout, or fails to conform to a contract that has not yet been approved. Unique target semantics must first be captured in the universal contract or explicitly governed as a supported extension.
+
+### Universal backend contract
+
+Every backend family must consume a governed, versioned compiler input contract and declare, at minimum:
+
+- target language, framework, platform, runtime and supported version range;
+- supported ISR/Compiler-IR constructs and feature-level coverage;
+- semantic obligations implemented, rejected or explicitly unsupported;
+- security, authorization, effect, persistence, concurrency and deployment obligations relevant to its claims;
+- deterministic configuration and dependency/toolchain identity;
+- output artifact types, manifests, source-to-artifact lineage and provenance;
+- build, runtime, behavioral, negative, security and regression evidence;
+- verifier/conformance suite version and current certification status.
+
+Backend-specific extensions are permitted only when namespaced, versioned, typed, documented and governed. An extension must not silently override canonical ISR semantics or bypass central policy.
+
+### Capability preservation and retirement gate
+
+Before consolidation, replacement, deprecation or retirement, the audit must produce a **Target Capability Preservation Matrix** mapping:
+
+`target capability → existing implementations → consumers/routes → semantic coverage → evidence → proposed disposition → replacement/gap → migration and rollback`
+
+The matrix must cover all discovered languages, frameworks, platforms and application families—not only currently active or easy-to-test backends. It must distinguish source-present, reachable, buildable, runnable, behaviorally verified and independently certified states.
+
+A backend may be retired only when all of the following are true:
+
+- its consumers and dynamic/deployment reachability have been inspected;
+- every target capability it uniquely provides is preserved by an accepted replacement or explicitly recorded as a deliberate, separately approved roadmap gap;
+- semantic and behavioral parity is demonstrated for the supported feature set, including negative cases;
+- no required user-visible capability is silently lost;
+- migration, compatibility, rollback and evidence-retention plans are reviewed;
+- the independent reviewer approves the specific disposition.
+
+If these conditions are not met, the implementation remains in place but may be fenced or marked non-conformant. It must not be represented as certified.
+
+### System-wide compilation authority
+
+The eventual authority must own the governed lifecycle across all compiler families: request admission, canonical ISR binding, validation, transformation orchestration, backend selection/authorization, artifact quarantine/publication, verification and evidence-backed verdicts. Existing Gen-C, ProjectCompiler, UniversalCompiler API and per-category compiler paths must either become governed adapters/subsystems under this authority or be explicitly classified and fenced. A directory move or wrapper alone is not proof of convergence.
+
+**Status:** architectural direction accepted; implementation and current compliance remain unproven. This section does not authorize backend deletion, schema changes, code modifications, FS-01, PR merge or FS-00 closure. The complete backend inventory, capability matrix, route/reachability evidence and independent review remain FS-00 exit criteria.

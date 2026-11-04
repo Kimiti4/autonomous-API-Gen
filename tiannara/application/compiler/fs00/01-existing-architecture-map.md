@@ -2110,3 +2110,18 @@ The PR-head tree contains these distinct source roots / surfaces relevant to ISR
 - `tiannara/domain/models/isr.py` and `system_model.py`; `tiannara/application/compiler/` — typed ISR envelope, SystemModel payload and ProjectCompiler path.
 
 The full tree is not itself a dependency graph. This map now cross-references the PR-head source verification and boundary findings in Deliverables 2 and 3. A complete import/consumer inventory, dynamic reachability classification and deployment exposure audit remain outstanding. The source inventory is **not** a declaration that every listed compiler is active or production-ready.
+
+
+## 11. Updated ISR-family count and universal-backend scope — 2026-11-04
+
+The earlier section 4.2 was an intermediate discovery and said “third ISR family.” The subsequent PR-head source tracing in Deliverable 3 distinguishes **at least five ISR/model families**:
+
+1. root canonical `isr/core/ISRRevision`;
+2. rich constitutional ISR under `constitutional_architecture/isr/model/`;
+3. graph `UniversalISR` in `constitutional_architecture/core/models/isr.py`;
+4. the distinct `UniversalISR` in `constitutional_architecture/core/models/universal_isr.py`;
+5. Tiannara `IntermediateSoftwareRepresentation` with typed `SystemModel` payload.
+
+This count is the current audit classification; it does not imply that all five are independently authoritative or production-reachable. Deliverable 3 records the evidence and remaining reachability limits. The earlier count is retained as historical discovery context, not the final inventory.
+
+The backend inventory is also not a capability inventory. All discovered backend families and target capabilities must be reconciled in the Target Capability Preservation Matrix specified by Deliverable 4 before any implementation is consolidated, deprecated or retired. The intended universal language/framework/platform coverage is a requirement; repository presence alone is not proof of support, and absence of a conformant implementation must remain visible as NOT YET IMPLEMENTED / NOT CERTIFIED.

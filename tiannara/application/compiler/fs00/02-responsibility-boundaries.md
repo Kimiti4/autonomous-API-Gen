@@ -166,3 +166,33 @@ The following direct source paths were confirmed at PR-head commit `78283fff71ba
 - **Runtime status classification:** a path appearing in a package, registry or API factory is evidence of source-level availability, not proof it is deployed or invoked in production. Production, compatibility, test-only and dead-code classifications remain OPEN until import-walk, CLI/API/deployment configuration and clean-environment execution evidence are gathered.
 
 **Boundary disposition:** no ownership changes, model consolidation, adapter creation, route retirement or deletion is authorized by this audit. FS-00 remains NOT READY pending the full reachability and semantic-preservation register plus independent governance review.
+
+
+## 9. Accepted target authority boundary and backend capability preservation — 2026-11-04
+
+**Independent reviewer decision: ACCEPT.** The target architecture is one governed compilation authority and one authoritative canonical ISR contract. This is an accepted direction, not a claim that current code already conforms.
+
+### Responsibility allocation required by the target architecture
+
+- **Canonical ISR authority:** owns the authoritative, versioned software intent/requirements semantics, integrity rules and provenance binding. Alternate ISR-shaped models may exist only as governed projections, compatibility forms or explicitly approved extensions; they must not independently redefine source intent.
+- **Compilation authority:** owns admission, canonical-source binding, validation, transformation orchestration, backend authorization/selection, artifact quarantine/publication, verification coordination and evidence-backed final outcomes.
+- **Transformation/adapter:** owns deterministic, versioned and inspectable mappings between canonical ISR, compiler IR, intermediate/backend models and artifacts. It may not silently discard or reinterpret semantics.
+- **Backend family:** owns target-specific emission/build integration and declares its target/version/feature coverage, semantic obligations, unsupported constructs, toolchain identity, artifacts and conformance evidence. It does not own canonical requirements or bypass central governance.
+- **Independent verifier/certifier:** evaluates bound evidence and issues a verdict independently of the backend's own success claims. Backend output alone is not certification.
+
+### Universal capability is preserved independently of implementation count
+
+A backend is an implementation, not the target capability itself. ESAP's universal language/framework/platform ambition remains a governing requirement. Multiple specialized backends are expected and permitted under the common contract. A single implementation need not emit every target.
+
+No backend may be consolidated, replaced, deprecated, retired or deleted merely to simplify the architecture. Each disposition requires the Target Capability Preservation Matrix, consumer and dynamic/deployment reachability evidence, semantic/behavioral parity evidence, migration/rollback plan and independent approval. Where no verified implementation exists, retain the target in the capability roadmap and mark it NOT YET IMPLEMENTED / NOT CERTIFIED. Do not equate code presence with support or unsupported status with an intentional permanent removal.
+
+### Prohibited authority patterns
+
+- backend-local validation that overrides or weakens canonical governance;
+- backend-specific ISR contracts treated as independent sources of truth;
+- a wrapper that delegates to parallel compilers without central policy, lineage and verdict enforcement;
+- silent lossy projection, semantic defaulting or unsupported-feature omission;
+- artifact publication after failed, incomplete or indeterminate validation;
+- retirement that removes a unique language/framework/platform capability without an accepted replacement or separately approved roadmap decision.
+
+**Status:** target responsibility allocation accepted; current ownership, route convergence, backend conformance and capability preservation remain unproven. No code/schema changes, backend retirement or FS-01 work is authorized by this section. FS-00 remains NOT READY until the complete route/consumer inventory, capability matrix, semantic-preservation evidence and independent review are complete.

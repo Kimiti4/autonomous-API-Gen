@@ -239,3 +239,16 @@ If these conditions are not met, the implementation remains in place but may be 
 The eventual authority must own the governed lifecycle across all compiler families: request admission, canonical ISR binding, validation, transformation orchestration, backend selection/authorization, artifact quarantine/publication, verification and evidence-backed verdicts. Existing Gen-C, ProjectCompiler, UniversalCompiler API and per-category compiler paths must either become governed adapters/subsystems under this authority or be explicitly classified and fenced. A directory move or wrapper alone is not proof of convergence.
 
 **Status:** architectural direction accepted; implementation and current compliance remain unproven. This section does not authorize backend deletion, schema changes, code modifications, FS-01, PR merge or FS-00 closure. The complete backend inventory, capability matrix, route/reachability evidence and independent review remain FS-00 exit criteria.
+
+
+## Backend hardening gate — reviewer clarification 2026-11-04
+
+Frontend compiler hardening is recorded as complete at the workstream level; backend compiler hardening remains outstanding. The universal compiler architecture must not treat these as one undifferentiated status.
+
+Before a backend implementation can be considered hardened or certified, evidence must show: (a) governed canonical ISR admission and provenance binding; (b) centrally enforced capability declarations; (c) complete semantic preservation or explicit pre-emission refusal; (d) authorization/effect/invariant enforcement; (e) no backend invocation or deliverable artifact on invalid/unknown/unsupported input; (f) quarantined, centrally validated artifact publication; (g) native build, runtime, behavioral and negative tests; (h) applicable security evidence; and (i) independent candidate-bound verification.
+
+The frontend/backend integration must additionally demonstrate that frontend routes and interactions map to implemented backend API operations, data contracts, authorization and effects. Separate target builds do not establish full-stack semantic coherence.
+
+A green backend contract-test job, source presence, registry declaration or synthetic/fake toolchain test is not native build/runtime certification. The Android backend contract-test job at PR #201 head `c229dd65b25f26411bb821e29a089512c6741507` passed; its Android cloud-build job was skipped on the pull-request event. The two Android implementations remain distinct audit targets.
+
+**Status:** backend hardening remains an open FS-00 finding. This gate does not authorize code/schema changes, FS-01, backend retirement, PR merge or FS-00 closure.

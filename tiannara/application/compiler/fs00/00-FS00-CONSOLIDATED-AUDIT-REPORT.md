@@ -374,3 +374,80 @@ The source contains integration tests that would install and execute the generat
 ### 9.10 Checkpoint 9 disposition
 
 **PARTIAL — bounded source-to-artifact lineage is demonstrated in source and test design; exact-head native execution and universal/backend parity are not demonstrated.** No compiler implementation, test, workflow, backend capability declaration, certification status or production artifact was changed in this checkpoint. FS-00 remains an audit/documentation activity.
+
+
+---
+
+## Checkpoint 10 — independent verification and cross-backend parity
+
+**Audit basis:** read-only source/test inspection at `54aae0132804123530adb21160394788c3b29d3e`, focused on requirement acceptance criteria, behavioral expression oracle generation, Python FastAPI and Rust Axum emitters, generated-runtime integration test definitions, conformance checking, and the workflow runs attached to the exact audited commit. No tests were executed locally in this checkpoint and no runtime status is inferred from test definitions.
+
+### 10.1 Acceptance criteria are carried, but not yet executable verification obligations
+
+The canonical `reqgraph.core.graph.RequirementNode` carries `acceptance_criteria`. `reqgraph.adapters.isr_projection.project_requirement_graph` preserves those criteria on ISR `REQUIREMENT_REF` nodes. The TOR ingestion path also requires at least one acceptance criterion in each human approval.
+
+However, the representative TOR fixture in `tests/support/tor_sources.py` supplies the generic criterion: `An independently authored test verifies this requirement.` The criterion is not a concrete expected outcome, input partition, observable assertion, or named oracle. The TOR-to-ISR `SourceTraceability` record binds requirement IDs and ISR IDs but does not contain acceptance-criterion identities or test/oracle bindings.
+
+The inspected behavioral backend emitter consumes `CompilationPlan` service rules and transitions to create generated tests. It does not consume RequirementNode acceptance criteria or resolve them to independent test specifications. The criteria therefore survive as requirement metadata, but a requirement → criterion → test oracle → execution-result relation is not demonstrated on this path.
+
+### 10.2 The generated expression oracle is differential, not fully independent
+
+`compiler/core/behavior_oracle.py` is separate from the generated application runtime and evaluates a bounded expression AST. It supports literals, field references, boolean operators, conditional expressions, decimal arithmetic and comparisons. Python and Rust emitters use it to compute expected values, then write those values as literals into generated tests.
+
+This has genuine value: the generated runtime is compared with a second evaluator rather than only checking that source files or method names exist. But the oracle and generated tests are part of the same compiler repository and are invoked by the emitter itself. They share the same typed plan and expression interpretation. This is **differential testing against a reference evaluator**, not an independently authored acceptance oracle derived from the requirement statement or an external test specification.
+
+The default `sample_context` chooses one deterministic value per field type (for example, money/decimal = `100.00`, integer = `100`, boolean = `True`). It does not derive boundary partitions from field constraints, precision/scale, nullability, enumerations or business acceptance criteria. A single representative value cannot establish behavior at zero, negative values, precision limits, missing/nullable fields, invalid types, or other boundary conditions unless separate tests explicitly cover them.
+
+### 10.3 Concrete parity gap in transition test generation
+
+For each guarded transition, the Python emitter generates a test using the single sampled context. In the payroll fixture, the guard is `Employee.base_salary > 0`; the default money sample is `100.00`, so the generated test covers the accepted transition. The Python emitter does not generate the corresponding rejected/zero-value case in this path.
+
+The Rust emitter also tests the accepted sample. If that sample is accepted, it additionally derives one zero-valued context and asserts that the transition is rejected. Thus the generated Python and Rust transition suites are not even identical in their positive/negative test vectors for the shared subset.
+
+This does not show a runtime defect in either backend. It shows an oracle/test-generation coverage asymmetry and means the current generated test pattern cannot be used as evidence of symmetric transition verification. The explicit Rust negative case is still only one derived input, not a complete boundary suite.
+
+### 10.4 Independent executable-effect scenario: strong but narrowly scoped
+
+`tests/support/effect_contract_scenario.py` is authored outside the emitter and copied into a generated Python application by `tests/integration/test_generated_backend_behavior_builds.py`. It checks:
+- authorized execution and one commit;
+- replay returning the prior result without re-execution;
+- concurrent same-key calls executing once;
+- unauthorized role denial without execution or commit;
+- missing principal/context/idempotency key rejection;
+- precondition failure without execution/commit;
+- postcondition failure without commit and successful retry.
+
+These assertions inspect observable runtime behavior and are materially stronger than generated source-string assertions. The scenario remains specific to one Python effect contract and an in-memory ledger. It does not establish durable storage, cross-process concurrency, crash recovery, external side-effect atomicity, or parity with Rust and the other compiler families. It is not bound in the inspected tests to the TOR requirement IDs and acceptance criteria from Checkpoint 9.
+
+### 10.5 Conformance checks are not acceptance verification
+
+`compiler/core/conformance.py` checks whether plan elements map to paths, files exist and have non-hollow content, Python files parse, and the semantic-obligations manifest matches the plan's effects/bindings/consequences. This is useful structural and manifest conformance. It does not execute generated code, validate every API contract, prove the behavior of a business rule, or compare application behavior against requirement-derived expected outcomes.
+
+The canonical `folder/CONTRACT_TestSpecification.md` and `folder/CONTRACT_VerificationResult.md` describe a stronger evidence model: verification result identity, verifier identity/version, checks performed, evidence references and five-state failure semantics. The inspected bounded behavioral emitter/conformance path does not demonstrate that every generated test run is converted into such a complete, immutable verification record and consumed by a mandatory publication gate.
+
+### 10.6 Exact-commit execution evidence
+
+The workflow-run lookup for exact commit `54aae0132804123530adb21160394788c3b29d3e` returned one associated run: **ESAP Android Cloud-Build Certification (Stage A)** (run `41921507863`). That run is relevant to the separate Android campaign and does not establish that `tests/integration/test_generated_backend_behavior_builds.py` ran on this commit. The existence of Python/Rust integration test definitions is therefore not upgraded to exact-head native execution evidence.
+
+### 10.7 Checkpoint 10 findings
+
+- **FS00-026 — acceptance criteria are not connected to executable oracle identity.** Criteria are preserved as requirement metadata, but the representative TOR criterion is generic and the behavioral emitter does not consume criteria to create or bind test specifications. Require concrete, verifiable criteria and explicit requirement/criterion/oracle/result links.
+- **FS00-027 — the generated expression oracle has limited independence.** It is a separate evaluator from generated runtime code, but it is compiler-authored, plan-derived and invoked by the emitter. Classify it as differential/reference testing, not as a fully independent acceptance oracle.
+- **FS00-028 — default oracle input generation is single-sample and constraint-blind.** Fixed values do not systematically cover boundaries, invalid inputs, nullability, field constraints, decimal precision/scale, or domain-specific cases.
+- **FS00-029 — generated transition test coverage differs between Python and Rust.** Both test the positive sample; Rust adds a derived zero-value rejection case while Python does not. This is a test-generation parity gap, not proof of a runtime semantic defect.
+- **FS00-030 — independent executable-effect verification is narrow.** The Python scenario is meaningful, but uses an in-memory ledger, one effect fixture and no demonstrated TOR acceptance-criterion binding or cross-backend equivalent.
+- **FS00-031 — structural conformance and test definitions are not execution evidence.** The conformance checker is static/manifest-oriented; the exact audited commit's associated workflow run does not establish execution of the Python/Rust generated-backend integration suite.
+
+### 10.8 Required remediation sequence
+
+1. Introduce a technology-neutral acceptance-oracle contract that binds requirement ID, criterion ID, source/ISR/plan identities, input partitions, expected observable outcomes, oracle identity/version/digest, and evidence references.
+2. Require every MUST functional requirement and every security, data-integrity, failure and operational obligation to have concrete acceptance criteria. Reject generic criteria such as “a test verifies this requirement” at the verification-planning gate.
+3. Keep the compiler's reference evaluator as a differential check, but add separately authored requirement-level scenarios that do not call the compiler's evaluator to calculate their expected values.
+4. Derive test vectors from constraints and domain partitions: boundaries, zero/negative, precision/scale, null/missing, invalid values, duplicates, authorization denials, retry/replay, concurrency, and failure injection as applicable.
+5. Make Python and Rust generate/run the same shared-subset oracle vectors and compare externally observable outcomes. For unsupported semantics, retain fail-closed refusal; do not reduce the contract to the intersection merely to manufacture parity.
+6. Bind exact source commit, compiler/backend digests, generated bundle hashes, test/oracle identities, environment/toolchain, raw logs and result state into immutable verification evidence.
+7. Make the exact-head native verification matrix a required gate for the PR/branch and make publication consume only complete PASS evidence. Missing, skipped, stale or unbound evidence must remain NOT_RUN/INDETERMINATE/BLOCKED as appropriate, never PASS.
+
+### 10.9 Checkpoint 10 disposition
+
+**PARTIAL — differential reference tests and a strong narrow Python effect oracle exist, but general requirement-derived independent acceptance verification, boundary coverage, symmetric backend test vectors, and exact-head Python/Rust execution evidence are not established.** No source, production code, tests, workflows, backend capability declarations, certification states or generated artifacts were changed in this checkpoint. FS-00 remains read-only audit/documentation.

@@ -259,3 +259,118 @@ Some ledgers are hash-chained, but the inspected calibration ledger did not bind
 **Next checkpoint — FS-00 Checkpoint 9:** Select one bounded representative requirement set and prove its full source-to-artifact lineage on one actual production compiler route: every transformation, field/ID mapping, backend decision, generated artifact, independent oracle, native execution result and evidence envelope. Then repeat for a second backend to expose adapter divergence. Do not infer universal parity from one successful path.
 
 **Change boundary:** Documentation-only consolidation. No production code, tests, certifications or backend dispositions changed.
+
+
+---
+
+## Checkpoint 9 — end-to-end requirement lineage proof
+
+**Audit basis:** source inspection at `1d53110fb0ff091d680e08cabd801e0df20513f6`, including TOR ingestion/projection, canonical ISR revision lowering, the Python FastAPI and Rust Axum behavioral backends, capability gates, conformance checks, traceability records, and generated-backend integration test definitions. This checkpoint is a source audit. It does not claim that the integration tests were executed during this audit.
+
+### 9.1 Bounded representative input
+
+The representative source is the payroll TOR fixture in `tests/support/tor_sources.py`. Its bounded requirements are:
+- manage employee payroll records;
+- calculate gross pay from base salary and allowances.
+
+The fixture deliberately obtains requirement candidates through `extract_tor_text`, then supplies explicit `HumanApproval` records. Reviewer-authored ISR declarations describe an Employee data model, Payroll service, gross-pay expression, and a `PERSISTS` relationship. The projection uses a deterministic system/revision identity.
+
+This is a useful bounded proof because the source prose is not directly treated as executable architecture. The approval record is an explicit human decision and carries the ISR declarations.
+
+### 9.2 Source-to-ISR lineage
+
+The inspected `reqgraph/ingestion/tor_extractor.py` and `reqgraph/adapters/tor_isr.py` establish the following controls:
+
+1. TOR candidates preserve source reference and source line spans.
+2. A RequirementGraph is created through explicit approval; the approval requires a reviewer, decision reference and acceptance criteria.
+3. ISR declarations must carry non-empty `source_requirement_ids`, include the requirement approving them, and reference known candidate IDs.
+4. Duplicate ISR node/edge declarations are rejected.
+5. An approved requirement without an explicit ISR declaration blocks projection.
+6. The projection binds the source SHA-256 and requirement graph hash, carries requirement IDs and declared ISR node/edge IDs, and creates a content-addressed ISR revision.
+7. The adapter creates requirement-reference nodes and requirement relationships rather than silently turning prose into capabilities or satisfaction claims.
+
+The source-binding mechanism is substantive within this TOR path. It must not be conflated with the separate Constitutional source-binding path audited in Checkpoint 8: they use different requirement graph models and different binding contracts.
+
+### 9.3 ISR-to-CompilationPlan lineage
+
+`compiler/core/lowering.py:isr_to_plan` consumes an `ISRRevision` and builds a typed `CompilationPlan`. In the inspected implementation it:
+- preserves data-model, event, security, API, effect, invariant, service, frontend-route and frontend-interaction payloads as typed plan objects;
+- preserves explicit `PERSISTS`, `PUBLISHES`, `CONSUMED_BY`, `SECURED_BY`, `CAUSES_EFFECT`, `CONSEQUENCE_OF`, `EXPOSES`, `ROUTES_TO`, `CONTAINS` and `INVOKES` relationships where handled by the lowering;
+- requires exactly one explicit service binding for an API operation that has `EXPOSES` relationships, rejecting ambiguous service bindings;
+- rejects effect edges whose source/effect target cannot be resolved;
+- rejects consequences without an explicit effect or invariant target.
+
+The plan ID is derived from the ISR content hash prefix. The projection tests assert preservation of typed fields, expression field references, service rules/transitions, security policy links, API contract fields, effect bindings, consequence payloads and invariant expressions. Determinism is tested for repeated lowering of the same revision.
+
+This establishes a strong typed projection for the exercised node/edge types. It does not establish that every possible ISR property or edge is supported by every compiler family.
+
+### 9.4 Backend decision and divergence
+
+The representative `backend_plan()` contains the Employee model, Payroll service, gross-pay expression, guarded `draft → submitted` transition and persistence relationship. Both `PythonFastAPIBackend` and `RustAxumBackend` declare support for the relevant shared subset: typed fields, decimal shape, expressions, business rules and state transitions.
+
+The backend capability declarations are not equal:
+- Python FastAPI additionally declares API contracts, authorization policies, effect-policy preservation, effect-binding preservation, consequence preservation and effect execution.
+- Rust Axum does not declare API contracts or authorization policies. It does declare the listed effect/consequence preservation features, but not executable effect semantics or effect execution.
+
+The capability gate is invoked at the start of each backend's `compile()`. The tests explicitly verify that API operations are refused by Rust and that a plan requiring API contracts and authorization is rejected by Rust while Python passes those two capability checks. Both backends still reject unsupported effect semantics. The broader behavioral ISR projection test verifies that the richer payroll API/security/effect plan is refused by both backends for the remaining unsupported obligations, and that Rust reports API/auth gaps as well.
+
+**Interpretation:** the two backends share a real but bounded behavioral subset. They are not interchangeable and do not have equivalent semantic coverage. The Rust backend's successful shared-subset compile/test must not be represented as proof of API, authorization or executable-effect parity.
+
+### 9.5 Generated artifact and oracle path
+
+The integration test `tests/integration/test_generated_backend_behavior_builds.py` defines native generated-application checks:
+- Python: compile the TOR-derived backend plan, write generated files, install generated requirements, and run the generated pytest suite.
+- Rust: compile the same TOR-derived backend plan, write generated files, and run `cargo test`.
+
+Both backend emitters use `compiler/core/behavior_oracle.py` when generating tests for service rules and guarded transitions. That module is not imported by generated applications; it independently evaluates the bounded expression AST and emits literal expected values into generated tests. This is stronger than merely asserting that files exist, and can detect disagreement between the reference evaluator and generated runtime for the sampled inputs.
+
+However, the generated test expectations are produced by the compiler's own test-generation path from the same CompilationPlan. The oracle is a separate evaluator, but the test suite is not wholly independent of the compiler or its interpretation of the plan. Sample contexts are generated from field types and cover selected values, not exhaustive input domains. The source acceptance criteria in the TOR fixture are not themselves transformed into a complete independent oracle suite.
+
+A separate Python W12 integration test copies `tests/support/effect_contract_scenario.py` into the generated app. That scenario independently exercises authorization, preconditions, postconditions, replay, concurrency and no-commit-on-failure. It is a stronger independent runtime scenario, but it is built from the separate direct ISR fixture in `tests/support/execution_effect.py`; it does not prove the entire TOR → requirement graph → ISR → plan → backend path for those W12 effect semantics. No equivalent Rust W12 runtime proof is established by this test.
+
+The backend conformance checker verifies plan-element path mapping, artifact presence, a content floor, Python syntax parsing, and equality of the semantic-obligations manifest. It does not itself execute the generated application or prove that a generated operation behaves according to its requirement.
+
+### 9.6 Traceability and evidence-envelope boundary
+
+`traceability_record()` records source name/hash, requirement-graph hash, requirement IDs, ISR content hash, plan ID, artifact-bundle hash, mapping-spec version, and ISR node/edge IDs. The source-bound projection tests assert that source and ISR changes affect their hashes, that reviewed behavior changes the plan and generated code, and that the backend artifact bundle hash is calculated over sorted paths and file contents.
+
+This is meaningful content lineage, but the inspected record is not a complete immutable execution evidence envelope. It does not itself bind:
+- backend implementation identity/version or implementation digest;
+- compiler/test-generator/oracle source revision;
+- independent acceptance-oracle identity and digest;
+- native build/test run ID, environment/toolchain identity and raw logs;
+- per-file artifact hashes or a publication/promotion decision.
+
+The traceability test constructs and asserts the record; that alone does not prove that every production compilation route persists, signs, verifies and enforces it before artifact publication.
+
+### 9.7 Execution status at this checkpoint
+
+The source contains integration tests that would install and execute the generated Python application and run `cargo test` for the generated Rust application. This audit inspected those test definitions but did not execute them. The PR-associated workflow run list for audited commit `1d53110fb0ff091d680e08cabd801e0df20513f6` returned an Android Cloud-Build workflow run; it does not establish that the Python/Rust generated-backend integration tests ran on this commit. Therefore:
+- source-level projection and test definitions: **observed**;
+- generated artifact assertions and independent reference evaluator: **observed in test source**;
+- Python/Rust native execution on this audited commit: **not established here**;
+- cross-backend semantic parity beyond the declared shared subset: **not established**;
+- universal end-to-end requirement conformance: **not established**.
+
+### 9.8 Checkpoint 9 findings
+
+- **FS00-020 — TOR approval is a real gate, but its scope is path-specific.** The TOR adapter requires explicit approval and reviewer-authored declarations. This does not resolve the distinct RequirementGraph/ISR authorities and consumers identified in Checkpoint 8.
+- **FS00-021 — typed ISR lowering preserves a meaningful subset, not universal semantics.** The behavioral lowering preserves typed payloads and explicit relationships for supported graph constructs, with fail-closed checks for ambiguous API ownership and unresolved consequence/effect bindings.
+- **FS00-022 — backend semantic parity is demonstrably incomplete.** Python FastAPI and Rust Axum share a bounded payroll behavior subset, but Rust refuses API contracts and authorization policies that Python declares support for. Do not retire Rust on this evidence; retain it, restrict unsupported plans, and harden/certify its missing capabilities.
+- **FS00-023 — the reference evaluator is useful but not a complete independent acceptance oracle.** It is separate from generated runtime code and emits literal expected values, but test inputs are compiler-generated from the plan and sample-based. Requirement acceptance criteria are not yet shown to drive comprehensive independent oracles.
+- **FS00-024 — native integration tests are defined, not proven executed at this audited head.** Test source alone is not execution evidence. A workflow run tied to the exact source commit, backend implementation, generated bundle and test logs is required before any runtime status upgrade.
+- **FS00-025 — traceability is not yet a complete execution evidence envelope.** Current traceability fields omit backend/toolchain/oracle identities, execution run and log bindings, and explicit publication authorization.
+
+### 9.9 Required remediation sequence
+
+1. Keep both backends and their separate capabilities; do not infer parity or retire a target. Add no capability claims without implementation and independent evidence.
+2. Bind each generated artifact bundle to source revision, requirement graph, ISR revision, plan, backend implementation digest, generator/oracle revision and toolchain identity.
+3. Make exact-commit Python and Rust integration workflows mandatory for the relevant branch/PR, with raw logs and artifact hashes retained.
+4. Expand independently authored requirement-derived scenarios beyond one generated sample per expression; include boundaries, invalid inputs, authorization, state transitions, failure atomicity and concurrency where required by the contract.
+5. Add a backend-by-backend semantic matrix that distinguishes preserved metadata, emitted implementation, native build, runtime behavior and independent acceptance results.
+6. Require a governed verification-and-publication gate that consumes the complete evidence envelope. Keep generated output quarantined until all required checks pass.
+7. Repeat this lineage proof for an API/authenticated/effect-bearing requirement set. The current Rust backend should refuse that set until those capabilities are implemented and evidenced.
+
+### 9.10 Checkpoint 9 disposition
+
+**PARTIAL — bounded source-to-artifact lineage is demonstrated in source and test design; exact-head native execution and universal/backend parity are not demonstrated.** No compiler implementation, test, workflow, backend capability declaration, certification status or production artifact was changed in this checkpoint. FS-00 remains an audit/documentation activity.

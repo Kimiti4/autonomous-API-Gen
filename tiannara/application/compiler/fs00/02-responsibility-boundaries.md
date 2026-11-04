@@ -211,3 +211,19 @@ The reviewer has clarified that frontend compiler hardening is complete as a wor
 The two Android implementations are separate audit entries: the Tiannara ProjectCompiler `AndroidBackend` and root campaign `AndroidStructuralBackend`. Their common target platform does not make them one implementation or prove convergence.
 
 **Status:** backend hardening remains open. This is an FS-00 responsibility clarification only; no code/schema change, FS-01 work, backend retirement, merge or certification upgrade is authorized.
+
+
+## AI + senior-specialist engineering responsibility — 2026-11-04
+
+The compiler's AI reasoning/generation capability and its senior-specialist engineering discipline are complementary responsibilities within one governed workflow—not competing authorities and not separate products.
+
+- **AI reasoning/generation layer:** requirement interpretation proposals, broad knowledge synthesis, alternative generation, pattern/edge-case discovery, trade-off analysis, implementation assistance and iterative improvement. Outputs are proposals and untrusted until validated.
+- **Senior frontend engineering responsibility:** product/UX judgement, information architecture, interaction/state design, design-system coherence, accessibility, responsive behavior, component/state architecture, performance, browser resilience, security, testing and maintainable implementation.
+- **Senior backend engineering responsibility:** domain modelling, service/API architecture, data integrity, persistence and transactions, authorization/security, concurrency/distributed-systems behavior, reliability/operations, performance, testing and maintainable implementation.
+- **Shared engineering governance:** canonical ISR binding, requirement traceability, explicit design decisions, centrally enforced capabilities, deterministic checks, native build/runtime evidence, independent review and certification.
+
+The compiler must combine the strengths: AI contributes breadth, speed and exploration; senior engineering discipline contributes judgement, restraint, correctness and delivery quality. The AI layer may recommend but cannot authorize, waive policy, alter canonical requirements or certify its own output. A separate verifier and executable evidence remain necessary. No external LLM service is a mandatory dependency; model/reasoning components are replaceable and governed.
+
+Frontend and backend compilers must each meet their own specialist quality profile. Full-stack composition must additionally verify the contract between frontend interactions and backend APIs, data, identity/authorization, effects and error behavior. A polished frontend cannot mask an incomplete backend, and a technically sound backend cannot compensate for unusable or inaccessible frontend behavior.
+
+This responsibility definition is a target requirement, not a claim of present capability or certification. It does not authorize FS-01 implementation or production code changes.

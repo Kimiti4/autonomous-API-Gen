@@ -81,6 +81,14 @@ def test_revision_migration_creates_new_identity_and_parent_lineage():
     assert f"source_content_hash:{source.content_hash}" in migrated.provenance.derivation_refs
     assert f"source_revision_hash:{source.revision_hash}" in migrated.provenance.derivation_refs
     assert "migration:fs00-isr-v1-to-v2" in migrated.provenance.derivation_refs
+    migrated_again = migrate_revision(
+        source,
+        "2.0",
+        migration_id="fs00-isr-v1-to-v2",
+        created_at="2026-11-05T00:00:00Z",
+    )
+    assert migrated_again.revision_id == migrated.revision_id
+    assert migrated_again.revision_hash == migrated.revision_hash
 
 
 def test_schema_package_reexports_single_registry_implementation():

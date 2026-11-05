@@ -68,6 +68,7 @@ def test_plan_preserves_typed_behavior_and_traceability_record_binds_every_stage
     assert record.requirement_graph_hash == requirement_graph_hash(projection.requirement_graph)
     assert record.requirement_ids == tuple(sorted(projection.requirement_graph.nodes))
     assert record.isr_content_hash == projection.revision.content_hash
+    assert record.isr_revision_hash == projection.revision.revision_hash
     assert record.isr_node_ids == (
         "api:payroll", "data:employee", "service:payroll", "ui:payroll", "ui:submit-payroll",
     )

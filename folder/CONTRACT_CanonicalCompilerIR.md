@@ -307,7 +307,7 @@ The canonical model is implemented at `compiler/core/canonical_ir.py:CompilerIR`
 - lowering operator, timestamp, chain, provenance, deterministic canonical serialization and SHA-256 content hash;
 - the existing `CompilationPlan` as an explicitly downstream transitional execution projection.
 
-The canonical CompilerIR is not a renamed CompilationPlan and does not become an ISR. Every source ISR node and edge is retained in CompilerIR. The projection report classifies each source element as represented in the execution plan or preserved in CompilerIR only; any unclassified/lost source element prevents CompilerIR construction.
+The canonical CompilerIR is not a renamed CompilationPlan and does not become an ISR. Every source ISR node and edge is retained in CompilerIR. Compilation ID is UUIDv5 over the canonical identity payload with the derived ID/hash fields excluded to avoid circularity; content_hash is SHA-256 over the canonical payload including compilation_id but excluding content_hash itself. The projection report classifies each source element as represented in the execution plan or preserved in CompilerIR only; any unclassified/lost source element prevents CompilerIR construction.
 
 ## 23. Lowering and backend adapter boundary
 
@@ -322,4 +322,4 @@ The canonical CompilerIR is not a renamed CompilationPlan and does not become an
 
 The two identified canonical production routes above now enter the CompilerIR boundary. This does **not** establish universal migration of every frontend/backend/mobile compiler family, every direct backend entrypoint, or every noncanonical legacy compiler. Those routes remain UNKNOWN until separately enumerated and bypass-tested. No compiler target is retired by this change.
 
-The canonical CompilerIR implementation is a first migration increment. Backend protocols still accept CompilationPlan; direct CompilerIR consumption by all target families remains subsequent work under the FS-00 route-adoption plan.
+The canonical CompilerIR implementation is a first migration increment. Backend protocols still accept CompilationPlan; direct CompilerIR consumption by all target families remains subsequent work under the FS-00 route-adoption plan. The projection report now also blocks a backend when any source node or relationship explicitly marked required_for_backend/backend_required remains only in CompilerIR.

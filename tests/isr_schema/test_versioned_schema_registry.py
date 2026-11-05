@@ -135,3 +135,14 @@ def test_direct_revision_construction_cannot_bypass_schema_or_hash_validation():
             provenance=provenance,
             content_hash="0" * 64,
         )
+
+
+
+def test_node_and_edge_mapping_keys_must_match_canonical_ids():
+    from isr.core.invariants import ISRInvariantViolation
+
+    graph = ISRGraph(nodes={
+        "alias": Node(id="actual", type=NodeType.SERVICE, properties={"label": "billing"})
+    }, edges={})
+    with pytest.raises(ISRInvariantViolation, match="mapping key"):
+        ISRRevision.create("sys", "rev", "2.0", graph, _provenance())

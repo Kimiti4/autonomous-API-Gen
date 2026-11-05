@@ -139,10 +139,26 @@ def required_frontend_features(plan: CompilationPlan) -> frozenset[SemanticFeatu
     return frozenset(required)
 
 
+def _assert_plan_source_integrity(plan: CompilationPlan) -> None:
+    values = (
+        plan.source_isr_revision_id,
+        plan.source_isr_content_hash,
+        plan.source_isr_revision_hash,
+        plan.projection_integrity_hash,
+    )
+    if not any(value is not None for value in values):
+        return  # Legacy/unbound plan route; its convergence remains separately audited.
+    if any(value is None for value in values):
+        raise UnsupportedSemanticsError("CompilationPlan has incomplete canonical ISR lineage")
+    if compute_plan_projection_hash(plan) != plan.projection_integrity_hash:
+        raise UnsupportedSemanticsError("CompilationPlan projection integrity hash mismatch")
+
+
 def assert_frontend_plan_supported(
     plan: CompilationPlan,
     capabilities: BackendCapabilities,
 ) -> None:
+    _assert_plan_source_integrity(plan)
     if plan.blocking_diagnostics:
         raise UnsupportedSemanticsError(
             "CompilerIR adapter blocked frontend lowering: "

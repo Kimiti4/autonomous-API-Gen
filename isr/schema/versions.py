@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Callable
 from uuid import NAMESPACE_URL, uuid5
 
-from isr.core.graph import Edge, EdgeType, ISRGraph, Node, NodeType
+from isr.core.graph import EDGE_TYPE_COMPATIBILITY, Edge, EdgeType, ISRGraph, Node, NodeType
 
 
 class ISRSchemaViolation(ValueError):
@@ -48,9 +48,7 @@ _V2_EDGES = frozenset(item.value for item in EdgeType)
 _V2_COMPATIBILITY = {
     edge.value: (frozenset(node.value for node in sources),
                  frozenset(node.value for node in targets))
-    for edge, (sources, targets) in __import__(
-        "isr.core.graph", fromlist=["EDGE_TYPE_COMPATIBILITY"]
-    ).EDGE_TYPE_COMPATIBILITY.items()
+    for edge, (sources, targets) in EDGE_TYPE_COMPATIBILITY.items()
 }
 
 SCHEMA_REGISTRY: dict[str, SchemaDefinition] = {
@@ -79,6 +77,10 @@ def validate_schema_graph(graph: ISRGraph, schema_version: str) -> None:
                 f"schema {schema_version}"
             )
     for key, edge in sorted(graph.edges.items()):
+        if edge.source_id not in graph.nodes or edge.target_id not in graph.nodes:
+            raise ISRSchemaViolation(
+                f"Edge {key!r} has a missing endpoint in ISR schema {schema_version}"
+            )
         edge_type = edge.type.value
         if edge_type not in definition.edge_types:
             raise ISRSchemaViolation(

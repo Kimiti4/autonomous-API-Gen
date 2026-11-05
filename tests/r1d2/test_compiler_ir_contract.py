@@ -71,6 +71,8 @@ class TestD2D4RefinementDocumented(unittest.TestCase):
         self.assertIn("backend_constraints", CompilerIR.model_fields)
         self.assertIn("backend_constraints", CompilationPlan.model_fields)
         self.assertIn("blocking_diagnostics", CompilationPlan.model_fields)
+        self.assertIn("source_isr_revision_hash", CompilationPlan.model_fields)
+        self.assertIn("projection_integrity_hash", CompilationPlan.model_fields)
 
     def test_compilationplan_does_not_have_required_capabilities(self):
         """CompilationPlan does NOT have required_capabilities yet. R1-D.5."""

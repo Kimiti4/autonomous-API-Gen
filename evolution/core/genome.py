@@ -60,23 +60,22 @@ class Genome(BaseModel):
             return
         if not self.source_graph or any(value is None for value in identity):
             raise ValueError("ISR-derived Genome requires complete source ISR revision identity")
-        from isr.core.graph import ISRGraph
-        from isr.core.identity import compute_content_hash
-        from isr.schema.versions import validate_schema_graph
+        from isr.core.revision import ISRRevision
 
-        graph = ISRGraph.model_validate(dict(self.source_graph))
-        validate_schema_graph(graph, self.source_isr_schema_version)
-        expected = compute_content_hash(self.source_isr_schema_version, graph)
-        if expected != self.source_isr_content_hash:
-            raise ValueError("Genome source ISR content hash does not match source_graph")
-        from isr.core.identity import Provenance, compute_revision_hash
-        provenance = Provenance.model_validate(dict(self.source_isr_provenance))
-        expected_revision_hash = compute_revision_hash(
-            self.system_id, self.source_isr_schema_version,
-            self.source_isr_content_hash, provenance,
-        )
-        if expected_revision_hash != self.source_isr_revision_hash:
-            raise ValueError("Genome source ISR revision hash does not match provenance envelope")
+        try:
+            ISRRevision.model_validate({
+                "system_id": self.system_id,
+                "revision_id": self.source_isr_revision_id,
+                "schema_version": self.source_isr_schema_version,
+                "graph": dict(self.source_graph),
+                "content_hash": self.source_isr_content_hash,
+                "revision_hash": self.source_isr_revision_hash,
+                "provenance": dict(self.source_isr_provenance),
+            })
+        except Exception as exc:
+            raise ValueError(
+                f"Genome source ISR lineage validation failed (content hash / revision hash): {exc}"
+            ) from exc
         return
 
     @model_validator(mode="after")

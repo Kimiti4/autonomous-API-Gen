@@ -329,6 +329,8 @@ def _candidate_binding_problems(
         source_sha256=artifacts.projection.source_sha256,
         requirement_graph_hash=requirement_graph_hash(artifacts.projection.requirement_graph),
         isr_content_hash=artifacts.projection.revision.content_hash,
+        isr_revision_hash=artifacts.projection.revision.revision_hash,
+        compiler_ir_hash=artifacts.compiler_ir.content_hash,
         plan_hash=sha256_json(artifacts.plan.model_dump(mode="json")),
         artifact_bundle_hash=artifacts.repo.content_hash,
         runtime_report_hash=runtime_report.report_hash,
@@ -398,6 +400,10 @@ def _write_evidence(
         canonical_json(artifacts.projection.revision.model_dump(mode="json")),
         encoding="utf-8",
     )
+    (evidence_dir / "compiler-ir.json").write_text(
+        canonical_json(artifacts.compiler_ir.model_dump(mode="json")),
+        encoding="utf-8",
+    )
     (evidence_dir / "plan.json").write_text(
         canonical_json(artifacts.plan.model_dump(mode="json")),
         encoding="utf-8",
@@ -461,6 +467,7 @@ def _run_workload(
         corpus_hash=AUTHORIZATION_CORPUS_HASH,
         workload_id=workload.workload_id,
         projection=artifacts.projection,
+        compiler_ir=artifacts.compiler_ir,
         plan=artifacts.plan,
         repo=artifacts.repo,
         runtime_report_hash=runtime_report.report_hash,
@@ -606,6 +613,8 @@ def _run_mutation(
         changed = {
             "source_sha256": mutated_artifacts.projection.source_sha256 != candidate.source_sha256,
             "isr_content_hash": mutated_artifacts.projection.revision.content_hash != candidate.isr_content_hash,
+            "isr_revision_hash": mutated_artifacts.projection.revision.revision_hash != candidate.isr_revision_hash,
+            "compiler_ir_hash": mutated_artifacts.compiler_ir.content_hash != candidate.compiler_ir_hash,
             "plan_hash": mutated_plan_hash != candidate.plan_hash,
             "artifact_bundle_hash": mutated_artifacts.repo.content_hash != candidate.artifact_bundle_hash,
             "runtime_report_hash": mutated_report.report_hash != candidate.runtime_report_hash,
@@ -615,6 +624,8 @@ def _run_mutation(
             source_sha256=mutated_artifacts.projection.source_sha256,
             requirement_graph_hash=candidate.requirement_graph_hash,
             isr_content_hash=mutated_artifacts.projection.revision.content_hash,
+            isr_revision_hash=mutated_artifacts.projection.revision.revision_hash,
+            compiler_ir_hash=mutated_artifacts.compiler_ir.content_hash,
             plan_hash=mutated_plan_hash,
             artifact_bundle_hash=mutated_artifacts.repo.content_hash,
             runtime_report_hash=mutated_report.report_hash,
@@ -625,6 +636,8 @@ def _run_mutation(
         record["mutated"] = {
             "source_sha256": mutated_artifacts.projection.source_sha256,
             "isr_content_hash": mutated_artifacts.projection.revision.content_hash,
+            "isr_revision_hash": mutated_artifacts.projection.revision.revision_hash,
+            "compiler_ir_hash": mutated_artifacts.compiler_ir.content_hash,
             "plan_hash": mutated_plan_hash,
             "artifact_bundle_hash": mutated_artifacts.repo.content_hash,
             "runtime_report_hash": mutated_report.report_hash,
@@ -716,6 +729,9 @@ def run_authorization_campaign(
             "gates": [gate.as_dict() for gate in outcome.gates],
             "source_sha256": candidate.source_sha256 if candidate else "",
             "isr_content_hash": candidate.isr_content_hash if candidate else "",
+            "isr_revision_hash": candidate.isr_revision_hash if candidate else "",
+            "compiler_ir_id": candidate.compiler_ir_id if candidate else "",
+            "compiler_ir_hash": candidate.compiler_ir_hash if candidate else "",
             "plan_hash": candidate.plan_hash if candidate else "",
             "artifact_bundle_hash": candidate.artifact_bundle_hash if candidate else "",
             "runtime_report_hash": candidate.runtime_report_hash if candidate else "",

@@ -428,7 +428,11 @@ def assert_compiler_ir_supported(
     compiler_ir: CompilerIR,
     capabilities: BackendCapabilities,
 ) -> None:
-    """Enforce target constraints and semantic capability checks before lowering."""
+    """Revalidate canonical identity, then enforce target and semantic gates."""
+    try:
+        CompilerIR.model_validate(compiler_ir.model_dump(mode="json"))
+    except Exception as exc:
+        raise UnsupportedSemanticsError(f"CompilerIR integrity validation failed: {exc}") from exc
     if compiler_ir.projection_report.blocking_ir_only_node_ids or compiler_ir.projection_report.blocking_ir_only_relationship_ids:
         raise UnsupportedSemanticsError(
             "CompilerIR contains backend-required semantics outside the transitional plan projection: "

@@ -38,7 +38,7 @@ def test_laravel_generation_emits_bootable_http_contract_and_real_test():
     files = result.files
 
     composer = json.loads(files["composer.json"])
-    assert composer["require"]["laravel/framework"] == "^11.0"
+    assert composer["require"]["laravel/framework"] == "^12.0"
     assert composer["require-dev"]["phpunit/phpunit"] == "^11.0"
     assert composer["autoload"]["psr-4"] == {"App\\": "app/"}
     assert composer["autoload-dev"]["psr-4"] == {"Tests\\": "tests/"}
@@ -67,5 +67,5 @@ def test_laravel_manifest_does_not_claim_unimplemented_delivery_controls():
     assert "build" in {item.value for item in capabilities}
     assert "test" in {item.value for item in capabilities}
     assert "health_check" in {item.value for item in capabilities}
-    assert not {"LINT", "STATIC_ANALYSIS", "SECURITY_SCAN", "DEPLOY",
-                "OBSERVABILITY", "RELEASE"} & {item.value for item in capabilities}
+    assert not {"lint", "static_analysis", "security_scan", "deploy",
+                "observability", "release"} & {item.value for item in capabilities}

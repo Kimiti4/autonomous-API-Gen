@@ -108,6 +108,8 @@ def source_snapshot_from_plan_artifacts(plan_artifacts: Any) -> dict[str, Any]:
 
     if not refs:
         raise ValueError("source artifacts expose no canonical requirement/ISR identifiers")
+    if compiler_ir.get("execution_plan") != plan:
+        raise ValueError("persisted CompilationPlan does not match canonical CompilerIR execution_plan projection")
     if compiler_ir.get("source_isr_content_hash") != revision.get("content_hash"):
         raise ValueError("CompilerIR is not bound to the supplied ISR graph content hash")
     if compiler_ir.get("source_isr_revision_hash") != revision.get("revision_hash"):

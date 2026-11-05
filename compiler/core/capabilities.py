@@ -148,6 +148,11 @@ def assert_frontend_plan_supported(
             "CompilerIR adapter blocked frontend lowering: "
             + "; ".join(plan.blocking_diagnostics)
         )
+    if plan.backend_constraints and capabilities.backend_id not in plan.backend_constraints:
+        raise UnsupportedSemanticsError(
+            f"Frontend backend {capabilities.backend_id!r} is excluded by CompilerIR constraints "
+            f"{plan.backend_constraints}"
+        )
     unsupported = sorted(
         feature.value
         for feature in required_frontend_features(plan) - capabilities.supported_features
@@ -169,6 +174,11 @@ def assert_plan_supported(plan: CompilationPlan, capabilities: BackendCapabiliti
         raise UnsupportedSemanticsError(
             "CompilerIR adapter blocked backend lowering: "
             + "; ".join(plan.blocking_diagnostics)
+        )
+    if plan.backend_constraints and capabilities.backend_id not in plan.backend_constraints:
+        raise UnsupportedSemanticsError(
+            f"Backend {capabilities.backend_id!r} is excluded by CompilerIR constraints "
+            f"{plan.backend_constraints}"
         )
     unsupported = sorted(
         feature.value

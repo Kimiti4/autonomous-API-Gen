@@ -133,3 +133,10 @@ ArchitectureCandidate
 ---
 
 *End of Part II.*
+
+
+## FS-00 A2 dual-identity compatibility note
+
+ISR schema 2.0 distinguishes semantic graph identity (`ISRRevision.content_hash`) from exact revision-envelope identity (`ISRRevision.revision_hash`). The existing `isr_revision_reference` content hash remains useful for semantic graph comparison but is insufficient to bind provenance and exact revision lineage.
+
+**Required downstream migration:** ArchitectureCandidate must carry both the ISR graph content hash and the ISR revision-envelope hash. This contract's current runtime implementation has not yet been migrated to the second field; exact ISR revision lineage through ArchitectureCandidate remains UNKNOWN until the field, constructor validation, serialization and tests are implemented.

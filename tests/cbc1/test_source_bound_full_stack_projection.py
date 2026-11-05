@@ -26,6 +26,7 @@ def _plan_artifacts(requirement_text="read item"):
         compiler_ir=_Dumpable({
             "compilation_id": "compiler-ir-1",
             "content_hash": "e" * 64,
+            "execution_plan": {"plan_id": "plan-1", "isr_id": "isr-1", "services": []},
             "source_isr_revision_id": "rev-1",
             "source_isr_content_hash": "a" * 64,
             "source_isr_revision_hash": "f" * 64,
@@ -311,6 +312,13 @@ def test_architecture_fact_extraction_preserves_plan_and_isr_relationships():
             "consumed_events": [{"id": "event:price-updated", "name": "PriceUpdated"}],
         }],
         "security": [{"policy_id": "policy:catalog-read"}],
+    })
+    artifacts.compiler_ir = _Dumpable({
+        "compilation_id": "compiler-ir-1", "content_hash": "e" * 64,
+        "execution_plan": artifacts.plan.payload,
+        "source_isr_revision_id": "rev-1",
+        "source_isr_content_hash": "a" * 64,
+        "source_isr_revision_hash": "f" * 64,
     })
     artifacts.revision = _Dumpable({
         "system_id": "system-1", "revision_id": "rev-1",
@@ -976,3 +984,15 @@ def test_meaning_change_invalidates_mapping_bound_to_previous_source_hash():
     assert first.source_hash != changed.source_hash
     assert any(blocker.code == "SBFS-032" for blocker in changed.blockers)
     assert changed.ready is False
+
+
+
+def test_snapshot_rejects_plan_that_differs_from_compiler_ir_projection():
+    artifacts = _plan_artifacts()
+    artifacts.plan = _Dumpable({"plan_id": "stale-plan", "isr_id": "isr-1", "services": []})
+    try:
+        source_snapshot_from_plan_artifacts(artifacts)
+    except ValueError as exc:
+        assert "does not match canonical CompilerIR" in str(exc)
+    else:
+        raise AssertionError("stale plan projection must fail closed")

@@ -115,7 +115,9 @@ def _with_node_schema_version(graph: ISRGraph, version: str) -> ISRGraph:
 def migrate_1_0_to_1_1(graph: ISRGraph) -> ISRGraph:
     """Pure deterministic migration from the frozen 1.0 contract to 1.1."""
     validate_schema_graph(graph, "1.0")
-    return _with_node_schema_version(graph, "1.1")
+    migrated = _with_node_schema_version(graph, "1.1")
+    validate_schema_graph(migrated, "1.1")
+    return migrated
 
 
 def migrate_1_1_to_2_0(graph: ISRGraph) -> ISRGraph:
@@ -126,7 +128,9 @@ def migrate_1_1_to_2_0(graph: ISRGraph) -> ISRGraph:
     semantics must be introduced by an explicitly reviewed transformation.
     """
     validate_schema_graph(graph, "1.1")
-    return _with_node_schema_version(graph, "2.0")
+    migrated = _with_node_schema_version(graph, "2.0")
+    validate_schema_graph(migrated, "2.0")
+    return migrated
 
 
 def migrate_graph(graph: ISRGraph, source_version: str, target_version: str) -> ISRGraph:

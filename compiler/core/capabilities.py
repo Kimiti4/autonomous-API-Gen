@@ -24,6 +24,7 @@ class SemanticFeature(str, Enum):
     CONSEQUENCE_PRESERVATION = "consequence_preservation"
     CONSEQUENCE_SEMANTICS = "consequence_semantics"
     INVARIANTS = "invariants"
+    INVARIANT_BINDINGS = "invariant_bindings"
     TYPED_EVENTS = "typed_events"
     FRONTEND_ROUTES = "frontend_routes"
     FRONTEND_INTERACTIONS = "frontend_interactions"
@@ -118,6 +119,8 @@ def required_features(plan: CompilationPlan) -> frozenset[SemanticFeature]:
     for invariant in plan.invariants:
         if invariant.behavior is not None:
             required.update({SemanticFeature.INVARIANTS, SemanticFeature.EXPRESSIONS})
+    if plan.invariant_bindings:
+        required.add(SemanticFeature.INVARIANT_BINDINGS)
 
     return frozenset(required)
 

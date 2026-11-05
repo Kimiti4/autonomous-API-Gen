@@ -12,8 +12,8 @@ Gates, per workload:
     the canonical mapper projects it, and the plan carries exactly the declared
     operations.
 ``candidate_binding``
-    Source digest, requirement graph hash, ISR content hash, plan hash,
-    generated bundle hash, and runtime report hash agree.
+    Source digest, requirement graph hash, ISR graph and revision hashes,
+    CompilerIR ID/hash, plan hash, generated bundle hash, and runtime report hash agree.
 ``runtime_enforcement``
     The generated application is installed and runs its own adversarial suite.
     Static assertions do not count.
@@ -444,7 +444,7 @@ def _run_workload(
     gates.append(GateResult(
         gate="source_binding",
         passed=not source_problems,
-        detail="the source declaration, approval, ISR, and plan agree"
+        detail="the source declaration, approval, ISR, CompilerIR, and plan agree"
         if not source_problems else "; ".join(source_problems),
     ))
     problems.extend(source_problems)

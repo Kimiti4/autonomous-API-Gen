@@ -1,0 +1,32 @@
+name: Spring Boot backend contract
+
+on:
+  pull_request:
+    paths:
+      - "tiannara/application/compiler/spring_boot_backend.py"
+      - "tests/test_spring_boot_backend.py"
+      - "tests/integration/test_generated_spring_boot_behavior.py"
+      - ".github/workflows/spring-boot-backend-contract.yml"
+  push:
+    branches:
+      - remediation/spring-boot-runtime-contract
+
+jobs:
+  generated-spring-boot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Install compiler test dependencies
+        run: python -m pip install pytest
+      - name: Run Spring Boot generator contract tests
+        run: python -m pytest -q tests/test_spring_boot_backend.py
+      - name: Build generated Spring Boot project and verify HTTP contract
+        run: python -m pytest -q tests/integration/test_generated_spring_boot_behavior.py

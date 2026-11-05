@@ -116,6 +116,12 @@ def source_snapshot_from_plan_artifacts(plan_artifacts: Any) -> dict[str, Any]:
         raise ValueError("CompilerIR is not bound to the supplied ISR revision-envelope hash")
     if compiler_ir.get("source_isr_revision_id") != revision.get("revision_id"):
         raise ValueError("CompilerIR is not bound to the supplied ISR revision ID")
+    if genome.get("source_isr_content_hash") != revision.get("content_hash"):
+        raise ValueError("ArchitectureCandidate Genome is not bound to the supplied ISR graph content hash")
+    if genome.get("source_isr_revision_hash") != revision.get("revision_hash"):
+        raise ValueError("ArchitectureCandidate Genome is not bound to the supplied ISR revision-envelope hash")
+    if genome.get("source_isr_revision_id") != revision.get("revision_id"):
+        raise ValueError("ArchitectureCandidate Genome is not bound to the supplied ISR revision ID")
 
     return {
         "schema": "source-bound-plan-snapshot/2",

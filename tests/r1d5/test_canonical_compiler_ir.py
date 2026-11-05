@@ -129,3 +129,50 @@ def test_compiler_ir_backend_constraints_fail_closed():
             ir,
             BackendCapabilities(backend_id="python-fastapi", version="1.0"),
         )
+
+
+
+def test_invariant_relationship_is_preserved_and_blocks_unsupported_backends():
+    from compiler.core.canonical_ir import assert_compiler_ir_supported
+    from compiler.core.capabilities import (
+        BackendCapabilities, SemanticFeature, UnsupportedSemanticsError,
+        required_features,
+    )
+
+    graph = ISRGraph(
+        nodes={
+            "service:payroll": Node(
+                id="service:payroll", type=NodeType.SERVICE, properties={"label": "Payroll"}
+            ),
+            "invariant:nonnegative": Node(
+                id="invariant:nonnegative", type=NodeType.INVARIANT,
+                properties={"label": "Nonnegative"},
+            ),
+        },
+        edges={
+            "requires:nonnegative": Edge(
+                id="requires:nonnegative", type=EdgeType.REQUIRES_INVARIANT,
+                source_id="service:payroll", target_id="invariant:nonnegative",
+            )
+        },
+    )
+    revision = ISRRevision.create(
+        system_id="invariant-binding-test",
+        revision_id="rev-invariant-binding",
+        schema_version="2.0",
+        graph=graph,
+        provenance=Provenance(
+            created_by="test", created_at="2026-11-05T00:00:00Z"
+        ),
+    )
+    ir = isr_revision_to_compiler_ir(
+        revision,
+        architecture_reference_reason="No ArchitectureCandidate is supplied by this test route.",
+    )
+    assert ir.execution_plan.invariant_bindings[0].edge_id == "requires:nonnegative"
+    assert "requires:nonnegative" in ir.projection_report.projected_relationship_ids
+    assert SemanticFeature.INVARIANT_BINDINGS in required_features(ir.execution_plan)
+    with pytest.raises(UnsupportedSemanticsError, match="invariant_bindings"):
+        assert_compiler_ir_supported(
+            ir, BackendCapabilities(backend_id="python-fastapi", version="1.0")
+        )

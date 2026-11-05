@@ -26,7 +26,7 @@ def _behavior(node):
     return validate_behavior_payload(node.type.value, node.properties["behavior"])
 
 
-def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
+def _isr_to_plan_stabilization(revision: ISRRevision) -> CompilationPlan:
     """Project all supported behavioral node payloads without flattening.
 
     This preserves semantics in typed plan carriers. It does not claim an
@@ -227,3 +227,39 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
         frontend_routes=frontend_routes,
         frontend_interactions=list(frontend_interactions.values()),
     )
+
+
+
+def isr_revision_to_compiler_ir(
+    revision: ISRRevision,
+    *,
+    source_architecture_candidate_content_hash: str | None = None,
+    architecture_reference_reason: str | None = None,
+):
+    """Create the canonical CompilerIR, retaining the legacy plan as projection."""
+    from compiler.core.canonical_ir import CompilerIR
+
+    execution_plan = _isr_to_plan_stabilization(revision)
+    return CompilerIR.from_revision(
+        revision,
+        execution_plan,
+        source_architecture_candidate_content_hash=source_architecture_candidate_content_hash,
+        architecture_reference_reason=architecture_reference_reason,
+    )
+
+
+def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
+    """Compatibility adapter routed through canonical CompilerIR.
+
+    The returned plan retains the historical plan_id derivation from the ISR
+    content_hash. New code should consume isr_revision_to_compiler_ir and treat
+    CompilationPlan only as its transitional execution_plan projection.
+    """
+    compiler_ir = isr_revision_to_compiler_ir(
+        revision,
+        architecture_reference_reason=(
+            "This compatibility entry point receives only an ISRRevision; "
+            "its source route supplies no ArchitectureCandidate reference."
+        ),
+    )
+    return compiler_ir.execution_plan

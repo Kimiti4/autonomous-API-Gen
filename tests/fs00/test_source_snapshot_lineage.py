@@ -36,6 +36,7 @@ def artifacts():
     }
     genome = {
         "genes": [],
+        "system_id": "system-1",
         "source_isr_revision_id": "rev-1",
         "source_isr_schema_version": "2.0",
         "source_isr_content_hash": "a" * 64,

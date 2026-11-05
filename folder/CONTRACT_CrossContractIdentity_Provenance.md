@@ -203,6 +203,6 @@ The approved ISR schema reconciliation defines two distinct identities:
 - `content_hash`: semantic graph hash over canonical graph serialization plus ISR schema version. Provenance is intentionally excluded so semantically identical graphs can be compared.
 - `revision_hash`: revision-envelope hash over system ID, schema version, graph content hash, and canonical Provenance. It binds the exact immutable revision and its lineage.
 
-Canonical CompilerIR now carries both `source_isr_content_hash` and `source_isr_revision_hash`. The ISR migration helper records the source revision ID, source graph hash, source envelope hash, and migration ID in the new revision's provenance.
+Canonical CompilerIR now carries both `source_isr_content_hash` and `source_isr_revision_hash`. TOR SourceTraceability schema 1.1 and authorization/payroll certification evidence also bind the exact revision-envelope hash. The ISR migration helper records the source revision ID, source graph hash, source envelope hash, and migration ID in the new revision's provenance.
 
 **Downstream migration still required:** D04 ArchitectureCandidate must add an exact revision-envelope reference alongside its semantic graph hash. D09 ArtifactSet and D12 RuntimeObservation fields named `isr_revision_hash` must be verified to carry the envelope hash, not the graph hash. Until those consumers are updated and tested, full cross-contract exact-revision lineage is NOT ESTABLISHED.

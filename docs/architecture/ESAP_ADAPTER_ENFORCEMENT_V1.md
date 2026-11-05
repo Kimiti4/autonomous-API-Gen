@@ -58,7 +58,11 @@ The TOR SourceTraceability record is now schema `1.1` and binds both ISR graph a
 | Campaign A plan builder | Binds the ArchitectureCandidate hash; constructs CompilerIR before plan projection | IMPLEMENTED IN BRANCH |
 | Source-bound authorization campaign | Constructs CompilerIR with explicit not-applicable ArchitectureCandidate reason; applies canonical compatibility gate before Python/Rust backend calls | IMPLEMENTED IN BRANCH |
 | TOR adapter | Emits schema-2.0 ISR revisions through the single ISR registry | IMPLEMENTED IN BRANCH |
-| Other compiler-family routes | Not yet migrated or proven to converge | UNKNOWN / OPEN |
+| `compiler/kernel.py:UniversalCompiler` | Accepts `CompilationRequest.isr` dict and constructs legacy `compiler.models.CompilationPlan`; production caller reachability not yet established | LEGACY ROUTE / MIGRATION OPEN |
+| `compiler/sdk/testing.py` | Constructs legacy SDK test plan from sample ISR dict | TEST HARNESS; not a production route |
+| `tiannara/application/compiler/selector.py` | Selection-only; returns separate `tiannara.domain.models.backend_declaration.CompilationPlan`; no backend invocation in this module | DISTINCT SELECTION SUBSYSTEM / CALLER REACHABILITY OPEN |
+| `autonomous-api/app/engine/domain_aware_compiler.py` | Builds proposal-level domain constraints plan, distinct from `compiler.core.plan.CompilationPlan` | DISTINCT SUBSYSTEM / PRODUCTION REACHABILITY OPEN |
+| Other frontend/backend/mobile compiler-family routes | Not yet migrated or proven to converge | UNKNOWN / OPEN |
 
 ## 7. Blocking semantics
 

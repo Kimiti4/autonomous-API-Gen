@@ -68,6 +68,8 @@ class CompilerIRProjectionReport(BaseModel):
     preserved_ir_only_relationship_ids: tuple[str, ...]
     blocking_ir_only_node_ids: tuple[str, ...] = ()
     blocking_ir_only_relationship_ids: tuple[str, ...] = ()
+    unbound_plan_node_ids: tuple[str, ...] = ()
+    unbound_plan_relationship_ids: tuple[str, ...] = ()
     lost_node_ids: tuple[str, ...] = ()
     lost_relationship_ids: tuple[str, ...] = ()
 
@@ -89,6 +91,11 @@ class CompilerIRProjectionReport(BaseModel):
             raise ValueError("blocking IR-only node IDs must be preserved IR-only nodes")
         if not set(self.blocking_ir_only_relationship_ids).issubset(ir_only_edges):
             raise ValueError("blocking IR-only relationship IDs must be preserved IR-only relationships")
+        if self.unbound_plan_node_ids or self.unbound_plan_relationship_ids:
+            raise ValueError(
+                "CompilerIR plan projection contains unbound nodes/relationships: "
+                f"nodes={self.unbound_plan_node_ids}, relationships={self.unbound_plan_relationship_ids}"
+            )
         if self.lost_node_ids or self.lost_relationship_ids:
             raise ValueError("CompilerIR cannot be created with unclassified semantic loss")
         return self

@@ -410,8 +410,11 @@ def verify_authorization_evidence(evidence_dir: str) -> VerificationResult:
             candidate = candidate_from_manifest(manifest)
             checks[f"ledger_binds_{workload_id}"] = (
                 trial.get("manifest_hash") == candidate.manifest_hash
+                and trial.get("isr_revision_hash") == candidate.isr_revision_hash
+                and trial.get("compiler_ir_id") == candidate.compiler_ir_id
+                and trial.get("compiler_ir_hash") == candidate.compiler_ir_hash
             )
-            if trial.get("manifest_hash") != candidate.manifest_hash:
+            if not checks[f"ledger_binds_{workload_id}"]:
                 problems.append(
                     f"{workload_id}: the ledger does not bind this candidate manifest"
                 )

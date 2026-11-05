@@ -260,7 +260,7 @@ def test_compiler_ir_rejects_plan_nodes_not_bound_to_source_isr():
         isr_id=revision.system_id,
         services=[Service(id="service:invented", name="Invented service")],
     )
-    with pytest.raises(ValueError, match="unbound nodes"):
+    with pytest.raises(ValueError, match="does not match deterministic ISR projection"):
         CompilerIR.from_revision(
             revision,
             execution_plan=forged_plan,

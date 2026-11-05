@@ -41,7 +41,7 @@ The report enforces a complete, non-overlapping partition. CompilerIR constructi
 `assert_compiler_ir_supported(compiler_ir, capabilities)`:
 
 1. checks any declared backend constraints against the selected backend ID;
-2. checks the transitional plan's required semantic features against the backend's declared capabilities;
+2. checks the transitional plan's required semantic features against the backend's declared capabilities; the frontend-specific gate applies the same blocker check;
 3. raises a fail-closed error before backend compilation when a constraint or required feature is unsupported.
 
 Existing backend-level capability checks remain enabled as defense in depth. A backend must not be considered capable merely because it can deserialize or structurally accept the plan.
@@ -73,6 +73,7 @@ The TOR SourceTraceability record is now schema `1.1` and binds both ISR graph a
 - Missing/ambiguous frontend interaction or route binding: block.
 - CompilerIR source-to-plan report with any lost/unclassified source element: block.
 - Backend constraint mismatch or unsupported required semantic feature: block before generation.
+- Frontend backends use the same blocker propagation; the React/Vite backend cannot bypass an IR-only required semantic through its frontend-specific gate.
 - Unsupported targets remain registered as targets; they refuse only the unsupported workload.
 
 ## 8. Acceptance work remaining

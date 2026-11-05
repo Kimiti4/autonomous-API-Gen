@@ -160,3 +160,10 @@ Schema remediation is not complete until:
 **Approval record:** user approved the four FS-00 remediation steps on 2026-11-05. The implementation branch records the schema 2.0 transition, immutable 1.x compatibility, versioned validators/migrations, and separate graph/revision-envelope identities.
 
 **Change boundary:** documentation only. No tests were run because no executable code changed.
+
+
+## Implementation status — 2026-11-05
+
+The implementation branch adds the single registry, 1.x/2.0 taxonomy validators, explicit deterministic migration path, validation at both factory and direct Pydantic construction, graph content hash verification, and a separate provenance-bound revision hash. Migration-generated revision IDs are deterministic from the target revision envelope; historical revisions are not rewritten.
+
+**Known downstream gap:** D04 ArchitectureCandidate still references the ISR graph content hash without an exact revision-envelope field. D09 ArtifactSet and D12 RuntimeObservation fields named `isr_revision_hash` have not yet been proven to carry the envelope hash. Their contract notes now identify the required migration. A2 is implemented at the ISR boundary, but cross-contract exact-revision lineage is not yet complete.

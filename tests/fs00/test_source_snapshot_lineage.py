@@ -18,6 +18,7 @@ def artifacts():
     revision = {
         "system_id": "system-1",
         "revision_id": "rev-1",
+        "schema_version": "2.0",
         "content_hash": "a" * 64,
         "revision_hash": "b" * 64,
         "graph": {"nodes": {"service:payroll": {"id": "service:payroll"}}},
@@ -27,12 +28,14 @@ def artifacts():
         "content_hash": "c" * 64,
         "execution_plan": plan,
         "source_isr_revision_id": "rev-1",
+        "source_isr_schema_version": "2.0",
         "source_isr_content_hash": "a" * 64,
         "source_isr_revision_hash": "b" * 64,
     }
     genome = {
         "genes": [],
         "source_isr_revision_id": "rev-1",
+        "source_isr_schema_version": "2.0",
         "source_isr_content_hash": "a" * 64,
         "source_isr_revision_hash": "b" * 64,
     }

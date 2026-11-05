@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import NAMESPACE_URL, uuid5
 
-from isr.core.graph import EDGE_TYPE_COMPATIBILITY, Edge, EdgeType, ISRGraph, Node, NodeType
+from isr.core.graph import EDGE_TYPE_COMPATIBILITY, EdgeType, ISRGraph, Node, NodeType
 
 
 class ISRSchemaViolation(ValueError):

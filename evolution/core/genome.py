@@ -89,7 +89,8 @@ def genome_content_hash(genome: Genome) -> str:
     """Deterministic SHA-256 over the genome's canonical JSON form.
 
     Order-independent: genes within each chromosome are sorted by gene_id,
-    chromosomes are sorted by family value.
+    chromosomes are sorted by family value. Before hashing, the immutable ISR
+    source graph and provenance envelope are revalidated to detect nested-map tampering.
     """
     genome.validate_source_isr_lineage()
     canonical: dict[str, Any] = {

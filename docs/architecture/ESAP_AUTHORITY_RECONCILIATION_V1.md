@@ -23,9 +23,9 @@ This is an architecture reconciliation record, not evidence that the proposed en
 | Semantic surface | Canonical owner / contract | Current implementation status | Remediation decision |
 |---|---|---|---|
 | RequirementGraph | `reqgraph/core`; `folder/CONTRACT_RequirementGraph.md` (D02) | The canonical package defines the four-edge taxonomy: `DEPENDS_ON`, `CONFLICTS_WITH`, `REFINES`, `OWNED_BY`. Other requirement graph models remain in the repository and have active or historical consumers. | Retain `reqgraph/core` as the sole target authority. Treat other graph types as explicit adapters/legacy inputs; do not silently equate their identity, taxonomy or validation semantics. |
-| ISR | `isr/core`; `folder/CONTRACT_CanonicalISR.md` (D03) | The D03 contract states 9 node kinds / 8 edge kinds. The inspected `isr/core/graph.py` implements 14 node kinds / 18 edge kinds, including frontend, effect, invariant, consequence and requirement-relationship semantics. | Retain `isr/core` as the sole target authority, but mark D03 schema conformance **UNRESOLVED**. Do not delete the added semantic types or pretend the 9/8 contract describes the current graph. Reconcile through a versioned schema/ADR and migration policy. |
-| Canonical CompilerIR | `folder/CONTRACT_CanonicalCompilerIR.md` (D07 + D2–D4 refinement) | The contract explicitly distinguishes the future canonical CompilerIR from the current `compiler/core/plan.py:CompilationPlan` stabilization model. | Retain D07 as the target contract authority. Do not create another competing IR. Keep `CompilationPlan` as the behavioral compiler's transitional typed IR until an ADR either formalizes it as a versioned implementation of D07 or defines the migration to a separate canonical module. |
-| Behavioral plan lowering | `compiler/core/lowering.py:isr_to_plan` | A substantive typed, relationship-aware `ISRRevision → CompilationPlan` path exists, with explicit failure for selected ambiguous/unresolved relationships. It is not proven mandatory for all compiler families. | Preserve this path as the reference adapter. Its coverage, loss report and route adoption must be independently tested before universal conformance is claimed. |
+| ISR | `isr/core`; `folder/CONTRACT_CanonicalISR.md` (D03) | The D03 9/8 taxonomy is now retained as historical schema 1.x; the approved schema 2.0 registry formalizes the current 14/18 taxonomy. Strict validation, migration and dual identity are implemented on the remediation branch; CI evidence is pending. | Retain `isr/core` as the sole authority. No old revision is rewritten and 2.0-only kinds fail under 1.x. |
+| Canonical CompilerIR | `folder/CONTRACT_CanonicalCompilerIR.md` (D07 + D2–D4 refinement) | D07 now has a distinct canonical implementation at `compiler/core/canonical_ir.py:CompilerIR`; `CompilationPlan` remains a downstream transitional execution projection. The implementation is on the remediation branch; CI evidence is pending. | Retain D07 as the sole CompilerIR authority. Do not create another competing IR or retire targets. |
+| Behavioral plan lowering | `compiler/core/lowering.py:isr_to_plan` | A substantive `ISRRevision → CompilerIR → CompilationPlan` path now exists, with explicit projection coverage, invariant bindings and fail-closed unresolved frontend bindings. Two production routes are adopted; system-wide mandatory use is not proven. | Preserve this as the reference adapter. Other compiler families remain UNKNOWN until route-tested. |
 | Backend protocol | `compiler/core/protocol.py` and D08 contract | The protocol and a small reference composition root exist; other compiler families retain distinct backend abstractions and registries. | Treat the protocol as the target common backend contract. Existing backend interfaces remain explicit adapters until migrated; no forced target retirement. |
 | Artifact / verification / evidence / publication | D09–D12 contracts and `certification/evidence` | Implementations and controls are path-specific; universal quarantine, independent verification and authorized atomic promotion are not established. | Keep these as downstream mandatory gates in the target chain. Do not represent their existence in one path as system-wide enforcement. |
 
@@ -72,7 +72,7 @@ Authorized atomic publication
 
 ArchitectureCandidate / evolution records may participate where the selected compilation route requires them. They must reference the same ISR revision; they must not become an alternative source of system semantics. The chain must not require every route to run one specific campaign synchronously, but every route must satisfy equivalent mandatory preconditions and publication gates.
 
-## 4. Contract reconciliation work required before schema-level approval
+## 4. Approved contract reconciliation and remaining work
 
 ### 4.1 RequirementGraph
 
@@ -91,13 +91,13 @@ An adapter must reject relationships or fields it cannot preserve. It must emit 
 
 D03 originally froze 9/8 for schema 1.x. The user approved the A2 schema ADR to preserve those versions as historical contracts and formalize the current 14/18 vocabulary as schema 2.0. The implementation must:
 
-1. inventory every current node/edge kind and compatibility rule;
-2. identify which additions are required semantic carriers versus derived/operational metadata;
-3. specify schema versioning, canonical serialization, hashing and provenance behavior;
-4. define migration/read compatibility for 9/8 revisions and the current 14/18 graph;
-5. verify that every edge type and node payload survives construction, serialization, hashing, reload and downstream projection;
-6. specify unknown-kind behavior as fail-closed;
-7. establish requirement-reference and MUST-requirement coverage rules without falsely treating a reference as satisfaction.
+1. **Implemented on branch:** the current 14/18 taxonomy and endpoint compatibility rules are registered as schema 2.0; 1.0/1.1 preserve the historical 9/8 contract.
+2. **Partially implemented:** frontend/effect/invariant/consequence and requirement-relationship carriers are explicit; full requirement realization coverage remains open.
+3. **Implemented on branch:** canonical graph hashing and provenance-bound revision-envelope hashing are separate.
+4. **Implemented on branch:** deterministic 1.0→1.1→2.0 migration is registered; target validation refuses incompatible endpoint semantics.
+5. **Tests added, execution pending:** schema, direct-construction, migration lineage and hash checks; runtime/CI confirmation remains pending.
+6. **Implemented on branch:** unknown versions/kinds and invalid edges fail closed.
+7. **Open:** requirement-reference and MUST-requirement realization coverage must be enforced across all source adapters and certification paths.
 
 No node/edge kind is removed in this phase. No existing hash is rewritten. Any schema evolution creates a new revision and has explicit migration evidence.
 

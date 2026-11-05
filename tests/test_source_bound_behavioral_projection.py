@@ -309,4 +309,6 @@ def test_certified_emitters_consume_the_source_derived_behavior():
     assert backend_record.artifact_bundle_hash == _bundle_hash(python_repo.files)
     assert frontend_record.artifact_bundle_hash == _bundle_hash(frontend_repo.files)
     assert backend_record.isr_content_hash == backend_projection_value.revision.content_hash
+    assert backend_record.isr_revision_hash == backend_projection_value.revision.revision_hash
     assert frontend_record.isr_content_hash == full_projection.revision.content_hash
+    assert frontend_record.isr_revision_hash == full_projection.revision.revision_hash

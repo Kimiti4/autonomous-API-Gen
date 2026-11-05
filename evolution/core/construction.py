@@ -50,4 +50,8 @@ class ReferenceGenomeConstructor:
             system_id=isr.system_id,
             chromosomes=chroms,
             source_graph=isr.graph.model_dump(mode="json"),
+            source_isr_revision_id=isr.revision_id,
+            source_isr_schema_version=isr.schema_version,
+            source_isr_content_hash=isr.content_hash,
+            source_isr_revision_hash=isr.revision_hash,
         )

@@ -46,7 +46,8 @@ def test_plan_preserves_typed_behavior_and_traceability_record_binds_every_stage
     plan = full_stack_plan()
 
     assert plan.data_models[0].behavior.fields[1].name == "base_salary"
-    assert plan.services[0].data_models[0].id == "data:employee"
+    payroll_service = next(service for service in plan.services if service.id == "service:payroll")
+    assert payroll_service.data_models[0].id == "data:employee"
     assert plan.services[0].behavior.rules[0].expression.args[0].field_ref == "Employee.base_salary"
     assert plan.services[0].behavior.transitions[0].transition_id == "payroll.submit"
     assert plan.apis[0].behavior.method == "POST"

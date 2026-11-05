@@ -40,6 +40,19 @@ This is a distinct projection contract and must not be presented as the canonica
 | RG-04 `RequirementsGraph` | `constitutional_architecture/core/pipeline/topology_resolver.py`; `constitutional_architecture/engine/bridges/topology_bridge.py`. | Two executable resolver implementations construct/consume the architecture graph. Route selection between them was not established. | Architecture-planning graph, not interchangeable with requirements traceability graph. |
 | RG-05 IRR graph | `RequirementGraphBuilder.from_irr` in `constitutional_architecture/isr/irr/graph.py`; IRR imports in constitutional tests. | Definition and builder are present; no direct call site for `from_irr` surfaced in the targeted code search. | Do not label retired until a broader call/import and dynamic reachability search is complete. |
 
+
+### 3.1 Entry-point and route reachability checks
+
+Additional call-site searches and composition-root inspection refine the table above:
+
+- **RG-02 IntentCompiler:** `tiannara/application/compiler/composition.py` constructs the typed `IntentCompiler` and connects it to the Cap-C ProjectCompiler registry. The module documents CLI embedding (`tiannara create ...`) and tests exercise the composition. This establishes a real application/CLI composition path, but does not establish that all Tiannara or Autonomous API routes use it. The separate `tiannara/bootstrap.py` calibration harness uses `StructuredIntentCompiler`, a deterministic legacy ISR stub, rather than this RequirementGraph-producing IntentCompiler. These are distinct paths.
+- **RG-03 CAP-001:** targeted repository code searches found the analyzer, CAP-001 EngineeringISR projector, certification and requirement-chain functions in their implementation modules and tests, but did not find a production API/router import or call site for `decompose_statements` or `certify_requirements`. Their production route reachability is therefore **NOT ESTABLISHED**; do not treat CAP-001 certification output as the main compiler's authoritative certification.
+- **RG-04 architecture graph:** both `constitutional_architecture/core/pipeline/topology_resolver.py` and `constitutional_architecture/engine/bridges/topology_bridge.py` define a `ProductTopologyResolver` and build the mutable `RequirementsGraph`. Their existence and callers in tests are established; which resolver is the active production route and whether both remain reachable require further bootstrap/API call-graph tracing.
+- **RG-05 IRR graph:** `RequirementGraphBuilder.from_irr` is defined, but the targeted call-site search did not find a direct invocation. Treat it as dormant/unknown, not proven retired.
+- **RG-01 canonical campaign:** `certification/campaign/plan_builder.py` is the strongest complete source-to-plan route found in this inventory. It uses canonical `reqgraph/core`, `genesis/mapper.py`, `isr/core/ISRRevision` and `compiler/core/isr_to_plan`. It remains a campaign/reference route, not proof that the broader production API uses the same chain.
+
+Searches were repository code-search queries plus direct inspection of the identified files at the remediation branch base. Search indexing and dynamic imports can omit call sites; this is why the remaining classifications stay UNKNOWN rather than being upgraded to unreachable or retired.
+
 ## 4. Semantic incompatibilities that block a naive adapter
 
 1. **Different edge vocabularies:** RG-01's four edges do not directly encode RG-02's `REALIZES`, `CONSTRAINS` and `DERIVES_FROM`, RG-03's requirement fields, or RG-05's generic `relates_to`.
@@ -75,7 +88,7 @@ These are target dispositions, not authorization to delete or rewrite source mod
 | Prove no silent loss across migration | NOT RUN / NOT ESTABLISHED |
 | Retire competing RequirementGraph runtime consumers | NOT AUTHORIZED / NOT STARTED |
 
-**A1 result: SOURCE INVENTORY COMPLETE FOR IDENTIFIED MODELS; MIGRATION BLOCKED PENDING ROUTE REACHABILITY AND SEMANTIC MAPPING.**
+**A1 result: SOURCE INVENTORY COMPLETE FOR IDENTIFIED MODELS; PARTIAL ROUTE REACHABILITY ESTABLISHED; MIGRATION BLOCKED PENDING FULL CALL-GRAPH AND SEMANTIC MAPPING.**
 
 ## 7. Next remediation actions
 

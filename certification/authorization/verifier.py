@@ -70,7 +70,12 @@ def _verify_workload(root: Path, workload_id: str) -> tuple[list[str], dict[str,
     record("manifest_present", True, "")
 
     manifest = _read_json(manifest_path)
-    candidate = candidate_from_manifest(manifest)
+    try:
+        candidate = candidate_from_manifest(manifest)
+        record("manifest_valid", True, "")
+    except Exception as exc:
+        record("manifest_valid", False, f"candidate manifest validation failed: {exc}")
+        return problems, checks
 
     source_path = root / SOURCE_NAME
     if not source_path.is_file():

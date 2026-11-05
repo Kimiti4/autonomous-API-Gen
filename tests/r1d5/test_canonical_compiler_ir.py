@@ -178,3 +178,37 @@ def test_invariant_relationship_is_preserved_and_blocks_unsupported_backends():
         assert_compiler_ir_supported(
             ir, BackendCapabilities(backend_id="python-fastapi", version="1.0")
         )
+
+
+
+def test_backend_required_semantics_outside_plan_projection_block_lowering():
+    from compiler.core.canonical_ir import assert_compiler_ir_supported
+    from compiler.core.capabilities import BackendCapabilities, UnsupportedSemanticsError
+
+    revision = ISRRevision.create(
+        system_id="required-ir-only-test",
+        revision_id="rev-required-ir-only",
+        schema_version="2.0",
+        graph=ISRGraph(
+            nodes={
+                "capability:required": Node(
+                    id="capability:required",
+                    type=NodeType.CAPABILITY,
+                    properties={"label": "required capability", "required_for_backend": True},
+                )
+            },
+            edges={},
+        ),
+        provenance=Provenance(
+            created_by="test", created_at="2026-11-05T00:00:00Z"
+        ),
+    )
+    ir = isr_revision_to_compiler_ir(
+        revision,
+        architecture_reference_reason="No ArchitectureCandidate is supplied by this test route.",
+    )
+    assert ir.projection_report.blocking_ir_only_node_ids == ("capability:required",)
+    with pytest.raises(UnsupportedSemanticsError, match="backend-required semantics"):
+        assert_compiler_ir_supported(
+            ir, BackendCapabilities(backend_id="python-fastapi", version="1.0")
+        )

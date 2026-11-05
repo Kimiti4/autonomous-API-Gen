@@ -6,7 +6,7 @@
 **Implementation branch:** `remediation/fs00-authority-implementation`  
 **Parent audit:** FS-00 Checkpoint 15, commit `15d28b79726bd020e8d39dbbb98dd97f5d56d09e`  
 **Scope:** authority ownership, contract/version reconciliation, migration boundaries and fail-closed rules.  
-**Non-scope:** no production route rewiring, schema mutation, backend retirement, capability promotion, certification, or artifact publication changes in this phase.
+**Change boundary:** approved ISR schema/CompilerIR changes and initial route rewiring are in scope on the implementation branch. Backend retirement, capability promotion, certification upgrades, and artifact publication changes remain out of scope.
 
 ---
 
@@ -178,6 +178,6 @@ Tests must be independent of the adapter implementation where practical. A test 
 
 ## 9. Governance and change control
 
-This document does not supersede the canonical contract registry or D02/D03/D07. Where it identifies conflicts, the conflicting contracts remain visibly unresolved until a dedicated ADR and migration evidence are accepted. A schema change requires its own versioned ADR, compatibility tests and independent review. The human governance authority remains the approval point for changes to constitutional or canonical semantic authority.
+This document does not supersede the canonical contract registry or D02/D03/D07. The A2 and A3 conflicts have approved ADRs and are being reconciled in the implementation branch; implementation/test evidence remains pending. Any further schema or semantic-authority change requires its own versioned ADR, compatibility tests and independent review. The human governance authority remains the approval point for changes to constitutional or canonical semantic authority.
 
 **Change control:** the approved implementation branch contains runtime/schema changes. This design document records the authority boundary; it does not itself certify those changes.

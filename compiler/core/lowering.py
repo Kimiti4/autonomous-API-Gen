@@ -1,4 +1,4 @@
-"""Loss-aware ISRRevision -> CompilationPlan projection."""
+"""Loss-aware ISRRevision -> canonical CompilerIR -> CompilationPlan projection."""
 from __future__ import annotations
 
 from isr.core.behavior import ConsequenceBehavior, validate_behavior_payload

@@ -10,8 +10,9 @@ import hashlib
 import json
 from dataclasses import dataclass
 
-from compiler.core.lowering import isr_to_plan
+from compiler.core.lowering import isr_revision_to_compiler_ir
 from compiler.core.plan import CompilationPlan
+from compiler.core.canonical_ir import CompilerIR
 from evolution.core.construction import ReferenceGenomeConstructor
 from evolution.core.genome import Genome, genome_content_hash
 from evolution.core.materialize import ReferenceGenomeMaterializer
@@ -45,6 +46,7 @@ def _sha(s: str) -> str:
 
 @dataclass(frozen=True)
 class PlanArtifacts:
+    compiler_ir: CompilerIR
     plan: CompilationPlan
     revision: ISRRevision
     genome: Genome
@@ -483,11 +485,16 @@ def build_artifacts_from_graph(rg: RequirementGraph, w: Workload) -> PlanArtifac
                               derivation_refs=[f"construct:{gh[:16]}"],
                               created_by="evolution_engine", created_at=FIXED_TS))
 
-    plan = isr_to_plan(cand)
+    compiler_ir = isr_revision_to_compiler_ir(
+        cand,
+        source_architecture_candidate_content_hash=gh,
+    )
+    plan = compiler_ir.execution_plan
     rg_hash = _sha(_canon(rg.model_dump()))
     plan_hash = _sha(_canon(plan.model_dump()))
 
     return PlanArtifacts(
+        compiler_ir=compiler_ir,
         plan=plan, revision=cand, genome=genome, requirement_graph=rg,
         requirement_graph_hash=rg_hash, genome_hash=gh, plan_hash=plan_hash,
     )

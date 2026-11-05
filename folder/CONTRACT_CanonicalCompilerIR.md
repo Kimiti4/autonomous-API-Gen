@@ -314,7 +314,8 @@ The canonical CompilerIR is not a renamed CompilationPlan and does not become an
 - `compiler.core.lowering.isr_revision_to_compiler_ir` is the canonical ISR-to-CompilerIR entry point.
 - `compiler.core.lowering.isr_to_plan` remains a compatibility API but delegates through CompilerIR and returns only `execution_plan`.
 - The Campaign A plan builder binds the ArchitectureCandidate content hash and uses CompilerIR before backend execution.
-- The source-bound authorization campaign uses CompilerIR with an explicit not-applicable ArchitectureCandidate state and invokes `assert_compiler_ir_supported` before backend compilation.
+- The source-bound authorization campaign uses CompilerIR with an explicit not-applicable ArchitectureCandidate state and invokes `assert_compiler_ir_supported` before backend compilation. Its candidate manifest binds the exact ISR revision and CompilerIR identities, and the independent verifier reloads both.
+- Payroll certification now includes ISR revision-envelope hash and CompilerIR ID/content hash in its candidate digest, validates the exact plan projection, and applies the canonical backend compatibility gate.
 - The compatibility gate enforces CompilerIR backend constraints and the existing plan semantic capability gate. The backend's own capability gate remains in place as defense in depth.
 - The transitional plan projection sorts source nodes and relationships deterministically and rejects unresolved frontend route/interaction bindings rather than filtering them or silently emitting null targets. Any source element marked `required_for_backend=true` or `backend_required=true` but retained only in CompilerIR creates a blocking diagnostic that is copied into CompilationPlan; the existing backend capability gate rejects that plan, preventing the compatibility API from bypassing the CompilerIR blocker.
 

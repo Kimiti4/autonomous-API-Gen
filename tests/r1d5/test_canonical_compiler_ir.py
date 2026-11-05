@@ -64,6 +64,10 @@ def test_canonical_ir_preserves_every_source_node_and_relationship():
     assert ir.source_isr_content_hash == revision.content_hash
     assert ir.source_isr_revision_hash == revision.revision_hash
     assert ir.source_architecture_candidate_content_hash == "a" * 64
+    assert not ir.projection_report.lost_node_ids
+    assert not ir.projection_report.lost_relationship_ids
+    assert set(ir.projection_report.source_node_ids) == set(revision.graph.nodes)
+    assert set(ir.projection_report.source_relationship_ids) == set(revision.graph.edges)
     assert ir.architecture_reference_state == "BOUND"
     assert ir.execution_plan.frontend_routes[0].api_operations[0].id == "api:billing"
 
@@ -108,3 +112,20 @@ def test_compiler_ir_is_immutable_and_hash_checked():
     )
     with pytest.raises((ValueError, TypeError)):
         ir.content_hash = "0" * 64
+
+
+
+def test_compiler_ir_backend_constraints_fail_closed():
+    from compiler.core.canonical_ir import assert_compiler_ir_supported
+    from compiler.core.capabilities import BackendCapabilities, UnsupportedSemanticsError
+
+    ir = isr_revision_to_compiler_ir(
+        _revision(),
+        architecture_reference_reason="No ArchitectureCandidate exists in this test route.",
+        backend_constraints=("rust-axum",),
+    )
+    with pytest.raises(UnsupportedSemanticsError, match="excluded by CompilerIR constraints"):
+        assert_compiler_ir_supported(
+            ir,
+            BackendCapabilities(backend_id="python-fastapi", version="1.0"),
+        )

@@ -116,3 +116,11 @@ def test_genome_rejects_forged_provenance_even_when_revision_hash_is_well_formed
                 "created_by": "forged",
             },
         )
+
+
+
+def test_nested_source_graph_tampering_is_detected_before_genome_hashing():
+    genome = ReferenceGenomeConstructor().construct(_revision())
+    genome.source_graph["nodes"]["domain:payroll"]["properties"]["label"] = "tampered"
+    with pytest.raises(ValueError, match="content hash"):
+        genome_content_hash(genome)

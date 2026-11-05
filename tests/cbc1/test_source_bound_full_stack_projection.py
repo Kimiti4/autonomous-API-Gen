@@ -323,6 +323,7 @@ def test_architecture_fact_extraction_preserves_plan_and_isr_relationships():
     })
     artifacts.revision = _Dumpable({
         "system_id": "system-1", "revision_id": "rev-1",
+        "schema_version": "1.0",
         "content_hash": "a" * 64,
         "revision_hash": "f" * 64,
         "graph": {

@@ -64,8 +64,8 @@ def test_laravel_manifest_does_not_claim_unimplemented_delivery_controls():
     backend = build_compiler_registry().backend("laravel")
     capabilities = set(backend._manifest().capabilities)
 
-    assert "BUILD" in {item.value for item in capabilities}
-    assert "TEST" in {item.value for item in capabilities}
-    assert "HEALTH_CHECK" in {item.value for item in capabilities}
+    assert "build" in {item.value for item in capabilities}
+    assert "test" in {item.value for item in capabilities}
+    assert "health_check" in {item.value for item in capabilities}
     assert not {"LINT", "STATIC_ANALYSIS", "SECURITY_SCAN", "DEPLOY",
                 "OBSERVABILITY", "RELEASE"} & {item.value for item in capabilities}

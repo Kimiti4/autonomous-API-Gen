@@ -49,7 +49,7 @@ def _isr_to_plan_stabilization(revision: ISRRevision) -> CompilationPlan:
     invariants: list[Invariant] = []
     consequence_nodes: dict[str, object] = {}
 
-    for node_id, node in graph.nodes.items():
+    for node_id, node in sorted(graph.nodes.items()):
         label = node.properties.get("label", node_id.split(":", 1)[-1])
         if node.type == NodeType.DATA_MODEL:
             dm_by_id[node_id] = DataModel(
@@ -90,7 +90,7 @@ def _isr_to_plan_stabilization(revision: ISRRevision) -> CompilationPlan:
     effect_bindings: list[EffectBinding] = []
     consequence_targets: dict[str, list[str]] = {}
 
-    for edge in graph.edges.values():
+    for _, edge in sorted(graph.edges.items()):
         if edge.type == EdgeType.EXPOSES and edge.target_id in api_ids:
             api_services.setdefault(edge.target_id, []).append(edge.source_id)
         elif edge.type == EdgeType.CAUSES_EFFECT:
@@ -145,15 +145,37 @@ def _isr_to_plan_stabilization(revision: ISRRevision) -> CompilationPlan:
 
     api_by_id = {api.id: api for api in apis}
     frontend_interactions: dict[str, FrontendInteraction] = {}
-    for node_id, node in graph.nodes.items():
+    for node_id, node in sorted(graph.nodes.items()):
         if node.type != NodeType.FRONTEND_INTERACTION:
             continue
         label = node.properties.get("label", node_id.split(":", 1)[-1])
         target_ids = [
-            edge.target_id for edge in graph.edges.values()
+            edge.target_id for _, edge in sorted(graph.edges.items())
             if edge.type == EdgeType.INVOKES and edge.source_id == node_id
         ]
-        target_api = api_by_id.get(target_ids[0]) if len(target_ids) == 1 else None
+        if len(target_ids) > 1:
+            raise ValueError(
+                f"frontend interaction {node_id!r} has multiple INVOKES targets: {sorted(target_ids)}"
+            )
+        target_api = None
+        if target_ids:
+            target_id = target_ids[0]
+            if target_id not in graph.nodes:
+                raise ValueError(
+                    f"frontend interaction {node_id!r} invokes missing target {target_id!r}"
+                )
+            if graph.nodes[target_id].type != NodeType.API or target_id not in api_by_id:
+                raise ValueError(
+                    f"frontend interaction {node_id!r} invokes unsupported non-API target {target_id!r}"
+                )
+            target_api = api_by_id[target_id]
+        else:
+            interaction_behavior = _behavior(node)
+            if interaction_behavior is None or interaction_behavior.action != "toggle":
+                raise ValueError(
+                    f"frontend interaction {node_id!r} has no explicit INVOKES target "
+                    "and is not a declared local toggle"
+                )
         frontend_interactions[node_id] = FrontendInteraction(
             id=node_id,
             name=label,
@@ -162,28 +184,33 @@ def _isr_to_plan_stabilization(revision: ISRRevision) -> CompilationPlan:
         )
 
     frontend_routes: list[FrontendRoute] = []
-    for node_id, node in graph.nodes.items():
+    for node_id, node in sorted(graph.nodes.items()):
         if node.type != NodeType.FRONTEND_ROUTE:
             continue
         label = node.properties.get("label", node_id.split(":", 1)[-1])
         route_api_ids = [
-            edge.target_id for edge in graph.edges.values()
+            edge.target_id for _, edge in sorted(graph.edges.items())
             if edge.type == EdgeType.ROUTES_TO and edge.source_id == node_id
         ]
         interaction_ids = [
-            edge.target_id for edge in graph.edges.values()
+            edge.target_id for _, edge in sorted(graph.edges.items())
             if edge.type == EdgeType.CONTAINS and edge.source_id == node_id
             and edge.target_id in frontend_interactions
         ]
+        missing_route_apis = sorted(set(route_api_ids) - set(api_by_id))
+        if missing_route_apis:
+            raise ValueError(
+                f"frontend route {node_id!r} references unresolved API targets: {missing_route_apis}"
+            )
         frontend_routes.append(FrontendRoute(
             id=node_id,
             name=label,
             behavior=_behavior(node),
-            api_operations=[api_by_id[item] for item in route_api_ids if item in api_by_id],
-            interactions=[frontend_interactions[item] for item in interaction_ids],
+            api_operations=[api_by_id[item] for item in sorted(set(route_api_ids))],
+            interactions=[frontend_interactions[item] for item in sorted(set(interaction_ids))],
         ))
 
-    for node_id, node in graph.nodes.items():
+    for node_id, node in sorted(graph.nodes.items()):
         if node.type == NodeType.SERVICE:
             label = node.properties.get("label", node_id.split(":", 1)[-1])
             services.append(Service(
@@ -198,7 +225,7 @@ def _isr_to_plan_stabilization(revision: ISRRevision) -> CompilationPlan:
             ))
 
     consequences: list[Consequence] = []
-    for consequence_id, node in consequence_nodes.items():
+    for consequence_id, node in sorted(consequence_nodes.items()):
         targets = tuple(sorted(set(consequence_targets.get(consequence_id, ()))))
         if not targets:
             raise ValueError(

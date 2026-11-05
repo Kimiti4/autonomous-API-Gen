@@ -108,7 +108,7 @@ ArchitectureCandidate
 
 ## 12. Current implementation
 
-`evolution/core/genome.py` (Genome with chromosomes+genes) operates on `isr.core.revision.ISRRevision`. The Genome is the de facto ArchitectureCandidate today. R1-D.3 will formalize this as a typed `ArchitectureCandidate` module under `evolution/core/`. FS-00 A2 adds `source_isr_revision_id`, `source_isr_schema_version`, `source_isr_content_hash`, and `source_isr_revision_hash`; the canonical Genome hash binds all four. The reference constructor populates them, mutation/refinement preserve them, and crossover rejects parents with different exact revision identities. Unbound Genome objects remain usable for isolated operator tests/legacy seeds but are not valid ISR-derived ArchitectureCandidates.
+`evolution/core/genome.py` (Genome with chromosomes+genes) operates on `isr.core.revision.ISRRevision`. The Genome is the de facto ArchitectureCandidate today. R1-D.3 will formalize this as a typed `ArchitectureCandidate` module under `evolution/core/`. FS-00 A2 adds `source_isr_revision_id`, `source_isr_schema_version`, `source_isr_content_hash`, `source_isr_revision_hash`, and the full `source_isr_provenance` envelope. Genome validates the schema and graph content hash, recomputes the revision-envelope hash from provenance, and includes all lineage fields in its deterministic content hash. The reference constructor populates them, mutation/refinement preserve them, and crossover rejects parents with different exact revision identities. Unbound Genome objects remain usable only when no source graph is attached (isolated operator tests/legacy seeds); they are not valid ISR-derived ArchitectureCandidates.
 
 ## 13. Legacy implementations
 

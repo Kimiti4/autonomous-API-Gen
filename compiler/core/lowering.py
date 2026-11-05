@@ -34,6 +34,7 @@ def _isr_to_plan_stabilization(revision: ISRRevision) -> CompilationPlan:
     emitter implements those semantics; backend capability gates are separate.
     """
     graph = revision.graph
+    # Traverse canonical IDs in sorted order; consumers must bind by IDs, not list position.
     dm_by_id: dict[str, DataModel] = {}
     ev_by_id: dict[str, Event] = {}
     sec_by_id: dict[str, SecurityPolicy] = {}

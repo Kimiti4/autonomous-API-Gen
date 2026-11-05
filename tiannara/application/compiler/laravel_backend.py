@@ -79,6 +79,13 @@ class LaravelBackend:
                 "artisan": self._artisan(),
                 "bootstrap/app.php": self._bootstrap_app(),
                 "bootstrap/providers.php": "<?php\n\nreturn [];\n",
+                "bootstrap/cache/.gitignore": "*\n!.gitignore\n",
+                "storage/framework/cache/data/.gitignore": "*\n!.gitignore\n",
+                "storage/framework/sessions/.gitignore": "*\n!.gitignore\n",
+                "storage/framework/views/.gitignore": "*\n!.gitignore\n",
+                "storage/logs/.gitignore": "*\n!.gitignore\n",
+                "config/app.php": self._app_config(),
+                "config/logging.php": self._logging_config(),
                 "public/index.php": self._public_index(),
                 "routes/api.php": self._routes(),
                 "app/Models/GeneratedModels.php": self._models(model),
@@ -130,6 +137,42 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {})
     ->withExceptions(function (Exceptions $exceptions): void {})
     ->create();
+'''
+
+    def _app_config(self):
+        return r'''<?php
+return [
+    'name' => env('APP_NAME', 'Laravel'),
+    'env' => env('APP_ENV', 'production'),
+    'debug' => (bool) env('APP_DEBUG', false),
+    'url' => env('APP_URL', 'http://localhost'),
+    'timezone' => 'UTC',
+    'locale' => env('APP_LOCALE', 'en'),
+    'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
+    'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),
+    'cipher' => 'AES-256-CBC',
+    'key' => env('APP_KEY'),
+    'previous_keys' => array_filter(explode(',', env('APP_PREVIOUS_KEYS', ''))),
+    'maintenance' => ['driver' => 'file', 'store' => 'database'],
+];
+'''
+
+    def _logging_config(self):
+        return r'''<?php
+return [
+    'default' => env('LOG_CHANNEL', 'stack'),
+    'deprecations' => ['channel' => env('LOG_DEPRECATIONS_CHANNEL', 'null'), 'trace' => false],
+    'channels' => [
+        'stack' => ['driver' => 'stack', 'channels' => ['single'], 'ignore_exceptions' => false],
+        'single' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/laravel.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'replace_placeholders' => true,
+        ],
+        'null' => ['driver' => 'monolog', 'handler' => Monolog\\Handler\\NullHandler::class],
+    ],
+];
 '''
 
     def _public_index(self):

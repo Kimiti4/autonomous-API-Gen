@@ -245,6 +245,8 @@ class CompilerIR(BaseModel):
             raise ValueError("CompilerIR provenance/lowering timestamp mismatch")
         if self.provenance.lowering_chain != self.lowering_chain:
             raise ValueError("CompilerIR provenance/lowering chain mismatch")
+        if tuple(sorted(set(self.execution_plan.backend_constraints))) != self.backend_constraints:
+            raise ValueError("CompilerIR backend constraints do not match its execution-plan projection")
         expected_capabilities = sorted(
             {feature.value for feature in required_features(self.execution_plan)}
             | {feature.value for feature in required_frontend_features(self.execution_plan)}
@@ -327,15 +329,19 @@ class CompilerIR(BaseModel):
             )
             for _, edge in sorted(revision.graph.edges.items())
         )
+        normalized_backend_constraints = tuple(sorted(set(backend_constraints)))
         projection_report = _projection_report(revision, execution_plan)
         blocking_diagnostics = [
             *(f"backend-required ISR node {node_id!r} is preserved only in CompilerIR" for node_id in projection_report.blocking_ir_only_node_ids),
             *(f"backend-required ISR relationship {edge_id!r} is preserved only in CompilerIR" for edge_id in projection_report.blocking_ir_only_relationship_ids),
         ]
+        plan_updates = {}
         if blocking_diagnostics:
-            execution_plan = execution_plan.model_copy(
-                update={"blocking_diagnostics": blocking_diagnostics}
-            )
+            plan_updates["blocking_diagnostics"] = blocking_diagnostics
+        if normalized_backend_constraints:
+            plan_updates["backend_constraints"] = list(normalized_backend_constraints)
+        if plan_updates:
+            execution_plan = execution_plan.model_copy(update=plan_updates)
         capabilities = sorted(
             {feature.value for feature in required_features(execution_plan)}
             | {feature.value for feature in required_frontend_features(execution_plan)}
@@ -371,7 +377,7 @@ class CompilerIR(BaseModel):
             "relationships": [item.model_dump(mode="json") for item in relationships],
             "projection_report": projection_report.model_dump(mode="json"),
             "execution_plan": execution_plan.model_dump(mode="json"),
-            "backend_constraints": list(backend_constraints),
+            "backend_constraints": list(normalized_backend_constraints),
             "required_capabilities": capabilities,
             "provenance": provenance.model_dump(mode="json"),
             "lowering_operator": operator,

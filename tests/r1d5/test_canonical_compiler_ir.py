@@ -131,6 +131,16 @@ def test_compiler_ir_backend_constraints_fail_closed():
             ir,
             BackendCapabilities(backend_id="python-fastapi", version="1.0"),
         )
+    assert ir.execution_plan.backend_constraints == ["rust-axum"]
+    from compiler.core.capabilities import assert_plan_supported
+    with pytest.raises(UnsupportedSemanticsError, match="excluded by CompilerIR constraints"):
+        assert_plan_supported(
+            ir.execution_plan,
+            BackendCapabilities(backend_id="python-fastapi", version="1.0"),
+        )
+    from compiler.backends.react_frontend import ReactFrontendBackend
+    with pytest.raises(UnsupportedSemanticsError, match="excluded by CompilerIR constraints"):
+        ReactFrontendBackend().compile(ir.execution_plan)
 
 
 

@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from genesis.mapper import GenesisResult, ReferenceDeterministicMapper
 from isr.core.identity import Provenance
 from isr.core.revision import ISRRevision
+from isr.schema import CURRENT_SCHEMA_VERSION
 from reqgraph.core.graph import RequirementGraph
 from reqgraph.ingestion.tor_extractor import HumanApproval, TORExtractionDraft
 
@@ -120,7 +121,7 @@ def project_tor_to_isr(
     revision = ISRRevision.create(
         system_id=system_id,
         revision_id=revision_id,
-        schema_version="1.0",
+        schema_version=CURRENT_SCHEMA_VERSION,
         graph=genesis.graph,
         provenance=Provenance(
             requirement_refs=tuple(sorted(requirements.nodes)),

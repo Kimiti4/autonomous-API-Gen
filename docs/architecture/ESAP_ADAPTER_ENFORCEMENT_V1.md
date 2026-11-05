@@ -41,8 +41,8 @@ The report enforces a complete, non-overlapping partition. CompilerIR constructi
 `assert_compiler_ir_supported(compiler_ir, capabilities)`:
 
 1. checks any declared backend constraints against the selected backend ID;
-2. copies those constraints into the transitional plan so direct backend entrypoints cannot bypass them;
-3. checks the transitional plan's required semantic features against the backend's declared capabilities; both backend and frontend-specific gates enforce blocking diagnostics and target constraints;
+2. copies those constraints and exact ISR revision ID/content/envelope hashes into the transitional plan and computes a plan-projection integrity hash;
+3. checks the integrity hash before any backend/frontend gate, then checks required semantic features against declared capabilities; both gates enforce blocking diagnostics and target constraints;
 3. raises a fail-closed error before backend compilation when a constraint or required feature is unsupported.
 
 Existing backend-level capability checks remain enabled as defense in depth. A backend must not be considered capable merely because it can deserialize or structurally accept the plan.
@@ -75,7 +75,7 @@ The TOR SourceTraceability record is now schema `1.1` and binds both ISR graph a
 - Missing/ambiguous frontend interaction or route binding: block.
 - CompilerIR source-to-plan report with any lost/unclassified source element: block.
 - Backend constraint mismatch or unsupported required semantic feature: block before generation.
-- Frontend backends use the same blocker propagation; the React/Vite backend cannot bypass an IR-only required semantic through its frontend-specific gate.
+- Frontend backends use the same blocker propagation; the React/Vite backend cannot bypass an IR-only required semantic through its frontend-specific gate. Both backend and frontend gates recompute the plan projection integrity hash, detecting nested plan mutation.
 - Unsupported targets remain registered as targets; they refuse only the unsupported workload.
 
 ## 8. Acceptance work remaining

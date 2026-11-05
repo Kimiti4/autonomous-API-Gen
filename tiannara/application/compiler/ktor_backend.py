@@ -126,8 +126,6 @@ ENTRYPOINT ["/app/bin/{slug}"]
 '''
     def _manifest(self):
         return CapabilityManifest(backend_id=self.backend_id,capabilities=[
-          BundleCapability.BUILD,BundleCapability.LINT,BundleCapability.STATIC_ANALYSIS,
-          BundleCapability.TEST,BundleCapability.SECURITY_SCAN,BundleCapability.CONTAINERIZE,
-          BundleCapability.DEPLOY,BundleCapability.HEALTH_CHECK,BundleCapability.OBSERVABILITY,
-          BundleCapability.DOCUMENTATION,BundleCapability.RELEASE],
+          BundleCapability.BUILD, BundleCapability.TEST, BundleCapability.CONTAINERIZE,
+          BundleCapability.HEALTH_CHECK, BundleCapability.DOCUMENTATION],
           metadata={"language":"kotlin","framework":"ktor","style":"typed-modular"})

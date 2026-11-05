@@ -33,7 +33,7 @@ def _plan_artifacts(requirement_text="read item"):
             "source_isr_content_hash": "a" * 64,
             "source_isr_revision_hash": "f" * 64,
         }),
-        genome=_Dumpable({"genes": [], "source_isr_revision_id": "rev-1", "source_isr_schema_version": "1.0", "source_isr_content_hash": "a" * 64, "source_isr_revision_hash": "f" * 64, "source_isr_provenance": {"created_by": "test", "created_at": "2026-11-05T00:00:00Z", "requirement_refs": [], "derivation_refs": [], "parent_revision_id": None}}),
+        genome=_Dumpable({"genes": [], "system_id": "system-1", "source_isr_revision_id": "rev-1", "source_isr_schema_version": "1.0", "source_isr_content_hash": "a" * 64, "source_isr_revision_hash": "f" * 64, "source_isr_provenance": {"created_by": "test", "created_at": "2026-11-05T00:00:00Z", "requirement_refs": [], "derivation_refs": [], "parent_revision_id": None}}),
         requirement_graph=_Dumpable({
             "nodes": {
                 "req:item": {"id": "req:item", "statement": requirement_text},

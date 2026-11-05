@@ -45,3 +45,10 @@ def test_generated_rails_project_installs_boots_and_passes_http_tests(tmp_path: 
         cwd=tmp_path, check=False, timeout=60, capture_output=True, text=True,
     )
     assert about.returncode == 0, about.stdout + about.stderr
+
+    if shutil.which("docker"):
+        image = subprocess.run(
+            ["docker", "build", "-t", "esap-generated-rails-contract", "."],
+            cwd=tmp_path, check=False, timeout=600, capture_output=True, text=True,
+        )
+        assert image.returncode == 0, image.stdout + image.stderr

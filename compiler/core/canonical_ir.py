@@ -328,6 +328,14 @@ class CompilerIR(BaseModel):
             for _, edge in sorted(revision.graph.edges.items())
         )
         projection_report = _projection_report(revision, execution_plan)
+        blocking_diagnostics = [
+            *(f"backend-required ISR node {node_id!r} is preserved only in CompilerIR" for node_id in projection_report.blocking_ir_only_node_ids),
+            *(f"backend-required ISR relationship {edge_id!r} is preserved only in CompilerIR" for edge_id in projection_report.blocking_ir_only_relationship_ids),
+        ]
+        if blocking_diagnostics:
+            execution_plan = execution_plan.model_copy(
+                update={"blocking_diagnostics": blocking_diagnostics}
+            )
         capabilities = sorted(
             {feature.value for feature in required_features(execution_plan)}
             | {feature.value for feature in required_frontend_features(execution_plan)}

@@ -55,7 +55,10 @@ def test_generated_laravel_project_installs_boots_and_passes_http_tests(tmp_path
         )
         assert built.returncode == 0, built.stdout + built.stderr
         container = subprocess.run(
-            ["docker", "run", "-d", "-p", "18081:8000", image],
+            ["docker", "run", "-d", "-p", "18081:8000",
+             "-e", "APP_ENV=testing",
+             "-e", "APP_KEY=base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+             "-e", "LOG_CHANNEL=stderr", image],
             check=True, capture_output=True, text=True,
         ).stdout.strip()
         try:
@@ -66,9 +69,13 @@ def test_generated_laravel_project_installs_boots_and_passes_http_tests(tmp_path
                         assert response.status == 200
                         assert b'"status":"ok"' in response.read().replace(b" ", b"")
                         return
-                except (urllib.error.URLError, TimeoutError) as exc:
+                except (urllib.error.URLError, TimeoutError, OSError) as exc:
                     last_error = exc
                     time.sleep(2)
-            pytest.fail(f"Generated Laravel container did not become healthy: {last_error}")
+            logs = subprocess.run(["docker", "logs", container], check=False, capture_output=True, text=True)
+            pytest.fail(
+                f"Generated Laravel container did not become healthy: {last_error}\\n"
+                f"Container logs:\\n{logs.stdout}\\n{logs.stderr}"
+            )
         finally:
             subprocess.run(["docker", "rm", "-f", container], check=False, capture_output=True)

@@ -104,7 +104,7 @@ class LaravelBackend:
   "name": "esap/generated-laravel",
   "type": "project",
   "require": {"php": "^8.3", "laravel/framework": "^12.0"},
-  "require-dev": {"phpunit/phpunit": "^11.0"},
+  "require-dev": {"phpunit/phpunit": "^11.5", "nunomaduro/collision": "^8.6"},
   "autoload": {"psr-4": {"App\\": "app/"}},
   "autoload-dev": {"psr-4": {"Tests\\": "tests/"}},
   "scripts": {

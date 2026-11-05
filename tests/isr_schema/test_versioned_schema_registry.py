@@ -79,6 +79,7 @@ def test_revision_migration_creates_new_identity_and_parent_lineage():
     assert migrated.content_hash != source.content_hash
     assert migrated.provenance.parent_revision_id == source.revision_id
     assert f"source_content_hash:{source.content_hash}" in migrated.provenance.derivation_refs
+    assert f"source_revision_hash:{source.revision_hash}" in migrated.provenance.derivation_refs
     assert "migration:fs00-isr-v1-to-v2" in migrated.provenance.derivation_refs
 
 
@@ -86,3 +87,17 @@ def test_schema_package_reexports_single_registry_implementation():
     from isr.schema import versions
     assert SCHEMA_REGISTRY is versions.SCHEMA_REGISTRY
     validate_schema_graph(_legacy_graph(), "1.0")
+
+
+
+def test_graph_hash_and_revision_envelope_hash_have_distinct_meanings():
+    first = ISRRevision.create(
+        "sys", "rev-a", "2.0", _legacy_graph(),
+        Provenance(created_by="author-a", created_at="2026-11-05T00:00:00Z"),
+    )
+    second = ISRRevision.create(
+        "sys", "rev-b", "2.0", _legacy_graph(),
+        Provenance(created_by="author-b", created_at="2026-11-05T00:00:00Z"),
+    )
+    assert first.content_hash == second.content_hash
+    assert first.revision_hash != second.revision_hash

@@ -236,6 +236,14 @@ def test_backend_required_semantics_outside_plan_projection_block_lowering():
     with pytest.raises(UnsupportedSemanticsError, match="frontend lowering"):
         ReactFrontendBackend().compile(legacy_plan)
 
+    # Nested Pydantic collections are mutable even on a frozen model. The
+    # projection integrity hash detects tampering before any backend entry.
+    legacy_plan.blocking_diagnostics.clear()
+    with pytest.raises(UnsupportedSemanticsError, match="integrity hash mismatch"):
+        assert_plan_supported(
+            legacy_plan, BackendCapabilities(backend_id="python-fastapi", version="1.0")
+        )
+
 
 
 def test_compiler_ir_rejects_forged_compilation_identity_on_reload():

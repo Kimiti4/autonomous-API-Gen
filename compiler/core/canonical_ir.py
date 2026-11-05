@@ -210,6 +210,20 @@ class CompilerIR(BaseModel):
             raise ValueError("CompilerIR projection report/source node inventory mismatch")
         if set(self.projection_report.source_relationship_ids) != {item.source_edge_id for item in self.relationships}:
             raise ValueError("CompilerIR projection report/source relationship inventory mismatch")
+        if self.provenance.source_isr_revision_id != self.source_isr_revision_id:
+            raise ValueError("CompilerIR provenance/source ISR revision ID mismatch")
+        if self.provenance.lowering_operator != self.lowering_operator:
+            raise ValueError("CompilerIR provenance/lowering operator mismatch")
+        if self.provenance.lowering_timestamp != self.lowering_timestamp:
+            raise ValueError("CompilerIR provenance/lowering timestamp mismatch")
+        if self.provenance.lowering_chain != self.lowering_chain:
+            raise ValueError("CompilerIR provenance/lowering chain mismatch")
+        expected_capabilities = sorted(
+            {feature.value for feature in required_features(self.execution_plan)}
+            | {feature.value for feature in required_frontend_features(self.execution_plan)}
+        )
+        if sorted(self.required_capabilities) != expected_capabilities:
+            raise ValueError("CompilerIR required_capabilities do not match its execution projection")
         if self.provenance.source_isr_content_hash != self.source_isr_content_hash:
             raise ValueError("CompilerIR provenance/source ISR graph hash mismatch")
         if self.provenance.source_isr_revision_hash != self.source_isr_revision_hash:

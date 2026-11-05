@@ -418,7 +418,12 @@ def verify_authorization_evidence(evidence_dir: str) -> VerificationResult:
             if not manifest_path.is_file():
                 continue
             manifest = _read_json(manifest_path)
-            candidate = candidate_from_manifest(manifest)
+            try:
+                candidate = candidate_from_manifest(manifest)
+            except Exception as exc:
+                checks[f"ledger_binds_{workload_id}"] = False
+                problems.append(f"{workload_id}: invalid candidate manifest in ledger verification: {exc}")
+                continue
             checks[f"ledger_binds_{workload_id}"] = (
                 trial.get("manifest_hash") == candidate.manifest_hash
                 and trial.get("isr_revision_hash") == candidate.isr_revision_hash

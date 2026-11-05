@@ -22,7 +22,7 @@ must reference
 Canonical ISR revision
 ```
 
-The contract enforces this by including the ISR revision's content hash as a non-derivable field. An ArchitectureCandidate without a valid ISR revision reference is rejected at construction. The ArchitectureCandidate's own semantics are about **architecture decisions, topology, and component boundaries** — they do not duplicate ISR semantics.
+The contract enforces this by including both the ISR semantic graph content hash and the exact provenance-bound ISR revision-envelope hash as non-derivable fields. An ISR-derived ArchitectureCandidate without a complete, valid ISR revision reference is rejected at construction. The ArchitectureCandidate's own semantics are about **architecture decisions, topology, and component boundaries** — they do not duplicate ISR semantics.
 
 ## 3. Architecture
 
@@ -47,7 +47,7 @@ ArchitectureCandidate
 
 - **Candidate ID:** UUIDv5 over the ArchitectureCandidate's content hash.
 - **Parent ID:** the candidate(s) this was derived from (may be empty for seed candidates).
-- **ISR revision reference:** the **content hash of the canonical ISR revision** this architecture is for. A candidate may reference at most one ISR revision.
+- **ISR revision reference:** both the semantic graph content hash and the exact revision-envelope hash of the canonical ISR revision this architecture is for. A candidate may reference at most one ISR revision.
 
 ## 5. Lifecycle and mutability
 
@@ -69,7 +69,8 @@ ArchitectureCandidate
 |---|---|
 | Candidate ID | **semantic** (identity) |
 | Parent ID(s) | **semantic** (lineage) |
-| ISR revision reference (content hash) | **semantic** (non-derivable) |
+| ISR graph content hash | **semantic** (non-derivable) |
+| ISR revision-envelope hash | **semantic** (non-derivable; exact lineage) |
 | Architecture decisions | **semantic** (the architecture) |
 | Topology | **semantic** (the architecture) |
 | Component boundaries | **semantic** |
@@ -107,7 +108,7 @@ ArchitectureCandidate
 
 ## 12. Current implementation
 
-`evolution/core/genome.py` (Genome with chromosomes+genes) operates on `isr.core.revision.ISRRevision`. The Genome is the de facto ArchitectureCandidate today. R1-D.3 will formalize this as a typed `ArchitectureCandidate` module under `evolution/core/`.
+`evolution/core/genome.py` (Genome with chromosomes+genes) operates on `isr.core.revision.ISRRevision`. The Genome is the de facto ArchitectureCandidate today. R1-D.3 will formalize this as a typed `ArchitectureCandidate` module under `evolution/core/`. FS-00 A2 adds `source_isr_revision_id`, `source_isr_schema_version`, `source_isr_content_hash`, and `source_isr_revision_hash`; the canonical Genome hash binds all four. The reference constructor populates them, mutation/refinement preserve them, and crossover rejects parents with different exact revision identities. Unbound Genome objects remain usable for isolated operator tests/legacy seeds but are not valid ISR-derived ArchitectureCandidates.
 
 ## 13. Legacy implementations
 
@@ -139,4 +140,4 @@ ArchitectureCandidate
 
 ISR schema 2.0 distinguishes semantic graph identity (`ISRRevision.content_hash`) from exact revision-envelope identity (`ISRRevision.revision_hash`). The existing `isr_revision_reference` content hash remains useful for semantic graph comparison but is insufficient to bind provenance and exact revision lineage.
 
-**Partial adoption:** Campaign A source-bound snapshot schema 2 and mapping provenance now carry both ISR graph content hash and exact ISR revision-envelope hash, plus CompilerIR ID/hash; the mapping verifier checks these values against the source snapshot. The canonical ArchitectureCandidate runtime model/serialized field still lacks a separately validated revision-envelope reference. Exact D04 object-level lineage therefore remains PARTIAL/UNKNOWN until that field, constructor validation, serialization and tests are implemented.
+**Implementation:** The de facto canonical Genome now carries and validates both ISR graph content hash and exact ISR revision-envelope hash, and its deterministic content hash includes those identities. Campaign A source-bound snapshot schema 2 and mapping provenance also carry both ISR hashes plus CompilerIR ID/hash; the mapping verifier checks these against the source snapshot. Formalization as a distinct typed ArchitectureCandidate module remains deferred under the existing D04 decision.

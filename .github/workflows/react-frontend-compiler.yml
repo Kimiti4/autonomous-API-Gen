@@ -38,6 +38,8 @@ on:
       - "tests/r1d5/**"
       - "tests/fs00/**"
       - "tests/authorization/**"
+      - "tests/support/**"
+      - "tests/integration/**"
       - "tests/test_source_semantic_preservation.py"
       - "certification/authorization/**"
       - "certification/campaign/plan_builder.py"

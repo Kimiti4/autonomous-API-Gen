@@ -11,7 +11,6 @@ from isr.core.behavior_validation import validate_behavioral_graph
 from isr.core.graph import EdgeType, ISRGraph, NodeType
 from isr.core.identity import Provenance, compute_content_hash
 from isr.core.invariants import validate_invariants
-from isr.schema.versions import SCHEMA_REGISTRY, validate_schema_graph
 
 _SCHEMA_VERSION_RE = re.compile(r"^\d+\.\d+$")
 
@@ -41,6 +40,7 @@ class ISRRevision(BaseModel):
 
     @model_validator(mode="after")
     def _registered_schema_and_taxonomy(self) -> "ISRRevision":
+        from isr.schema.versions import validate_schema_graph
         validate_schema_graph(self.graph, self.schema_version)
         return self
 
@@ -54,6 +54,7 @@ class ISRRevision(BaseModel):
         provenance: Provenance,
     ) -> ISRRevision:
         """Construct a revision, enforcing all invariants fail-closed."""
+        from isr.schema.versions import SCHEMA_REGISTRY, validate_schema_graph
         validate_schema_graph(graph, schema_version)
         definition = SCHEMA_REGISTRY[schema_version]
         compatibility = {

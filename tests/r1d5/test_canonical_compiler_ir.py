@@ -62,6 +62,7 @@ def test_canonical_ir_preserves_every_source_node_and_relationship():
     assert {node.source_node_id for node in ir.nodes} == set(revision.graph.nodes)
     assert {edge.source_edge_id for edge in ir.relationships} == set(revision.graph.edges)
     assert ir.source_isr_content_hash == revision.content_hash
+    assert ir.source_isr_revision_hash == revision.revision_hash
     assert ir.source_architecture_candidate_content_hash == "a" * 64
     assert ir.architecture_reference_state == "BOUND"
     assert ir.execution_plan.frontend_routes[0].api_operations[0].id == "api:billing"

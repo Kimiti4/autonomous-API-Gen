@@ -212,3 +212,16 @@ def test_backend_required_semantics_outside_plan_projection_block_lowering():
         assert_compiler_ir_supported(
             ir, BackendCapabilities(backend_id="python-fastapi", version="1.0")
         )
+
+
+
+def test_compiler_ir_rejects_forged_compilation_identity_on_reload():
+    ir = isr_revision_to_compiler_ir(
+        _revision(),
+        architecture_reference_reason="No ArchitectureCandidate is supplied by this test route.",
+        lowering_timestamp="2026-11-05T00:00:00Z",
+    )
+    payload = ir.model_dump(mode="json")
+    payload["compilation_id"] = "00000000-0000-0000-0000-000000000000"
+    with pytest.raises(ValueError, match="compilation_id"):
+        CompilerIR.model_validate(payload)

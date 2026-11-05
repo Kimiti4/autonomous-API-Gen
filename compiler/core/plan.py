@@ -141,5 +141,6 @@ class CompilationPlan(BaseModel):
     consequences: list[Consequence] = Field(default_factory=list)
     invariants: list[Invariant] = Field(default_factory=list)
     invariant_bindings: list[InvariantBinding] = Field(default_factory=list)
+    blocking_diagnostics: list[str] = Field(default_factory=list)
     frontend_routes: list[FrontendRoute] = Field(default_factory=list)
     frontend_interactions: list[FrontendInteraction] = Field(default_factory=list)

@@ -79,6 +79,15 @@ def validate_invariants(
 
     node_ids = set(graph.nodes.keys())
 
+    # Mapping keys are canonical IDs, not aliases. Reject duplicate/mismatched
+    # identities before any adapter builds source-to-output mappings.
+    if len(graph.nodes) != len({node.id for node in graph.nodes.values()}):
+        raise ISRInvariantViolation("Duplicate node ids in ISR graph")
+    if any(key != node.id for key, node in graph.nodes.items()):
+        raise ISRInvariantViolation("ISR node mapping key does not match node.id")
+    if any(key != edge.id for key, edge in graph.edges.items()):
+        raise ISRInvariantViolation("ISR edge mapping key does not match edge.id")
+
     # 1. No orphan node/edge ids  (edge id uniqueness is structural)
     if len(graph.edges) != len({e.id for e in graph.edges.values()}):
         dupes = [eid for eid, e in graph.edges.items()

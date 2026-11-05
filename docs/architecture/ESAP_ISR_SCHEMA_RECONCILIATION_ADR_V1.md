@@ -1,7 +1,7 @@
 # ISR Schema Reconciliation ADR — FS-00 Remediation A2
 
 **ADR ID:** ESAP-ADR-FS00-002  
-**Status:** PROPOSED — HUMAN GOVERNANCE REVIEW REQUIRED BEFORE IMPLEMENTATION  
+**Status:** APPROVED BY USER — IMPLEMENTATION IN PROGRESS  
 **Target owner:** `isr/core`  
 **Related contracts:** D03 `folder/CONTRACT_CanonicalISR.md`; schema registry `isr/schema/versions.py`; authority baseline `docs/architecture/ESAP_AUTHORITY_RECONCILIATION_V1.md`  
 **Parent audit:** FS-00 Checkpoint 15  
@@ -157,6 +157,6 @@ Schema remediation is not complete until:
 4. Separate semantic graph content identity from revision/provenance-envelope identity (Option A in §3.2), subject to D03/evidence contract update.
 5. Enforce the schema registry in revision construction and all consumers.
 
-**Approval required:** this changes the canonical schema/versioning policy. No runtime or canonical contract change is authorized by this proposal alone.
+**Approval record:** user approved the four FS-00 remediation steps on 2026-11-05. The implementation branch records the schema 2.0 transition, immutable 1.x compatibility, versioned validators/migrations, and separate graph/revision-envelope identities.
 
 **Change boundary:** documentation only. No tests were run because no executable code changed.

@@ -27,3 +27,14 @@ def test_spring_profile_and_generation_are_independent():
     assert "src/main/java/com/generated/domain/Task.java" in result.files
     assert "src/main/java/com/generated/application.java" in {x.lower() for x in result.files}
     assert "fastapi" not in source and "axum" not in source and "nestjs" not in source
+
+def test_spring_boot_container_exposes_default_http_port():
+    from tiannara.domain.models.system_model import RequirementsReference, SystemModel
+    registry=build_compiler_registry()
+    model=SystemModel(
+        system_name="Port Contract", problem_statement="Verify container port",
+        requirements_ref=RequirementsReference(graph_id="g", graph_hash="h"),
+    )
+    dockerfile=registry.backend("spring_boot").generate(model).files["Dockerfile"]
+    assert "EXPOSE 8080" in dockerfile
+    assert "EXPOSE 8000" not in dockerfile

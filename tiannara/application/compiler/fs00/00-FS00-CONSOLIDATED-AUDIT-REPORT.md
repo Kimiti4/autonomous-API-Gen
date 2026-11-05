@@ -815,3 +815,127 @@ Even a successful Gradle/APK/install/launch sequence would prove structural exec
 ### 14.9 Checkpoint 14 disposition
 
 **PARTIAL — five TypeScript frontend targets have meaningful generated-browser CI for a narrow catalogue/filter interaction; Angular lacks the matching workflow; the three Elixir UI targets remain structural shells whose capability manifests overstate demonstrated behavior. Frontend-to-backend semantic integration is not established as a compulsory shared contract. Android has a well-designed source-bound structural cloud execution path, but its current backend cannot realize the benchmark's full runtime semantics, and the benchmark itself remains awaiting approval/hash freeze. No dedicated iOS or cross-platform mobile compiler target was found. No production implementation, test, workflow, capability declaration or certification state was changed.**
+
+
+---
+
+## 15. Checkpoint 15 — integrated architecture and FS-00 closure assessment
+
+**Inspected PR head:** `09713a60dffae61a35b332d510dfbe2f27cb3ebf`  
+**PR state:** #201 remains open, draft and unmerged.  
+**Scope:** integrate Checkpoints 1–14; re-check active authority boundaries, canonical lowering, backend composition, Android evidence, route enforcement, and the original FS-00 exit criteria. This is a read-only architecture audit apart from this report update. No production implementation, tests, workflows, capability declarations or certification states were changed.
+
+### 15.1 Architecture synthesis — the repository contains several real compiler systems, not one compulsory compiler authority
+
+The audit evidence supports four distinct implementation families that must not be conflated:
+
+1. **Cap-C ProjectCompiler:** the broad 21-target registry (11 backend-service and 10 frontend/application targets) provides meaningful target discovery and selection. It does not prove that every target consumes the same typed semantic obligations or has native runtime evidence.
+2. **Canonical behavioral compiler core:** `isr/core` revisions lower through `compiler/core/lowering.py:isr_to_plan` into a typed `CompilationPlan`. `compiler/core/capabilities.py` derives semantic obligations and rejects unsupported plans. The strongest demonstrated behavioral backend implementations remain Python FastAPI and Rust Axum, with intentionally different support sets. The campaign-native Android backend is explicitly structural-only.
+3. **Gen-C / constitutional and category compiler paths:** these use distinct requirement/ISR representations, lowering and capability/conformance registries. Their source-binding and governance controls are valuable on their own paths, but they are not proven to be mandatory adapters for every other compiler family.
+4. **Root Universal Compiler API / SDK path:** `compiler/api.py` constructs a separate registry containing a reference backend and registered production backends, then exposes `POST /v1/compiler/compile` directly to `UniversalCompiler.compile`. SDK routes are enabled alongside it, but the compile route itself does not establish that CBC-1, universal semantic certification, or every other compiler family's governance/publication gates are compulsory.
+
+The smaller `compiler/composition.py` root separately registers Python FastAPI, Rust Axum and Android into the behavioral core registry. This is another concrete composition boundary, not the 21-target Cap-C registry. A name such as “Universal Compiler” or a target's presence in one registry must not be treated as proof that all production routes converge on one governed authority.
+
+**Integrated conclusion:** the critical FS00-001 / FS00-005 / FS00-048–051 / FS00-066 issue remains open. The repository has multiple functioning compiler subsystems and valuable adapters, but a single mandatory end-to-end compilation authority is not established.
+
+### 15.2 Requirement and ISR authority — canonical behavioral lineage is strong but not universal
+
+The strongest explicit typed path remains:
+
+`ISRRevision → isr_to_plan → CompilationPlan → semantic capability gate → backend`
+
+The lowering carries typed behavior and explicit graph relationships, including API/service links, effect bindings and consequences. The backend capability gate derives requirements from populated plan fields and refuses unsupported semantics. This is a sound foundation and should be extended rather than replaced.
+
+However, the repository still contains multiple RequirementGraph/ISR-like models and contract drift documented in Sections 5–6. The source-bound Constitutional path, canonical requirement-reference projection, CAP-001 EngineeringISR projection, campaign `ISRRevision`, legacy-compatible SystemModel and Gen-C rich ISR are not demonstrated as one governed versioned chain.
+
+A fresh source check of `autonomous-api/app/engine/requirement_isr.py` also confirms that its `project_to_isr` implementation is a conservative, partial projection rather than the canonical behavioral ISR lowering. It creates entities only from explicit `entity:` tags, policies from requirement kinds, invariants from a short lexical token list, and interfaces from keyword matches. It does not itself construct the complete typed API, authorization, effect, consequence, event, frontend interaction and executable behavior graph carried by `isr/core` revisions. The integrity validator checks duplicate IDs, dangling references, technology leakage and traceability coverage; those structural checks do not prove that every requirement's meaning was represented in the projection.
+
+- **FS00-066 — CAP-001 EngineeringISR projection is intentionally partial and lexical.** It must not be mistaken for complete semantic equivalence with the canonical behavioral ISR or used as a substitute for `ISRRevision → CompilationPlan`. Any route using it for generation needs explicit typed obligation coverage and a blocking completeness check.
+- **Integrated disposition:** the authoritative model/version map, live-consumer migration, complete MUST-requirement realization mapping and semantic-diff gates remain unresolved. Hash identity and traceability are necessary but do not prove semantic preservation.
+
+### 15.3 Backend and frontend capability — preserve diversity; certify claims individually
+
+The 21 Cap-C registrations, seven Gen-C conformance declarations, behavioral Python/Rust implementations and Android structural backend represent useful diversity. They do not share one proven, evidence-backed capability authority.
+
+The evidence still supports these boundaries:
+
+- Python FastAPI has the broadest demonstrated behavioral subset among the canonical reference backends, including API contracts, authorization and executable effects, but important storage/effect durability and production acceptance boundaries remain.
+- Rust Axum has a narrower semantic subset and correctly refuses unsupported API/auth/effect-execution semantics rather than inheriting Python's claims.
+- Other backend targets vary from useful scaffolds to partial CRUD/service generation; required-file presence and declared build commands are not equivalent to language-native build or behavioral verification.
+- Five TypeScript frontend targets have meaningful but narrow catalogue/filter browser evidence; Angular lacks the matching workflow identified in Checkpoint 14.
+- LiveView, Hologram and Scenic remain minimal shells whose capability declarations exceed demonstrated runtime behavior.
+- Android remains a structural static-catalogue target and refuses unsupported application semantics. Its separate native runner is a structural evidence mechanism, not a behaviorally certified Android compiler.
+- No dedicated iOS/Swift, Flutter, React Native or Expo target was found in the inspected tree.
+
+The correct strategic decision remains **preserve all target families and improve them incrementally**. Retiring incomplete targets would narrow the intended universal scope without solving the shared semantic-authority problem. Conversely, registering or selecting them must never upgrade their capability or production-readiness state.
+
+### 15.4 Android PR-head execution evidence — backend tests passed; cloud build did not run
+
+The GitHub Actions run associated with the inspected PR head is run **#88**, workflow `ESAP Android Cloud-Build Certification (Stage A)`, run ID `42007428668`, head SHA `09713a60dffae61a35b332d510dfbe2f27cb3ebf`.
+
+Its two jobs have different outcomes:
+
+| Job | Result | What it establishes |
+|---|---|---|
+| `android-backend-tests` | SUCCESS | The workflow installed dependencies and ran `tests/test_android_campaign_backend.py` and `tests/test_android_structural_runner.py` successfully on this PR head. |
+| `android-cloud-build` | SKIPPED | No Gradle build, APK inspection, emulator install or launch occurred in this PR-triggered run; the job is conditioned on `workflow_dispatch`. |
+
+The workflow's overall conclusion is `success` because the PR-triggered backend contract-test job passed and the manual cloud-build job was skipped. It is incorrect to report this as a successful Android cloud build.
+
+The manual workflow retains useful controls: exact source-revision checkout, path containment, source/ISR/manifest hash checks, revision revalidation and candidate re-derivation before native execution. The benchmark instructions still explicitly require independent approval/hash freeze and state that even successful APK/emulator structural execution does not satisfy AC-002 through AC-012. The current source/acceptance artifacts remain marked `PROPOSED_AWAITING_REVIEW_AND_HASH_FREEZE`; the Android backend is expected to refuse a faithful benchmark carrying unsupported CRUD, validation, search, persistence and offline semantics.
+
+**Evidence classification:** PR-head backend contract tests = PASS for that test scope; cloud native execution = NOT RUN in this run; Android runtime acceptance and ESAP-APP-001 certification = BLOCKED / NOT ESTABLISHED. No capability or certification status is upgraded.
+
+### 15.5 Integrated route, verification and publication assessment
+
+Across Checkpoints 9–12, the evidence establishes several strong components but not a compulsory system-wide chain:
+
+- source-binding checks are substantive on selected paths, not mandatory across all production compiler entrypoints;
+- the typed behavioral lowering and fail-closed backend feature gate are strong where invoked, but not shown as universal adapters for all 21 Cap-C targets, Gen-C, root API and all materializers;
+- CBC-1 Campaign A's 78 trials remain bounded to 39 workloads across Python FastAPI and Rust Axum;
+- independent oracles are meaningful for selected behaviors, but acceptance coverage and oracle independence are not complete for every promoted semantic feature;
+- evidence records and hash chains exist, but the universal evidence envelope does not bind every source, requirement graph, ISR, plan, backend digest, oracle, artifact, toolchain and raw execution log;
+- direct compilation/materialization routes and governance/publication paths remain distinct; universal quarantine, independent verification and authorized atomic promotion are not established;
+- the root `/v1/compiler/compile` route is reachable independently of the SDK certification routes and is not proven to require CBC-1 before reporting success.
+
+The control objective is not that every compiler call must run one heavyweight campaign synchronously. It is that every route must be governed by the same authoritative contract, must select an evidence-backed target capability subset, and must be unable to publish or claim a higher assurance state without the required independent evidence and authorization.
+
+### 15.6 FS-00 exit-criteria status
+
+| Exit criterion | Integrated status | Remaining blocker |
+|---|---|---|
+| One authoritative RequirementGraph | OPEN | Multiple models/taxonomies and path-specific consumers |
+| One reconciled, versioned ISR contract | OPEN | Contract/schema drift and parallel ISR representations |
+| One canonical compiler IR and mandatory adapters | PARTIAL | Typed `CompilationPlan` exists, but not universal across compiler families |
+| Complete requirement lineage on every production route | PARTIAL | Strong bounded paths; universal route binding absent |
+| MUST requirements cannot silently disappear | NOT ESTABLISHED universally | No mandatory completeness/semantic-diff gate on every route |
+| Explicit per-target semantic subsets and fail-closed behavior | PARTIAL | Strong for reference backends; inconsistent coverage across target families |
+| Tautological tests excluded from verification claims | OPEN | Previously identified weak/tautological generated tests remain to be replaced |
+| Independent requirement oracles for every claimed feature | PARTIAL | Narrow campaigns and feature-specific scenarios |
+| Native build/runtime evidence for every promoted target | NOT ESTABLISHED | Coverage limited by language/framework/toolchain; mobile/native gaps |
+| Complete source-to-runtime evidence envelope | PARTIAL | Universal digest/provenance/log binding incomplete |
+| Quarantine, verification and authorized atomic publication on every route | NOT ESTABLISHED | Direct and path-specific publication routes remain |
+| Equivalent frontend/backend requirement-derived acceptance | NOT ESTABLISHED | UI/API/auth/effect end-to-end semantic contract and evidence incomplete |
+
+### 15.7 Priority closure sequence
+
+The recommended order is dependency-driven. Do not expand certification breadth before settling the shared authority and lineage contracts.
+
+1. **Authority freeze:** publish a governed authority map for RequirementGraph, ISR, Compiler IR, schemas, registries, adapters and active production routes. Reconcile schema drift and disposition every legacy representation based on executable consumers.
+2. **Mandatory lineage boundary:** require every production route to bind the exact approved source snapshot and requirement graph to one versioned ISR revision and canonical typed IR. Emit deterministic mapping/semantic-diff reports; block unresolved MUST requirements and silent drops.
+3. **Capability unification without forced target retirement:** define one versioned semantic capability vocabulary and explicit per-target adapters from it. Map existing Cap-C, Gen-C and behavioral declarations; unknown or unconsumed required semantics remain unsupported.
+4. **Independent acceptance:** derive language-neutral positive, negative, boundary, concurrency, failure/retry and security oracles from approved requirements. Replace tautological tests and require independent verification of each claimed semantic feature.
+5. **Native target evidence:** establish a staged matrix for each backend/frontend/mobile target: static analysis, native build, unit/integration, browser/device runtime, semantic acceptance, security and operational behavior. A missing toolchain is UNKNOWN/SKIPPED, not PASS.
+6. **Frontend/backend integration:** make routes, forms, navigation, state, validation, accessibility, authorization, API operations and effects part of one source-bound application contract. Verify an actual UI action through API, authorization, effect and observable consequence.
+7. **Evidence and publication:** standardize immutable evidence binding source, requirements, ISR, plan, backend digest, oracle, artifacts, toolchain and raw logs. Require quarantine, independent verification and authorized atomic promotion for every publication path.
+8. **Broaden coverage deliberately:** add Angular browser evidence; correct Elixir capability declarations and implement real framework wiring; extend native mobile targets (including iOS/cross-platform) when their semantic adapters and execution environments are ready; broaden CBC-1 beyond Python/Rust. Preserve all existing targets and refuse unsupported work rather than stripping requirements.
+
+### 15.8 Checkpoint 15 disposition and FS-00 conclusion
+
+**Checkpoint 15: COMPLETE. FS-00: NOT CLOSED — integrated disposition PARTIAL / OPEN.**
+
+All 15 planned audit checkpoints have now been completed and consolidated. This closes the planned checkpoint sequence, not the underlying engineering exit criteria. The architecture has substantial reusable components: source-bound requirement projections on selected paths, a content-addressed behavioral ISR, typed loss-aware lowering, fail-closed semantic capability checks, two materially different behavioral reference backends, independent narrow effect oracles, browser evidence for selected frontends, and a source-bound Android structural runner.
+
+The decisive blockers remain: no single reconciled requirement/ISR authority; no universal mandatory source-to-IR lineage; multiple registries and compiler routes without one compulsory governance boundary; uneven semantic and native evidence across targets; incomplete independent requirement acceptance; and no universal quarantine/authorized atomic publication path.
+
+**No target is retired. No capability, readiness or certification status is upgraded. No production implementation, test, workflow or benchmark is modified. Only this consolidated audit report is updated.**

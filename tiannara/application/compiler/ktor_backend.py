@@ -27,9 +27,10 @@ class KtorBackend:
     def name(self): return self.backend_id
     def build_profile(self,system_name):
         return BackendBuildProfile(language="kotlin",
-          required_files=("settings.gradle.kts","build.gradle.kts","src/main/kotlin/Application.kt"),
-          verifier_kind="ktor",build_command=["./gradlew","build"],
-          test_command=["./gradlew","test"],runtime_image="gradle:8-jdk21",
+          required_files=("settings.gradle.kts","build.gradle.kts","src/main/kotlin/Application.kt",
+                          "src/main/kotlin/DomainModels.kt","src/test/kotlin/ApplicationTest.kt"),
+          verifier_kind="ktor",build_command=["gradle","build"],
+          test_command=["gradle","test"],runtime_image="gradle:8-jdk21",
           requires_build_phase=True)
     def build_profile_declaration(self):
         return BackendCapabilityDeclaration(backend_id=self.backend_id,
@@ -66,7 +67,9 @@ dependencies {
     implementation("io.ktor:ktor-server-netty-jvm:3.0.0")
     implementation("io.ktor:ktor-server-content-negotiation-jvm:3.0.0")
     implementation("io.ktor:ktor-serialization-kotlinx-json-jvm:3.0.0")
-    testImplementation(kotlin("test"))
+    testImplementation(kotlin("test-junit5"))
+    testImplementation("io.ktor:ktor-server-test-host-jvm:3.0.0")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.11.3")
 }
 application { mainClass.set("ApplicationKt") }
 tasks.test { useJUnitPlatform() }
@@ -75,10 +78,12 @@ tasks.test { useJUnitPlatform() }
         return '''import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import io.ktor.server.engine.embeddedServer
+import io.ktor.server.netty.Netty
 fun Application.module() {
-    routing { get("/health") { call.respond(mapOf("status" to "ok")) } }
+    routing { get("/health") { call.respondText("ok") } }
 }
-fun main() = io.ktor.server.netty.EngineMain.main(emptyArray())
+fun main() = embeddedServer(Netty, host = "0.0.0.0", port = 8080, module = Application::module).start(wait = true)
 '''
     def _models(self,model):
         out=[]
@@ -91,9 +96,22 @@ fun main() = io.ktor.server.netty.EngineMain.main(emptyArray())
             out.append(",\n".join(fields)); out.append(")\n")
         return "\n".join(out)
     def _test(self):
-        return '''import kotlin.test.Test
+        return '''import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.testing.testApplication
+import kotlin.test.Test
 import kotlin.test.assertEquals
-class ApplicationTest { @Test fun generatedContractExists() { assertEquals("/health", "/health") } }
+
+class ApplicationTest {
+    @Test
+    fun healthRouteReturnsOk() = testApplication {
+        application { module() }
+        val response = client.get("/health")
+        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals("ok", response.bodyAsText())
+    }
+}
 '''
     def _docker(self):
         return '''FROM gradle:8-jdk21 AS build

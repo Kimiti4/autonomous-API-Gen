@@ -46,6 +46,7 @@ def test_rails_generation_emits_bootable_app_and_real_http_test():
     assert 'get "/health"' in test
     assert "assert_response :success" in test
     assert 'response.parsed_body["status"]' in test
+    assert "COPY Gemfile ./" in files["Dockerfile"]
     assert 'CMD ["bundle", "exec", "rails", "server"' in files["Dockerfile"]
 
 

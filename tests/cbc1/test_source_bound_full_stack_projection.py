@@ -20,7 +20,15 @@ def _plan_artifacts(requirement_text="read item"):
         revision=_Dumpable({
             "system_id": "system-1", "revision_id": "rev-1",
             "content_hash": "a" * 64,
+            "revision_hash": "f" * 64,
             "graph": {"nodes": {"isr:domain:item": {"id": "isr:domain:item"}}},
+        }),
+        compiler_ir=_Dumpable({
+            "compilation_id": "compiler-ir-1",
+            "content_hash": "e" * 64,
+            "source_isr_revision_id": "rev-1",
+            "source_isr_content_hash": "a" * 64,
+            "source_isr_revision_hash": "f" * 64,
         }),
         genome=_Dumpable({"genes": []}),
         requirement_graph=_Dumpable({
@@ -150,11 +158,14 @@ def test_complete_shape_is_still_not_claimed_as_semantically_ready():
 
 def test_snapshot_uses_real_plan_artifact_fields_and_inventories_ids():
     snapshot = source_snapshot_from_plan_artifacts(_plan_artifacts())
-    assert snapshot["schema"] == "source-bound-plan-snapshot/1"
+    assert snapshot["schema"] == "source-bound-plan-snapshot/2"
     assert "req:item" in snapshot["source_refs"]
     assert "isr:domain:item" in snapshot["source_refs"]
     assert snapshot["plan"]["plan_id"] == "plan-1"
     assert snapshot["revision"]["content_hash"] == "a" * 64
+    assert snapshot["declared_hashes"]["isr_revision_hash"] == "f" * 64
+    assert snapshot["declared_hashes"]["compiler_ir_id"] == "compiler-ir-1"
+    assert snapshot["declared_hashes"]["compiler_ir_hash"] == "e" * 64
 
 
 def test_snapshot_digest_changes_when_requirement_graph_changes():
@@ -304,6 +315,7 @@ def test_architecture_fact_extraction_preserves_plan_and_isr_relationships():
     artifacts.revision = _Dumpable({
         "system_id": "system-1", "revision_id": "rev-1",
         "content_hash": "a" * 64,
+        "revision_hash": "f" * 64,
         "graph": {
             "nodes": {"isr:domain:item": {"kind": "domain", "name": "Item"}},
             "edges": {"edge:owns": {"source": "isr:domain:item", "target": "isr:service:catalog"}},

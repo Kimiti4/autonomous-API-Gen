@@ -63,7 +63,8 @@ def source_snapshot_from_plan_artifacts(plan_artifacts: Any) -> dict[str, Any]:
     """Create a deterministic snapshot from the real Campaign A PlanArtifacts.
 
     The snapshot inventories identifiers from the requirement graph and ISR
-    graph and preserves the plan/revision/genome payloads. It does not claim
+    graph and preserves the plan, revision, canonical CompilerIR and genome
+    payloads, including exact ISR revision-envelope lineage. It does not claim
     that these identifiers are equivalent or that semantic lowering occurred.
     """
     if plan_artifacts is None:

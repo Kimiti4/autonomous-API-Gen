@@ -148,27 +148,18 @@ class TestCompilationPlanStabilization(unittest.TestCase):
         self.assertIn("plan_id", source)
 
 
-class TestCanonicalCompilerIRIsFutureWork(unittest.TestCase):
-    """The canonical Compiler IR module is R1-D.5 work. R1-D.2 establishes
-    the contract refinements but does NOT create the module."""
+class TestCanonicalCompilerIRImplemented(unittest.TestCase):
+    """The canonical CompilerIR is implemented under compiler/core/canonical_ir.py."""
 
-    def test_no_canonical_compiler_ir_module_yet(self):
-        """There is no compiler/core/canonical_ir.py module yet (R1-D.5)."""
-        import os
-        canonical_ir_path = os.path.join("compiler", "core", "canonical_ir.py")
-        self.assertFalse(
-            os.path.exists(canonical_ir_path),
-            f"{canonical_ir_path} should not exist yet (R1-D.5 work)"
-        )
+    def test_canonical_compiler_ir_module_exists(self):
+        from compiler.core.canonical_ir import CompilerIR
+        self.assertIn("content_hash", CompilerIR.model_fields)
+        self.assertIn("source_isr_content_hash", CompilerIR.model_fields)
+        self.assertIn("execution_plan", CompilerIR.model_fields)
 
-    def test_no_canonical_compiler_ir_test_yet(self):
-        """There is no tests/r1d2/test_canonical_compiler_ir.py test yet (R1-D.5)."""
+    def test_canonical_compiler_ir_tests_exist(self):
         import os
-        canonical_test_path = os.path.join("tests", "r1d2", "test_canonical_compiler_ir.py")
-        self.assertFalse(
-            os.path.exists(canonical_test_path),
-            f"{canonical_test_path} should not exist yet (R1-D.5 work)"
-        )
+        self.assertTrue(os.path.exists("tests/r1d5/test_canonical_compiler_ir.py"))
 
 
 class TestConstitutionalSubstrateOnRetirementPath(unittest.TestCase):

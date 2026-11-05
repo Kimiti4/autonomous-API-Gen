@@ -44,6 +44,7 @@ class Genome(BaseModel):
     source_isr_schema_version: str | None = None
     source_isr_content_hash: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     source_isr_revision_hash: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    source_isr_provenance: Mapping[str, Any] | None = None
 
     @model_validator(mode="after")
     def _validate_source_isr_lineage(self) -> "Genome":
@@ -52,6 +53,7 @@ class Genome(BaseModel):
             self.source_isr_schema_version,
             self.source_isr_content_hash,
             self.source_isr_revision_hash,
+            self.source_isr_provenance,
         )
         if not self.source_graph and all(value is None for value in identity):
             # Unbound genomes remain constructible for isolated operator tests;
@@ -68,6 +70,14 @@ class Genome(BaseModel):
         expected = compute_content_hash(self.source_isr_schema_version, graph)
         if expected != self.source_isr_content_hash:
             raise ValueError("Genome source ISR content hash does not match source_graph")
+        from isr.core.identity import Provenance, compute_revision_hash
+        provenance = Provenance.model_validate(dict(self.source_isr_provenance))
+        expected_revision_hash = compute_revision_hash(
+            self.system_id, self.source_isr_schema_version,
+            self.source_isr_content_hash, provenance,
+        )
+        if expected_revision_hash != self.source_isr_revision_hash:
+            raise ValueError("Genome source ISR revision hash does not match provenance envelope")
         return self
 
 
@@ -85,6 +95,7 @@ def genome_content_hash(genome: Genome) -> str:
         "source_isr_schema_version": genome.source_isr_schema_version,
         "source_isr_content_hash": genome.source_isr_content_hash,
         "source_isr_revision_hash": genome.source_isr_revision_hash,
+        "source_isr_provenance": dict(genome.source_isr_provenance) if genome.source_isr_provenance is not None else None,
     }
     for fam_key in sorted(genome.chromosomes.keys()):
         chrom = genome.chromosomes[fam_key]

@@ -129,25 +129,31 @@ def _verify_workload(root: Path, workload_id: str) -> tuple[list[str], dict[str,
     else:
         record("compiler_ir_present", True, "")
         from compiler.core.canonical_ir import CompilerIR
-        compiler_ir = CompilerIR.model_validate(_read_json(compiler_ir_path))
-        record(
-            "compiler_ir_id",
-            compiler_ir.compilation_id == candidate.compiler_ir_id,
-            f"CompilerIR ID mismatch: evidence={compiler_ir.compilation_id} manifest={candidate.compiler_ir_id}",
-        )
-        record(
-            "compiler_ir_hash",
-            compiler_ir.content_hash == candidate.compiler_ir_hash,
-            f"CompilerIR hash mismatch: evidence={compiler_ir.content_hash} manifest={candidate.compiler_ir_hash}",
-        )
-        record(
-            "compiler_ir_source_isr",
-            revision is not None
-            and compiler_ir.source_isr_content_hash == revision.content_hash
-            and compiler_ir.source_isr_revision_hash == revision.revision_hash
-            and compiler_ir.source_isr_revision_id == revision.revision_id,
-            "CompilerIR source ISR revision binding does not match persisted ISR",
-        )
+        try:
+            compiler_ir = CompilerIR.model_validate(_read_json(compiler_ir_path))
+            record("compiler_ir_valid", True, "")
+        except Exception as exc:
+            compiler_ir = None
+            record("compiler_ir_valid", False, f"CompilerIR validation failed: {exc}")
+        if compiler_ir is not None:
+            record(
+                "compiler_ir_id",
+                compiler_ir.compilation_id == candidate.compiler_ir_id,
+                f"CompilerIR ID mismatch: evidence={compiler_ir.compilation_id} manifest={candidate.compiler_ir_id}",
+            )
+            record(
+                "compiler_ir_hash",
+                compiler_ir.content_hash == candidate.compiler_ir_hash,
+                f"CompilerIR hash mismatch: evidence={compiler_ir.content_hash} manifest={candidate.compiler_ir_hash}",
+            )
+            record(
+                "compiler_ir_source_isr",
+                revision is not None
+                and compiler_ir.source_isr_content_hash == revision.content_hash
+                and compiler_ir.source_isr_revision_hash == revision.revision_hash
+                and compiler_ir.source_isr_revision_id == revision.revision_id,
+                "CompilerIR source ISR revision binding does not match persisted ISR",
+            )
 
     plan_path = root / PLAN_NAME
     plan_payload: Any = None

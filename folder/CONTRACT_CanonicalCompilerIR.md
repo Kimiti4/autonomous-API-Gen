@@ -316,7 +316,7 @@ The canonical CompilerIR is not a renamed CompilationPlan and does not become an
 - The Campaign A plan builder binds the ArchitectureCandidate content hash and uses CompilerIR before backend execution.
 - The source-bound authorization campaign uses CompilerIR with an explicit not-applicable ArchitectureCandidate state and invokes `assert_compiler_ir_supported` before backend compilation.
 - The compatibility gate enforces CompilerIR backend constraints and the existing plan semantic capability gate. The backend's own capability gate remains in place as defense in depth.
-- The transitional plan projection sorts source nodes and relationships deterministically and rejects unresolved frontend route/interaction bindings rather than filtering them or silently emitting null targets.
+- The transitional plan projection sorts source nodes and relationships deterministically and rejects unresolved frontend route/interaction bindings rather than filtering them or silently emitting null targets. Any source element marked `required_for_backend=true` or `backend_required=true` but retained only in CompilerIR creates a blocking diagnostic that is copied into CompilationPlan; the existing backend capability gate rejects that plan, preventing the compatibility API from bypassing the CompilerIR blocker.
 
 ## 24. Route coverage and limits
 

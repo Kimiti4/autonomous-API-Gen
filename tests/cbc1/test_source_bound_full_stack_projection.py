@@ -19,6 +19,7 @@ def _plan_artifacts(requirement_text="read item"):
         plan=_Dumpable({"plan_id": "plan-1", "isr_id": "isr-1", "services": []}),
         revision=_Dumpable({
             "system_id": "system-1", "revision_id": "rev-1",
+            "schema_version": "1.0",
             "content_hash": "a" * 64,
             "revision_hash": "f" * 64,
             "graph": {"nodes": {"isr:domain:item": {"id": "isr:domain:item"}}},
@@ -31,7 +32,7 @@ def _plan_artifacts(requirement_text="read item"):
             "source_isr_content_hash": "a" * 64,
             "source_isr_revision_hash": "f" * 64,
         }),
-        genome=_Dumpable({"genes": [], "source_isr_revision_id": "rev-1", "source_isr_content_hash": "a" * 64, "source_isr_revision_hash": "f" * 64}),
+        genome=_Dumpable({"genes": [], "source_isr_revision_id": "rev-1", "source_isr_schema_version": "1.0", "source_isr_content_hash": "a" * 64, "source_isr_revision_hash": "f" * 64}),
         requirement_graph=_Dumpable({
             "nodes": {
                 "req:item": {"id": "req:item", "statement": requirement_text},

@@ -24,7 +24,7 @@ jobs:
           distribution: temurin
           java-version: "21"
       - name: Install compiler test dependencies
-        run: python -m pip install pytest
+        run: python -m pip install -e ".[dev]"
       - name: Run Spring Boot generator contract tests
         run: python -m pytest -q tests/test_spring_boot_backend.py
       - name: Build generated Spring Boot project and verify HTTP contract

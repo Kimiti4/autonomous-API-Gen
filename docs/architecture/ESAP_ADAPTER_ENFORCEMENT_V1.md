@@ -48,7 +48,7 @@ Existing backend-level capability checks remain enabled as defense in depth. A b
 
 ## 5. Evidence binding
 
-The TOR SourceTraceability record is now schema `1.1` and binds both ISR graph and revision-envelope hashes. The source-bound authorization candidate manifest is schema `1.2.0`. It binds the ISR graph content hash, ISR revision-envelope hash, CompilerIR compilation ID/content hash, and transitional plan hash. The campaign persists `compiler-ir.json`; the independent verifier reloads it, validates its identity/content hash, checks both ISR hashes and revision ID, and verifies that the persisted plan exactly matches the CompilerIR execution-plan projection. Mutation tests now require the ISR revision and CompilerIR hashes to invalidate alongside the other candidate bindings.
+The TOR SourceTraceability record is now schema `1.1` and binds both ISR graph and revision-envelope hashes. The source-bound authorization candidate manifest is schema `1.2.0`. Payroll certification candidate hashes also bind the exact ISR revision and CompilerIR identities. It binds the ISR graph content hash, ISR revision-envelope hash, CompilerIR compilation ID/content hash, and transitional plan hash. The campaign persists `compiler-ir.json`; the independent verifier reloads it, validates its identity/content hash, checks both ISR hashes and revision ID, and verifies that the persisted plan exactly matches the CompilerIR execution-plan projection. Mutation tests now require the ISR revision and CompilerIR hashes to invalidate alongside the other candidate bindings.
 
 ## 6. Current route adoption
 
@@ -86,4 +86,4 @@ A4 is not universally complete until:
 5. adversarial tests remove a source field, relationship, binding, or required capability and prove the route blocks before artifact generation;
 6. route-level runtime evidence confirms the behavior, not just static imports or test doubles.
 
-**Current assessment:** the first common report and gate exist, and two identified production routes are wired through them. System-wide enforcement remains NOT ESTABLISHED pending route inventory, tests and CI evidence.
+**Current assessment:** the first common report and gate exist, and three identified production/certification routes are wired through them. System-wide enforcement remains NOT ESTABLISHED pending route inventory, tests and CI evidence.

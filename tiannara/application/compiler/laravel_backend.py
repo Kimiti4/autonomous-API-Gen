@@ -1,6 +1,6 @@
 """Typed PHP/Laravel compiler backend.
 
-Emits a minimal bootable Laravel 11 HTTP application. Generated model classes
+Emits a minimal bootable Laravel 12 HTTP application. Generated model classes
 remain structural shells; business semantics are not implied.
 """
 from __future__ import annotations
@@ -103,7 +103,7 @@ class LaravelBackend:
         return r'''{
   "name": "esap/generated-laravel",
   "type": "project",
-  "require": {"php": "^8.3", "laravel/framework": "^11.0"},
+  "require": {"php": "^8.3", "laravel/framework": "^12.0"},
   "require-dev": {"phpunit/phpunit": "^11.0"},
   "autoload": {"psr-4": {"App\\": "app/"}},
   "autoload-dev": {"psr-4": {"Tests\\": "tests/"}},
@@ -260,7 +260,7 @@ CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
     def _readme(self, system_name):
         return f"""# {system_name}
 
-Generated Laravel 11 HTTP application.
+Generated Laravel 12 HTTP application.
 
 Install dependencies with composer install, run tests with php artisan test,
 and start the development server with php artisan serve.

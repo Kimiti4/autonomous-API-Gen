@@ -194,6 +194,12 @@ def build_candidate(
 
 def candidate_from_manifest(manifest: Mapping[str, Any]) -> AuthorizationCandidate:
     """Rebuild a candidate from a persisted manifest."""
+    if manifest.get("schema_id") != CANDIDATE_SCHEMA_ID:
+        raise ValueError("authorization candidate manifest has an unknown schema_id")
+    if manifest.get("schema_version") != CANDIDATE_SCHEMA_VERSION:
+        raise ValueError(
+            f"unsupported authorization candidate schema version: {manifest.get('schema_version')!r}"
+        )
     return AuthorizationCandidate(
         candidate_id=manifest["candidate_id"],
         corpus_id=manifest["corpus_id"],

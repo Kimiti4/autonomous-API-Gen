@@ -222,6 +222,9 @@ def test_backend_required_semantics_outside_plan_projection_block_lowering():
         assert_plan_supported(
             legacy_plan, BackendCapabilities(backend_id="python-fastapi", version="1.0")
         )
+    from compiler.backends.react_frontend import ReactFrontendBackend
+    with pytest.raises(UnsupportedSemanticsError, match="frontend lowering"):
+        ReactFrontendBackend().compile(legacy_plan)
 
 
 

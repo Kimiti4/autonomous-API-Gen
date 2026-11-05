@@ -15,6 +15,7 @@ from compiler.core.plan import (
     FrontendInteraction,
     FrontendRoute,
     Invariant,
+    InvariantBinding,
     SecurityPolicy,
     Service,
 )
@@ -47,6 +48,7 @@ def _isr_to_plan_stabilization(revision: ISRRevision) -> CompilationPlan:
     apis: list[ApiOperation] = []
     effects: list[Effect] = []
     invariants: list[Invariant] = []
+    invariant_bindings: list[InvariantBinding] = []
     consequence_nodes: dict[str, object] = {}
 
     for node_id, node in sorted(graph.nodes.items()):
@@ -86,6 +88,7 @@ def _isr_to_plan_stabilization(revision: ISRRevision) -> CompilationPlan:
             consequence_nodes[node_id] = node
 
     effects_by_id = {effect.id: effect for effect in effects}
+    invariant_ids = {item.id for item in invariants}
     api_ids = {api.id for api in apis}
     effect_bindings: list[EffectBinding] = []
     consequence_targets: dict[str, list[str]] = {}
@@ -103,6 +106,14 @@ def _isr_to_plan_stabilization(revision: ISRRevision) -> CompilationPlan:
             ))
             if graph.nodes[edge.source_id].type == NodeType.SERVICE:
                 svc_effects.setdefault(edge.source_id, []).append(effects_by_id[edge.target_id])
+        elif edge.type == EdgeType.REQUIRES_INVARIANT:
+            if edge.source_id not in graph.nodes or edge.target_id not in invariant_ids:
+                raise ValueError(
+                    f"REQUIRES_INVARIANT edge {edge.id!r} has an unresolved source or invariant target"
+                )
+            invariant_bindings.append(InvariantBinding(
+                edge_id=edge.id, source_id=edge.source_id, invariant_id=edge.target_id
+            ))
         elif edge.type == EdgeType.CONSEQUENCE_OF:
             if edge.source_id not in consequence_nodes:
                 raise ValueError(
@@ -251,6 +262,7 @@ def _isr_to_plan_stabilization(revision: ISRRevision) -> CompilationPlan:
         effect_bindings=effect_bindings,
         consequences=consequences,
         invariants=invariants,
+        invariant_bindings=invariant_bindings,
         frontend_routes=frontend_routes,
         frontend_interactions=list(frontend_interactions.values()),
     )

@@ -218,6 +218,14 @@ def project_source_bound_full_stack(
                     "SBFS-032",
                     "mapping provenance is bound to a stale source hash; semantic bindings must be rebuilt",
                 ))
+            if source_dict is not None and source_dict.get("schema") == "source-bound-plan-snapshot/2":
+                declared = source_dict.get("declared_hashes", {})
+                for field in ("isr_content_hash", "isr_revision_hash", "compiler_ir_id", "compiler_ir_hash"):
+                    if not declared.get(field) or provenance.get(field) != declared.get(field):
+                        blockers.append(ProjectionBlocker(
+                            "SBFS-033",
+                            f"mapping provenance {field} does not match canonical source snapshot",
+                        ))
 
     if source_dict is not None and isinstance(explicit_mapping, Mapping):
         blockers.extend(_validate_semantic_obligations(source_dict, explicit_mapping))
@@ -1105,6 +1113,11 @@ class SourceBoundSemanticCorrespondenceVerifier:
             else:
                 if provenance.get("source_hash") != source_hash or not source_hash:
                     findings.append("mapping source_hash does not match recomputed source artifacts")
+                if source_dict is not None and source_dict.get("schema") == "source-bound-plan-snapshot/2":
+                    declared = source_dict.get("declared_hashes", {})
+                    for field in ("isr_content_hash", "isr_revision_hash", "compiler_ir_id", "compiler_ir_hash"):
+                        if not declared.get(field) or provenance.get(field) != declared.get(field):
+                            findings.append(f"mapping provenance {field} does not match canonical source snapshot")
                 refs = provenance.get("source_refs")
                 known = source_dict.get("source_refs") if source_dict else None
                 if not isinstance(refs, (list, tuple)) or not refs:

@@ -38,7 +38,7 @@ class LaravelBackend:
             language="php",
             required_files=("composer.json", "artisan", "bootstrap/app.php",
                             "bootstrap/providers.php", "public/index.php",
-                            "routes/api.php", "phpunit.xml", "tests/TestCase.php",
+                            "routes/api.php", "config/app.php", "config/logging.php",\n                            "phpunit.xml", "tests/TestCase.php",
                             "tests/Feature/HealthTest.php"),
             verifier_kind="laravel",
             build_command=["composer", "install", "--no-interaction", "--prefer-dist"],
@@ -170,7 +170,7 @@ return [
             'level' => env('LOG_LEVEL', 'debug'),
             'replace_placeholders' => true,
         ],
-        'null' => ['driver' => 'monolog', 'handler' => Monolog\\Handler\\NullHandler::class],
+        'null' => ['driver' => 'monolog', 'handler' => Monolog\Handler\NullHandler::class],
     ],
 ];
 '''

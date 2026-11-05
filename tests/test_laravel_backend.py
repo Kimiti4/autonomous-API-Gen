@@ -39,7 +39,8 @@ def test_laravel_generation_emits_bootable_http_contract_and_real_test():
 
     composer = json.loads(files["composer.json"])
     assert composer["require"]["laravel/framework"] == "^12.0"
-    assert composer["require-dev"]["phpunit/phpunit"] == "^11.0"
+    assert composer["require-dev"]["phpunit/phpunit"] == "^11.5"
+    assert composer["require-dev"]["nunomaduro/collision"] == "^8.6"
     assert composer["autoload"]["psr-4"] == {"App\\": "app/"}
     assert composer["autoload-dev"]["psr-4"] == {"Tests\\": "tests/"}
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from datetime import datetime, timezone
 from typing import Any, Literal
 from uuid import NAMESPACE_URL, uuid5
 
@@ -257,6 +258,7 @@ class CompilerIR(BaseModel):
         source_architecture_candidate_content_hash: str | None = None,
         architecture_reference_reason: str | None = None,
         backend_constraints: tuple[str, ...] = (),
+        lowering_timestamp: str | None = None,
     ) -> "CompilerIR":
         if source_architecture_candidate_content_hash is None and not architecture_reference_reason:
             raise ValueError(
@@ -299,7 +301,7 @@ class CompilerIR(BaseModel):
             | {feature.value for feature in required_frontend_features(execution_plan)}
         )
         operator = "compiler.core.lowering.isr_revision_to_compiler_ir@1.0.0"
-        timestamp = revision.provenance.created_at
+        timestamp = lowering_timestamp or datetime.now(timezone.utc).isoformat()
         chain = (
             "isr.core.revision.ISRRevision",
             "compiler.core.canonical_ir.CompilerIR",

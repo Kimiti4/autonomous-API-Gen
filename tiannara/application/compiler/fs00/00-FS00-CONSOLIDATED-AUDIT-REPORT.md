@@ -3,7 +3,7 @@
 **Version:** 1.0 | **Date:** 2026-11-05  
 **Repository:** `Kimiti4/autonomous-API-Gen`  
 **Branch:** `remediation/esap-android-compiler-stage-a`  
-**Audited head:** `c3ef3855986713806e26a88fda2fb7f373ec277c`  
+**Audited head:** `130501b8aff88e750cfeb62c6ae816b982f45499`  
 **PR:** #201, open draft, unmerged; base `remediation/w12-executable-effect-contract`  
 **Boundary:** Documentation/source audit only. No production code, tests, workflows, registrations or certification records changed.
 
@@ -612,3 +612,106 @@ The older Autonomous API `ProductionReadinessGate` is also not equivalent to cer
 ### 12.5 Checkpoint 12 disposition
 
 **PARTIAL — source inspection confirms several useful local gates, including Gen-C's pre-generation source-bound certification check and Autonomous API's governed evolution publisher. They are not universal. Gen-A compiles and packages through a separate route without SDK/CBC certification enforcement; ProjectCompiler exposes an independently callable forced materializer with write-before-refusal behavior; and CBC-1 is not a mandatory prerequisite across compiler families. No production implementation, test, workflow, capability declaration, certification status or generated artifact was changed.**
+
+
+---
+
+## 13. Checkpoint 13 — backend and language coverage
+
+**Inspected revision:** `130501b8aff88e750cfeb62c6ae816b982f45499`  
+**Scope:** registered target inventory, language/framework diversity, capability declarations, semantic gates, backend conformance, verification profiles and available native-execution evidence. This is a source/documentation audit; no generated target was built or run during this checkpoint.
+
+### 13.1 ProjectCompiler target inventory
+
+The Cap-C composition root registers 21 target implementations in one in-memory `CompilerRegistry`:
+
+| Target family | Registered IDs | Language / platform |
+|---|---|---|
+| Backend services (11) | `fastapi_hexagonal`, `go_hexagonal`, `rust_axum`, `nestjs`, `spring_boot`, `aspnet_core`, `phoenix`, `ktor`, `express`, `laravel`, `rails` | Python, Go, Rust, TypeScript/JavaScript, Java, C#, Elixir, Kotlin, PHP, Ruby |
+| Frontend/application (10) | `android`, `react`, `vue`, `angular`, `next`, `nuxt`, `svelte`, `liveview`, `hologram`, `scenic` | Kotlin/Android plus JavaScript/TypeScript and Elixir-oriented web targets |
+
+The registry is real wiring, not just a documentation list: `build_compiler_registry()` constructs each backend and registers its backend-supplied declaration. The compiler-matrix test asserts at least 20 declarations and checks that select-all planning can resolve each declaration's own artifact-kind/capability requirement. This proves registry/selection coverage for those declarations, not that every target compiles a representative full application, builds natively, runs, or preserves every ISR semantic.
+
+A composition docstring is stale: `build_project_compiler()` says the omitted registry defaults to a FastAPI-only registry, but the implementation actually calls `build_compiler_registry()` and therefore supplies the 21-target registry. This is a documentation defect; the inspected code path is the authority for this checkpoint.
+
+### 13.2 Distinct capability authorities do not add up to universal semantic coverage
+
+Three relevant capability systems remain separate:
+
+1. **Cap-C `BackendCapabilityDeclaration`:** used by the 21-target ProjectCompiler registry and selector. Selection matches artifact kind and broad `BundleCapability` declarations. It does not itself prove that each backend consumes and enforces the typed behavioral obligations in canonical `CompilationPlan`.
+2. **Canonical behavioral `BackendCapabilities`:** `compiler/core/capabilities.py` derives semantic obligations from a `CompilationPlan` and rejects unsupported features. The current reference behavioral implementations inspected here are Python FastAPI and Rust Axum. This strong gate is not wired as a universal adapter for all 21 Cap-C targets.
+3. **Gen-C backend conformance:** `tiannara/application/compilation/backend_capability_registry.py` registers seven real category backends (React, FastAPI, Postgres, Terraform, CI/CD, Pytest and Markdown) against its separate 12-semantic/14-carrier contract. It uses explicit SUPPORTED / PARTIALLY_SUPPORTED / UNSUPPORTED declarations and a projection adapter. This is useful evidence of honest limits for those seven implementations, but it is not the Cap-C registry or the canonical behavioral backend registry.
+
+**Finding:** a target's presence in one registry, or its broad artifact capability declaration, must not be interpreted as certification under either of the other semantic contracts.
+
+### 13.3 Observed Gen-C semantic coverage
+
+The seven Gen-C declarations are deliberately sparse:
+
+| Backend | SUPPORTED | PARTIALLY_SUPPORTED | Consequence |
+|---|---|---|---|
+| React | behavior transitions; business capabilities | — | Temporal, requirement/acceptance traceability, design-token and other carriers remain unsupported |
+| FastAPI | behavior transitions; business capabilities | reliability/resilience; architecture boundaries; deployment rollout/rollback | Several dimensions are only structural/presence-level; deployment behavior is not fully realized |
+| Postgres | data migrations | — | Migration target schema is supported; compatibility/rollback and other semantic carriers are not |
+| Terraform | — | deployment rollout/rollback | Topology artifacts are emitted from structural genome inputs; rollout/health/rollback semantics are not realized |
+| CI/CD | — | deployment rollout/rollback; testing anchoring; reliability/resilience | Presence-level bundle composition, not full policy/evidence semantics |
+| Pytest | — | testing anchoring | Test artifacts are emitted but are not bound to acceptance-anchor evidence |
+| Markdown | documentation | — | Native documentation artifacts exist, but DocumentationIntent purpose/audience/coverage references are not consumed |
+
+The registry defaults undeclared semantic IDs to UNSUPPORTED, which is the correct fail-closed posture. Its own findings also identify genome-driven or empty-default behavior outside the semantic projection. These declarations must not be silently upgraded because the corresponding backend can emit an artifact.
+
+### 13.4 Canonical behavioral backend coverage
+
+The canonical semantic gate is materially stronger than broad bundle-capability selection. It derives obligations including typed fields, decimal shape, constraints, expressions, business rules, state transitions, API contracts, authorization, executable effects, effect-policy/binding preservation, consequence preservation, invariants and typed events.
+
+The two inspected reference backends declare different subsets:
+
+- Python FastAPI supports typed fields, decimal shape, expressions, business rules, state transitions, API contracts, authorization, effect policy/binding preservation, consequence preservation and executable-effect execution. It also performs plan-level authorization-enforceability checks.
+- Rust Axum supports typed fields, decimal shape, expressions, business rules, state transitions and preservation of effect policy/bindings and consequences. It does not claim the Python backend's API-contract, authorization or executable-effect feature set.
+
+The tests correctly assert that unsupported semantics fail before emission. They also expose an important distinction: preservation of an effect binding or consequence is not the same as executing the external effect or realizing its consequence. The test suite explicitly keeps bank-transfer semantics blocked pending durable execution binding. Rust API contracts and authorization obligations also remain blocked. The two backends therefore provide a useful, intentionally non-identical semantic baseline, not full parity.
+
+### 13.5 Verification and native execution are uneven by language
+
+Cap-C build profiles carry language, required files, build/test commands and optional runtime-image/build-phase information. The deterministic verifier dispatch is much narrower:
+
+- Python: required files, Python syntax compilation and domain-to-outer-layer import direction.
+- Go: required files, `go.mod` module declaration and domain import direction.
+- Other languages: `RequiredFilesVerifier`, which checks required-file presence only.
+
+Consequently, Kotlin, Rust, TypeScript/JavaScript, Java, C#, Elixir, PHP and Ruby do not receive equivalent language-aware syntax/compile checks from this deterministic verifier dispatch. Some backends supply native build/test commands, and a separate execution harness may run them when the toolchain is available; a declared command or a skipped toolchain stage is not native PASS evidence.
+
+CBC-1 Campaign A is explicitly fixed to **39 workloads × 2 backends: Python FastAPI and Rust Axum**. Its real-Docker entrypoint records evidence for those two targets only. This is meaningful cross-backend campaign coverage, but it does not certify the remaining Cap-C languages or frontend/mobile targets. The compiler-matrix test is a registration/planning test; it is not a 21-target native build campaign.
+
+### 13.6 Android and frontend boundary
+
+The Cap-C Android backend is intentionally narrow. It emits a Kotlin/Jetpack Compose static model-catalogue shell, requires at least one data model, and refuses service, API and event semantics. Its declaration is limited to BUILD and DOCUMENTATION; it does not claim persistence, CRUD, authentication, synchronization or network behavior. Its build profile names a Gradle debug-APK command but no test command. The Android backend tests verify registration, emitted project structure, determinism and refusal of unsupported semantics; they do not establish an executed Gradle build, APK installation, emulator behavior or device-level acceptance.
+
+The frontend targets likewise must be assessed per target and per assurance level. Existing compile-time refusal tests and emitted Playwright artifacts do not prove generated authorization runtime behavior or native mobile execution. The Android cloud-build workflow and the two Android compiler implementations remain distinct routes; none of this checkpoint's source inspection upgrades Stage A or Android certification.
+
+### 13.7 Confirmed findings
+
+- **FS00-048 — Cap-C has 21 registered target implementations, not 21 certified application compilers.** The registry covers 11 backend-service targets and 10 frontend/application targets across multiple languages and frameworks. Registry presence and selection are established; complete application behavior and native execution are not.
+- **FS00-049 — Cap-C's broad bundle-capability selection is not canonical semantic certification.** The selector matches artifact kinds and declared bundle capabilities. It is not a substitute for `required_features(CompilationPlan)` or independent semantic conformance.
+- **FS00-050 — canonical behavioral enforcement is currently narrow.** The inspected canonical semantic capability gate is implemented by the Python FastAPI and Rust Axum reference backends; no universal adapter applies it to all Cap-C or Gen-C backends.
+- **FS00-051 — Gen-C's seven-backend conformance registry is a separate authority.** Its explicit 12-semantic/14-carrier declarations are valuable but cannot be transferred to the 21 Cap-C targets or the canonical behavioral registry without tested adapters and evidence.
+- **FS00-052 — declared Gen-C semantic support remains sparse and frequently partial.** Only selected dimensions are fully supported; several deployment, reliability, testing and architecture claims are presence-level or structurally derived, and many carriers remain unsupported.
+- **FS00-053 — language-aware static verification is incomplete.** The Cap-C verifier provides deeper Python and Go checks; other languages fall back to required-file presence in the deterministic verifier dispatch. Backend-supplied build commands do not prove they were executed.
+- **FS00-054 — CBC-1's native campaign covers two backend languages only.** Campaign A's 78 trials are Python FastAPI and Rust Axum across 39 workloads. They do not certify the other backend, frontend, mobile or Android targets.
+- **FS00-055 — Android is a real but deliberately static target.** It emits a Kotlin/Compose project shell and refuses service/API/event semantics; a Gradle command and structural tests do not establish a successful APK build or device behavior.
+- **FS00-056 — the ProjectCompiler composition documentation is stale.** The `build_project_compiler` docstring says its default registry is FastAPI-only, while the current implementation calls the 21-target `build_compiler_registry()`. Correct the documentation in a later implementation change; do not alter production code during FS-00.
+
+### 13.8 Required remediation sequence
+
+1. Preserve all 21 target implementations. Do not retire a useful language/framework merely because its semantic coverage or native toolchain evidence is incomplete.
+2. Define one technology-neutral semantic capability contract and explicit, versioned adapters from it into each target. Unknown or unconsumed mandatory semantics must block generation.
+3. Reconcile Cap-C bundle capabilities, canonical behavioral features and Gen-C carrier declarations through evidence-backed mappings. No implicit capability transfer across registries.
+4. Build a per-target capability matrix covering input consumption, emitted behavior, unsupported semantics, build/test commands, native toolchain availability, runtime evidence and independent acceptance.
+5. Add language-aware static verification and real native build/test stages for each target. Record missing toolchains as SKIPPED/UNKNOWN, never PASS.
+6. Expand CBC-1 or an equivalent independent campaign incrementally across backend languages and representative frontend/mobile targets. Preserve the current Python/Rust evidence scope and do not generalize its verdict.
+7. For Android, bind the compiler to the canonical behavioral IR and implement only explicitly supported semantic subsets; retain fail-closed refusal until runtime, persistence, authorization and device behavior are genuinely implemented and independently tested.
+8. Fix the stale composition docstring in a separate reviewed implementation change, not in this read-only audit checkpoint.
+
+### 13.9 Checkpoint 13 disposition
+
+**PARTIAL — the repository has broad and useful language/framework diversity, including 21 Cap-C target registrations, a stronger canonical semantic gate for Python/Rust, and a separate evidence-based seven-backend Gen-C conformance registry. These systems do not yet form one shared semantic capability authority. Native campaign evidence is concentrated on Python FastAPI and Rust Axum; language-aware static verification is uneven; and Android remains a deliberately static Kotlin/Compose shell. No production implementation, test, workflow, registration, capability declaration, certification state or generated artifact was changed.**

@@ -45,6 +45,7 @@ def test_ktor_build_profile_matches_generated_project():
     app = result.files["src/main/kotlin/Application.kt"]
     test = result.files["src/test/kotlin/ApplicationTest.kt"]
     build = result.files["build.gradle.kts"]
+    docker = result.files["Dockerfile"]
     assert "embeddedServer(Netty" in app
     assert 'call.respondText("ok")' in app
     assert "EngineMain" not in app
@@ -52,3 +53,7 @@ def test_ktor_build_profile_matches_generated_project():
     assert 'client.get("/health")' in test
     assert "assertEquals(HttpStatusCode.OK, response.status)" in test
     assert "ktor-server-test-host-jvm" in build
+    assert "installDist" in docker
+    assert f"/app/build/install/{result.system_name}/" in docker
+    assert f'ENTRYPOINT ["/app/bin/{result.system_name}"]' in docker
+    assert "EXPOSE 8080" in docker

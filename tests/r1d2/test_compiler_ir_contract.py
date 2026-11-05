@@ -64,11 +64,13 @@ class TestD2D4RefinementDocumented(unittest.TestCase):
         plan_fields = CompilationPlan.model_fields
         self.assertNotIn("source_architecture_content_hash", plan_fields)
 
-    def test_compilationplan_does_not_have_backend_constraints(self):
-        """CompilationPlan does NOT have backend_constraints yet. R1-D.5."""
+    def test_backend_constraints_are_authoritative_in_compiler_ir_and_carried_by_adapter(self):
+        """CompilerIR owns constraints; CompilationPlan carries them only to prevent gate bypass."""
+        from compiler.core.canonical_ir import CompilerIR
         from compiler.core.plan import CompilationPlan
-        plan_fields = CompilationPlan.model_fields
-        self.assertNotIn("backend_constraints", plan_fields)
+        self.assertIn("backend_constraints", CompilerIR.model_fields)
+        self.assertIn("backend_constraints", CompilationPlan.model_fields)
+        self.assertIn("blocking_diagnostics", CompilationPlan.model_fields)
 
     def test_compilationplan_does_not_have_required_capabilities(self):
         """CompilationPlan does NOT have required_capabilities yet. R1-D.5."""

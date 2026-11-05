@@ -77,8 +77,16 @@ def source_snapshot_from_plan_artifacts(plan_artifacts: Any) -> dict[str, Any]:
         return payload
 
     plan = dump(getattr(plan_artifacts, "plan", None), "compilation plan")
-    revision = dump(getattr(plan_artifacts, "revision", None), "ISR revision")
-    compiler_ir = dump(getattr(plan_artifacts, "compiler_ir", None), "canonical CompilerIR")
+    revision_object = getattr(plan_artifacts, "revision", None)
+    revision = dump(revision_object, "ISR revision")
+    compiler_ir_object = getattr(plan_artifacts, "compiler_ir", None)
+    compiler_ir = dump(compiler_ir_object, "canonical CompilerIR")
+    from isr.core.revision import ISRRevision
+    from compiler.core.canonical_ir import CompilerIR
+    if isinstance(revision_object, ISRRevision):
+        ISRRevision.model_validate(revision)
+    if isinstance(compiler_ir_object, CompilerIR):
+        CompilerIR.model_validate(compiler_ir)
     genome_object = getattr(plan_artifacts, "genome", None)
     from evolution.core.genome import Genome, genome_content_hash
     if isinstance(genome_object, Genome):

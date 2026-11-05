@@ -164,7 +164,7 @@ Tests must be independent of the adapter implementation where practical. A test 
 | Select target RequirementGraph owner | DECIDED: `reqgraph/core` |
 | Select target ISR owner | DECIDED: `isr/core` |
 | A1 RequirementGraph model/consumer inventory | COMPLETE FOR IDENTIFIED MODELS; production reachability and migration remain open |
-| Reconcile D03 with actual 14/18 schema | OPEN — schema ADR required |
+| Reconcile D03 with actual 14/18 schema | PROPOSAL READY — human approval required; see [ISR Schema Reconciliation ADR](ESAP_ISR_SCHEMA_RECONCILIATION_ADR_V1.md) |
 | Select final CompilerIR implementation | OPEN — D07 vs `CompilationPlan` ADR required |
 | Inventory every live consumer and production route | PARTIAL — A1 inventory published; route reachability remains open |
 | Implement mandatory adapters across all routes | NOT STARTED |
@@ -172,6 +172,8 @@ Tests must be independent of the adapter implementation where practical. A test 
 | Enforce universal quarantine and publication gates | NOT ESTABLISHED |
 
 **A1 artifact:** [ESAP RequirementGraph Consumer Inventory](ESAP_REQUIREMENT_GRAPH_CONSUMER_INVENTORY_V1.md). It identifies five materially different graph/IR representations and their direct consumers; it does not yet establish full production route reachability.
+
+**A2 artifact:** [ISR Schema Reconciliation ADR](ESAP_ISR_SCHEMA_RECONCILIATION_ADR_V1.md). It proposes preserving the current 14/18 taxonomy as schema 2.0, formal schema registry enforcement, and a separate revision/provenance identity. This is explicitly awaiting human governance approval; no schema or runtime code has changed.
 
 **Phase 1 outcome:** target ownership is made explicit without pretending the contracts and runtime are already reconciled. The next implementation unit is A1, the RequirementGraph consumer inventory, followed by A2 and A3. No target is retired and no capability/certification status is upgraded.
 

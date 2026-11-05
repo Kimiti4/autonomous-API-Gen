@@ -40,8 +40,8 @@ class Genome(BaseModel):
     chromosomes: Mapping[str, Chromosome] = Field(default_factory=dict)
     # Immutable semantic substrate and exact ISR revision lineage; never evolvable genes.
     source_graph: Mapping[str, Any] = Field(default_factory=dict)
-    source_isr_revision_id: str | None = None
-    source_isr_schema_version: str | None = None
+    source_isr_revision_id: str | None = Field(default=None, min_length=1)
+    source_isr_schema_version: str | None = Field(default=None, min_length=1)
     source_isr_content_hash: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     source_isr_revision_hash: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     source_isr_provenance: Mapping[str, Any] | None = None

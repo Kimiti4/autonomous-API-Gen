@@ -365,6 +365,7 @@ def test_architecture_fact_mutation_changes_source_hash_and_fact_value():
             }],
             "security": [{"policy_id": "policy:read"}],
         })
+        artifacts.compiler_ir = _Dumpable({**artifacts.compiler_ir.payload, "execution_plan": artifacts.plan.payload})
     first = extract_architecture_facts(source_snapshot_from_plan_artifacts(first_artifacts))
     changed = extract_architecture_facts(source_snapshot_from_plan_artifacts(changed_artifacts))
     assert first.services[0]["name"] != changed.services[0]["name"]
@@ -382,6 +383,7 @@ def test_missing_plan_semantics_are_blockers_not_inferred_defaults():
         "services": [{"id": "svc:empty", "name": "Empty"}],
         "security": [],
     })
+    artifacts.compiler_ir = _Dumpable({**artifacts.compiler_ir.payload, "execution_plan": artifacts.plan.payload})
     facts = extract_architecture_facts(source_snapshot_from_plan_artifacts(artifacts))
     assert not facts.complete_for_full_stack
     assert any("no explicit data models" in blocker for blocker in facts.blockers)

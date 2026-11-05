@@ -151,8 +151,8 @@ def _projection_report(revision: ISRRevision, plan: CompilationPlan) -> Compiler
             if consequence and edge.target_id in consequence.related_node_ids:
                 projected_edges.add(edge.id)
 
-    source_nodes = set(revision.graph.nodes)
-    source_edges = set(revision.graph.edges)
+    source_nodes = {node.id for node in revision.graph.nodes.values()}
+    source_edges = {edge.id for edge in revision.graph.edges.values()}
     source_node_ids = tuple(sorted(source_nodes))
     source_relationship_ids = tuple(sorted(source_edges))
     projected_node_ids = tuple(sorted(projected_nodes & source_nodes))

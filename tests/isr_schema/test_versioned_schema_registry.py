@@ -101,3 +101,29 @@ def test_graph_hash_and_revision_envelope_hash_have_distinct_meanings():
     )
     assert first.content_hash == second.content_hash
     assert first.revision_hash != second.revision_hash
+
+
+
+def test_direct_revision_construction_cannot_bypass_schema_or_hash_validation():
+    from isr.core.identity import compute_content_hash
+
+    graph = _legacy_graph()
+    provenance = _provenance()
+    with pytest.raises((ISRSchemaViolation, ValueError)):
+        ISRRevision(
+            system_id="sys",
+            revision_id="rev",
+            schema_version="9.9",
+            graph=graph,
+            provenance=provenance,
+            content_hash=compute_content_hash("9.9", graph),
+        )
+    with pytest.raises(ValueError, match="content_hash"):
+        ISRRevision(
+            system_id="sys",
+            revision_id="rev",
+            schema_version="2.0",
+            graph=graph,
+            provenance=provenance,
+            content_hash="0" * 64,
+        )

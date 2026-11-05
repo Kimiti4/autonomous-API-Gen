@@ -46,4 +46,5 @@ class ReferenceArchitectureRefinement:
             source_isr_schema_version=genome.source_isr_schema_version,
             source_isr_content_hash=genome.source_isr_content_hash,
             source_isr_revision_hash=genome.source_isr_revision_hash,
+            source_isr_provenance=genome.source_isr_provenance,
         )

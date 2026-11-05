@@ -1,5 +1,5 @@
 from isr.core.graph import Edge, EdgeType, ISRGraph, Node, NodeType
-from isr.core.identity import Provenance, compute_content_hash
+from isr.core.identity import Provenance, compute_content_hash, compute_revision_hash
 from isr.core.invariants import (
     FORBIDDEN_IMPLEMENTATION_TERMS,
     ISRInvariantViolation,
@@ -18,5 +18,6 @@ __all__ = [
     "NodeType",
     "Provenance",
     "compute_content_hash",
+    "compute_revision_hash",
     "validate_invariants",
 ]

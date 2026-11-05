@@ -469,7 +469,7 @@ def build_artifacts_from_graph(rg: RequirementGraph, w: Workload) -> PlanArtifac
     g0 = compute_content_hash("1.0", genesis.graph)
     system = _slug(w.intent)
     rev0 = ISRRevision.create(
-        system_id=system, revision_id=f"rev0:{g0[:16]}", schema_version="1.0",
+        system_id=system, revision_id=f"rev0:{g0[:16]}", schema_version=CURRENT_SCHEMA_VERSION,
         graph=genesis.graph,
         provenance=Provenance(requirement_refs=sorted(rg.nodes),
                               derivation_refs=[f"genesis:{MAPPING_SPEC}"],
@@ -480,7 +480,7 @@ def build_artifacts_from_graph(rg: RequirementGraph, w: Workload) -> PlanArtifac
     candidate_graph = ReferenceGenomeMaterializer().materialize(genome)
     cand = ISRRevision.create(
         system_id=system, revision_id=f"rev1:{gh[:16]}",
-        schema_version="1.0", graph=candidate_graph,
+        schema_version=CURRENT_SCHEMA_VERSION, graph=candidate_graph,
         provenance=Provenance(parent_revision_id=rev0.revision_id,
                               derivation_refs=[f"construct:{gh[:16]}"],
                               created_by="evolution_engine", created_at=FIXED_TS))

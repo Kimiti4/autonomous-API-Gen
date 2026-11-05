@@ -28,10 +28,11 @@ def test_generated_laravel_project_installs_boots_and_passes_http_tests(tmp_path
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
 
-    subprocess.run(
+    install = subprocess.run(
         ["composer", "install", "--no-interaction", "--prefer-dist", "--no-progress"],
-        cwd=tmp_path, check=True, timeout=600, capture_output=True, text=True,
+        cwd=tmp_path, check=False, timeout=600, capture_output=True, text=True,
     )
+    assert install.returncode == 0, install.stdout + install.stderr
     subprocess.run(
         ["php", "artisan", "test"],
         cwd=tmp_path, check=True, timeout=180, capture_output=True, text=True,

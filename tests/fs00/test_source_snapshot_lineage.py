@@ -1,6 +1,10 @@
+from pathlib import Path
+import sys
 from types import SimpleNamespace
 
 import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "autonomous-api"))
 
 from app.engine.source_bound_full_stack import source_snapshot_from_plan_artifacts
 

@@ -97,11 +97,12 @@ class CompilerIRProjectionReport(BaseModel):
 def _projection_report(revision: ISRRevision, plan: CompilationPlan) -> CompilerIRProjectionReport:
     projected_nodes = {
         item.id for item in (
-            *plan.services, *plan.data_models, *plan.events, *plan.security,
+            *plan.services, *plan.data_models, *plan.events,
             *plan.apis, *plan.effects, *plan.invariants, *plan.consequences,
             *plan.frontend_routes, *plan.frontend_interactions,
         )
     }
+    projected_nodes.update(policy.policy_id for policy in plan.security)
     projected_edges: set[str] = {binding.edge_id for binding in plan.effect_bindings}
 
     service_by_id = {item.id: item for item in plan.services}

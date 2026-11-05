@@ -126,3 +126,8 @@ Each step is referenced by content hash. The contract verifies the lineage at co
 ---
 
 *End of D12. Cross-references: D01 (registry), D02 (RequirementGraph), D03 (ISR), D04 (ArchitectureCandidate), D07 (CompilerIR), D09 (ArtifactSet), C-17 (deferred to R2/R3).*
+
+
+## FS-00 A2 dual-identity compatibility note
+
+The D12 field `isr_revision_hash` must identify the exact ISR revision envelope (`ISRRevision.revision_hash`), not merely its semantic graph `content_hash`. Existing observation producers/consumers must be audited and migrated accordingly. Until that is proven by source-bound tests, RuntimeObservation-to-ISR exact revision lineage remains UNKNOWN.

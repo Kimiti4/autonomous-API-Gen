@@ -168,7 +168,7 @@ def test_payroll_certifier_rejects_malformed_candidate_hash():
     report = certify_payroll_candidate(**args)
     assert report.verdict == "NOT_CERTIFIED"
     assert "candidate SHA-256 is missing or malformed" in report.findings
-    assert any("does not match the ISR/plan/backend/frontend/TOR artifact manifest" in finding for finding in report.findings)
+    assert any("does not match the ISR/CompilerIR/plan/backend/frontend/TOR artifact manifest" in finding for finding in report.findings)
 
 
 def test_payroll_certifier_rejects_backend_without_required_behavioral_capabilities():

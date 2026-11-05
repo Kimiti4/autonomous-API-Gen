@@ -64,7 +64,7 @@ A contract's content hash is **deterministic**: the same content produces the sa
 
 ### 3.3 Parent references
 
-Every contract at level N references its predecessor at level N-1 by content hash. The reference is **non-derivable** (semantic) — it cannot be computed from the referencing contract's own content; it must be set explicitly. For exact ISR revision lineage, use the revision-envelope hash.
+Every contract at level N references its predecessor at level N-1 by the identity required by that predecessor's contract. The reference is **non-derivable** (semantic) — it cannot be computed from the referencing contract's own content; it must be set explicitly. For exact ISR revision lineage, use the revision-envelope hash.
 
 ## 4. Lineage rules
 
@@ -139,7 +139,7 @@ The evolution lineage is enforced at construction in D04 and D06.
 | RuntimeObservation (D12) | RequirementGraph (D02) | `requirement_graph_id` | semantic; non-derivable |
 | EvolutionRecord (D06) | EvolutionOperation (D05) | `operation_id` | semantic; non-derivable |
 | EvolutionRecord (D06) | ArchitectureCandidate (D04) | `parent_candidate_ids` + `resulting_candidate_ids` | semantic; non-derivable |
-| EvolutionRecord (D06) | ISR (D03) | `source_isr` + `target_isr` (content hashes) | semantic; non-derivable |
+| EvolutionRecord (D06) | ISR (D03) | `source_isr` + `target_isr` (currently content hashes; exact revision-envelope migration open) | semantic; non-derivable |
 
 ## 6. Provenance fields
 
@@ -193,7 +193,7 @@ The reconstruction rule is what makes Tiannara's engineering lineage **reconstru
 
 ---
 
-*End of D13. The cross-contract identity and provenance model is the foundation of Tiannara's reconstructable engineering lineage. Every contract identity is a content hash; every cross-contract reference is by content hash; the chain is end-to-end and tamper-evident.*
+*End of D13. The cross-contract identity and provenance model is the foundation of Tiannara's reconstructable engineering lineage. Contract identities are deterministic and contract-specific; exact ISR revision references use the provenance-bound revision-envelope hash. The chain is intended to be end-to-end and tamper-evident; downstream adoption of the ISR dual identity remains open.*
 
 
 ## 12. ISR dual-identity extension (FS-00 A2)

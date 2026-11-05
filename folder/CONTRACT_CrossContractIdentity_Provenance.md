@@ -117,7 +117,7 @@ The evolution lineage is enforced at construction in D04 and D06.
 
 | Referencing contract | Referenced contract | Field | Reference kind |
 |---|---|---|---|
-| ArchitectureCandidate (D04) | ISR (D03) | Genome carries `source_isr_content_hash` + `source_isr_revision_hash` and revision ID/schema | semantic; non-derivable; implemented in canonical Genome |
+| ArchitectureCandidate (D04) | ISR (D03) | Genome carries `source_isr_content_hash` + `source_isr_revision_hash`, revision ID/schema and the full provenance envelope | semantic; non-derivable; implemented in canonical Genome |
 | CompilerIR (D07) | ISR (D03) | `source_isr_content_hash` + `source_isr_revision_hash` | semantic; non-derivable; both carried by canonical CompilerIR |
 | CompilerIR (D07) | ArchitectureCandidate (D04) | `source_architecture_candidate_reference` | semantic; non-derivable |
 | CompilerBackend (D08) | CompilerIR (D07) | input contract: `supported_ir_version` | semantic |

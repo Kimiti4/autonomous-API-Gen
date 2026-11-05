@@ -97,8 +97,8 @@ class LaravelBackend:
   "type": "project",
   "require": {"php": "^8.3", "laravel/framework": "^11.0"},
   "require-dev": {"phpunit/phpunit": "^11.0"},
-  "autoload": {"psr-4": {"App\\\\": "app/"}},
-  "autoload-dev": {"psr-4": {"Tests\\\\": "tests/"}},
+  "autoload": {"psr-4": {"App\\": "app/"}},
+  "autoload-dev": {"psr-4": {"Tests\\": "tests/"}},
   "scripts": {
     "post-autoload-dump": ["@php artisan package:discover --ansi"],
     "test": ["@php artisan test"]

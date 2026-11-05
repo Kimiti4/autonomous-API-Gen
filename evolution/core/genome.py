@@ -46,8 +46,7 @@ class Genome(BaseModel):
     source_isr_revision_hash: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     source_isr_provenance: Mapping[str, Any] | None = None
 
-    @model_validator(mode="after")
-    def _validate_source_isr_lineage(self) -> "Genome":
+    def validate_source_isr_lineage(self) -> None:
         identity = (
             self.source_isr_revision_id,
             self.source_isr_schema_version,
@@ -58,7 +57,7 @@ class Genome(BaseModel):
         if not self.source_graph and all(value is None for value in identity):
             # Unbound genomes remain constructible for isolated operator tests;
             # they are not valid ISR-derived ArchitectureCandidates.
-            return self
+            return
         if not self.source_graph or any(value is None for value in identity):
             raise ValueError("ISR-derived Genome requires complete source ISR revision identity")
         from isr.core.graph import ISRGraph
@@ -78,6 +77,11 @@ class Genome(BaseModel):
         )
         if expected_revision_hash != self.source_isr_revision_hash:
             raise ValueError("Genome source ISR revision hash does not match provenance envelope")
+        return
+
+    @model_validator(mode="after")
+    def _validate_source_isr_lineage(self) -> "Genome":
+        self.validate_source_isr_lineage()
         return self
 
 
@@ -87,6 +91,7 @@ def genome_content_hash(genome: Genome) -> str:
     Order-independent: genes within each chromosome are sorted by gene_id,
     chromosomes are sorted by family value.
     """
+    genome.validate_source_isr_lineage()
     canonical: dict[str, Any] = {
         "system_id": genome.system_id,
         "chromosomes": {},

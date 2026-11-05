@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from compiler.core.capabilities import BackendCapabilities
-from compiler.core.plan import ApiOperation, CompilationPlan
+from compiler.core.lowering import isr_revision_to_compiler_ir
+from compiler.core.plan import CompilationPlan
 from isr.core.behavior import ApiBehavior
 from isr.core.graph import ISRGraph, Node, NodeType
 from isr.core.identity import Provenance
@@ -86,23 +87,28 @@ def _inputs():
             requirement_refs=("REQ-PAY-001",),
         ),
     )
-    plan = CompilationPlan(
-        plan_id=f"plan:{revision.content_hash[:16]}",
-        isr_id=revision.system_id,
+    compiler_ir = isr_revision_to_compiler_ir(
+        revision,
+        architecture_reference_reason=(
+            "The payroll certifier test lane supplies an ISR revision without an ArchitectureCandidate."
+        ),
+        lowering_timestamp="2026-11-05T00:00:00Z",
     )
+    plan = compiler_ir.execution_plan
     caps = {
         backend_id: BackendCapabilities(backend_id=backend_id, version="test")
         for backend_id in BACKENDS
     }
-    return requirements, revision, plan, caps
+    return requirements, revision, compiler_ir, plan, caps
 
 
-def _candidate_manifest(requirements, revision, plan, *, total=1, reviewed=1):
+def _candidate_manifest(requirements, revision, compiler_ir, plan, *, total=1, reviewed=1):
     backend_hashes = {"python-fastapi": "d" * 64, "rust-axum": "e" * 64}
     frontend_hash = "f" * 64
     candidate_hash = compute_payroll_candidate_hash(
         requirement_graph=requirements,
         revision=revision,
+        compiler_ir=compiler_ir,
         plan=plan,
         tor_source_id=TOR_ID,
         tor_source_sha256=TOR_HASH,
@@ -115,10 +121,11 @@ def _candidate_manifest(requirements, revision, plan, *, total=1, reviewed=1):
     return candidate_hash, backend_hashes, frontend_hash
 
 
-def _common(requirements, revision, plan, caps, candidate_hash, backend_hashes, frontend_hash, *, total=1, reviewed=1):
+def _common(requirements, revision, compiler_ir, plan, caps, candidate_hash, backend_hashes, frontend_hash, *, total=1, reviewed=1):
     return dict(
         requirement_graph=requirements,
         revision=revision,
+        compiler_ir=compiler_ir,
         plan=plan,
         candidate_sha256=candidate_hash,
         tor_source_id=TOR_ID,
@@ -138,9 +145,9 @@ def _common(requirements, revision, plan, caps, candidate_hash, backend_hashes, 
 
 
 def test_payroll_candidate_is_not_certified_without_behavioral_and_runtime_evidence():
-    requirements, revision, plan, caps = _inputs()
-    candidate_hash, backend_hashes, frontend_hash = _candidate_manifest(requirements, revision, plan)
-    args = _common(requirements, revision, plan, caps, candidate_hash, backend_hashes, frontend_hash)
+    requirements, revision, compiler_ir, plan, caps = _inputs()
+    candidate_hash, backend_hashes, frontend_hash = _candidate_manifest(requirements, revision, compiler_ir, plan)
+    args = _common(requirements, revision, compiler_ir, plan, caps, candidate_hash, backend_hashes, frontend_hash)
     args["required_statutory_schemes"] = ("income_tax", "social_security", "health_insurance")
     args["required_oracle_categories"] = ("gross_to_net", "statutory_deductions", "arrears_backpay", "cost_allocation")
     report = certify_payroll_candidate(**args)
@@ -154,9 +161,9 @@ def test_payroll_candidate_is_not_certified_without_behavioral_and_runtime_evide
 
 
 def test_payroll_certifier_rejects_malformed_candidate_hash():
-    requirements, revision, plan, caps = _inputs()
-    candidate_hash, backend_hashes, frontend_hash = _candidate_manifest(requirements, revision, plan)
-    args = _common(requirements, revision, plan, caps, candidate_hash, backend_hashes, frontend_hash)
+    requirements, revision, compiler_ir, plan, caps = _inputs()
+    candidate_hash, backend_hashes, frontend_hash = _candidate_manifest(requirements, revision, compiler_ir, plan)
+    args = _common(requirements, revision, compiler_ir, plan, caps, candidate_hash, backend_hashes, frontend_hash)
     args["candidate_sha256"] = "not-a-sha"
     report = certify_payroll_candidate(**args)
     assert report.verdict == "NOT_CERTIFIED"
@@ -165,30 +172,17 @@ def test_payroll_certifier_rejects_malformed_candidate_hash():
 
 
 def test_payroll_certifier_rejects_backend_without_required_behavioral_capabilities():
-    requirements, revision, plan, caps = _inputs()
-    plan = CompilationPlan(
-        plan_id=plan.plan_id,
-        isr_id=plan.isr_id,
-        apis=[ApiOperation(
-            id="api:submit",
-            name="submit",
-            behavior=ApiBehavior(
-                operation_id="payroll.submit",
-                method="POST",
-                path="/payroll-runs/submit",
-            ),
-        )],
-    )
-    candidate_hash, backend_hashes, frontend_hash = _candidate_manifest(requirements, revision, plan)
-    args = _common(requirements, revision, plan, caps, candidate_hash, backend_hashes, frontend_hash)
+    requirements, revision, compiler_ir, plan, caps = _inputs()
+    candidate_hash, backend_hashes, frontend_hash = _candidate_manifest(requirements, revision, compiler_ir, plan)
+    args = _common(requirements, revision, compiler_ir, plan, caps, candidate_hash, backend_hashes, frontend_hash)
     report = certify_payroll_candidate(**args)
     assert any("cannot implement this payroll plan" in finding for finding in report.findings)
 
 
 def test_payroll_certifier_rejects_statutory_source_that_covers_only_part_of_period():
-    requirements, revision, plan, caps = _inputs()
-    candidate_hash, backend_hashes, frontend_hash = _candidate_manifest(requirements, revision, plan)
-    args = _common(requirements, revision, plan, caps, candidate_hash, backend_hashes, frontend_hash)
+    requirements, revision, compiler_ir, plan, caps = _inputs()
+    candidate_hash, backend_hashes, frontend_hash = _candidate_manifest(requirements, revision, compiler_ir, plan)
+    args = _common(requirements, revision, compiler_ir, plan, caps, candidate_hash, backend_hashes, frontend_hash)
     args["required_statutory_schemes"] = ("income_tax",)
     args["statutory_evidence"] = (StatutoryEvidence(
         scheme="income_tax",
@@ -208,8 +202,8 @@ def test_payroll_certifier_rejects_statutory_source_that_covers_only_part_of_per
 
 
 def test_payroll_certifier_blocks_unreviewed_tor_candidates():
-    requirements, revision, plan, caps = _inputs()
-    candidate_hash, backend_hashes, frontend_hash = _candidate_manifest(requirements, revision, plan, total=14, reviewed=9)
+    requirements, revision, compiler_ir, plan, caps = _inputs()
+    candidate_hash, backend_hashes, frontend_hash = _candidate_manifest(requirements, revision, compiler_ir, plan, total=14, reviewed=9)
     args = _common(
         requirements, revision, plan, caps, candidate_hash, backend_hashes, frontend_hash,
         total=14, reviewed=9,

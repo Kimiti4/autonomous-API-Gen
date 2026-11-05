@@ -64,11 +64,15 @@ class TestD2D4RefinementDocumented(unittest.TestCase):
         plan_fields = CompilationPlan.model_fields
         self.assertNotIn("source_architecture_content_hash", plan_fields)
 
-    def test_compilationplan_does_not_have_backend_constraints(self):
-        """CompilationPlan does NOT have backend_constraints yet. R1-D.5."""
+    def test_backend_constraints_are_authoritative_in_compiler_ir_and_carried_by_adapter(self):
+        """CompilerIR owns constraints; CompilationPlan carries them only to prevent gate bypass."""
+        from compiler.core.canonical_ir import CompilerIR
         from compiler.core.plan import CompilationPlan
-        plan_fields = CompilationPlan.model_fields
-        self.assertNotIn("backend_constraints", plan_fields)
+        self.assertIn("backend_constraints", CompilerIR.model_fields)
+        self.assertIn("backend_constraints", CompilationPlan.model_fields)
+        self.assertIn("blocking_diagnostics", CompilationPlan.model_fields)
+        self.assertIn("source_isr_revision_hash", CompilationPlan.model_fields)
+        self.assertIn("projection_integrity_hash", CompilationPlan.model_fields)
 
     def test_compilationplan_does_not_have_required_capabilities(self):
         """CompilationPlan does NOT have required_capabilities yet. R1-D.5."""
@@ -148,27 +152,18 @@ class TestCompilationPlanStabilization(unittest.TestCase):
         self.assertIn("plan_id", source)
 
 
-class TestCanonicalCompilerIRIsFutureWork(unittest.TestCase):
-    """The canonical Compiler IR module is R1-D.5 work. R1-D.2 establishes
-    the contract refinements but does NOT create the module."""
+class TestCanonicalCompilerIRImplemented(unittest.TestCase):
+    """The canonical CompilerIR is implemented under compiler/core/canonical_ir.py."""
 
-    def test_no_canonical_compiler_ir_module_yet(self):
-        """There is no compiler/core/canonical_ir.py module yet (R1-D.5)."""
-        import os
-        canonical_ir_path = os.path.join("compiler", "core", "canonical_ir.py")
-        self.assertFalse(
-            os.path.exists(canonical_ir_path),
-            f"{canonical_ir_path} should not exist yet (R1-D.5 work)"
-        )
+    def test_canonical_compiler_ir_module_exists(self):
+        from compiler.core.canonical_ir import CompilerIR
+        self.assertIn("content_hash", CompilerIR.model_fields)
+        self.assertIn("source_isr_content_hash", CompilerIR.model_fields)
+        self.assertIn("execution_plan", CompilerIR.model_fields)
 
-    def test_no_canonical_compiler_ir_test_yet(self):
-        """There is no tests/r1d2/test_canonical_compiler_ir.py test yet (R1-D.5)."""
+    def test_canonical_compiler_ir_tests_exist(self):
         import os
-        canonical_test_path = os.path.join("tests", "r1d2", "test_canonical_compiler_ir.py")
-        self.assertFalse(
-            os.path.exists(canonical_test_path),
-            f"{canonical_test_path} should not exist yet (R1-D.5 work)"
-        )
+        self.assertTrue(os.path.exists("tests/r1d5/test_canonical_compiler_ir.py"))
 
 
 class TestConstitutionalSubstrateOnRetirementPath(unittest.TestCase):
@@ -354,7 +349,7 @@ class TestNoArchitecturalBypasses(unittest.TestCase):
 
 
 class TestTierABaselinePreserved(unittest.TestCase):
-    """The Tier-A baseline (313 tests) is preserved."""
+    """The Tier-A baseline (331 active tests) is preserved."""
 
     def test_tier_a_tests_count_unchanged(self):
         """The Tier-A test directory has the expected number of tests."""
@@ -369,10 +364,10 @@ class TestTierABaselinePreserved(unittest.TestCase):
             match = re.search(r"(\d+)/(\d+)\s+tests?\s+collected", line)
             if match:
                 collected = int(match.group(2))
-                # 314 collected, 1 deselected = 313 active
-                # Baseline moved 310 -> 314: PR #121's verifier-diagnostics
-                # suite adds 4 tests to tests/cbc1/test_campaign_runner_verification_gate.py.
-                self.assertEqual(collected, 314)
+                # Current remediation base: 332 collected, 1 deselected = 331 active.
+                # Keep this assertion scoped to tests/cbc1 so new FS-00 tests do not
+                # alter the Tier-A baseline count.
+                self.assertEqual(collected, 332)
                 return
         self.fail(f"Could not determine Tier-A test count. Output: {result.stdout[-500:]}")
 

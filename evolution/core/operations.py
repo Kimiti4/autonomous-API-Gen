@@ -66,6 +66,11 @@ class ReferenceMutationOperator:
             system_id=genome.system_id,
             chromosomes=new_chroms,
             source_graph=genome.source_graph,
+            source_isr_revision_id=genome.source_isr_revision_id,
+            source_isr_schema_version=genome.source_isr_schema_version,
+            source_isr_content_hash=genome.source_isr_content_hash,
+            source_isr_revision_hash=genome.source_isr_revision_hash,
+            source_isr_provenance=genome.source_isr_provenance,
         )
 
 
@@ -76,8 +81,16 @@ class ReferenceCrossoverOperator:
         self._rng = rng or random.Random()
 
     def crossover(self, parent_a: Genome, parent_b: Genome) -> Genome:
-        if dict(parent_a.source_graph) != dict(parent_b.source_graph):
-            raise ValueError("cannot cross over genomes with different source ISR semantic substrates")
+        source_identity_a = (
+            parent_a.source_isr_revision_id, parent_a.source_isr_schema_version,
+            parent_a.source_isr_content_hash, parent_a.source_isr_revision_hash,
+        )
+        source_identity_b = (
+            parent_b.source_isr_revision_id, parent_b.source_isr_schema_version,
+            parent_b.source_isr_content_hash, parent_b.source_isr_revision_hash,
+        )
+        if dict(parent_a.source_graph) != dict(parent_b.source_graph) or source_identity_a != source_identity_b:
+            raise ValueError("cannot cross over genomes with different source ISR revision identities")
         new_chroms: dict[str, Chromosome] = {}
         all_fams = set(parent_a.chromosomes) | set(parent_b.chromosomes)
         for fam_key in sorted(all_fams):
@@ -108,4 +121,9 @@ class ReferenceCrossoverOperator:
             system_id=parent_a.system_id or parent_b.system_id,
             chromosomes=new_chroms,
             source_graph=parent_a.source_graph,
+            source_isr_revision_id=parent_a.source_isr_revision_id,
+            source_isr_schema_version=parent_a.source_isr_schema_version,
+            source_isr_content_hash=parent_a.source_isr_content_hash,
+            source_isr_revision_hash=parent_a.source_isr_revision_hash,
+            source_isr_provenance=parent_a.source_isr_provenance,
         )

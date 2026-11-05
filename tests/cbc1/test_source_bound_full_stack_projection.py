@@ -19,10 +19,21 @@ def _plan_artifacts(requirement_text="read item"):
         plan=_Dumpable({"plan_id": "plan-1", "isr_id": "isr-1", "services": []}),
         revision=_Dumpable({
             "system_id": "system-1", "revision_id": "rev-1",
+            "schema_version": "1.0",
             "content_hash": "a" * 64,
+            "revision_hash": "f" * 64,
+            "provenance": {"created_by": "test", "created_at": "2026-11-05T00:00:00Z", "requirement_refs": [], "derivation_refs": [], "parent_revision_id": None},
             "graph": {"nodes": {"isr:domain:item": {"id": "isr:domain:item"}}},
         }),
-        genome=_Dumpable({"genes": []}),
+        compiler_ir=_Dumpable({
+            "compilation_id": "compiler-ir-1",
+            "content_hash": "e" * 64,
+            "execution_plan": {"plan_id": "plan-1", "isr_id": "isr-1", "services": []},
+            "source_isr_revision_id": "rev-1",
+            "source_isr_content_hash": "a" * 64,
+            "source_isr_revision_hash": "f" * 64,
+        }),
+        genome=_Dumpable({"genes": [], "system_id": "system-1", "source_isr_revision_id": "rev-1", "source_isr_schema_version": "1.0", "source_isr_content_hash": "a" * 64, "source_isr_revision_hash": "f" * 64, "source_isr_provenance": {"created_by": "test", "created_at": "2026-11-05T00:00:00Z", "requirement_refs": [], "derivation_refs": [], "parent_revision_id": None}}),
         requirement_graph=_Dumpable({
             "nodes": {
                 "req:item": {"id": "req:item", "statement": requirement_text},
@@ -150,11 +161,14 @@ def test_complete_shape_is_still_not_claimed_as_semantically_ready():
 
 def test_snapshot_uses_real_plan_artifact_fields_and_inventories_ids():
     snapshot = source_snapshot_from_plan_artifacts(_plan_artifacts())
-    assert snapshot["schema"] == "source-bound-plan-snapshot/1"
+    assert snapshot["schema"] == "source-bound-plan-snapshot/2"
     assert "req:item" in snapshot["source_refs"]
     assert "isr:domain:item" in snapshot["source_refs"]
     assert snapshot["plan"]["plan_id"] == "plan-1"
     assert snapshot["revision"]["content_hash"] == "a" * 64
+    assert snapshot["declared_hashes"]["isr_revision_hash"] == "f" * 64
+    assert snapshot["declared_hashes"]["compiler_ir_id"] == "compiler-ir-1"
+    assert snapshot["declared_hashes"]["compiler_ir_hash"] == "e" * 64
 
 
 def test_snapshot_digest_changes_when_requirement_graph_changes():
@@ -301,9 +315,19 @@ def test_architecture_fact_extraction_preserves_plan_and_isr_relationships():
         }],
         "security": [{"policy_id": "policy:catalog-read"}],
     })
+    artifacts.compiler_ir = _Dumpable({
+        "compilation_id": "compiler-ir-1", "content_hash": "e" * 64,
+        "execution_plan": artifacts.plan.payload,
+        "source_isr_revision_id": "rev-1",
+        "source_isr_content_hash": "a" * 64,
+        "source_isr_revision_hash": "f" * 64,
+    })
     artifacts.revision = _Dumpable({
         "system_id": "system-1", "revision_id": "rev-1",
+        "schema_version": "1.0",
         "content_hash": "a" * 64,
+        "revision_hash": "f" * 64,
+        "provenance": {"created_by": "test", "created_at": "2026-11-05T00:00:00Z", "requirement_refs": [], "derivation_refs": [], "parent_revision_id": None},
         "graph": {
             "nodes": {"isr:domain:item": {"kind": "domain", "name": "Item"}},
             "edges": {"edge:owns": {"source": "isr:domain:item", "target": "isr:service:catalog"}},
@@ -341,6 +365,7 @@ def test_architecture_fact_mutation_changes_source_hash_and_fact_value():
             }],
             "security": [{"policy_id": "policy:read"}],
         })
+        artifacts.compiler_ir = _Dumpable({**artifacts.compiler_ir.payload, "execution_plan": artifacts.plan.payload})
     first = extract_architecture_facts(source_snapshot_from_plan_artifacts(first_artifacts))
     changed = extract_architecture_facts(source_snapshot_from_plan_artifacts(changed_artifacts))
     assert first.services[0]["name"] != changed.services[0]["name"]
@@ -358,6 +383,7 @@ def test_missing_plan_semantics_are_blockers_not_inferred_defaults():
         "services": [{"id": "svc:empty", "name": "Empty"}],
         "security": [],
     })
+    artifacts.compiler_ir = _Dumpable({**artifacts.compiler_ir.payload, "execution_plan": artifacts.plan.payload})
     facts = extract_architecture_facts(source_snapshot_from_plan_artifacts(artifacts))
     assert not facts.complete_for_full_stack
     assert any("no explicit data models" in blocker for blocker in facts.blockers)
@@ -964,3 +990,4 @@ def test_meaning_change_invalidates_mapping_bound_to_previous_source_hash():
     assert first.source_hash != changed.source_hash
     assert any(blocker.code == "SBFS-032" for blocker in changed.blockers)
     assert changed.ready is False
+

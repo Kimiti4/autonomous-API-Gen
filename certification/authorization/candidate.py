@@ -3,8 +3,8 @@
 The manifest is the single record that binds a source-bound authorization
 candidate to everything that must agree for it to be certified:
 
-    source digest -> requirement graph hash -> ISR content hash -> plan hash
-    -> generated bundle hash -> runtime test report hash
+    source digest -> requirement graph hash -> ISR graph/revision hashes
+    -> CompilerIR ID/hash -> plan hash -> generated bundle hash -> runtime test report hash
 
 Nothing here decides whether the candidate is good. It records the bindings so
 that the independent verifier can recompute them from the persisted artifacts.
@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
 CANDIDATE_SCHEMA_ID = "tiannara.authorization.candidate"
-CANDIDATE_SCHEMA_VERSION = "1.1.0"
+CANDIDATE_SCHEMA_VERSION = "1.2.0"
 
 #: The adversarial proof the generated application must execute for itself.
 REQUIRED_ADVERSARIAL_TESTS: tuple[str, ...] = (
@@ -71,6 +71,9 @@ class AuthorizationCandidate:
     requirement_graph_hash: str
     isr_revision_id: str
     isr_content_hash: str
+    isr_revision_hash: str
+    compiler_ir_id: str
+    compiler_ir_hash: str
     plan_id: str
     plan_hash: str
     backend_name: str
@@ -96,6 +99,9 @@ class AuthorizationCandidate:
             "requirement_graph_hash": self.requirement_graph_hash,
             "isr_revision_id": self.isr_revision_id,
             "isr_content_hash": self.isr_content_hash,
+            "isr_revision_hash": self.isr_revision_hash,
+            "compiler_ir_id": self.compiler_ir_id,
+            "compiler_ir_hash": self.compiler_ir_hash,
             "plan_id": self.plan_id,
             "plan_hash": self.plan_hash,
             "backend_name": self.backend_name,
@@ -150,6 +156,7 @@ def build_candidate(
     corpus_hash: str,
     workload_id: str,
     projection: Any,
+    compiler_ir: Any,
     plan: Any,
     repo: Any,
     runtime_report_hash: str,
@@ -169,6 +176,9 @@ def build_candidate(
         requirement_graph_hash=requirement_graph_hash(projection.requirement_graph),
         isr_revision_id=projection.revision.revision_id,
         isr_content_hash=projection.revision.content_hash,
+        isr_revision_hash=projection.revision.revision_hash,
+        compiler_ir_id=compiler_ir.compilation_id,
+        compiler_ir_hash=compiler_ir.content_hash,
         plan_id=plan.plan_id,
         plan_hash=sha256_json(plan.model_dump(mode="json")),
         backend_name="python-fastapi",
@@ -184,6 +194,12 @@ def build_candidate(
 
 def candidate_from_manifest(manifest: Mapping[str, Any]) -> AuthorizationCandidate:
     """Rebuild a candidate from a persisted manifest."""
+    if manifest.get("schema_id") != CANDIDATE_SCHEMA_ID:
+        raise ValueError("authorization candidate manifest has an unknown schema_id")
+    if manifest.get("schema_version") != CANDIDATE_SCHEMA_VERSION:
+        raise ValueError(
+            f"unsupported authorization candidate schema version: {manifest.get('schema_version')!r}"
+        )
     return AuthorizationCandidate(
         candidate_id=manifest["candidate_id"],
         corpus_id=manifest["corpus_id"],
@@ -195,6 +211,9 @@ def candidate_from_manifest(manifest: Mapping[str, Any]) -> AuthorizationCandida
         requirement_graph_hash=manifest["requirement_graph_hash"],
         isr_revision_id=manifest["isr_revision_id"],
         isr_content_hash=manifest["isr_content_hash"],
+        isr_revision_hash=manifest["isr_revision_hash"],
+        compiler_ir_id=manifest["compiler_ir_id"],
+        compiler_ir_hash=manifest["compiler_ir_hash"],
         plan_id=manifest["plan_id"],
         plan_hash=manifest["plan_hash"],
         backend_name=manifest["backend_name"],
@@ -216,6 +235,8 @@ def stale_evidence_problems(
     source_sha256: str,
     requirement_graph_hash: str,
     isr_content_hash: str,
+    isr_revision_hash: str,
+    compiler_ir_hash: str,
     plan_hash: str,
     artifact_bundle_hash: str,
     runtime_report_hash: str,
@@ -226,6 +247,8 @@ def stale_evidence_problems(
         ("source_sha256", candidate.source_sha256, source_sha256),
         ("requirement_graph_hash", candidate.requirement_graph_hash, requirement_graph_hash),
         ("isr_content_hash", candidate.isr_content_hash, isr_content_hash),
+        ("isr_revision_hash", candidate.isr_revision_hash, isr_revision_hash),
+        ("compiler_ir_hash", candidate.compiler_ir_hash, compiler_ir_hash),
         ("plan_hash", candidate.plan_hash, plan_hash),
         ("artifact_bundle_hash", candidate.artifact_bundle_hash, artifact_bundle_hash),
         ("runtime_report_hash", candidate.runtime_report_hash, runtime_report_hash),

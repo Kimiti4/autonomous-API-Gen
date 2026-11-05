@@ -139,3 +139,8 @@ Each step is referenced by content hash. The contract verifies the lineage at co
 ---
 
 *End of D09. Cross-references: D01 (registry), D02 (RequirementGraph), D03 (ISR), D04 (ArchitectureCandidate), D07 (CompilerIR), D08 (CompilerBackend emits), D10 (VerificationResult consumes).*
+
+
+## FS-00 A2 dual-identity compatibility note
+
+The D09 field `isr_revision_hash` must identify the exact ISR revision envelope (`ISRRevision.revision_hash`), not merely its semantic graph `content_hash`. Existing producers/consumers must be audited and migrated accordingly. Until that is proven by source-bound tests, ArtifactSet-to-ISR exact revision lineage remains UNKNOWN.

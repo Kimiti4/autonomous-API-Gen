@@ -38,4 +38,13 @@ class ReferenceArchitectureRefinement:
                 else:
                     new_genes[gid] = gene
             new_chroms[fam_key] = Chromosome(family=chrom.family, genes=new_genes)
-        return Genome(system_id=genome.system_id, chromosomes=new_chroms)
+        return Genome(
+            system_id=genome.system_id,
+            chromosomes=new_chroms,
+            source_graph=genome.source_graph,
+            source_isr_revision_id=genome.source_isr_revision_id,
+            source_isr_schema_version=genome.source_isr_schema_version,
+            source_isr_content_hash=genome.source_isr_content_hash,
+            source_isr_revision_hash=genome.source_isr_revision_hash,
+            source_isr_provenance=genome.source_isr_provenance,
+        )

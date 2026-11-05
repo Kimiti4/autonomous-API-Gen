@@ -10,14 +10,14 @@
 
 ## 1. Purpose
 
-The cross-contract identity and provenance model defines **one explicit identity chain** across all 11 canonical contracts. Every contract identity is a content hash (SHA-256) over its canonical serialization. Every cross-contract reference is by content hash. This is the foundation of Tiannara's **reconstructable engineering lineage**: any artifact can be traced back to the original requirement; any observation can be traced back to the artifact; the chain is end-to-end and tamper-evident.
+The cross-contract identity and provenance model defines **one explicit identity chain** across all 11 canonical contracts. Contract identities are deterministic and contract-specific: most use canonical content hashes, while some use UUIDv5 identities. ISR now separates semantic graph identity (`content_hash`) from exact revision-envelope identity (`revision_hash`). Exact references to an ISR revision must bind the envelope hash; the graph hash remains available for semantic-equivalence comparisons.
 
 ## 2. The identity chain
 
 ```text
 RequirementGraph ID (D02)
     ↓
-ISR Revision ID (D03)
+ISR Revision envelope hash (D03)
     ↓
 ArchitectureCandidate ID (D04)
     ↓
@@ -36,7 +36,7 @@ RuntimeObservation ID (D12)
 [feedback into Evolution D04–D06]
 ```
 
-The chain is a **downward sequence of content hashes**. Each contract at level N references its predecessor at level N-1 by content hash. The chain is end-to-end and is enforced at construction in each contract.
+The chain is a **downward sequence of deterministic identities**. Each contract at level N references its predecessor at level N-1 by the identity required by that predecessor's contract. For ISR, exact revision lineage uses `revision_hash`; semantic graph comparison uses `content_hash`. The chain is intended to be end-to-end, but the downstream adoption of the new ISR envelope hash remains a migration item.
 
 ## 3. Identity rules
 
@@ -47,7 +47,7 @@ Every contract has a stable identity computed from its canonical serialization:
 | Contract | Identity |
 |---|---|
 | RequirementGraph | SHA-256 of canonical JSON of requirements + edges |
-| ISR | SHA-256 of canonical JSON of the ISR (computed at construction) |
+| ISR | `content_hash`: SHA-256 of canonical graph JSON + schema version; `revision_hash`: SHA-256 of system ID + schema version + graph hash + provenance |
 | ArchitectureCandidate | SHA-256 of canonical JSON of the candidate |
 | EvolutionOperation | UUIDv5 over operator type + parameters + timestamp |
 | EvolutionRecord | SHA-256 of canonical JSON of the record |
@@ -64,7 +64,7 @@ A contract's content hash is **deterministic**: the same content produces the sa
 
 ### 3.3 Parent references
 
-Every contract at level N references its predecessor at level N-1 by content hash. The reference is **non-derivable** (semantic) — it cannot be computed from the contract's own content; it must be set explicitly.
+Every contract at level N references its predecessor at level N-1 by the identity required by that predecessor's contract. The reference is **non-derivable** (semantic) — it cannot be computed from the referencing contract's own content; it must be set explicitly. For exact ISR revision lineage, use the revision-envelope hash.
 
 ## 4. Lineage rules
 
@@ -117,15 +117,15 @@ The evolution lineage is enforced at construction in D04 and D06.
 
 | Referencing contract | Referenced contract | Field | Reference kind |
 |---|---|---|---|
-| ArchitectureCandidate (D04) | ISR (D03) | `isr_revision_reference` (content hash) | semantic; non-derivable |
-| CompilerIR (D07) | ISR (D03) | `source_isr_revision_reference` | semantic; non-derivable |
+| ArchitectureCandidate (D04) | ISR (D03) | Genome carries `source_isr_content_hash` + `source_isr_revision_hash`, revision ID/schema and the full provenance envelope | semantic; non-derivable; implemented in canonical Genome |
+| CompilerIR (D07) | ISR (D03) | `source_isr_content_hash` + `source_isr_revision_hash` | semantic; non-derivable; both carried by canonical CompilerIR |
 | CompilerIR (D07) | ArchitectureCandidate (D04) | `source_architecture_candidate_reference` | semantic; non-derivable |
 | CompilerBackend (D08) | CompilerIR (D07) | input contract: `supported_ir_version` | semantic |
 | CompilerIR (D07) | CompilerBackend (D08) | `backend_constraints` (which backends can lower this IR) | semantic |
 | ArtifactSet (D09) | CompilerBackend (D08) | `backend_id` + `backend_version` | semantic |
 | ArtifactSet (D09) | CompilerIR (D07) | `compiler_ir_id` | semantic; non-derivable |
 | ArtifactSet (D09) | ArchitectureCandidate (D04) | `architecture_candidate_id` | semantic; non-derivable |
-| ArtifactSet (D09) | ISR (D03) | `isr_revision_hash` | semantic; non-derivable |
+| ArtifactSet (D09) | ISR (D03) | `isr_revision_hash` (must resolve to revision-envelope hash; implementation adoption open) | semantic; non-derivable |
 | ArtifactSet (D09) | RequirementGraph (D02) | `requirement_graph_id` | semantic; non-derivable |
 | VerificationResult (D10) | ArtifactSet (D09) | `subject_artifact_id` | semantic; non-derivable |
 | VerificationResult (D10) | CompilerIR (D07) | `subject_ir_id` | semantic; non-derivable |
@@ -135,11 +135,11 @@ The evolution lineage is enforced at construction in D04 and D06.
 | RuntimeObservation (D12) | ArtifactSet (D09) | `artifact_set_id` | semantic; non-derivable |
 | RuntimeObservation (D12) | CompilerIR (D07) | `compiler_ir_id` | semantic; non-derivable |
 | RuntimeObservation (D12) | ArchitectureCandidate (D04) | `architecture_candidate_id` | semantic; non-derivable |
-| RuntimeObservation (D12) | ISR (D03) | `isr_revision_hash` | semantic; non-derivable |
+| RuntimeObservation (D12) | ISR (D03) | `isr_revision_hash` (must resolve to revision-envelope hash; implementation adoption open) | semantic; non-derivable |
 | RuntimeObservation (D12) | RequirementGraph (D02) | `requirement_graph_id` | semantic; non-derivable |
 | EvolutionRecord (D06) | EvolutionOperation (D05) | `operation_id` | semantic; non-derivable |
 | EvolutionRecord (D06) | ArchitectureCandidate (D04) | `parent_candidate_ids` + `resulting_candidate_ids` | semantic; non-derivable |
-| EvolutionRecord (D06) | ISR (D03) | `source_isr` + `target_isr` (content hashes) | semantic; non-derivable |
+| EvolutionRecord (D06) | ISR (D03) | `source_isr` + `target_isr` (currently content hashes; exact revision-envelope migration open) | semantic; non-derivable |
 
 ## 6. Provenance fields
 
@@ -193,4 +193,16 @@ The reconstruction rule is what makes Tiannara's engineering lineage **reconstru
 
 ---
 
-*End of D13. The cross-contract identity and provenance model is the foundation of Tiannara's reconstructable engineering lineage. Every contract identity is a content hash; every cross-contract reference is by content hash; the chain is end-to-end and tamper-evident.*
+*End of D13. The cross-contract identity and provenance model is the foundation of Tiannara's reconstructable engineering lineage. Contract identities are deterministic and contract-specific; exact ISR revision references use the provenance-bound revision-envelope hash. The chain is intended to be end-to-end and tamper-evident; downstream adoption of the ISR dual identity remains open.*
+
+
+## 12. ISR dual-identity extension (FS-00 A2)
+
+The approved ISR schema reconciliation defines two distinct identities:
+
+- `content_hash`: semantic graph hash over canonical graph serialization plus ISR schema version. Provenance is intentionally excluded so semantically identical graphs can be compared.
+- `revision_hash`: revision-envelope hash over system ID, schema version, graph content hash, and canonical Provenance. It binds the exact immutable revision and its lineage.
+
+Canonical CompilerIR now carries both `source_isr_content_hash` and `source_isr_revision_hash`. TOR SourceTraceability schema 1.1 and authorization/payroll certification evidence also bind the exact revision-envelope hash. The ISR migration helper records the source revision ID, source graph hash, source envelope hash, and migration ID in the new revision's provenance.
+
+**Downstream migration still required:** Campaign A source-bound snapshot schema 2 and mapping provenance now carry the exact ISR revision-envelope hash and CompilerIR ID/hash. The canonical D04 ArchitectureCandidate runtime model still needs a separately validated revision-envelope field. D06 EvolutionRecord, D09 ArtifactSet and D12 RuntimeObservation fields also require implementation-level verification/migration. Full cross-contract exact-revision lineage is NOT ESTABLISHED.

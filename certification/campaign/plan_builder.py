@@ -10,8 +10,9 @@ import hashlib
 import json
 from dataclasses import dataclass
 
-from compiler.core.lowering import isr_to_plan
+from compiler.core.lowering import isr_revision_to_compiler_ir
 from compiler.core.plan import CompilationPlan
+from compiler.core.canonical_ir import CompilerIR
 from evolution.core.construction import ReferenceGenomeConstructor
 from evolution.core.genome import Genome, genome_content_hash
 from evolution.core.materialize import ReferenceGenomeMaterializer
@@ -22,6 +23,7 @@ from genesis.mapper import (
 )
 from isr.core.identity import Provenance, compute_content_hash
 from isr.core.revision import ISRRevision
+from isr.schema import CURRENT_SCHEMA_VERSION
 from reqgraph.core.graph import (
     Priority, RequirementEdge, RequirementEdgeType, RequirementGraph,
     RequirementKind, RequirementNode,
@@ -44,6 +46,7 @@ def _sha(s: str) -> str:
 
 @dataclass(frozen=True)
 class PlanArtifacts:
+    compiler_ir: CompilerIR
     plan: CompilationPlan
     revision: ISRRevision
     genome: Genome
@@ -452,7 +455,7 @@ def intent_to_requirement_graph(w: Workload) -> RequirementGraph:
             update={"properties": {**node.properties, **extra}}
         )
 
-    return RequirementGraph(schema_version="1.0", nodes=nodes, edges=edges)
+    return RequirementGraph(schema_version=CURRENT_SCHEMA_VERSION, nodes=nodes, edges=edges)
 
 
 def build_artifacts_for(w: Workload) -> PlanArtifacts:
@@ -466,7 +469,7 @@ def build_artifacts_from_graph(rg: RequirementGraph, w: Workload) -> PlanArtifac
     g0 = compute_content_hash("1.0", genesis.graph)
     system = _slug(w.intent)
     rev0 = ISRRevision.create(
-        system_id=system, revision_id=f"rev0:{g0[:16]}", schema_version="1.0",
+        system_id=system, revision_id=f"rev0:{g0[:16]}", schema_version=CURRENT_SCHEMA_VERSION,
         graph=genesis.graph,
         provenance=Provenance(requirement_refs=sorted(rg.nodes),
                               derivation_refs=[f"genesis:{MAPPING_SPEC}"],
@@ -477,16 +480,21 @@ def build_artifacts_from_graph(rg: RequirementGraph, w: Workload) -> PlanArtifac
     candidate_graph = ReferenceGenomeMaterializer().materialize(genome)
     cand = ISRRevision.create(
         system_id=system, revision_id=f"rev1:{gh[:16]}",
-        schema_version="1.0", graph=candidate_graph,
+        schema_version=CURRENT_SCHEMA_VERSION, graph=candidate_graph,
         provenance=Provenance(parent_revision_id=rev0.revision_id,
                               derivation_refs=[f"construct:{gh[:16]}"],
                               created_by="evolution_engine", created_at=FIXED_TS))
 
-    plan = isr_to_plan(cand)
+    compiler_ir = isr_revision_to_compiler_ir(
+        cand,
+        source_architecture_candidate_content_hash=gh,
+    )
+    plan = compiler_ir.execution_plan
     rg_hash = _sha(_canon(rg.model_dump()))
     plan_hash = _sha(_canon(plan.model_dump()))
 
     return PlanArtifacts(
+        compiler_ir=compiler_ir,
         plan=plan, revision=cand, genome=genome, requirement_graph=rg,
         requirement_graph_hash=rg_hash, genome_hash=gh, plan_hash=plan_hash,
     )

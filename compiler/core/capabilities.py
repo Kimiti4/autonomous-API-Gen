@@ -5,7 +5,7 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from compiler.core.plan import CompilationPlan
+from compiler.core.plan import CompilationPlan, compute_plan_projection_hash
 
 
 class SemanticFeature(str, Enum):
@@ -24,6 +24,7 @@ class SemanticFeature(str, Enum):
     CONSEQUENCE_PRESERVATION = "consequence_preservation"
     CONSEQUENCE_SEMANTICS = "consequence_semantics"
     INVARIANTS = "invariants"
+    INVARIANT_BINDINGS = "invariant_bindings"
     TYPED_EVENTS = "typed_events"
     FRONTEND_ROUTES = "frontend_routes"
     FRONTEND_INTERACTIONS = "frontend_interactions"
@@ -118,6 +119,8 @@ def required_features(plan: CompilationPlan) -> frozenset[SemanticFeature]:
     for invariant in plan.invariants:
         if invariant.behavior is not None:
             required.update({SemanticFeature.INVARIANTS, SemanticFeature.EXPRESSIONS})
+    if plan.invariant_bindings:
+        required.add(SemanticFeature.INVARIANT_BINDINGS)
 
     return frozenset(required)
 
@@ -136,10 +139,36 @@ def required_frontend_features(plan: CompilationPlan) -> frozenset[SemanticFeatu
     return frozenset(required)
 
 
+def _assert_plan_source_integrity(plan: CompilationPlan) -> None:
+    values = (
+        plan.source_isr_revision_id,
+        plan.source_isr_content_hash,
+        plan.source_isr_revision_hash,
+        plan.projection_integrity_hash,
+    )
+    if not any(value is not None for value in values):
+        return  # Legacy/unbound plan route; its convergence remains separately audited.
+    if any(value is None for value in values):
+        raise UnsupportedSemanticsError("CompilationPlan has incomplete canonical ISR lineage")
+    if compute_plan_projection_hash(plan) != plan.projection_integrity_hash:
+        raise UnsupportedSemanticsError("CompilationPlan projection integrity hash mismatch")
+
+
 def assert_frontend_plan_supported(
     plan: CompilationPlan,
     capabilities: BackendCapabilities,
 ) -> None:
+    _assert_plan_source_integrity(plan)
+    if plan.blocking_diagnostics:
+        raise UnsupportedSemanticsError(
+            "CompilerIR adapter blocked frontend lowering: "
+            + "; ".join(plan.blocking_diagnostics)
+        )
+    if plan.backend_constraints and capabilities.backend_id not in plan.backend_constraints:
+        raise UnsupportedSemanticsError(
+            f"Frontend backend {capabilities.backend_id!r} is excluded by CompilerIR constraints "
+            f"{plan.backend_constraints}"
+        )
     unsupported = sorted(
         feature.value
         for feature in required_frontend_features(plan) - capabilities.supported_features
@@ -157,6 +186,17 @@ def assert_frontend_plan_supported(
 
 
 def assert_plan_supported(plan: CompilationPlan, capabilities: BackendCapabilities) -> None:
+    _assert_plan_source_integrity(plan)
+    if plan.blocking_diagnostics:
+        raise UnsupportedSemanticsError(
+            "CompilerIR adapter blocked backend lowering: "
+            + "; ".join(plan.blocking_diagnostics)
+        )
+    if plan.backend_constraints and capabilities.backend_id not in plan.backend_constraints:
+        raise UnsupportedSemanticsError(
+            f"Backend {capabilities.backend_id!r} is excluded by CompilerIR constraints "
+            f"{plan.backend_constraints}"
+        )
     unsupported = sorted(
         feature.value
         for feature in required_features(plan) - capabilities.supported_features

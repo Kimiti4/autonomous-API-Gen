@@ -10,10 +10,13 @@ def test_campaign_plan_artifacts_produce_canonical_source_snapshot():
     artifacts = build_artifacts_for(default_corpus()[0])
     snapshot = source_snapshot_from_plan_artifacts(artifacts)
 
-    assert snapshot["schema"] == "source-bound-plan-snapshot/1"
+    assert snapshot["schema"] == "source-bound-plan-snapshot/2"
     assert snapshot["source_refs"]
     assert snapshot["requirement_graph"]
     assert snapshot["revision"]
+    assert snapshot["compiler_ir"]
+    assert snapshot["declared_hashes"]["isr_revision_hash"] == artifacts.revision.revision_hash
+    assert snapshot["declared_hashes"]["compiler_ir_hash"] == artifacts.compiler_ir.content_hash
     assert snapshot["plan"]
 
 

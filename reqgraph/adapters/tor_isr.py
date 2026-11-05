@@ -17,12 +17,13 @@ from pydantic import BaseModel, ConfigDict, Field
 from genesis.mapper import GenesisResult, ReferenceDeterministicMapper
 from isr.core.identity import Provenance
 from isr.core.revision import ISRRevision
+from isr.schema import CURRENT_SCHEMA_VERSION
 from reqgraph.core.graph import RequirementGraph
 from reqgraph.ingestion.tor_extractor import HumanApproval, TORExtractionDraft
 
 TOR_GENESIS_MAPPING = "tor-genesis-1.0"
 TRACEABILITY_SCHEMA_ID = "esap.source-traceability"
-TRACEABILITY_SCHEMA_VERSION = "1.0"
+TRACEABILITY_SCHEMA_VERSION = "1.1"
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,7 @@ class SourceTraceability(BaseModel):
     requirement_graph_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
     requirement_ids: tuple[str, ...]
     isr_content_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    isr_revision_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
     plan_id: str = Field(min_length=1)
     artifact_bundle_hash: str = Field(default="", pattern=r"^$|^[a-f0-9]{64}$")
     mapping_spec_version: str = Field(min_length=1)
@@ -120,7 +122,7 @@ def project_tor_to_isr(
     revision = ISRRevision.create(
         system_id=system_id,
         revision_id=revision_id,
-        schema_version="1.0",
+        schema_version=CURRENT_SCHEMA_VERSION,
         graph=genesis.graph,
         provenance=Provenance(
             requirement_refs=tuple(sorted(requirements.nodes)),
@@ -153,6 +155,7 @@ def traceability_record(
         requirement_graph_hash=requirement_graph_hash(projection.requirement_graph),
         requirement_ids=tuple(sorted(projection.requirement_graph.nodes)),
         isr_content_hash=projection.revision.content_hash,
+        isr_revision_hash=projection.revision.revision_hash,
         plan_id=plan_id,
         artifact_bundle_hash=artifact_bundle_hash,
         mapping_spec_version=projection.mapping_spec_version,

@@ -28,3 +28,8 @@ Candidate IDs are content- and source-line-bound. The draft stores the source di
 ## Payroll proving case
 
 World Concern's payroll TOR can be ingested through this generic path. Kenya statutory rates, formulas, rounding rules, effective dates, and legal interpretations remain explicit requirements/data with authoritative sources and human sign-off. The extractor must not infer or certify PAYE/NSSF/SHIF calculations from prose alone.
+
+
+## FS-00 A2 lineage extension
+
+SourceTraceability schema 1.1 carries both `isr_content_hash` (semantic graph identity) and `isr_revision_hash` (provenance-bound exact revision identity). The traceability record is bound to the exact ISR revision used by the CompilerIR lowering route.

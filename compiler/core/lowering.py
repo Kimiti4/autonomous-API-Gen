@@ -1,4 +1,4 @@
-"""Loss-aware ISRRevision -> CompilationPlan projection."""
+"""Loss-aware ISRRevision -> canonical CompilerIR -> CompilationPlan projection."""
 from __future__ import annotations
 
 from isr.core.behavior import ConsequenceBehavior, validate_behavior_payload
@@ -15,6 +15,7 @@ from compiler.core.plan import (
     FrontendInteraction,
     FrontendRoute,
     Invariant,
+    InvariantBinding,
     SecurityPolicy,
     Service,
 )
@@ -26,13 +27,14 @@ def _behavior(node):
     return validate_behavior_payload(node.type.value, node.properties["behavior"])
 
 
-def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
+def _isr_to_plan_stabilization(revision: ISRRevision) -> CompilationPlan:
     """Project all supported behavioral node payloads without flattening.
 
     This preserves semantics in typed plan carriers. It does not claim an
     emitter implements those semantics; backend capability gates are separate.
     """
     graph = revision.graph
+    # Traverse canonical IDs in sorted order; consumers must bind by IDs, not list position.
     dm_by_id: dict[str, DataModel] = {}
     ev_by_id: dict[str, Event] = {}
     sec_by_id: dict[str, SecurityPolicy] = {}
@@ -47,9 +49,10 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
     apis: list[ApiOperation] = []
     effects: list[Effect] = []
     invariants: list[Invariant] = []
+    invariant_bindings: list[InvariantBinding] = []
     consequence_nodes: dict[str, object] = {}
 
-    for node_id, node in graph.nodes.items():
+    for node_id, node in sorted(graph.nodes.items()):
         label = node.properties.get("label", node_id.split(":", 1)[-1])
         if node.type == NodeType.DATA_MODEL:
             dm_by_id[node_id] = DataModel(
@@ -86,11 +89,12 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
             consequence_nodes[node_id] = node
 
     effects_by_id = {effect.id: effect for effect in effects}
+    invariant_ids = {item.id for item in invariants}
     api_ids = {api.id for api in apis}
     effect_bindings: list[EffectBinding] = []
     consequence_targets: dict[str, list[str]] = {}
 
-    for edge in graph.edges.values():
+    for _, edge in sorted(graph.edges.items()):
         if edge.type == EdgeType.EXPOSES and edge.target_id in api_ids:
             api_services.setdefault(edge.target_id, []).append(edge.source_id)
         elif edge.type == EdgeType.CAUSES_EFFECT:
@@ -103,6 +107,14 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
             ))
             if graph.nodes[edge.source_id].type == NodeType.SERVICE:
                 svc_effects.setdefault(edge.source_id, []).append(effects_by_id[edge.target_id])
+        elif edge.type == EdgeType.REQUIRES_INVARIANT:
+            if edge.source_id not in graph.nodes or edge.target_id not in invariant_ids:
+                raise ValueError(
+                    f"REQUIRES_INVARIANT edge {edge.id!r} has an unresolved source or invariant target"
+                )
+            invariant_bindings.append(InvariantBinding(
+                edge_id=edge.id, source_id=edge.source_id, invariant_id=edge.target_id
+            ))
         elif edge.type == EdgeType.CONSEQUENCE_OF:
             if edge.source_id not in consequence_nodes:
                 raise ValueError(
@@ -145,15 +157,37 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
 
     api_by_id = {api.id: api for api in apis}
     frontend_interactions: dict[str, FrontendInteraction] = {}
-    for node_id, node in graph.nodes.items():
+    for node_id, node in sorted(graph.nodes.items()):
         if node.type != NodeType.FRONTEND_INTERACTION:
             continue
         label = node.properties.get("label", node_id.split(":", 1)[-1])
         target_ids = [
-            edge.target_id for edge in graph.edges.values()
+            edge.target_id for _, edge in sorted(graph.edges.items())
             if edge.type == EdgeType.INVOKES and edge.source_id == node_id
         ]
-        target_api = api_by_id.get(target_ids[0]) if len(target_ids) == 1 else None
+        if len(target_ids) > 1:
+            raise ValueError(
+                f"frontend interaction {node_id!r} has multiple INVOKES targets: {sorted(target_ids)}"
+            )
+        target_api = None
+        if target_ids:
+            target_id = target_ids[0]
+            if target_id not in graph.nodes:
+                raise ValueError(
+                    f"frontend interaction {node_id!r} invokes missing target {target_id!r}"
+                )
+            if graph.nodes[target_id].type != NodeType.API or target_id not in api_by_id:
+                raise ValueError(
+                    f"frontend interaction {node_id!r} invokes unsupported non-API target {target_id!r}"
+                )
+            target_api = api_by_id[target_id]
+        else:
+            interaction_behavior = _behavior(node)
+            if interaction_behavior is None or interaction_behavior.action != "toggle":
+                raise ValueError(
+                    f"frontend interaction {node_id!r} has no explicit INVOKES target "
+                    "and is not a declared local toggle"
+                )
         frontend_interactions[node_id] = FrontendInteraction(
             id=node_id,
             name=label,
@@ -162,28 +196,33 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
         )
 
     frontend_routes: list[FrontendRoute] = []
-    for node_id, node in graph.nodes.items():
+    for node_id, node in sorted(graph.nodes.items()):
         if node.type != NodeType.FRONTEND_ROUTE:
             continue
         label = node.properties.get("label", node_id.split(":", 1)[-1])
         route_api_ids = [
-            edge.target_id for edge in graph.edges.values()
+            edge.target_id for _, edge in sorted(graph.edges.items())
             if edge.type == EdgeType.ROUTES_TO and edge.source_id == node_id
         ]
         interaction_ids = [
-            edge.target_id for edge in graph.edges.values()
+            edge.target_id for _, edge in sorted(graph.edges.items())
             if edge.type == EdgeType.CONTAINS and edge.source_id == node_id
             and edge.target_id in frontend_interactions
         ]
+        missing_route_apis = sorted(set(route_api_ids) - set(api_by_id))
+        if missing_route_apis:
+            raise ValueError(
+                f"frontend route {node_id!r} references unresolved API targets: {missing_route_apis}"
+            )
         frontend_routes.append(FrontendRoute(
             id=node_id,
             name=label,
             behavior=_behavior(node),
-            api_operations=[api_by_id[item] for item in route_api_ids if item in api_by_id],
-            interactions=[frontend_interactions[item] for item in interaction_ids],
+            api_operations=[api_by_id[item] for item in sorted(set(route_api_ids))],
+            interactions=[frontend_interactions[item] for item in sorted(set(interaction_ids))],
         ))
 
-    for node_id, node in graph.nodes.items():
+    for node_id, node in sorted(graph.nodes.items()):
         if node.type == NodeType.SERVICE:
             label = node.properties.get("label", node_id.split(":", 1)[-1])
             services.append(Service(
@@ -198,7 +237,7 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
             ))
 
     consequences: list[Consequence] = []
-    for consequence_id, node in consequence_nodes.items():
+    for consequence_id, node in sorted(consequence_nodes.items()):
         targets = tuple(sorted(set(consequence_targets.get(consequence_id, ()))))
         if not targets:
             raise ValueError(
@@ -224,6 +263,47 @@ def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
         effect_bindings=effect_bindings,
         consequences=consequences,
         invariants=invariants,
+        invariant_bindings=invariant_bindings,
         frontend_routes=frontend_routes,
         frontend_interactions=list(frontend_interactions.values()),
     )
+
+
+
+def isr_revision_to_compiler_ir(
+    revision: ISRRevision,
+    *,
+    source_architecture_candidate_content_hash: str | None = None,
+    architecture_reference_reason: str | None = None,
+    backend_constraints: tuple[str, ...] = (),
+    lowering_timestamp: str | None = None,
+):
+    """Create the canonical CompilerIR, retaining the legacy plan as projection."""
+    from compiler.core.canonical_ir import CompilerIR
+
+    execution_plan = _isr_to_plan_stabilization(revision)
+    return CompilerIR.from_revision(
+        revision,
+        execution_plan,
+        source_architecture_candidate_content_hash=source_architecture_candidate_content_hash,
+        architecture_reference_reason=architecture_reference_reason,
+        backend_constraints=backend_constraints,
+        lowering_timestamp=lowering_timestamp,
+    )
+
+
+def isr_to_plan(revision: ISRRevision) -> CompilationPlan:
+    """Compatibility adapter routed through canonical CompilerIR.
+
+    The returned plan retains the historical plan_id derivation from the ISR
+    content_hash. New code should consume isr_revision_to_compiler_ir and treat
+    CompilationPlan only as its transitional execution_plan projection.
+    """
+    compiler_ir = isr_revision_to_compiler_ir(
+        revision,
+        architecture_reference_reason=(
+            "This compatibility entry point receives only an ISRRevision; "
+            "its source route supplies no ArchitectureCandidate reference."
+        ),
+    )
+    return compiler_ir.execution_plan

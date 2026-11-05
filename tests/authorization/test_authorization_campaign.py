@@ -35,7 +35,7 @@ from certification.corpus.corpus import default_corpus
 
 EVIDENCE_FILES = (
     "manifest.json", "source.md", "requirement-graph.json", "isr.json",
-    "plan.json", "bundle.json", "runtime-report.json", "mutation.json",
+    "compiler-ir.json", "plan.json", "bundle.json", "runtime-report.json", "mutation.json",
     "negative-control.json", "authorization-ledger.jsonl",
 )
 
@@ -353,3 +353,37 @@ def test_general_campaign_a_scope_is_unchanged() -> None:
     assert len(campaign_workloads) == 39
     authorization_ids = {workload.workload_id for workload in AUTHORIZATION_CORPUS}
     assert not authorization_ids & {workload.intent for workload in campaign_workloads}
+
+
+
+def test_manifest_binds_exact_isr_revision_and_compiler_ir(campaign_run) -> None:
+    evidence_dir, result = campaign_run
+    for workload in result.workloads:
+        workload_dir = evidence_dir / "workloads" / workload.workload_id
+        manifest = json.loads((workload_dir / "manifest.json").read_text(encoding="utf-8"))
+        isr = json.loads((workload_dir / "isr.json").read_text(encoding="utf-8"))
+        compiler_ir = json.loads((workload_dir / "compiler-ir.json").read_text(encoding="utf-8"))
+        assert manifest["schema_version"] == "1.2.0"
+        assert manifest["isr_revision_hash"] == isr["revision_hash"]
+        assert manifest["compiler_ir_id"] == compiler_ir["compilation_id"]
+        assert manifest["compiler_ir_hash"] == compiler_ir["content_hash"]
+        assert compiler_ir["source_isr_revision_hash"] == isr["revision_hash"]
+        assert compiler_ir["source_isr_content_hash"] == isr["content_hash"]
+
+
+def test_missing_or_tampered_compiler_ir_blocks_certification(campaign_run, tmp_path: Path) -> None:
+    evidence_dir, _ = campaign_run
+    missing = _copy_evidence(evidence_dir, tmp_path / "missing-compiler-ir")
+    (missing / "workloads" / "payroll-authorization" / "compiler-ir.json").unlink()
+    missing_result = verify_authorization_evidence(str(missing))
+    assert missing_result.ok is False
+    assert any("compiler-ir.json" in problem for problem in missing_result.problems)
+
+    tampered = _copy_evidence(evidence_dir, tmp_path / "tampered-compiler-ir")
+    ir_path = tampered / "workloads" / "payroll-authorization" / "compiler-ir.json"
+    payload = json.loads(ir_path.read_text(encoding="utf-8"))
+    payload["source_isr_revision_hash"] = "0" * 64
+    ir_path.write_text(json.dumps(payload), encoding="utf-8")
+    tampered_result = verify_authorization_evidence(str(tampered))
+    assert tampered_result.ok is False
+    assert any("CompilerIR" in problem or "compiler_ir" in problem for problem in tampered_result.problems)

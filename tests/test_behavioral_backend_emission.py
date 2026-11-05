@@ -71,6 +71,21 @@ def _revision() -> ISRRevision:
     )
 
 
+def _revision_with_effect() -> ISRRevision:
+    base = _revision()
+    nodes = dict(base.graph.nodes)
+    nodes["effect:notify"] = Node(
+        id="effect:notify", type=NodeType.EFFECT, properties={"label": "Notify"}
+    )
+    return ISRRevision.create(
+        base.system_id,
+        "rev-with-effect",
+        "2.0",
+        ISRGraph(nodes=nodes, edges=dict(base.graph.edges)),
+        Provenance(created_by="behavioral-emission-test", created_at="2025-01-01T00:00:00Z"),
+    )
+
+
 def test_behavioral_features_are_explicit_and_supported_by_reference_backends():
     plan = isr_to_plan(_revision())
     required = required_features(plan)
@@ -131,9 +146,7 @@ def test_rust_emission_contains_compilable_module_shapes_and_behavior_tests():
 
 
 def test_rust_module_declarations_resolve_to_emitted_sources():
-    plan = isr_to_plan(_revision()).model_copy(update={
-        "effects": [Effect(id="effect:notify", name="Notify")],
-    })
+    plan = isr_to_plan(_revision_with_effect())
     repo = RustAxumBackend().compile(plan)
     main_source = repo.files["src/main.rs"]
     declared = re.findall(r"^pub mod ([A-Za-z_][A-Za-z0-9_]*);$", main_source, re.MULTILINE)

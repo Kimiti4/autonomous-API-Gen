@@ -23,6 +23,7 @@ MANIFEST_NAME = "manifest.json"
 SOURCE_NAME = "source.md"
 REQUIREMENT_GRAPH_NAME = "requirement-graph.json"
 ISR_NAME = "isr.json"
+COMPILER_IR_NAME = "compiler-ir.json"
 PLAN_NAME = "plan.json"
 BUNDLE_NAME = "bundle.json"
 RUNTIME_REPORT_NAME = "runtime-report.json"
@@ -69,7 +70,12 @@ def _verify_workload(root: Path, workload_id: str) -> tuple[list[str], dict[str,
     record("manifest_present", True, "")
 
     manifest = _read_json(manifest_path)
-    candidate = candidate_from_manifest(manifest)
+    try:
+        candidate = candidate_from_manifest(manifest)
+        record("manifest_valid", True, "")
+    except Exception as exc:
+        record("manifest_valid", False, f"candidate manifest validation failed: {exc}")
+        return problems, checks
 
     source_path = root / SOURCE_NAME
     if not source_path.is_file():
@@ -99,6 +105,7 @@ def _verify_workload(root: Path, workload_id: str) -> tuple[list[str], dict[str,
             f"requirement graph hash mismatch: evidence={digest} manifest={candidate.requirement_graph_hash}",
         )
 
+    revision = None
     isr_path = root / ISR_NAME
     if not isr_path.is_file():
         record("isr_present", False, f"missing {ISR_NAME}")
@@ -113,6 +120,45 @@ def _verify_workload(root: Path, workload_id: str) -> tuple[list[str], dict[str,
             f"ISR content hash mismatch: evidence={revision.content_hash} "
             f"manifest={candidate.isr_content_hash}",
         )
+        record(
+            "isr_revision_hash",
+            revision.revision_hash == candidate.isr_revision_hash,
+            f"ISR revision envelope hash mismatch: evidence={revision.revision_hash} "
+            f"manifest={candidate.isr_revision_hash}",
+        )
+
+    compiler_ir_path = root / COMPILER_IR_NAME
+    compiler_ir = None
+    if not compiler_ir_path.is_file():
+        record("compiler_ir_present", False, f"missing {COMPILER_IR_NAME}")
+    else:
+        record("compiler_ir_present", True, "")
+        from compiler.core.canonical_ir import CompilerIR
+        try:
+            compiler_ir = CompilerIR.model_validate(_read_json(compiler_ir_path))
+            record("compiler_ir_valid", True, "")
+        except Exception as exc:
+            compiler_ir = None
+            record("compiler_ir_valid", False, f"CompilerIR validation failed: {exc}")
+        if compiler_ir is not None:
+            record(
+                "compiler_ir_id",
+                compiler_ir.compilation_id == candidate.compiler_ir_id,
+                f"CompilerIR ID mismatch: evidence={compiler_ir.compilation_id} manifest={candidate.compiler_ir_id}",
+            )
+            record(
+                "compiler_ir_hash",
+                compiler_ir.content_hash == candidate.compiler_ir_hash,
+                f"CompilerIR hash mismatch: evidence={compiler_ir.content_hash} manifest={candidate.compiler_ir_hash}",
+            )
+            record(
+                "compiler_ir_source_isr",
+                revision is not None
+                and compiler_ir.source_isr_content_hash == revision.content_hash
+                and compiler_ir.source_isr_revision_hash == revision.revision_hash
+                and compiler_ir.source_isr_revision_id == revision.revision_id,
+                "CompilerIR source ISR revision binding does not match persisted ISR",
+            )
 
     plan_path = root / PLAN_NAME
     plan_payload: Any = None
@@ -128,6 +174,12 @@ def _verify_workload(root: Path, workload_id: str) -> tuple[list[str], dict[str,
             "plan_hash",
             digest == candidate.plan_hash,
             f"plan hash mismatch: evidence={digest} manifest={candidate.plan_hash}",
+        )
+        record(
+            "compiler_ir_plan_projection",
+            compiler_ir is not None
+            and compiler_ir.execution_plan.model_dump(mode="json") == plan_payload.model_dump(mode="json"),
+            "persisted plan does not match canonical CompilerIR execution_plan projection",
         )
 
     bundle_path = root / BUNDLE_NAME
@@ -366,11 +418,19 @@ def verify_authorization_evidence(evidence_dir: str) -> VerificationResult:
             if not manifest_path.is_file():
                 continue
             manifest = _read_json(manifest_path)
-            candidate = candidate_from_manifest(manifest)
+            try:
+                candidate = candidate_from_manifest(manifest)
+            except Exception as exc:
+                checks[f"ledger_binds_{workload_id}"] = False
+                problems.append(f"{workload_id}: invalid candidate manifest in ledger verification: {exc}")
+                continue
             checks[f"ledger_binds_{workload_id}"] = (
                 trial.get("manifest_hash") == candidate.manifest_hash
+                and trial.get("isr_revision_hash") == candidate.isr_revision_hash
+                and trial.get("compiler_ir_id") == candidate.compiler_ir_id
+                and trial.get("compiler_ir_hash") == candidate.compiler_ir_hash
             )
-            if trial.get("manifest_hash") != candidate.manifest_hash:
+            if not checks[f"ledger_binds_{workload_id}"]:
                 problems.append(
                     f"{workload_id}: the ledger does not bind this candidate manifest"
                 )

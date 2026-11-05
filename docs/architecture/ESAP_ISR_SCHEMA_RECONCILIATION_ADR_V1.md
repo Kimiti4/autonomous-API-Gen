@@ -1,7 +1,7 @@
 # ISR Schema Reconciliation ADR — FS-00 Remediation A2
 
 **ADR ID:** ESAP-ADR-FS00-002  
-**Status:** PROPOSED — HUMAN GOVERNANCE REVIEW REQUIRED BEFORE IMPLEMENTATION  
+**Status:** APPROVED BY USER — IMPLEMENTATION IN PROGRESS  
 **Target owner:** `isr/core`  
 **Related contracts:** D03 `folder/CONTRACT_CanonicalISR.md`; schema registry `isr/schema/versions.py`; authority baseline `docs/architecture/ESAP_AUTHORITY_RECONCILIATION_V1.md`  
 **Parent audit:** FS-00 Checkpoint 15  
@@ -157,6 +157,13 @@ Schema remediation is not complete until:
 4. Separate semantic graph content identity from revision/provenance-envelope identity (Option A in §3.2), subject to D03/evidence contract update.
 5. Enforce the schema registry in revision construction and all consumers.
 
-**Approval required:** this changes the canonical schema/versioning policy. No runtime or canonical contract change is authorized by this proposal alone.
+**Approval record:** user approved the four FS-00 remediation steps on 2026-11-05. The implementation branch records the schema 2.0 transition, immutable 1.x compatibility, versioned validators/migrations, and separate graph/revision-envelope identities.
 
 **Change boundary:** documentation only. No tests were run because no executable code changed.
+
+
+## Implementation status — 2026-11-05
+
+The implementation branch adds the single registry, 1.x/2.0 taxonomy validators, explicit deterministic migration path, validation at both factory and direct Pydantic construction, graph content hash verification, and a separate provenance-bound revision hash. Migration-generated revision IDs are deterministic from the target revision envelope; historical revisions are not rewritten.
+
+**Known downstream gap:** D04's de facto canonical Genome now carries and validates both ISR hashes, and Campaign A source-bound snapshot schema 2 binds Genome, CompilerIR and ISR revision identities. D06 EvolutionRecord, D09 ArtifactSet and D12 RuntimeObservation exact-revision consumers still require implementation-level verification/migration. Their contract notes identify the required changes. A2 is implemented at the ISR and D04 Genome boundaries; cross-contract exact-revision lineage remains partial.

@@ -65,3 +65,31 @@ def compute_content_hash(schema_version: str, graph: ISRGraph) -> str:
         ensure_ascii=False,
     ).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
+
+
+
+def compute_revision_hash(
+    system_id: str,
+    schema_version: str,
+    content_hash: str,
+    provenance: Provenance,
+) -> str:
+    """Hash the immutable revision envelope independently of graph semantics.
+
+    The content_hash remains the semantic graph identity. This envelope hash
+    binds that graph to its system, schema and provenance/lineage without
+    making semantically identical graphs appear different.
+    """
+    canonical = {
+        "system_id": system_id,
+        "schema_version": schema_version,
+        "content_hash": content_hash,
+        "provenance": provenance.model_dump(mode="json"),
+    }
+    payload = json.dumps(
+        canonical,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()

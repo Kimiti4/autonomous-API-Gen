@@ -12,8 +12,8 @@ Gates, per workload:
     the canonical mapper projects it, and the plan carries exactly the declared
     operations.
 ``candidate_binding``
-    Source digest, requirement graph hash, ISR content hash, plan hash,
-    generated bundle hash, and runtime report hash agree.
+    Source digest, requirement graph hash, ISR graph and revision hashes,
+    CompilerIR ID/hash, plan hash, generated bundle hash, and runtime report hash agree.
 ``runtime_enforcement``
     The generated application is installed and runs its own adversarial suite.
     Static assertions do not count.
@@ -186,13 +186,16 @@ class CandidateArtifacts:
     workload: AuthorizationWorkload
     draft: Any
     projection: Any
+    compiler_ir: Any
     plan: Any
     repo: Any
 
 
 def build_candidate_artifacts(workload: AuthorizationWorkload) -> CandidateArtifacts:
     """Project a corpus workload through the controlled source-bound seam."""
-    from compiler.core.lowering import isr_to_plan
+    from compiler.core.lowering import isr_revision_to_compiler_ir
+    from compiler.core.canonical_ir import assert_compiler_ir_supported
+    from compiler.core.capabilities import BackendCapabilities
     from compiler.backends.python_fastapi import PythonFastAPIBackend
     from reqgraph.adapters.tor_isr import project_tor_to_isr
     from reqgraph.ingestion.tor_extractor import extract_tor_text
@@ -206,12 +209,29 @@ def build_candidate_artifacts(workload: AuthorizationWorkload) -> CandidateArtif
         revision_id=workload.revision_id,
         created_at=workload.created_at,
     )
-    plan = isr_to_plan(projection.revision)
-    repo = PythonFastAPIBackend().compile(plan)
+    compiler_ir = isr_revision_to_compiler_ir(
+        projection.revision,
+        architecture_reference_reason=(
+            "The reviewed TOR authorization lane currently supplies a canonical ISR "
+            "revision without an ArchitectureCandidate."
+        ),
+    )
+    plan = compiler_ir.execution_plan
+    backend = PythonFastAPIBackend()
+    assert_compiler_ir_supported(
+        compiler_ir,
+        BackendCapabilities(
+            backend_id=backend.name,
+            version=backend.version,
+            supported_features=backend.supported_features,
+        ),
+    )
+    repo = backend.compile(plan)
     return CandidateArtifacts(
         workload=workload,
         draft=draft,
         projection=projection,
+        compiler_ir=compiler_ir,
         plan=plan,
         repo=repo,
     )
@@ -309,19 +329,33 @@ def _candidate_binding_problems(
         source_sha256=artifacts.projection.source_sha256,
         requirement_graph_hash=requirement_graph_hash(artifacts.projection.requirement_graph),
         isr_content_hash=artifacts.projection.revision.content_hash,
+        isr_revision_hash=artifacts.projection.revision.revision_hash,
+        compiler_ir_hash=artifacts.compiler_ir.content_hash,
         plan_hash=sha256_json(artifacts.plan.model_dump(mode="json")),
         artifact_bundle_hash=artifacts.repo.content_hash,
         runtime_report_hash=runtime_report.report_hash,
     )
 
 
-def _rust_outcome(workload: AuthorizationWorkload, plan: Any) -> BackendOutcome:
+def _rust_outcome(workload: AuthorizationWorkload, compiler_ir: Any) -> BackendOutcome:
     """Submit the same candidate to Rust; it must refuse the obligation."""
     from compiler.backends.rust_axum import RustAxumBackend
-    from compiler.core.capabilities import UnsupportedSemanticsError
+    from compiler.core.capabilities import BackendCapabilities, UnsupportedSemanticsError
+    from compiler.core.canonical_ir import assert_compiler_ir_supported
+
+    plan = compiler_ir.execution_plan
 
     try:
-        RustAxumBackend().compile(plan)
+        backend = RustAxumBackend()
+        assert_compiler_ir_supported(
+            compiler_ir,
+            BackendCapabilities(
+                backend_id=backend.name,
+                version=backend.version,
+                supported_features=backend.supported_features,
+            ),
+        )
+        backend.compile(plan)
     except UnsupportedSemanticsError as exc:
         message = str(exc)
         if "authorization_policies" in message:
@@ -366,6 +400,10 @@ def _write_evidence(
         canonical_json(artifacts.projection.revision.model_dump(mode="json")),
         encoding="utf-8",
     )
+    (evidence_dir / "compiler-ir.json").write_text(
+        canonical_json(artifacts.compiler_ir.model_dump(mode="json")),
+        encoding="utf-8",
+    )
     (evidence_dir / "plan.json").write_text(
         canonical_json(artifacts.plan.model_dump(mode="json")),
         encoding="utf-8",
@@ -406,7 +444,7 @@ def _run_workload(
     gates.append(GateResult(
         gate="source_binding",
         passed=not source_problems,
-        detail="the source declaration, approval, ISR, and plan agree"
+        detail="the source declaration, approval, ISR, CompilerIR, and plan agree"
         if not source_problems else "; ".join(source_problems),
     ))
     problems.extend(source_problems)
@@ -429,6 +467,7 @@ def _run_workload(
         corpus_hash=AUTHORIZATION_CORPUS_HASH,
         workload_id=workload.workload_id,
         projection=artifacts.projection,
+        compiler_ir=artifacts.compiler_ir,
         plan=artifacts.plan,
         repo=artifacts.repo,
         runtime_report_hash=runtime_report.report_hash,
@@ -479,7 +518,7 @@ def _run_workload(
         ))
         problems.extend(mutation_problems)
 
-    rust = _rust_outcome(workload, artifacts.plan)
+    rust = _rust_outcome(workload, artifacts.compiler_ir)
     gates.append(GateResult(
         gate="rust_negative_control",
         passed=rust.verdict == VERDICT_UNSUPPORTED_FAIL_CLOSED,
@@ -574,6 +613,8 @@ def _run_mutation(
         changed = {
             "source_sha256": mutated_artifacts.projection.source_sha256 != candidate.source_sha256,
             "isr_content_hash": mutated_artifacts.projection.revision.content_hash != candidate.isr_content_hash,
+            "isr_revision_hash": mutated_artifacts.projection.revision.revision_hash != candidate.isr_revision_hash,
+            "compiler_ir_hash": mutated_artifacts.compiler_ir.content_hash != candidate.compiler_ir_hash,
             "plan_hash": mutated_plan_hash != candidate.plan_hash,
             "artifact_bundle_hash": mutated_artifacts.repo.content_hash != candidate.artifact_bundle_hash,
             "runtime_report_hash": mutated_report.report_hash != candidate.runtime_report_hash,
@@ -583,6 +624,8 @@ def _run_mutation(
             source_sha256=mutated_artifacts.projection.source_sha256,
             requirement_graph_hash=candidate.requirement_graph_hash,
             isr_content_hash=mutated_artifacts.projection.revision.content_hash,
+            isr_revision_hash=mutated_artifacts.projection.revision.revision_hash,
+            compiler_ir_hash=mutated_artifacts.compiler_ir.content_hash,
             plan_hash=mutated_plan_hash,
             artifact_bundle_hash=mutated_artifacts.repo.content_hash,
             runtime_report_hash=mutated_report.report_hash,
@@ -593,6 +636,8 @@ def _run_mutation(
         record["mutated"] = {
             "source_sha256": mutated_artifacts.projection.source_sha256,
             "isr_content_hash": mutated_artifacts.projection.revision.content_hash,
+            "isr_revision_hash": mutated_artifacts.projection.revision.revision_hash,
+            "compiler_ir_hash": mutated_artifacts.compiler_ir.content_hash,
             "plan_hash": mutated_plan_hash,
             "artifact_bundle_hash": mutated_artifacts.repo.content_hash,
             "runtime_report_hash": mutated_report.report_hash,
@@ -684,6 +729,9 @@ def run_authorization_campaign(
             "gates": [gate.as_dict() for gate in outcome.gates],
             "source_sha256": candidate.source_sha256 if candidate else "",
             "isr_content_hash": candidate.isr_content_hash if candidate else "",
+            "isr_revision_hash": candidate.isr_revision_hash if candidate else "",
+            "compiler_ir_id": candidate.compiler_ir_id if candidate else "",
+            "compiler_ir_hash": candidate.compiler_ir_hash if candidate else "",
             "plan_hash": candidate.plan_hash if candidate else "",
             "artifact_bundle_hash": candidate.artifact_bundle_hash if candidate else "",
             "runtime_report_hash": candidate.runtime_report_hash if candidate else "",

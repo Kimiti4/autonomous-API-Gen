@@ -46,9 +46,10 @@ def test_plan_preserves_typed_behavior_and_traceability_record_binds_every_stage
     plan = full_stack_plan()
 
     assert plan.data_models[0].behavior.fields[1].name == "base_salary"
-    assert plan.services[0].data_models[0].id == "data:employee"
-    assert plan.services[0].behavior.rules[0].expression.args[0].field_ref == "Employee.base_salary"
-    assert plan.services[0].behavior.transitions[0].transition_id == "payroll.submit"
+    payroll_service = next(service for service in plan.services if service.id == "service:payroll")
+    assert payroll_service.data_models[0].id == "data:employee"
+    assert payroll_service.behavior.rules[0].expression.args[0].field_ref == "Employee.base_salary"
+    assert payroll_service.behavior.transitions[0].transition_id == "payroll.submit"
     assert plan.apis[0].behavior.method == "POST"
     assert [field.name for field in plan.apis[0].behavior.request_fields] == [
         "employee_id", "base_salary", "allowances",
@@ -67,6 +68,7 @@ def test_plan_preserves_typed_behavior_and_traceability_record_binds_every_stage
     assert record.requirement_graph_hash == requirement_graph_hash(projection.requirement_graph)
     assert record.requirement_ids == tuple(sorted(projection.requirement_graph.nodes))
     assert record.isr_content_hash == projection.revision.content_hash
+    assert record.isr_revision_hash == projection.revision.revision_hash
     assert record.isr_node_ids == (
         "api:payroll", "data:employee", "service:payroll", "ui:payroll", "ui:submit-payroll",
     )
@@ -307,4 +309,6 @@ def test_certified_emitters_consume_the_source_derived_behavior():
     assert backend_record.artifact_bundle_hash == _bundle_hash(python_repo.files)
     assert frontend_record.artifact_bundle_hash == _bundle_hash(frontend_repo.files)
     assert backend_record.isr_content_hash == backend_projection_value.revision.content_hash
+    assert backend_record.isr_revision_hash == backend_projection_value.revision.revision_hash
     assert frontend_record.isr_content_hash == full_projection.revision.content_hash
+    assert frontend_record.isr_revision_hash == full_projection.revision.revision_hash

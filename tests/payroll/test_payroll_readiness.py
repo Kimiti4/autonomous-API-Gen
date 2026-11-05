@@ -138,7 +138,7 @@ def _payroll_revision():
     return ISRRevision.create(
         "world-concern-payroll",
         "rev-payroll-candidate-1",
-        "1.0",
+        "2.0",
         merged,
         Provenance(created_by="payroll-readiness-test", created_at="2026-01-01T00:00:00Z"),
     )

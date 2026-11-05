@@ -7,7 +7,7 @@ import json
 from enum import Enum
 from typing import Any, Mapping
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ChromosomeFamily(str, Enum):
@@ -38,17 +38,70 @@ class Genome(BaseModel):
 
     system_id: str = Field(min_length=1)
     chromosomes: Mapping[str, Chromosome] = Field(default_factory=dict)
-    # Immutable semantic substrate carried through evolution; not an evolvable gene.
+    # Immutable semantic substrate and exact ISR revision lineage; never evolvable genes.
     source_graph: Mapping[str, Any] = Field(default_factory=dict)
+    source_isr_revision_id: str | None = Field(default=None, min_length=1)
+    source_isr_schema_version: str | None = Field(default=None, min_length=1)
+    source_isr_content_hash: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    source_isr_revision_hash: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    source_isr_provenance: Mapping[str, Any] | None = None
+
+    def validate_source_isr_lineage(self) -> None:
+        identity = (
+            self.source_isr_revision_id,
+            self.source_isr_schema_version,
+            self.source_isr_content_hash,
+            self.source_isr_revision_hash,
+            self.source_isr_provenance,
+        )
+        if not self.source_graph and all(value is None for value in identity):
+            # Unbound genomes remain constructible for isolated operator tests;
+            # they are not valid ISR-derived ArchitectureCandidates.
+            return
+        if not self.source_graph or any(value is None for value in identity):
+            raise ValueError("ISR-derived Genome requires complete source ISR revision identity")
+        from isr.core.revision import ISRRevision
+
+        try:
+            ISRRevision.model_validate({
+                "system_id": self.system_id,
+                "revision_id": self.source_isr_revision_id,
+                "schema_version": self.source_isr_schema_version,
+                "graph": dict(self.source_graph),
+                "content_hash": self.source_isr_content_hash,
+                "revision_hash": self.source_isr_revision_hash,
+                "provenance": dict(self.source_isr_provenance),
+            })
+        except Exception as exc:
+            raise ValueError(
+                f"Genome source ISR lineage validation failed (content hash / revision hash): {exc}"
+            ) from exc
+        return
+
+    @model_validator(mode="after")
+    def _validate_source_isr_lineage(self) -> "Genome":
+        self.validate_source_isr_lineage()
+        return self
 
 
 def genome_content_hash(genome: Genome) -> str:
     """Deterministic SHA-256 over the genome's canonical JSON form.
 
     Order-independent: genes within each chromosome are sorted by gene_id,
-    chromosomes are sorted by family value.
+    chromosomes are sorted by family value. Before hashing, the immutable ISR
+    source graph and provenance envelope are revalidated to detect nested-map tampering.
     """
-    canonical: dict[str, Any] = {"system_id": genome.system_id, "chromosomes": {}, "source_graph": dict(genome.source_graph)}
+    genome.validate_source_isr_lineage()
+    canonical: dict[str, Any] = {
+        "system_id": genome.system_id,
+        "chromosomes": {},
+        "source_graph": dict(genome.source_graph),
+        "source_isr_revision_id": genome.source_isr_revision_id,
+        "source_isr_schema_version": genome.source_isr_schema_version,
+        "source_isr_content_hash": genome.source_isr_content_hash,
+        "source_isr_revision_hash": genome.source_isr_revision_hash,
+        "source_isr_provenance": dict(genome.source_isr_provenance) if genome.source_isr_provenance is not None else None,
+    }
     for fam_key in sorted(genome.chromosomes.keys()):
         chrom = genome.chromosomes[fam_key]
         canonical["chromosomes"][fam_key] = {

@@ -63,7 +63,8 @@ def source_snapshot_from_plan_artifacts(plan_artifacts: Any) -> dict[str, Any]:
     """Create a deterministic snapshot from the real Campaign A PlanArtifacts.
 
     The snapshot inventories identifiers from the requirement graph and ISR
-    graph and preserves the plan/revision/genome payloads. It does not claim
+    graph and preserves the plan, revision, canonical CompilerIR and genome
+    payloads, including exact ISR revision-envelope lineage. It does not claim
     that these identifiers are equivalent or that semantic lowering occurred.
     """
     if plan_artifacts is None:
@@ -76,8 +77,23 @@ def source_snapshot_from_plan_artifacts(plan_artifacts: Any) -> dict[str, Any]:
         return payload
 
     plan = dump(getattr(plan_artifacts, "plan", None), "compilation plan")
-    revision = dump(getattr(plan_artifacts, "revision", None), "ISR revision")
-    genome = dump(getattr(plan_artifacts, "genome", None), "genome")
+    revision_object = getattr(plan_artifacts, "revision", None)
+    revision = dump(revision_object, "ISR revision")
+    compiler_ir_object = getattr(plan_artifacts, "compiler_ir", None)
+    compiler_ir = dump(compiler_ir_object, "canonical CompilerIR")
+    from isr.core.revision import ISRRevision
+    from compiler.core.canonical_ir import CompilerIR
+    if isinstance(revision_object, ISRRevision):
+        ISRRevision.model_validate(revision)
+    if isinstance(compiler_ir_object, CompilerIR):
+        CompilerIR.model_validate(compiler_ir)
+    genome_object = getattr(plan_artifacts, "genome", None)
+    from evolution.core.genome import Genome, genome_content_hash
+    if isinstance(genome_object, Genome):
+        actual_genome_hash = genome_content_hash(genome_object)
+        if getattr(plan_artifacts, "genome_hash", None) != actual_genome_hash:
+            raise ValueError("ArchitectureCandidate Genome hash is stale or does not bind its current source lineage")
+    genome = dump(genome_object, "genome")
     req_graph = dump(getattr(plan_artifacts, "requirement_graph", None), "requirement graph")
 
     refs: set[str] = set()
@@ -106,12 +122,33 @@ def source_snapshot_from_plan_artifacts(plan_artifacts: Any) -> dict[str, Any]:
 
     if not refs:
         raise ValueError("source artifacts expose no canonical requirement/ISR identifiers")
+    if compiler_ir.get("execution_plan") != plan:
+        raise ValueError("persisted CompilationPlan does not match canonical CompilerIR execution_plan projection")
+    if compiler_ir.get("source_isr_content_hash") != revision.get("content_hash"):
+        raise ValueError("CompilerIR is not bound to the supplied ISR graph content hash")
+    if compiler_ir.get("source_isr_revision_hash") != revision.get("revision_hash"):
+        raise ValueError("CompilerIR is not bound to the supplied ISR revision-envelope hash")
+    if compiler_ir.get("source_isr_revision_id") != revision.get("revision_id"):
+        raise ValueError("CompilerIR is not bound to the supplied ISR revision ID")
+    if genome.get("source_isr_content_hash") != revision.get("content_hash"):
+        raise ValueError("ArchitectureCandidate Genome is not bound to the supplied ISR graph content hash")
+    if genome.get("source_isr_revision_hash") != revision.get("revision_hash"):
+        raise ValueError("ArchitectureCandidate Genome is not bound to the supplied ISR revision-envelope hash")
+    if genome.get("system_id") != revision.get("system_id"):
+        raise ValueError("ArchitectureCandidate Genome belongs to a different ISR system")
+    if genome.get("source_isr_revision_id") != revision.get("revision_id"):
+        raise ValueError("ArchitectureCandidate Genome is not bound to the supplied ISR revision ID")
+    if genome.get("source_isr_schema_version") != revision.get("schema_version"):
+        raise ValueError("ArchitectureCandidate Genome is not bound to the supplied ISR schema version")
+    if genome.get("source_isr_provenance") != revision.get("provenance"):
+        raise ValueError("ArchitectureCandidate Genome provenance does not match the supplied ISR revision envelope")
 
     return {
-        "schema": "source-bound-plan-snapshot/1",
+        "schema": "source-bound-plan-snapshot/2",
         "source_refs": sorted(refs),
         "plan": plan,
         "revision": revision,
+        "compiler_ir": compiler_ir,
         "genome": genome,
         "requirement_graph": req_graph,
         "declared_hashes": {
@@ -119,6 +156,9 @@ def source_snapshot_from_plan_artifacts(plan_artifacts: Any) -> dict[str, Any]:
             "genome_hash": getattr(plan_artifacts, "genome_hash", ""),
             "plan_hash": getattr(plan_artifacts, "plan_hash", ""),
             "isr_content_hash": revision.get("content_hash", ""),
+            "isr_revision_hash": revision.get("revision_hash", ""),
+            "compiler_ir_id": compiler_ir.get("compilation_id", ""),
+            "compiler_ir_hash": compiler_ir.get("content_hash", ""),
         },
     }
 
@@ -207,6 +247,14 @@ def project_source_bound_full_stack(
                     "SBFS-032",
                     "mapping provenance is bound to a stale source hash; semantic bindings must be rebuilt",
                 ))
+            if source_dict is not None and source_dict.get("schema") == "source-bound-plan-snapshot/2":
+                declared = source_dict.get("declared_hashes", {})
+                for field in ("isr_content_hash", "isr_revision_hash", "compiler_ir_id", "compiler_ir_hash"):
+                    if not declared.get(field) or provenance.get(field) != declared.get(field):
+                        blockers.append(ProjectionBlocker(
+                            "SBFS-033",
+                            f"mapping provenance {field} does not match canonical source snapshot",
+                        ))
 
     if source_dict is not None and isinstance(explicit_mapping, Mapping):
         blockers.extend(_validate_semantic_obligations(source_dict, explicit_mapping))
@@ -1094,6 +1142,11 @@ class SourceBoundSemanticCorrespondenceVerifier:
             else:
                 if provenance.get("source_hash") != source_hash or not source_hash:
                     findings.append("mapping source_hash does not match recomputed source artifacts")
+                if source_dict is not None and source_dict.get("schema") == "source-bound-plan-snapshot/2":
+                    declared = source_dict.get("declared_hashes", {})
+                    for field in ("isr_content_hash", "isr_revision_hash", "compiler_ir_id", "compiler_ir_hash"):
+                        if not declared.get(field) or provenance.get(field) != declared.get(field):
+                            findings.append(f"mapping provenance {field} does not match canonical source snapshot")
                 refs = provenance.get("source_refs")
                 known = source_dict.get("source_refs") if source_dict else None
                 if not isinstance(refs, (list, tuple)) or not refs:
@@ -1620,6 +1673,10 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
         "edges": sorted(edge_records, key=lambda item: item["id"]),
         "source_refs": source_refs,
         "source_hash": source_hash,
+        "isr_content_hash": revision.get("content_hash", ""),
+        "isr_revision_hash": revision.get("revision_hash", ""),
+        "compiler_ir_id": source_snapshot.get("declared_hashes", {}).get("compiler_ir_id", ""),
+        "compiler_ir_hash": source_snapshot.get("declared_hashes", {}).get("compiler_ir_hash", ""),
     }
 
     # A structurally populated mapping is still incomplete if the ISR
@@ -1740,7 +1797,14 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
         "consequences": {"invariants": invariants, "consequences": consequences},
         "requirement_bindings": sorted(requirement_bindings, key=lambda item: (item["requirement_id"], item["target_id"])),
         "requirement_obligations": sorted(requirement_obligations, key=lambda item: item["requirement_id"]),
-        "provenance": {"source_refs": source_refs, "source_hash": source_hash, "isr_content_hash": revision.get("content_hash", "")},
+        "provenance": {
+            "source_refs": source_refs,
+            "source_hash": source_hash,
+            "isr_content_hash": revision.get("content_hash", ""),
+            "isr_revision_hash": revision.get("revision_hash", ""),
+            "compiler_ir_id": source_snapshot.get("declared_hashes", {}).get("compiler_ir_id", ""),
+            "compiler_ir_hash": source_snapshot.get("declared_hashes", {}).get("compiler_ir_hash", ""),
+        },
         "inventory": inventory,
     }
     # The diagnostic inventory above is intentionally not the canonical IR
@@ -1817,6 +1881,9 @@ def produce_architecture_mapping(source_snapshot: Mapping[str, Any]) -> Architec
                 "source_refs": source_refs,
                 "source_hash": source_hash,
                 "isr_content_hash": revision.get("content_hash", ""),
+                "isr_revision_hash": revision.get("revision_hash", ""),
+                "compiler_ir_id": source_snapshot.get("declared_hashes", {}).get("compiler_ir_id", ""),
+                "compiler_ir_hash": source_snapshot.get("declared_hashes", {}).get("compiler_ir_hash", ""),
             },
         }
         # Prove that the canonical IR payload agrees with the typed ISR

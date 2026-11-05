@@ -1,6 +1,8 @@
 """CompilationPlan — the technology-neutral intermediate representation."""
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -113,6 +115,14 @@ class EffectBinding(BaseModel):
     effect_id: str = Field(min_length=1)
 
 
+class InvariantBinding(BaseModel):
+    """Explicit source binding from a component/API to a required invariant."""
+    model_config = ConfigDict(frozen=True)
+    edge_id: str = Field(min_length=1)
+    source_id: str = Field(min_length=1)
+    invariant_id: str = Field(min_length=1)
+
+
 class CompilationPlan(BaseModel):
     """Deterministic, technology-neutral IR between ISR lowering and emitters.
 
@@ -132,5 +142,20 @@ class CompilationPlan(BaseModel):
     effect_bindings: list[EffectBinding] = Field(default_factory=list)
     consequences: list[Consequence] = Field(default_factory=list)
     invariants: list[Invariant] = Field(default_factory=list)
+    invariant_bindings: list[InvariantBinding] = Field(default_factory=list)
+    blocking_diagnostics: list[str] = Field(default_factory=list)
+    backend_constraints: list[str] = Field(default_factory=list)
+    source_isr_revision_id: str | None = None
+    source_isr_content_hash: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    source_isr_revision_hash: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    projection_integrity_hash: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     frontend_routes: list[FrontendRoute] = Field(default_factory=list)
     frontend_interactions: list[FrontendInteraction] = Field(default_factory=list)
+
+
+
+def compute_plan_projection_hash(plan: CompilationPlan) -> str:
+    """Hash a plan projection while excluding only its derived integrity field."""
+    payload = plan.model_dump(mode="json", exclude={"projection_integrity_hash"})
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()

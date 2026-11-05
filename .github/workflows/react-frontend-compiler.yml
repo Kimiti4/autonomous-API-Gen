@@ -9,9 +9,17 @@ on:
       - "compiler/core/capabilities.py"
       - "compiler/core/behavior_oracle.py"
       - "compiler/core/lowering.py"
+      - "compiler/core/canonical_ir.py"
+      - "compiler/core/__init__.py"
       - "compiler/core/plan.py"
       - "isr/core/behavior.py"
       - "isr/core/behavior_validation.py"
+      - "isr/core/graph.py"
+      - "isr/core/identity.py"
+      - "isr/core/invariants.py"
+      - "isr/core/revision.py"
+      - "isr/schema/**"
+      - "evolution/core/**"
       - "tests/test_react_frontend_compiler.py"
       - "tests/test_behavioral_isr_contract.py"
       - "tests/test_behavioral_isr_projection.py"
@@ -27,6 +35,18 @@ on:
       - "tests/test_source_bound_behavioral_projection.py"
       - "tests/support/**"
       - "tests/payroll/test_payroll_readiness.py"
+      - "tests/isr_schema/**"
+      - "tests/r1d5/**"
+      - "tests/fs00/**"
+      - "tests/authorization/**"
+      - "tests/integration/**"
+      - "tests/test_source_semantic_preservation.py"
+      - "certification/authorization/**"
+      - "certification/payroll/**"
+      - "tests/certification/**"
+      - "certification/campaign/plan_builder.py"
+      - "autonomous-api/app/engine/source_bound_full_stack.py"
+      - "tests/cbc1/**"
       - "certification/payroll/readiness.py"
       - "examples/payroll/world_concern_tor.md"
       - "docs/architecture/CONTROLLED_TOR_INGESTION.md"
@@ -53,5 +73,7 @@ jobs:
         run: python -m pip install "pydantic>=2.7,<3" pytest
       - name: Verify ISR projection and fail-closed frontend gates
         run: python -m pytest tests/test_behavioral_isr_contract.py tests/test_behavioral_isr_projection.py tests/test_behavioral_backend_emission.py tests/test_react_frontend_compiler.py tests/test_tor_ingestion_and_isr_projection.py tests/test_source_bound_behavioral_projection.py tests/payroll/test_payroll_readiness.py -q
+      - name: Verify ISR schema, CompilerIR identity, and authorization evidence
+        run: python -m pytest tests/isr_schema tests/r1d5 tests/fs00 tests/r1d3/test_evolution_contracts.py tests/v13/test_evolution_gates.py tests/rg/test_reconciliation.py tests/authorization tests/certification/test_payroll_certifier.py tests/certification/test_architecture_mapping_producer.py tests/certification/test_campaign_semantic_input_wiring.py tests/cbc1/test_source_bound_full_stack_projection.py tests/r1d2/test_compiler_ir_contract.py -q
       - name: Install generated app dependencies, run interaction tests, and build
         run: python -m pytest tests/integration/test_react_frontend_build.py tests/integration/test_generated_backend_behavior_builds.py -q

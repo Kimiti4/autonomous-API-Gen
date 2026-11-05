@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from itertools import chain
-from typing import Sequence
+from typing import Mapping, Sequence
 
 from isr.core.graph import EDGE_TYPE_COMPATIBILITY, Edge, EdgeType, ISRGraph, Node, NodeType
 
@@ -70,11 +70,23 @@ _TESTING_RE = re.compile(
 )
 
 
-def validate_invariants(graph: ISRGraph) -> None:
+def validate_invariants(
+    graph: ISRGraph,
+    edge_type_compatibility: Mapping[EdgeType, tuple[frozenset[NodeType], frozenset[NodeType]]] | None = None,
+) -> None:
     """Enforces constitutional invariants on the ISR graph.  Raises on the
     first violation encountered (fail-closed)."""
 
     node_ids = set(graph.nodes.keys())
+
+    # Mapping keys are canonical IDs, not aliases. Reject duplicate/mismatched
+    # identities before any adapter builds source-to-output mappings.
+    if len(graph.nodes) != len({node.id for node in graph.nodes.values()}):
+        raise ISRInvariantViolation("Duplicate node ids in ISR graph")
+    if any(key != node.id for key, node in graph.nodes.items()):
+        raise ISRInvariantViolation("ISR node mapping key does not match node.id")
+    if any(key != edge.id for key, edge in graph.edges.items()):
+        raise ISRInvariantViolation("ISR edge mapping key does not match edge.id")
 
     # 1. No orphan node/edge ids  (edge id uniqueness is structural)
     if len(graph.edges) != len({e.id for e in graph.edges.values()}):
@@ -96,7 +108,8 @@ def validate_invariants(graph: ISRGraph) -> None:
         src_type = graph.nodes[edge.source_id].type
         tgt_type = graph.nodes[edge.target_id].type
 
-        compat = EDGE_TYPE_COMPATIBILITY.get(edge.type)
+        compatibility = EDGE_TYPE_COMPATIBILITY if edge_type_compatibility is None else edge_type_compatibility
+        compat = compatibility.get(edge.type)
         if compat is not None:
             src_allowed, tgt_allowed = compat
             if src_type not in src_allowed:

@@ -43,7 +43,7 @@ def _revision(statement: str = "authenticate users") -> ISRRevision:
     return ISRRevision.create(
         system_id="semantic-preservation-test",
         revision_id="rev0",
-        schema_version="1.0",
+        schema_version="2.0",
         graph=genesis.graph,
         provenance=Provenance(
             requirement_refs=[requirement.id],

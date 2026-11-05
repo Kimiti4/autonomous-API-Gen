@@ -2,7 +2,7 @@
 
 **Contract:** `CompilerIR`
 **Status:** R1-B Deliverable D07 (authoritative) + R1-D.2 Deliverable D2-D4 (refinement). The D2-D4 refinement adds 8 fields (content_hash, schema_version, source_architecture_candidate_content_hash, backend_constraints, required_capabilities, lowering_metadata, provenance, deterministic_serialization) and refines 3 fields (compilation_id, source_isr_reference, security_requirements). The D07 original text is preserved below; the D2-D4 refinement is at the bottom.
-**Canonical owner:** (D07 defines; stabilization is `compiler/core`; future canonical Compiler IR module is R1-D.5)
+**Canonical owner:** `compiler/core/canonical_ir.py` (D07 defines; `compiler/core/plan.py:CompilationPlan` remains the transitional backend execution-plan projection)
 
 **Invariants this contract satisfies:** INV-B05 (Compiler IR is distinct from ISR), INV-B06 (Compiler IR is distinct from generated artifacts), INV-B14 (no category-specific compiler becomes a new architectural authority).
 
@@ -284,3 +284,43 @@ The R1-D.2 refinements are applied to the canonical Compiler IR module (a future
 ---
 
 *End of contract. Part I (R1-B D07) is authoritative. Part II (R1-D.2 D2-D4) refines Part I with 8 new fields and 3 refinements. The current `CompilationPlan` is the stabilization implementation; the future canonical Compiler IR module is R1-D.5.*
+
+
+---
+
+# Part III: FS-00 approved implementation status
+
+**Implementation ADR:** `docs/architecture/ESAP_COMPILER_IR_RECONCILIATION_ADR_V1.md`  
+**Approval:** user-approved FS-00 remediation on 2026-11-05.  
+**Implementation branch:** `remediation/fs00-authority-implementation`.
+
+## 22. Canonical model
+
+The canonical model is implemented at `compiler/core/canonical_ir.py:CompilerIR`. It is a distinct frozen Pydantic contract and includes:
+
+- compilation ID and schema version;
+- source ISR revision ID, graph content hash, and provenance-bound revision hash;
+- explicit ArchitectureCandidate reference state (bound hash or a required not-applicable reason);
+- preserved typed source node and relationship inventories with stable source IDs;
+- a source-to-transitional-plan projection report;
+- backend constraints and required semantic capabilities;
+- lowering operator, timestamp, chain, provenance, deterministic canonical serialization and SHA-256 content hash;
+- the existing `CompilationPlan` as an explicitly downstream transitional execution projection.
+
+The canonical CompilerIR is not a renamed CompilationPlan and does not become an ISR. Every source ISR node and edge is retained in CompilerIR. Compilation ID is UUIDv5 over the canonical identity payload with the derived ID/hash fields excluded to avoid circularity; content_hash is SHA-256 over the canonical payload including compilation_id but excluding content_hash itself. The projection report classifies each source element as represented in the execution plan or preserved in CompilerIR only; any unclassified/lost source element prevents CompilerIR construction.
+
+## 23. Lowering and backend adapter boundary
+
+- `compiler.core.lowering.isr_revision_to_compiler_ir` is the canonical ISR-to-CompilerIR entry point.
+- `compiler.core.lowering.isr_to_plan` remains a compatibility API but delegates through CompilerIR and returns only `execution_plan`.
+- The Campaign A plan builder binds the ArchitectureCandidate content hash and uses CompilerIR before backend execution.
+- The source-bound authorization campaign uses CompilerIR with an explicit not-applicable ArchitectureCandidate state and invokes `assert_compiler_ir_supported` before backend compilation. Its candidate manifest binds the exact ISR revision and CompilerIR identities, and the independent verifier reloads both.
+- Payroll certification now includes ISR revision-envelope hash and CompilerIR ID/content hash in its candidate digest, validates the exact plan projection, and applies the canonical backend compatibility gate.
+- The compatibility gate enforces CompilerIR backend constraints and the existing plan semantic capability gate. The backend's own capability gate remains in place as defense in depth.
+- The transitional plan projection sorts source nodes and relationships deterministically and rejects unresolved frontend route/interaction bindings rather than filtering them or silently emitting null targets. Any source element marked `required_for_backend=true` or `backend_required=true` but retained only in CompilerIR creates a blocking diagnostic that is copied into CompilationPlan; the existing backend capability gate rejects that plan, preventing the compatibility API from bypassing the CompilerIR blocker. The plan projection also carries the exact ISR revision ID/content/envelope hashes and a derived integrity hash over the complete plan payload; backend and frontend gates recompute it to detect nested collection mutation before compilation.
+
+## 24. Route coverage and limits
+
+The two identified canonical production routes above now enter the CompilerIR boundary. This does **not** establish universal migration of every frontend/backend/mobile compiler family, every direct backend entrypoint, or every noncanonical legacy compiler. Those routes remain UNKNOWN until separately enumerated and bypass-tested. No compiler target is retired by this change.
+
+The canonical CompilerIR implementation is a first migration increment. Backend protocols still accept CompilationPlan; direct CompilerIR consumption by all target families remains subsequent work under the FS-00 route-adoption plan. The projection report now also blocks a backend when any source node or relationship explicitly marked required_for_backend/backend_required remains only in CompilerIR.

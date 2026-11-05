@@ -165,7 +165,7 @@ Tests must be independent of the adapter implementation where practical. A test 
 | Select target ISR owner | DECIDED: `isr/core` |
 | A1 RequirementGraph model/consumer inventory | COMPLETE FOR IDENTIFIED MODELS; production reachability and migration remain open |
 | Reconcile D03 with actual 14/18 schema | PROPOSAL READY — human approval required; see [ISR Schema Reconciliation ADR](ESAP_ISR_SCHEMA_RECONCILIATION_ADR_V1.md) |
-| Select final CompilerIR implementation | OPEN — D07 vs `CompilationPlan` ADR required |
+| Select final CompilerIR implementation | PROPOSAL READY — human approval required; see [CompilerIR Reconciliation ADR](ESAP_COMPILER_IR_RECONCILIATION_ADR_V1.md) |
 | Inventory every live consumer and production route | PARTIAL — A1 inventory published; route reachability remains open |
 | Implement mandatory adapters across all routes | NOT STARTED |
 | Enforce universal loss/completeness gate | NOT ESTABLISHED |
@@ -174,6 +174,8 @@ Tests must be independent of the adapter implementation where practical. A test 
 **A1 artifact:** [ESAP RequirementGraph Consumer Inventory](ESAP_REQUIREMENT_GRAPH_CONSUMER_INVENTORY_V1.md). It identifies five materially different graph/IR representations and their direct consumers; it does not yet establish full production route reachability.
 
 **A2 artifact:** [ISR Schema Reconciliation ADR](ESAP_ISR_SCHEMA_RECONCILIATION_ADR_V1.md). It proposes preserving the current 14/18 taxonomy as schema 2.0, formal schema registry enforcement, and a separate revision/provenance identity. This is explicitly awaiting human governance approval; no schema or runtime code has changed.
+
+**A3 artifact:** [CompilerIR Reconciliation ADR](ESAP_COMPILER_IR_RECONCILIATION_ADR_V1.md). It proposes a distinct canonical, versioned CompilerIR and retains `CompilationPlan` as a transitional backend execution-plan projection. It records current lineage and semantic projection gaps, including omitted requirement references and silent null/filtered frontend bindings. This awaits human governance approval; no compiler code has changed.
 
 **Phase 1 outcome:** target ownership is made explicit without pretending the contracts and runtime are already reconciled. The next implementation unit is A1, the RequirementGraph consumer inventory, followed by A2 and A3. No target is retired and no capability/certification status is upgraded.
 

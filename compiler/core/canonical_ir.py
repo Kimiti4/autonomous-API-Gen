@@ -66,6 +66,8 @@ class CompilerIRProjectionReport(BaseModel):
     projected_relationship_ids: tuple[str, ...]
     preserved_ir_only_node_ids: tuple[str, ...]
     preserved_ir_only_relationship_ids: tuple[str, ...]
+    blocking_ir_only_node_ids: tuple[str, ...] = ()
+    blocking_ir_only_relationship_ids: tuple[str, ...] = ()
     lost_node_ids: tuple[str, ...] = ()
     lost_relationship_ids: tuple[str, ...] = ()
 
@@ -83,6 +85,10 @@ class CompilerIRProjectionReport(BaseModel):
             raise ValueError("CompilerIR node projection report is incomplete")
         if projected_edges | ir_only_edges | set(self.lost_relationship_ids) != source_edges:
             raise ValueError("CompilerIR relationship projection report is incomplete")
+        if not set(self.blocking_ir_only_node_ids).issubset(ir_only_nodes):
+            raise ValueError("blocking IR-only node IDs must be preserved IR-only nodes")
+        if not set(self.blocking_ir_only_relationship_ids).issubset(ir_only_edges):
+            raise ValueError("blocking IR-only relationship IDs must be preserved IR-only relationships")
         if self.lost_node_ids or self.lost_relationship_ids:
             raise ValueError("CompilerIR cannot be created with unclassified semantic loss")
         return self
@@ -161,13 +167,29 @@ def _projection_report(revision: ISRRevision, plan: CompilationPlan) -> Compiler
     source_relationship_ids = tuple(sorted(source_edges))
     projected_node_ids = tuple(sorted(projected_nodes & source_nodes))
     projected_relationship_ids = tuple(sorted(projected_edges & source_edges))
+    node_by_id = {node.id: node for node in revision.graph.nodes.values()}
+    edge_by_id = {edge.id: edge for edge in revision.graph.edges.values()}
+    ir_only_nodes = source_nodes - set(projected_node_ids)
+    ir_only_edges = source_edges - set(projected_relationship_ids)
+    blocking_nodes = tuple(sorted(
+        node_id for node_id in ir_only_nodes
+        if node_by_id[node_id].properties.get("required_for_backend") is True
+        or node_by_id[node_id].properties.get("backend_required") is True
+    ))
+    blocking_edges = tuple(sorted(
+        edge_id for edge_id in ir_only_edges
+        if edge_by_id[edge_id].properties.get("required_for_backend") is True
+        or edge_by_id[edge_id].properties.get("backend_required") is True
+    ))
     return CompilerIRProjectionReport(
         source_node_ids=source_node_ids,
         source_relationship_ids=source_relationship_ids,
         projected_node_ids=projected_node_ids,
         projected_relationship_ids=projected_relationship_ids,
-        preserved_ir_only_node_ids=tuple(sorted(source_nodes - set(projected_node_ids))),
-        preserved_ir_only_relationship_ids=tuple(sorted(source_edges - set(projected_relationship_ids))),
+        preserved_ir_only_node_ids=tuple(sorted(ir_only_nodes)),
+        preserved_ir_only_relationship_ids=tuple(sorted(ir_only_edges)),
+        blocking_ir_only_node_ids=blocking_nodes,
+        blocking_ir_only_relationship_ids=blocking_edges,
     )
 
 
@@ -355,6 +377,12 @@ def assert_compiler_ir_supported(
     capabilities: BackendCapabilities,
 ) -> None:
     """Enforce target constraints and semantic capability checks before lowering."""
+    if compiler_ir.projection_report.blocking_ir_only_node_ids or compiler_ir.projection_report.blocking_ir_only_relationship_ids:
+        raise UnsupportedSemanticsError(
+            "CompilerIR contains backend-required semantics outside the transitional plan projection: "
+            f"nodes={compiler_ir.projection_report.blocking_ir_only_node_ids}, "
+            f"relationships={compiler_ir.projection_report.blocking_ir_only_relationship_ids}"
+        )
     if compiler_ir.backend_constraints and capabilities.backend_id not in compiler_ir.backend_constraints:
         raise UnsupportedSemanticsError(
             f"Backend {capabilities.backend_id!r} is excluded by CompilerIR constraints "

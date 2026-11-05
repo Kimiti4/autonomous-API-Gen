@@ -113,6 +113,14 @@ class EffectBinding(BaseModel):
     effect_id: str = Field(min_length=1)
 
 
+class InvariantBinding(BaseModel):
+    """Explicit source binding from a component/API to a required invariant."""
+    model_config = ConfigDict(frozen=True)
+    edge_id: str = Field(min_length=1)
+    source_id: str = Field(min_length=1)
+    invariant_id: str = Field(min_length=1)
+
+
 class CompilationPlan(BaseModel):
     """Deterministic, technology-neutral IR between ISR lowering and emitters.
 
@@ -132,5 +140,6 @@ class CompilationPlan(BaseModel):
     effect_bindings: list[EffectBinding] = Field(default_factory=list)
     consequences: list[Consequence] = Field(default_factory=list)
     invariants: list[Invariant] = Field(default_factory=list)
+    invariant_bindings: list[InvariantBinding] = Field(default_factory=list)
     frontend_routes: list[FrontendRoute] = Field(default_factory=list)
     frontend_interactions: list[FrontendInteraction] = Field(default_factory=list)

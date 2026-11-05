@@ -5,7 +5,7 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from compiler.core.plan import CompilationPlan
+from compiler.core.plan import CompilationPlan, compute_plan_projection_hash
 
 
 class SemanticFeature(str, Enum):
@@ -170,6 +170,7 @@ def assert_frontend_plan_supported(
 
 
 def assert_plan_supported(plan: CompilationPlan, capabilities: BackendCapabilities) -> None:
+    _assert_plan_source_integrity(plan)
     if plan.blocking_diagnostics:
         raise UnsupportedSemanticsError(
             "CompilerIR adapter blocked backend lowering: "

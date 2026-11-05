@@ -143,6 +143,11 @@ def assert_frontend_plan_supported(
     plan: CompilationPlan,
     capabilities: BackendCapabilities,
 ) -> None:
+    if plan.blocking_diagnostics:
+        raise UnsupportedSemanticsError(
+            "CompilerIR adapter blocked frontend lowering: "
+            + "; ".join(plan.blocking_diagnostics)
+        )
     unsupported = sorted(
         feature.value
         for feature in required_frontend_features(plan) - capabilities.supported_features

@@ -3,8 +3,8 @@
 The manifest is the single record that binds a source-bound authorization
 candidate to everything that must agree for it to be certified:
 
-    source digest -> requirement graph hash -> ISR content hash -> plan hash
-    -> generated bundle hash -> runtime test report hash
+    source digest -> requirement graph hash -> ISR graph/revision hashes
+    -> CompilerIR ID/hash -> plan hash -> generated bundle hash -> runtime test report hash
 
 Nothing here decides whether the candidate is good. It records the bindings so
 that the independent verifier can recompute them from the persisted artifacts.

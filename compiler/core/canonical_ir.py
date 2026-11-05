@@ -146,6 +146,9 @@ def _projection_report(revision: ISRRevision, plan: CompilationPlan) -> Compiler
             route = route_by_id.get(edge.source_id)
             if route and any(item.id == edge.target_id for item in route.interactions):
                 projected_edges.add(edge.id)
+        elif edge.type == EdgeType.REQUIRES_INVARIANT:
+            if any(binding.edge_id == edge.id for binding in plan.invariant_bindings):
+                projected_edges.add(edge.id)
         elif edge.type == EdgeType.CONSEQUENCE_OF:
             consequence = consequence_by_id.get(edge.source_id)
             if consequence and edge.target_id in consequence.related_node_ids:

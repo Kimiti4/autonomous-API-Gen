@@ -213,6 +213,16 @@ def test_backend_required_semantics_outside_plan_projection_block_lowering():
             ir, BackendCapabilities(backend_id="python-fastapi", version="1.0")
         )
 
+    # The compatibility adapter cannot discard the blocker and hand a clean
+    # CompilationPlan to a backend: the diagnostic is carried into the plan.
+    legacy_plan = isr_to_plan(revision)
+    assert legacy_plan.blocking_diagnostics
+    from compiler.core.capabilities import assert_plan_supported
+    with pytest.raises(UnsupportedSemanticsError, match="adapter blocked backend lowering"):
+        assert_plan_supported(
+            legacy_plan, BackendCapabilities(backend_id="python-fastapi", version="1.0")
+        )
+
 
 
 def test_compiler_ir_rejects_forged_compilation_identity_on_reload():

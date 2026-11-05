@@ -62,6 +62,16 @@ def _inputs():
         },
     )
     graph = ISRGraph(nodes={
+        "api:payroll": Node(
+            id="api:payroll", type=NodeType.API, properties={
+                "label": "Payroll API",
+                "behavior": {
+                    "operation_id": "payroll.calculate",
+                    "method": "POST",
+                    "path": "/payroll/calculate",
+                },
+            },
+        ),
         "requirement_ref:REQ-PAY-001": Node(
             id="requirement_ref:REQ-PAY-001",
             type=NodeType.REQUIREMENT_REF,
@@ -209,7 +219,7 @@ def test_payroll_certifier_blocks_unreviewed_tor_candidates():
     requirements, revision, compiler_ir, plan, caps = _inputs()
     candidate_hash, backend_hashes, frontend_hash = _candidate_manifest(requirements, revision, compiler_ir, plan, total=14, reviewed=9)
     args = _common(
-        requirements, revision, plan, caps, candidate_hash, backend_hashes, frontend_hash,
+        requirements, revision, compiler_ir, plan, caps, candidate_hash, backend_hashes, frontend_hash,
         total=14, reviewed=9,
     )
     report = certify_payroll_candidate(**args)

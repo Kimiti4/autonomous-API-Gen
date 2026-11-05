@@ -33,11 +33,13 @@ def test_generated_laravel_project_installs_boots_and_passes_http_tests(tmp_path
         cwd=tmp_path, check=False, timeout=600, capture_output=True, text=True,
     )
     assert install.returncode == 0, install.stdout + install.stderr
-    subprocess.run(
+    feature_tests = subprocess.run(
         ["php", "artisan", "test"],
-        cwd=tmp_path, check=True, timeout=180, capture_output=True, text=True,
+        cwd=tmp_path, check=False, timeout=180, capture_output=True, text=True,
     )
-    subprocess.run(
+    assert feature_tests.returncode == 0, feature_tests.stdout + feature_tests.stderr
+    about = subprocess.run(
         ["php", "artisan", "about"],
-        cwd=tmp_path, check=True, timeout=60, capture_output=True, text=True,
+        cwd=tmp_path, check=False, timeout=60, capture_output=True, text=True,
     )
+    assert about.returncode == 0, about.stdout + about.stderr

@@ -52,7 +52,7 @@ class KtorBackend:
           "build.gradle.kts":self._build(), "src/main/kotlin/Application.kt":self._app(),
           "src/main/kotlin/DomainModels.kt":self._models(model),
           "src/test/kotlin/ApplicationTest.kt":self._test(),
-          "Dockerfile":self._docker(),
+          "Dockerfile":self._docker(slug),
           "README.md":f"# {model.system_name}\n\nGenerated from the technology-neutral ISR.\n"},
           capability_manifest=self._manifest())
     def _build(self):
@@ -113,16 +113,16 @@ class ApplicationTest {
     }
 }
 '''
-    def _docker(self):
-        return '''FROM gradle:8-jdk21 AS build
+    def _docker(self, slug):
+        return f'''FROM gradle:8-jdk21 AS build
 WORKDIR /app
 COPY . .
-RUN gradle test build --no-daemon
+RUN gradle test installDist --no-daemon
 FROM eclipse-temurin:21-jre
 WORKDIR /app
-COPY --from=build /app/build/libs/*.jar app.jar
-EXPOSE 8000
-ENTRYPOINT ["java","-jar","app.jar"]
+COPY --from=build /app/build/install/{slug}/ ./
+EXPOSE 8080
+ENTRYPOINT ["/app/bin/{slug}"]
 '''
     def _manifest(self):
         return CapabilityManifest(backend_id=self.backend_id,capabilities=[

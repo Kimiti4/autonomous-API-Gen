@@ -76,7 +76,22 @@ class ISRRevision(BaseModel):
         graph: ISRGraph,
         provenance: Provenance,
     ) -> ISRRevision:
-        """Construct a revision, enforcing all invariants fail-closed."""
+        """Construct a revision, preserving domain exception types for callers."""
+        from isr.schema.versions import SCHEMA_REGISTRY, validate_schema_graph
+
+        validate_schema_graph(graph, schema_version)
+        definition = SCHEMA_REGISTRY[schema_version]
+        compatibility = {
+            EdgeType(edge_name): (
+                frozenset(NodeType(node_name) for node_name in source_types),
+                frozenset(NodeType(node_name) for node_name in target_types),
+            )
+            for edge_name, (source_types, target_types)
+            in definition.edge_compatibility.items()
+        }
+        validate_invariants(graph, edge_type_compatibility=compatibility)
+        validate_behavioral_graph(graph)
+
         content_hash = compute_content_hash(schema_version, graph)
         revision_hash = compute_revision_hash(
             system_id, schema_version, content_hash, provenance

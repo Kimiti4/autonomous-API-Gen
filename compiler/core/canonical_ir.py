@@ -257,6 +257,15 @@ class CompilerIR(BaseModel):
             raise ValueError("CompilerIR provenance/source ISR revision hash mismatch")
         if self.provenance.source_architecture_candidate_content_hash != self.source_architecture_candidate_content_hash:
             raise ValueError("CompilerIR provenance/source architecture hash mismatch")
+        identity_payload = self.model_dump(
+            mode="json", exclude={"compilation_id", "content_hash"}
+        )
+        identity_digest = self.compute_content_hash(identity_payload)
+        expected_compilation_id = str(
+            uuid5(NAMESPACE_URL, f"esap:compiler-ir:{identity_digest}")
+        )
+        if self.compilation_id != expected_compilation_id:
+            raise ValueError("CompilerIR compilation_id does not match canonical identity payload")
         expected = self.compute_content_hash(self.model_dump(mode="json", exclude={"content_hash"}))
         if expected != self.content_hash:
             raise ValueError("CompilerIR content_hash does not match canonical serialization")

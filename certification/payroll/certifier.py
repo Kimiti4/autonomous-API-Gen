@@ -239,7 +239,7 @@ def compute_payroll_candidate_hash(
     backend_artifact_hashes: Mapping[str, str],
     frontend_artifact_sha256: str,
 ) -> str:
-    """Hash the ISR, lowered plan, exact emitted backend/frontend artifacts, and TOR review state."""
+    """Hash the ISR revision, canonical CompilerIR, plan, artifacts and TOR review state."""
     manifest = {
         "isr_content_hash": revision.content_hash,
         "isr_revision_hash": revision.revision_hash,
@@ -404,7 +404,7 @@ def certify_payroll_candidate(
         frontend_artifact_sha256=frontend_artifact_sha256,
     )
     if candidate_sha256 != expected_candidate_hash:
-        findings.append("candidate SHA-256 does not match the ISR/plan/backend/frontend/TOR artifact manifest")
+        findings.append("candidate SHA-256 does not match the ISR/CompilerIR/plan/backend/frontend/TOR artifact manifest")
 
     period_start = _iso_date(payroll_period_start, "payroll period start", findings)
     period_end = _iso_date(payroll_period_end, "payroll period end", findings)

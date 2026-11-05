@@ -249,8 +249,8 @@ WORKDIR /app
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 COPY . .
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libonig-dev \
-    && docker-php-ext-install mbstring \
+    && apt-get install -y --no-install-recommends libonig-dev libxml2-dev \
+    && docker-php-ext-install dom mbstring xml \
     && rm -rf /var/lib/apt/lists/*
 RUN composer install --no-interaction --prefer-dist --optimize-autoloader
 EXPOSE 8000

@@ -715,3 +715,103 @@ The frontend targets likewise must be assessed per target and per assurance leve
 ### 13.9 Checkpoint 13 disposition
 
 **PARTIAL — the repository has broad and useful language/framework diversity, including 21 Cap-C target registrations, a stronger canonical semantic gate for Python/Rust, and a separate evidence-based seven-backend Gen-C conformance registry. These systems do not yet form one shared semantic capability authority. Native campaign evidence is concentrated on Python FastAPI and Rust Axum; language-aware static verification is uneven; and Android remains a deliberately static Kotlin/Compose shell. No production implementation, test, workflow, registration, capability declaration, certification state or generated artifact was changed.**
+
+
+---
+
+## 14. Checkpoint 14 — frontend, mobile, Android and cloud compilation
+
+**Inspected revision:** `50aca3d36b299e579f718b61343b8329e21c8c9c`  
+**Scope:** frontend target inventory and generation behavior, capability declarations, browser/unit/native evidence, mobile target coverage, Android source binding and cloud execution. This is a read-only source and workflow audit. No workflow was dispatched and no build, emulator or test suite was executed by this audit.
+
+### 14.1 Frontend target inventory and declared maturity
+
+The Cap-C composition root registers six TypeScript browser/hybrid targets (React, Vue, Angular, Next.js, Nuxt and Svelte) and three Elixir targets (Phoenix LiveView, Hologram and Scenic). The separate `FRONTEND_TARGETS` matrix records all nine and marks every one `production_ready=False`. That is an important explicit maturity signal: registration is not a production-readiness claim.
+
+The six TypeScript targets each emit framework-specific project files and use a typed `SystemModel` obtained from the ISR. Their current generated behavior is intentionally small: an application title, a catalogue of declared data-model names and a filter interaction. They do not yet constitute general UI generation from arbitrary page, route, form, navigation, API-client, authorization or design-system requirements.
+
+The six targets' capability manifests are deliberately limited to BUILD, TEST and DOCUMENTATION. Tests explicitly guard against claiming LINT, STATIC_ANALYSIS, SECURITY_SCAN or RELEASE. This is more honest than the broader Elixir manifests described below.
+
+### 14.2 Browser evidence is real but narrowly scoped
+
+The repository contains generated-browser CI workflows for React, Vue, Next.js, Nuxt and Svelte. They install dependencies, build the generated fixture, run unit tests and Playwright browser tests. React, Vue, Next and Svelte workflows also exercise a negative control that deliberately breaks the generated filter and require the browser suite to reject it; Nuxt has a corresponding negative-control step. This is meaningful execution evidence for the tested generated UI slice, not merely a test-file declaration.
+
+The test suites and workflow comments explicitly limit the claim: they do not establish route, form, API-client or authentication parity. Their assertions concentrate on heading/model-list rendering and filter interaction, including overlapping names and empty-model cases. The independent generated-frontend certification workflow under `autonomous-api/` is another React-only route and must not be conflated with all Cap-C targets.
+
+An Angular browser-evidence test file exists, but the inspected workflow inventory contains no matching `tiannara-angular-browser-evidence.yml` workflow. Angular has generated unit/E2E artifacts and structural tests, but the same executed browser-CI evidence path seen for the other five TypeScript targets was not established here.
+
+### 14.3 Elixir UI targets are substantially less complete than their declarations imply
+
+The LiveView, Hologram and Scenic targets are registered with distinct runtime-model labels, but their generated projects are minimal source shells:
+
+- LiveView emits a tiny `mix.exs`, a minimal LiveView module and a test that checks the module can be loaded. The emitted Mix project does not declare the Phoenix/LiveView dependencies or a complete OTP/Phoenix application, endpoint and router wiring needed for a runnable production LiveView application.
+- Hologram emits a Mix project, a plain Elixir page module and a title assertion. The inspected output does not demonstrate Hologram dependencies, compiler integration, client bundle generation or an operational server/client UI.
+- Scenic emits a Mix project, a plain scene module and a title assertion. The inspected output does not demonstrate Scenic dependencies, a Scenic application/window/viewport or a native GUI launch.
+
+Their capability manifests nevertheless claim BUILD, LINT, STATIC_ANALYSIS, TEST, SECURITY_SCAN, DOCUMENTATION and RELEASE. The current minimal emitted projects and tests do not substantiate all those claims. The frontend-manifest guard test checks only the six TypeScript targets, so it does not catch these three Elixir declaration discrepancies.
+
+**Finding:** retain these three distinct targets, but treat them as structural prototypes until their dependencies, application wiring, native runtime behavior and truthful capability declarations are implemented and independently verified.
+
+### 14.4 Frontend-to-backend integration and semantic completeness
+
+The inspected browser evidence deliberately avoids claiming API or authentication behavior. The frontend generators do not yet show a mandatory, evidence-backed binding from generated UI actions/forms/routes to canonical backend API contracts, authorization policies, effect bindings and consequence semantics.
+
+This leaves an integration gap between the frontend's visible behavior and the backend's governed behavior. A frontend can render and filter a list while the full application contract—read/write operations, validation, authentication, authorization, error states, persistence, offline behavior and backend effects—remains absent or unproven.
+
+The required next architectural step is not to duplicate backend logic in each frontend framework. It is to define a shared, technology-neutral UI/application contract bound to the same authoritative ISR and canonical API/effect contracts, then require target adapters to preserve it and fail closed on unsupported interactions.
+
+### 14.5 Mobile and Android coverage
+
+The inspected repository tree contains an Android target but no dedicated iOS/Swift, Flutter, React Native or Expo compiler target. This is a coverage gap, not a reason to retire Android or constrain the intended universal-software scope. Cross-platform/mobile targets should be added only with explicit semantic adapters and real build/runtime evidence.
+
+The Cap-C Android target remains the deliberately static Kotlin/Jetpack Compose catalogue shell identified in Checkpoint 13. It refuses service, API and event semantics and does not claim persistence, authentication, synchronization or network behavior.
+
+A separate campaign-native Android backend and cloud workflow provide stronger structural assurance than that shell's source tests alone. The manual workflow:
+
+1. checks out an exact source revision;
+2. verifies source specification, serialized `ISRRevision`, and a derivation-manifest hash;
+3. recompiles the ISR revision into a canonical plan and candidate;
+4. recomputes candidate binding before execution;
+5. runs Gradle, inspects the APK, installs it on an Android emulator and launches it; and
+6. preserves candidate-bound evidence and an explicit `STRUCTURAL_CHECKS_ONLY` verdict.
+
+The structural runner refuses mismatched revision, plan or repository hashes and never returns a campaign CERTIFIED verdict. These are good source-binding and evidence-boundary controls.
+
+### 14.6 Android cloud workflow is not Android application certification
+
+The Android cloud workflow is manually dispatched for a supplied candidate and source-binding set; its pull-request job runs only the backend/runner contract tests. At the inspected PR head, the `android-backend-tests` check completed successfully and the `android-cloud-build` check was skipped, consistent with its manual-dispatch condition. No cloud APK/emulator run was established by this checkpoint.
+
+More importantly, the campaign documentation states that the current ESAP-APP-001 problem/acceptance artifacts remain `PROPOSED_AWAITING_REVIEW_AND_HASH_FREEZE`. The source-binding manifest is a pinned hash assertion, not a cryptographic reviewer signature; reviewer approval must be established separately through repository review/governance.
+
+The documentation also states that a faithful benchmark ISR includes CRUD, validation, search, persistence and offline behavior that the current Android structural backend does not implement. The expected outcome is therefore a fail-closed refusal before APK generation until those semantics exist. Stripping requirements to obtain a successful build would invalidate the benchmark.
+
+Even a successful Gradle/APK/install/launch sequence would prove structural execution only. It would not satisfy benchmark runtime acceptance criteria AC-002 through AC-012 or certify ESAP-APP-001.
+
+### 14.7 Confirmed findings
+
+- **FS00-057 — all nine registered frontend targets are explicitly not production-ready.** The target matrix marks React, Vue, Angular, Next, Nuxt, Svelte, LiveView, Hologram and Scenic as `production_ready=False`; registry membership must not be presented as production certification.
+- **FS00-058 — TypeScript frontend generation is a narrow UI slice, not general application generation.** The six targets emit a model catalogue and basic filtering from typed ISR-derived models. General route, form, API, auth, authorization, design-system and full application behavior remain unproven.
+- **FS00-059 — browser execution evidence covers five TypeScript targets, not all six.** React, Vue, Next, Nuxt and Svelte have generated-browser workflows; Angular has tests but no matching browser-evidence workflow in the inspected tree.
+- **FS00-060 — browser evidence proves only its asserted interaction scope.** Playwright workflows exercise rendering and filtering, including negative controls and edge cases, while explicitly disclaiming route/form/API-client/auth parity.
+- **FS00-061 — Elixir frontend capability manifests overstate demonstrated behavior.** LiveView, Hologram and Scenic declare build, lint, static analysis, test, security scan, documentation and release capabilities, while their generated projects are minimal shells without demonstrated complete framework/native application wiring. Existing manifest guard tests omit these targets.
+- **FS00-062 — frontend/backend contract binding is not established as a mandatory shared boundary.** The inspected UI tests do not prove that UI operations preserve canonical API contracts, authorization, effect bindings and consequence semantics end-to-end.
+- **FS00-063 — no dedicated iOS or cross-platform mobile compiler target was found.** The inspected repository tree contains no Swift/iOS, Flutter, React Native or Expo target. This is an open coverage requirement, not grounds for retiring other targets.
+- **FS00-064 — Android cloud execution has strong structural source-binding controls.** Exact source/revision/manifest hashes and candidate recomputation are checked before Gradle/APK/emulator execution; the runner preserves a structural-only verdict.
+- **FS00-065 — Android cloud structural success cannot certify ESAP-APP-001.** The benchmark source artifacts remain awaiting approval/hash freeze, the current Android backend cannot realize the benchmark's required semantics, and AC-002 through AC-012 require separate direct runtime evidence.
+
+### 14.8 Required remediation sequence
+
+1. Preserve all nine frontend targets and Android. Do not collapse distinct runtime models or retire incomplete language/framework routes.
+2. Define the shared UI/application contract over authoritative ISR and canonical API/effect semantics. Include routes, forms, navigation, state, validation, error handling, accessibility, authorization, offline behavior and design-system constraints as explicit typed obligations.
+3. Add explicit per-target support declarations and source-bound adapters. Unknown or unconsumed UI/API semantics must block generation rather than silently disappear.
+4. Expand framework behavior beyond model-name catalogues. Generate representative, requirement-derived application workflows and test actual user-visible behavior.
+5. Add Angular's generated-browser workflow and align all framework workflows on consistent build, unit, browser, negative-control and evidence-binding standards.
+6. Correct the LiveView, Hologram and Scenic manifests to match demonstrated capabilities immediately in a separate reviewed implementation change; then implement their real framework dependencies, application wiring, native runtime and acceptance tests before capability upgrades.
+7. Establish end-to-end frontend/backend tests that trace a user action through generated UI, API contract, authorization, backend effect and observable consequence. Independent oracles must derive from requirements, not copy generator output.
+8. Add iOS and cross-platform mobile targets through deliberate architecture decisions, with framework-specific build/runtime environments and device-level acceptance. Do not claim universal mobile support before evidence exists.
+9. Keep Android source-binding and structural cloud checks. First approve and freeze the benchmark through governance, then implement the required semantics; never weaken the source specification to make the current static backend pass.
+10. Expand independent certification across all frontend and mobile targets. Separate source generation, framework build, browser/device execution, semantic acceptance, security and production readiness as distinct evidence states.
+
+### 14.9 Checkpoint 14 disposition
+
+**PARTIAL — five TypeScript frontend targets have meaningful generated-browser CI for a narrow catalogue/filter interaction; Angular lacks the matching workflow; the three Elixir UI targets remain structural shells whose capability manifests overstate demonstrated behavior. Frontend-to-backend semantic integration is not established as a compulsory shared contract. Android has a well-designed source-bound structural cloud execution path, but its current backend cannot realize the benchmark's full runtime semantics, and the benchmark itself remains awaiting approval/hash freeze. No dedicated iOS or cross-platform mobile compiler target was found. No production implementation, test, workflow, capability declaration or certification state was changed.**

@@ -275,6 +275,7 @@ def isr_revision_to_compiler_ir(
     source_architecture_candidate_content_hash: str | None = None,
     architecture_reference_reason: str | None = None,
     backend_constraints: tuple[str, ...] = (),
+    lowering_timestamp: str | None = None,
 ):
     """Create the canonical CompilerIR, retaining the legacy plan as projection."""
     from compiler.core.canonical_ir import CompilerIR
@@ -286,6 +287,7 @@ def isr_revision_to_compiler_ir(
         source_architecture_candidate_content_hash=source_architecture_candidate_content_hash,
         architecture_reference_reason=architecture_reference_reason,
         backend_constraints=backend_constraints,
+        lowering_timestamp=lowering_timestamp,
     )
 
 

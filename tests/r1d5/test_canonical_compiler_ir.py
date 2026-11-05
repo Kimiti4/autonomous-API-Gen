@@ -76,10 +76,12 @@ def test_canonical_ir_identity_is_invariant_to_graph_insertion_order():
     first = isr_revision_to_compiler_ir(
         _revision(False),
         source_architecture_candidate_content_hash="b" * 64,
+        lowering_timestamp="2026-11-05T00:00:00Z",
     )
     second = isr_revision_to_compiler_ir(
         _revision(True),
         source_architecture_candidate_content_hash="b" * 64,
+        lowering_timestamp="2026-11-05T00:00:00Z",
     )
     assert first.source_isr_content_hash == second.source_isr_content_hash
     assert first.compilation_id == second.compilation_id

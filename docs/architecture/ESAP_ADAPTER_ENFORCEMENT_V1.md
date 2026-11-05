@@ -48,7 +48,7 @@ Existing backend-level capability checks remain enabled as defense in depth. A b
 
 ## 5. Evidence binding
 
-The source-bound authorization candidate manifest is now schema `1.2.0`. It binds the ISR graph content hash, ISR revision-envelope hash, CompilerIR compilation ID/content hash, and transitional plan hash. The campaign persists `compiler-ir.json`; the independent verifier reloads it, validates its identity/content hash, checks both ISR hashes and revision ID, and verifies that the persisted plan exactly matches the CompilerIR execution-plan projection. Mutation tests now require the ISR revision and CompilerIR hashes to invalidate alongside the other candidate bindings.
+The TOR SourceTraceability record is now schema `1.1` and binds both ISR graph and revision-envelope hashes. The source-bound authorization candidate manifest is schema `1.2.0`. It binds the ISR graph content hash, ISR revision-envelope hash, CompilerIR compilation ID/content hash, and transitional plan hash. The campaign persists `compiler-ir.json`; the independent verifier reloads it, validates its identity/content hash, checks both ISR hashes and revision ID, and verifies that the persisted plan exactly matches the CompilerIR execution-plan projection. Mutation tests now require the ISR revision and CompilerIR hashes to invalidate alongside the other candidate bindings.
 
 ## 6. Current route adoption
 

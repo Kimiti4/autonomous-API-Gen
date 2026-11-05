@@ -121,7 +121,7 @@ def _revision() -> ISRRevision:
     return ISRRevision.create(
         system_id="payroll-system",
         revision_id="rev-behavioral",
-        schema_version="1.0",
+        schema_version="2.0",
         graph=ISRGraph(nodes=nodes, edges=edges),
         provenance=Provenance(created_by="projection-test", created_at="2025-01-01T00:00:00Z"),
     )

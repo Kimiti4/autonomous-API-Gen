@@ -44,7 +44,7 @@ ISR
 
 - **Content hash:** SHA-256 over canonical serialization (`compute_content_hash` at `isr/core/identity.py:44-66`).
 - **System ID:** stable identifier for the system (not the revision).
-- **Revision ID:** stable identifier for the revision; migration IDs are deterministically derived from system ID + target graph content hash.
+- **Revision ID:** stable identifier supplied by the revision producer. The migration helper derives migrated schema-2.0 IDs as UUIDv5 over system ID + revision-envelope hash; universal enforcement of the UUIDv5 rule by `ISRRevision.create` remains open.
 - **Revision envelope hash:** separately binds system ID, schema version, graph content hash, and provenance.
 - **Schema version:** pinned at construction. The active registry is `isr/schema/versions.py`; schema `2.0` is current, while `1.0` and `1.1` remain immutable historical contracts.
 
@@ -107,12 +107,13 @@ The rich `System/Module/Entity/Service/Workflow/Interface/Event/Deployment/...` 
 
 ## 10. Provenance
 
-`Provenance` (frozen Pydantic at `isr/core/identity.py:18-32`):
-- Source (requirement extractor or human author).
-- Author.
-- Tool versions (extractor, semantic validators).
-- Timestamp.
-- Source prompt hash (if applicable).
+`Provenance` (frozen Pydantic at `isr/core/identity.py`):
+- `parent_revision_id`;
+- `requirement_refs` and `derivation_refs`;
+- `created_by`;
+- `created_at` (ISO8601).
+
+The richer source/author/tool-version/prompt-hash fields described by the original D03 prose are not all represented in this current carrier. Their addition requires a separate versioned contract change; they must not be assumed present.
 
 ## 11. Failure semantics
 

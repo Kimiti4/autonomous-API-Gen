@@ -186,13 +186,16 @@ class CandidateArtifacts:
     workload: AuthorizationWorkload
     draft: Any
     projection: Any
+    compiler_ir: Any
     plan: Any
     repo: Any
 
 
 def build_candidate_artifacts(workload: AuthorizationWorkload) -> CandidateArtifacts:
     """Project a corpus workload through the controlled source-bound seam."""
-    from compiler.core.lowering import isr_to_plan
+    from compiler.core.lowering import isr_revision_to_compiler_ir
+    from compiler.core.canonical_ir import assert_compiler_ir_supported
+    from compiler.core.capabilities import BackendCapabilities
     from compiler.backends.python_fastapi import PythonFastAPIBackend
     from reqgraph.adapters.tor_isr import project_tor_to_isr
     from reqgraph.ingestion.tor_extractor import extract_tor_text
@@ -206,12 +209,29 @@ def build_candidate_artifacts(workload: AuthorizationWorkload) -> CandidateArtif
         revision_id=workload.revision_id,
         created_at=workload.created_at,
     )
-    plan = isr_to_plan(projection.revision)
-    repo = PythonFastAPIBackend().compile(plan)
+    compiler_ir = isr_revision_to_compiler_ir(
+        projection.revision,
+        architecture_reference_reason=(
+            "The reviewed TOR authorization lane currently supplies a canonical ISR "
+            "revision without an ArchitectureCandidate."
+        ),
+    )
+    plan = compiler_ir.execution_plan
+    backend = PythonFastAPIBackend()
+    assert_compiler_ir_supported(
+        compiler_ir,
+        BackendCapabilities(
+            backend_id=backend.name,
+            version=backend.version,
+            supported_features=backend.supported_features,
+        ),
+    )
+    repo = backend.compile(plan)
     return CandidateArtifacts(
         workload=workload,
         draft=draft,
         projection=projection,
+        compiler_ir=compiler_ir,
         plan=plan,
         repo=repo,
     )
@@ -315,13 +335,25 @@ def _candidate_binding_problems(
     )
 
 
-def _rust_outcome(workload: AuthorizationWorkload, plan: Any) -> BackendOutcome:
+def _rust_outcome(workload: AuthorizationWorkload, compiler_ir: Any) -> BackendOutcome:
     """Submit the same candidate to Rust; it must refuse the obligation."""
     from compiler.backends.rust_axum import RustAxumBackend
-    from compiler.core.capabilities import UnsupportedSemanticsError
+    from compiler.core.capabilities import BackendCapabilities, UnsupportedSemanticsError
+    from compiler.core.canonical_ir import assert_compiler_ir_supported
+
+    plan = compiler_ir.execution_plan
 
     try:
-        RustAxumBackend().compile(plan)
+        backend = RustAxumBackend()
+        assert_compiler_ir_supported(
+            compiler_ir,
+            BackendCapabilities(
+                backend_id=backend.name,
+                version=backend.version,
+                supported_features=backend.supported_features,
+            ),
+        )
+        backend.compile(plan)
     except UnsupportedSemanticsError as exc:
         message = str(exc)
         if "authorization_policies" in message:
@@ -479,7 +511,7 @@ def _run_workload(
         ))
         problems.extend(mutation_problems)
 
-    rust = _rust_outcome(workload, artifacts.plan)
+    rust = _rust_outcome(workload, artifacts.compiler_ir)
     gates.append(GateResult(
         gate="rust_negative_control",
         passed=rust.verdict == VERDICT_UNSUPPORTED_FAIL_CLOSED,

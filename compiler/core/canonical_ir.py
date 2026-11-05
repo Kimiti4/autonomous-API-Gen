@@ -302,7 +302,7 @@ class CompilerIR(BaseModel):
     def from_revision(
         cls,
         revision: ISRRevision,
-        execution_plan: CompilationPlan,
+        execution_plan: CompilationPlan | None = None,
         *,
         source_architecture_candidate_content_hash: str | None = None,
         architecture_reference_reason: str | None = None,
@@ -318,6 +318,12 @@ class CompilerIR(BaseModel):
             source_architecture_candidate_content_hash
         ):
             raise ValueError("ArchitectureCandidate content hash must be a SHA-256 hex digest")
+
+        from compiler.core.lowering import _isr_to_plan_stabilization
+        expected_plan = _isr_to_plan_stabilization(revision)
+        if execution_plan is not None and execution_plan.model_dump(mode="json") != expected_plan.model_dump(mode="json"):
+            raise ValueError("provided CompilationPlan does not match deterministic ISR projection")
+        execution_plan = expected_plan
 
         nodes = tuple(
             CompilerIRNode(

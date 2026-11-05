@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from isr.core.behavior_validation import validate_behavioral_graph
 from isr.core.graph import EdgeType, ISRGraph, NodeType
-from isr.core.identity import Provenance, compute_content_hash
+from isr.core.identity import Provenance, compute_content_hash, compute_revision_hash
 from isr.core.invariants import validate_invariants
 
 _SCHEMA_VERSION_RE = re.compile(r"^\d+\.\d+$")
@@ -26,6 +26,7 @@ class ISRRevision(BaseModel):
     graph: ISRGraph
     provenance: Provenance
     content_hash: str = Field(min_length=64, max_length=64)
+    revision_hash: str = Field(default="")
 
     _EXPECTED_CONTENT_HASH: ClassVar[int] = 64
 
@@ -42,6 +43,13 @@ class ISRRevision(BaseModel):
     def _registered_schema_and_taxonomy(self) -> "ISRRevision":
         from isr.schema.versions import validate_schema_graph
         validate_schema_graph(self.graph, self.schema_version)
+        expected_revision_hash = compute_revision_hash(
+            self.system_id, self.schema_version, self.content_hash, self.provenance
+        )
+        if not self.revision_hash:
+            object.__setattr__(self, "revision_hash", expected_revision_hash)
+        elif self.revision_hash != expected_revision_hash:
+            raise ValueError("ISR revision_hash does not match its provenance envelope")
         return self
 
     @classmethod
@@ -69,6 +77,9 @@ class ISRRevision(BaseModel):
         validate_behavioral_graph(graph)
 
         content_hash = compute_content_hash(schema_version, graph)
+        revision_hash = compute_revision_hash(
+            system_id, schema_version, content_hash, provenance
+        )
 
         return cls(
             system_id=system_id,
@@ -77,4 +88,5 @@ class ISRRevision(BaseModel):
             graph=graph,
             provenance=provenance,
             content_hash=content_hash,
+            revision_hash=revision_hash,
         )

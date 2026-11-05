@@ -248,3 +248,22 @@ def test_compiler_ir_rejects_forged_compilation_identity_on_reload():
     payload["compilation_id"] = "00000000-0000-0000-0000-000000000000"
     with pytest.raises(ValueError, match="compilation_id"):
         CompilerIR.model_validate(payload)
+
+
+
+def test_compiler_ir_rejects_plan_nodes_not_bound_to_source_isr():
+    from compiler.core.plan import CompilationPlan, Service
+
+    revision = _revision()
+    forged_plan = CompilationPlan(
+        plan_id="plan:forged",
+        isr_id=revision.system_id,
+        services=[Service(id="service:invented", name="Invented service")],
+    )
+    with pytest.raises(ValueError, match="unbound nodes"):
+        CompilerIR.from_revision(
+            revision,
+            execution_plan=forged_plan,
+            architecture_reference_reason="Test route has no ArchitectureCandidate.",
+            lowering_timestamp="2026-11-05T00:00:00Z",
+        )

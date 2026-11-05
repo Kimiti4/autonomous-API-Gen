@@ -179,6 +179,7 @@ def migrate_revision(
             f"migration:{migration_id}",
             f"source_revision:{revision.revision_id}",
             f"source_content_hash:{revision.content_hash}",
+            f"source_revision_hash:{revision.revision_hash}",
         ],
         created_by=f"migration:{migration_id}",
         created_at=created_at,

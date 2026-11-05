@@ -275,3 +275,19 @@ def test_compiler_ir_rejects_plan_nodes_not_bound_to_source_isr():
             architecture_reference_reason="Test route has no ArchitectureCandidate.",
             lowering_timestamp="2026-11-05T00:00:00Z",
         )
+
+
+
+def test_backend_gate_revalidates_compiler_ir_after_nested_payload_mutation():
+    ir = isr_revision_to_compiler_ir(
+        _revision(),
+        architecture_reference_reason="No ArchitectureCandidate is supplied by this test route.",
+        lowering_timestamp="2026-11-05T00:00:00Z",
+    )
+    ir.nodes[0].properties["tampered"] = True
+    from compiler.core.capabilities import BackendCapabilities, UnsupportedSemanticsError
+    from compiler.core.canonical_ir import assert_compiler_ir_supported
+    with pytest.raises(UnsupportedSemanticsError, match="CompilerIR integrity validation failed"):
+        assert_compiler_ir_supported(
+            ir, BackendCapabilities(backend_id="python-fastapi", version="1.0")
+        )

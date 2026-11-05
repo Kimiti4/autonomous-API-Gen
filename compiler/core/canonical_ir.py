@@ -19,7 +19,7 @@ from compiler.core.capabilities import (
     BackendCapabilities, UnsupportedSemanticsError, assert_plan_supported,
     required_features, required_frontend_features,
 )
-from compiler.core.plan import CompilationPlan
+from compiler.core.plan import CompilationPlan, compute_plan_projection_hash
 from isr.core.graph import EdgeType
 from isr.core.revision import ISRRevision
 
@@ -254,6 +254,14 @@ class CompilerIR(BaseModel):
             raise ValueError("CompilerIR provenance/lowering chain mismatch")
         if tuple(sorted(set(self.execution_plan.backend_constraints))) != self.backend_constraints:
             raise ValueError("CompilerIR backend constraints do not match its execution-plan projection")
+        if (
+            self.execution_plan.source_isr_revision_id != self.source_isr_revision_id
+            or self.execution_plan.source_isr_content_hash != self.source_isr_content_hash
+            or self.execution_plan.source_isr_revision_hash != self.source_isr_revision_hash
+        ):
+            raise ValueError("CompilationPlan source ISR lineage does not match CompilerIR")
+        if not self.execution_plan.projection_integrity_hash or compute_plan_projection_hash(self.execution_plan) != self.execution_plan.projection_integrity_hash:
+            raise ValueError("CompilationPlan projection integrity hash mismatch")
         expected_capabilities = sorted(
             {feature.value for feature in required_features(self.execution_plan)}
             | {feature.value for feature in required_frontend_features(self.execution_plan)}
@@ -347,8 +355,15 @@ class CompilerIR(BaseModel):
             plan_updates["blocking_diagnostics"] = blocking_diagnostics
         if normalized_backend_constraints:
             plan_updates["backend_constraints"] = list(normalized_backend_constraints)
-        if plan_updates:
-            execution_plan = execution_plan.model_copy(update=plan_updates)
+        plan_updates.update({
+            "source_isr_revision_id": revision.revision_id,
+            "source_isr_content_hash": revision.content_hash,
+            "source_isr_revision_hash": revision.revision_hash,
+        })
+        execution_plan = execution_plan.model_copy(update=plan_updates)
+        execution_plan = execution_plan.model_copy(update={
+            "projection_integrity_hash": compute_plan_projection_hash(execution_plan)
+        })
         capabilities = sorted(
             {feature.value for feature in required_features(execution_plan)}
             | {feature.value for feature in required_frontend_features(execution_plan)}

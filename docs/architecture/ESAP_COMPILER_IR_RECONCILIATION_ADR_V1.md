@@ -1,7 +1,7 @@
 # Canonical CompilerIR Reconciliation ADR — FS-00 Remediation A3
 
 **ADR ID:** ESAP-ADR-FS00-003  
-**Status:** PROPOSED — HUMAN GOVERNANCE REVIEW REQUIRED BEFORE IMPLEMENTATION  
+**Status:** APPROVED BY USER — IMPLEMENTATION IN PROGRESS  
 **Target contract:** D07 + D2–D4 refinement in `folder/CONTRACT_CanonicalCompilerIR.md`  
 **Current implementation:** `compiler/core/plan.py:CompilationPlan` and `compiler/core/lowering.py:isr_to_plan`  
 **Related:** ESAP Authority Reconciliation; FS-00 Checkpoints 9–15  
@@ -171,6 +171,6 @@ A nullable ArchitectureCandidate reference must not be mistaken for an unbound r
 4. Require every compiler family to consume the canonical CompilerIR directly or through a versioned, fail-closed adapter.
 5. Keep all existing backend/frontend/mobile targets; unsupported required semantics block generation rather than triggering retirement or silent weakening.
 
-**Approval required:** this changes the D07 contract and compiler architecture. No code change is authorized by this proposal alone.
+**Approval record:** user approved the four FS-00 remediation steps on 2026-11-05. The implementation branch introduces the canonical CompilerIR and retains CompilationPlan as a transitional execution-plan projection.
 
 **Change boundary:** documentation only. No tests were run because no executable code changed.

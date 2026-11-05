@@ -54,4 +54,5 @@ class ReferenceGenomeConstructor:
             source_isr_schema_version=isr.schema_version,
             source_isr_content_hash=isr.content_hash,
             source_isr_revision_hash=isr.revision_hash,
+            source_isr_provenance=isr.provenance.model_dump(mode="json"),
         )

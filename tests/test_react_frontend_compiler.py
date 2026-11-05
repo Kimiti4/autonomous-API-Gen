@@ -49,7 +49,7 @@ def _revision(requires_auth: bool = False) -> ISRRevision:
     return ISRRevision.create(
         "payroll-frontend",
         "rev-frontend-1",
-        "1.0",
+        "2.0",
         ISRGraph(nodes=nodes, edges=edges),
         Provenance(created_by="frontend-compiler-test", created_at="2025-01-01T00:00:00Z"),
     )

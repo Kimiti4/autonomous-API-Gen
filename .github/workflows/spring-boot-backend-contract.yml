@@ -23,7 +23,6 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-          cache: maven
       - name: Install compiler test dependencies
         run: python -m pip install pytest
       - name: Run Spring Boot generator contract tests

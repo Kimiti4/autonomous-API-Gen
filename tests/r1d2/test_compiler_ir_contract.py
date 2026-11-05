@@ -345,7 +345,7 @@ class TestNoArchitecturalBypasses(unittest.TestCase):
 
 
 class TestTierABaselinePreserved(unittest.TestCase):
-    """The Tier-A baseline (313 tests) is preserved."""
+    """The Tier-A baseline (331 active tests) is preserved."""
 
     def test_tier_a_tests_count_unchanged(self):
         """The Tier-A test directory has the expected number of tests."""
@@ -360,10 +360,10 @@ class TestTierABaselinePreserved(unittest.TestCase):
             match = re.search(r"(\d+)/(\d+)\s+tests?\s+collected", line)
             if match:
                 collected = int(match.group(2))
-                # 314 collected, 1 deselected = 313 active
-                # Baseline moved 310 -> 314: PR #121's verifier-diagnostics
-                # suite adds 4 tests to tests/cbc1/test_campaign_runner_verification_gate.py.
-                self.assertEqual(collected, 314)
+                # Current remediation base: 332 collected, 1 deselected = 331 active.
+                # Keep this assertion scoped to tests/cbc1 so new FS-00 tests do not
+                # alter the Tier-A baseline count.
+                self.assertEqual(collected, 332)
                 return
         self.fail(f"Could not determine Tier-A test count. Output: {result.stdout[-500:]}")
 

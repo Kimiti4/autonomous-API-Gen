@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 import pytest
@@ -43,3 +46,29 @@ def test_generated_laravel_project_installs_boots_and_passes_http_tests(tmp_path
         cwd=tmp_path, check=False, timeout=60, capture_output=True, text=True,
     )
     assert about.returncode == 0, about.stdout + about.stderr
+
+    if shutil.which("docker"):
+        image = "esap-generated-laravel-contract"
+        built = subprocess.run(
+            ["docker", "build", "-t", image, "."],
+            cwd=tmp_path, check=False, timeout=900, capture_output=True, text=True,
+        )
+        assert built.returncode == 0, built.stdout + built.stderr
+        container = subprocess.run(
+            ["docker", "run", "-d", "-p", "18081:8000", image],
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()
+        try:
+            last_error = None
+            for _ in range(30):
+                try:
+                    with urllib.request.urlopen("http://127.0.0.1:18081/api/health", timeout=3) as response:
+                        assert response.status == 200
+                        assert b'"status":"ok"' in response.read().replace(b" ", b"")
+                        return
+                except (urllib.error.URLError, TimeoutError) as exc:
+                    last_error = exc
+                    time.sleep(2)
+            pytest.fail(f"Generated Laravel container did not become healthy: {last_error}")
+        finally:
+            subprocess.run(["docker", "rm", "-f", container], check=False, capture_output=True)

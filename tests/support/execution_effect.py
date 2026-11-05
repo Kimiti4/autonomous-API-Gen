@@ -114,7 +114,7 @@ def executable_revision() -> ISRRevision:
     return ISRRevision.create(
         system_id=SYSTEM_ID,
         revision_id=REVISION_ID,
-        schema_version="1.0",
+        schema_version="2.0",
         graph=ISRGraph(nodes=nodes, edges=edges),
         provenance=Provenance(
             created_by="w12-executable-effect-fixture",

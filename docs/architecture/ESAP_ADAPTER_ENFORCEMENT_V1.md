@@ -41,7 +41,8 @@ The report enforces a complete, non-overlapping partition. CompilerIR constructi
 `assert_compiler_ir_supported(compiler_ir, capabilities)`:
 
 1. checks any declared backend constraints against the selected backend ID;
-2. checks the transitional plan's required semantic features against the backend's declared capabilities; the frontend-specific gate applies the same blocker check;
+2. copies those constraints into the transitional plan so direct backend entrypoints cannot bypass them;
+3. checks the transitional plan's required semantic features against the backend's declared capabilities; both backend and frontend-specific gates enforce blocking diagnostics and target constraints;
 3. raises a fail-closed error before backend compilation when a constraint or required feature is unsupported.
 
 Existing backend-level capability checks remain enabled as defense in depth. A backend must not be considered capable merely because it can deserialize or structurally accept the plan.

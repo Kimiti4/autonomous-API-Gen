@@ -94,4 +94,25 @@ def test_isr_derived_genome_cannot_omit_or_forge_source_identity():
             source_isr_schema_version=revision.schema_version,
             source_isr_content_hash="0" * 64,
             source_isr_revision_hash=revision.revision_hash,
+            source_isr_provenance={
+                **revision.provenance.model_dump(mode="json"),
+                "created_by": "forged-source",
+            },
+        )
+
+
+def test_genome_rejects_forged_provenance_even_when_revision_hash_is_well_formed():
+    revision = _revision()
+    with pytest.raises(ValueError, match="revision hash"):
+        Genome(
+            system_id=revision.system_id,
+            source_graph=revision.graph.model_dump(mode="json"),
+            source_isr_revision_id=revision.revision_id,
+            source_isr_schema_version=revision.schema_version,
+            source_isr_content_hash=revision.content_hash,
+            source_isr_revision_hash=revision.revision_hash,
+            source_isr_provenance={
+                **revision.provenance.model_dump(mode="json"),
+                "created_by": "forged",
+            },
         )

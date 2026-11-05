@@ -56,7 +56,8 @@ The TOR SourceTraceability record is now schema `1.1` and binds both ISR graph a
 |---|---|---|
 | Compatibility lowering API | `isr_to_plan` delegates through `isr_revision_to_compiler_ir` and returns the transitional plan projection | IMPLEMENTED |
 | Campaign A plan builder | Binds the ArchitectureCandidate hash; constructs CompilerIR before plan projection | IMPLEMENTED IN BRANCH |
-| Source-bound authorization campaign | Constructs CompilerIR with explicit not-applicable ArchitectureCandidate reason; applies canonical compatibility gate before Python/Rust backend calls | IMPLEMENTED IN BRANCH |
+| Source-bound authorization campaign | Constructs CompilerIR with explicit not-applicable ArchitectureCandidate reason; candidate schema 1.2.0 binds ISR revision and CompilerIR hashes; verifier reloads and checks both | IMPLEMENTED IN BRANCH |
+| Payroll certification | Candidate hash now binds ISR revision-envelope hash and CompilerIR ID/hash; certifier validates exact source/plan projection and uses canonical backend gate | IMPLEMENTED IN BRANCH |
 | TOR adapter | Emits schema-2.0 ISR revisions through the single ISR registry | IMPLEMENTED IN BRANCH |
 | `compiler/kernel.py:UniversalCompiler` | Accepts `CompilationRequest.isr` dict and constructs legacy `compiler.models.CompilationPlan`; production caller reachability not yet established | LEGACY ROUTE / MIGRATION OPEN |
 | `compiler/sdk/testing.py` | Constructs legacy SDK test plan from sample ISR dict | TEST HARNESS; not a production route |

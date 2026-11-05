@@ -174,3 +174,10 @@ A nullable ArchitectureCandidate reference must not be mistaken for an unbound r
 **Approval record:** user approved the four FS-00 remediation steps on 2026-11-05. The implementation branch introduces the canonical CompilerIR and retains CompilationPlan as a transitional execution-plan projection.
 
 **Change boundary:** documentation only. No tests were run because no executable code changed.
+
+
+## Implementation status — 2026-11-05
+
+The implementation branch adds `compiler/core/canonical_ir.py:CompilerIR` with deterministic UUIDv5/content hash, schema version, source ISR graph and revision-envelope hashes, explicit ArchitectureCandidate reference state, full source node/relationship preservation, projection coverage report, backend constraints, required capability declarations, and lowering provenance. `CompilationPlan` remains the typed transitional execution projection.
+
+The compatibility `isr_to_plan` API now delegates through CompilerIR. Campaign A binds its ArchitectureCandidate hash; the source-bound authorization lane explicitly records why it has no ArchitectureCandidate input. Two production routes are therefore adopted, not all compiler-family routes. D07 direct backend consumption and full field coverage (interfaces, deployment, observability and complete requirement realization) remain open.

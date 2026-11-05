@@ -46,7 +46,11 @@ The report enforces a complete, non-overlapping partition. CompilerIR constructi
 
 Existing backend-level capability checks remain enabled as defense in depth. A backend must not be considered capable merely because it can deserialize or structurally accept the plan.
 
-## 5. Current route adoption
+## 5. Evidence binding
+
+The source-bound authorization candidate manifest is now schema `1.2.0`. It binds the ISR graph content hash, ISR revision-envelope hash, CompilerIR compilation ID/content hash, and transitional plan hash. The campaign persists `compiler-ir.json`; the independent verifier reloads it, validates its identity/content hash, checks both ISR hashes and revision ID, and verifies that the persisted plan exactly matches the CompilerIR execution-plan projection. Mutation tests now require the ISR revision and CompilerIR hashes to invalidate alongside the other candidate bindings.
+
+## 6. Current route adoption
 
 | Route | Current implementation | Status |
 |---|---|---|
@@ -56,7 +60,7 @@ Existing backend-level capability checks remain enabled as defense in depth. A b
 | TOR adapter | Emits schema-2.0 ISR revisions through the single ISR registry | IMPLEMENTED IN BRANCH |
 | Other compiler-family routes | Not yet migrated or proven to converge | UNKNOWN / OPEN |
 
-## 6. Blocking semantics
+## 7. Blocking semantics
 
 - Unknown schema version or node/edge kind: block.
 - Missing source ISR or revision-envelope identity: block.
@@ -66,7 +70,7 @@ Existing backend-level capability checks remain enabled as defense in depth. A b
 - Backend constraint mismatch or unsupported required semantic feature: block before generation.
 - Unsupported targets remain registered as targets; they refuse only the unsupported workload.
 
-## 7. Acceptance work remaining
+## 8. Acceptance work remaining
 
 A4 is not universally complete until:
 

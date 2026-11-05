@@ -152,6 +152,10 @@ def test_payroll_candidate_is_not_certified_without_behavioral_and_runtime_evide
     args["required_oracle_categories"] = ("gross_to_net", "statutory_deductions", "arrears_backpay", "cost_allocation")
     report = certify_payroll_candidate(**args)
     assert report.verdict == "NOT_CERTIFIED"
+    assert report.isr_revision_hash == revision.revision_hash
+    assert report.compiler_ir_id == compiler_ir.compilation_id
+    assert report.compiler_ir_hash == compiler_ir.content_hash
+    assert report.to_dict()["compiler_ir_hash"] == compiler_ir.content_hash
     assert not report.certified
     assert any("no typed data-model fields" in finding for finding in report.findings)
     assert any("missing statutory evidence" in finding for finding in report.findings)

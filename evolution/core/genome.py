@@ -61,8 +61,10 @@ class Genome(BaseModel):
             raise ValueError("ISR-derived Genome requires complete source ISR revision identity")
         from isr.core.graph import ISRGraph
         from isr.core.identity import compute_content_hash
+        from isr.schema.versions import validate_schema_graph
 
         graph = ISRGraph.model_validate(dict(self.source_graph))
+        validate_schema_graph(graph, self.source_isr_schema_version)
         expected = compute_content_hash(self.source_isr_schema_version, graph)
         if expected != self.source_isr_content_hash:
             raise ValueError("Genome source ISR content hash does not match source_graph")

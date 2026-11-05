@@ -62,9 +62,9 @@ def test_generated_ktor_project_builds_tests_packages_and_serves_health(tmp_path
                 last_error = exc
                 time.sleep(2)
         logs = subprocess.run(["docker", "logs", container], check=False, capture_output=True, text=True)
-            pytest.fail(
-                f"Generated Ktor container did not become healthy: {last_error}\\n"
-                f"Container logs:\\n{logs.stdout}\\n{logs.stderr}"
-            )
+        pytest.fail(
+            f"Generated Ktor container did not become healthy: {last_error}\\n"
+            f"Container logs:\\n{logs.stdout}\\n{logs.stderr}"
+        )
     finally:
         subprocess.run(["docker", "rm", "-f", container], check=False, capture_output=True)

@@ -14,8 +14,12 @@ from uuid import NAMESPACE_URL, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from compiler.core.capabilities import required_features, required_frontend_features
+from compiler.core.capabilities import (
+    BackendCapabilities, assert_plan_supported,
+    required_features, required_frontend_features,
+)
 from compiler.core.plan import CompilationPlan
+from isr.core.graph import EdgeType
 from isr.core.revision import ISRRevision
 
 _SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
@@ -51,6 +55,118 @@ class CompilerIRProvenance(BaseModel):
     lowering_chain: tuple[str, ...] = ()
 
 
+class CompilerIRProjectionReport(BaseModel):
+    """Explicit source-to-transitional-plan coverage; no silent semantic loss."""
+
+    model_config = ConfigDict(frozen=True)
+    source_node_ids: tuple[str, ...]
+    source_relationship_ids: tuple[str, ...]
+    projected_node_ids: tuple[str, ...]
+    projected_relationship_ids: tuple[str, ...]
+    preserved_ir_only_node_ids: tuple[str, ...]
+    preserved_ir_only_relationship_ids: tuple[str, ...]
+    lost_node_ids: tuple[str, ...] = ()
+    lost_relationship_ids: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def _complete_partition(self) -> "CompilerIRProjectionReport":
+        source_nodes = set(self.source_node_ids)
+        source_edges = set(self.source_relationship_ids)
+        projected_nodes = set(self.projected_node_ids)
+        projected_edges = set(self.projected_relationship_ids)
+        ir_only_nodes = set(self.preserved_ir_only_node_ids)
+        ir_only_edges = set(self.preserved_ir_only_relationship_ids)
+        if projected_nodes & ir_only_nodes or projected_edges & ir_only_edges:
+            raise ValueError("CompilerIR projection classifications overlap")
+        if projected_nodes | ir_only_nodes | set(self.lost_node_ids) != source_nodes:
+            raise ValueError("CompilerIR node projection report is incomplete")
+        if projected_edges | ir_only_edges | set(self.lost_relationship_ids) != source_edges:
+            raise ValueError("CompilerIR relationship projection report is incomplete")
+        if self.lost_node_ids or self.lost_relationship_ids:
+            raise ValueError("CompilerIR cannot be created with unclassified semantic loss")
+        return self
+
+
+def _projection_report(revision: ISRRevision, plan: CompilationPlan) -> CompilerIRProjectionReport:
+    projected_nodes = {
+        item.id for item in (
+            *plan.services, *plan.data_models, *plan.events, *plan.security,
+            *plan.apis, *plan.effects, *plan.invariants, *plan.consequences,
+            *plan.frontend_routes, *plan.frontend_interactions,
+        )
+    }
+    projected_edges: set[str] = {binding.edge_id for binding in plan.effect_bindings}
+
+    service_by_id = {item.id: item for item in plan.services}
+    api_by_id = {item.id: item for item in plan.apis}
+    route_by_id = {item.id: item for item in plan.frontend_routes}
+    interaction_by_id = {item.id: item for item in plan.frontend_interactions}
+    consequence_by_id = {item.id: item for item in plan.consequences}
+    for edge in revision.graph.edges.values():
+        source_service = service_by_id.get(edge.source_id)
+        target_api = api_by_id.get(edge.target_id)
+        if edge.type == EdgeType.EXPOSES:
+            if target_api is not None and target_api.service_id == edge.source_id:
+                projected_edges.add(edge.id)
+        elif edge.type == EdgeType.PERSISTS:
+            if source_service is not None and any(
+                item.id == edge.target_id for item in source_service.data_models
+            ):
+                projected_edges.add(edge.id)
+        elif edge.type == EdgeType.PUBLISHES:
+            if source_service is not None and any(
+                item.id == edge.target_id for item in source_service.published_events
+            ):
+                projected_edges.add(edge.id)
+        elif edge.type == EdgeType.CONSUMED_BY:
+            target_service = service_by_id.get(edge.target_id)
+            if target_service is not None and any(
+                item.id == edge.source_id for item in target_service.consumed_events
+            ):
+                projected_edges.add(edge.id)
+        elif edge.type == EdgeType.SECURED_BY:
+            policy_id = edge.target_id
+            service = service_by_id.get(edge.source_id)
+            api = api_by_id.get(edge.source_id)
+            if (service and any(p.policy_id == policy_id for p in service.security_policies)) or (
+                api and any(p.policy_id == policy_id for p in api.security_policies)
+            ):
+                projected_edges.add(edge.id)
+        elif edge.type == EdgeType.ROUTES_TO:
+            route = route_by_id.get(edge.source_id)
+            if route and any(api.id == edge.target_id for api in route.api_operations):
+                projected_edges.add(edge.id)
+        elif edge.type == EdgeType.INVOKES:
+            interaction = interaction_by_id.get(edge.source_id)
+            if interaction and interaction.target_api_operation is not None and (
+                interaction.target_api_operation.id == edge.target_id
+            ):
+                projected_edges.add(edge.id)
+        elif edge.type == EdgeType.CONTAINS:
+            route = route_by_id.get(edge.source_id)
+            if route and any(item.id == edge.target_id for item in route.interactions):
+                projected_edges.add(edge.id)
+        elif edge.type == EdgeType.CONSEQUENCE_OF:
+            consequence = consequence_by_id.get(edge.source_id)
+            if consequence and edge.target_id in consequence.related_node_ids:
+                projected_edges.add(edge.id)
+
+    source_nodes = set(revision.graph.nodes)
+    source_edges = set(revision.graph.edges)
+    source_node_ids = tuple(sorted(source_nodes))
+    source_relationship_ids = tuple(sorted(source_edges))
+    projected_node_ids = tuple(sorted(projected_nodes & source_nodes))
+    projected_relationship_ids = tuple(sorted(projected_edges & source_edges))
+    return CompilerIRProjectionReport(
+        source_node_ids=source_node_ids,
+        source_relationship_ids=source_relationship_ids,
+        projected_node_ids=projected_node_ids,
+        projected_relationship_ids=projected_relationship_ids,
+        preserved_ir_only_node_ids=tuple(sorted(source_nodes - set(projected_node_ids))),
+        preserved_ir_only_relationship_ids=tuple(sorted(source_edges - set(projected_relationship_ids))),
+    )
+
+
 class CompilerIR(BaseModel):
     """Frozen canonical compiler representation; never a backend-specific AST."""
 
@@ -68,6 +184,7 @@ class CompilerIR(BaseModel):
     architecture_reference_reason: str | None = None
     nodes: tuple[CompilerIRNode, ...]
     relationships: tuple[CompilerIRRelationship, ...]
+    projection_report: CompilerIRProjectionReport
     execution_plan: CompilationPlan
     backend_constraints: tuple[str, ...] = ()
     required_capabilities: tuple[str, ...] = ()
@@ -89,6 +206,10 @@ class CompilerIR(BaseModel):
                 raise ValueError("NOT_APPLICABLE architecture reference cannot carry a content hash")
             if not (self.architecture_reference_reason or "").strip():
                 raise ValueError("NOT_APPLICABLE architecture reference requires an explicit reason")
+        if set(self.projection_report.source_node_ids) != {item.source_node_id for item in self.nodes}:
+            raise ValueError("CompilerIR projection report/source node inventory mismatch")
+        if set(self.projection_report.source_relationship_ids) != {item.source_edge_id for item in self.relationships}:
+            raise ValueError("CompilerIR projection report/source relationship inventory mismatch")
         if self.provenance.source_isr_content_hash != self.source_isr_content_hash:
             raise ValueError("CompilerIR provenance/source ISR graph hash mismatch")
         if self.provenance.source_isr_revision_hash != self.source_isr_revision_hash:
@@ -151,6 +272,7 @@ class CompilerIR(BaseModel):
             )
             for _, edge in sorted(revision.graph.edges.items())
         )
+        projection_report = _projection_report(revision, execution_plan)
         capabilities = sorted(
             {feature.value for feature in required_features(execution_plan)}
             | {feature.value for feature in required_frontend_features(execution_plan)}
@@ -184,6 +306,7 @@ class CompilerIR(BaseModel):
             "architecture_reference_reason": architecture_reference_reason,
             "nodes": [item.model_dump(mode="json") for item in nodes],
             "relationships": [item.model_dump(mode="json") for item in relationships],
+            "projection_report": projection_report.model_dump(mode="json"),
             "execution_plan": execution_plan.model_dump(mode="json"),
             "backend_constraints": [],
             "required_capabilities": capabilities,
@@ -201,3 +324,17 @@ class CompilerIR(BaseModel):
             **base,
             content_hash=content_hash,
         )
+
+
+
+def assert_compiler_ir_supported(
+    compiler_ir: CompilerIR,
+    capabilities: BackendCapabilities,
+) -> None:
+    """Enforce target constraints and semantic capability checks before lowering."""
+    if compiler_ir.backend_constraints and capabilities.backend_id not in compiler_ir.backend_constraints:
+        raise ValueError(
+            f"Backend {capabilities.backend_id!r} is excluded by CompilerIR constraints "
+            f"{compiler_ir.backend_constraints}"
+        )
+    assert_plan_supported(compiler_ir.execution_plan, capabilities)

@@ -36,14 +36,16 @@ ISR
 ├── relationships
 ├── semantic properties
 ├── provenance
-└── content hash
+├── graph content hash
+└── revision envelope hash
 ```
 
 ## 4. Identity
 
 - **Content hash:** SHA-256 over canonical serialization (`compute_content_hash` at `isr/core/identity.py:44-66`).
 - **System ID:** stable identifier for the system (not the revision).
-- **Revision ID:** UUIDv5 over the system ID + content hash.
+- **Revision ID:** stable identifier for the revision; migration IDs are deterministically derived from system ID + target graph content hash.
+- **Revision envelope hash:** separately binds system ID, schema version, graph content hash, and provenance.
 - **Schema version:** pinned at construction. The active registry is `isr/schema/versions.py`; schema `2.0` is current, while `1.0` and `1.1` remain immutable historical contracts.
 
 ## 5. Lifecycle and mutability
@@ -94,12 +96,12 @@ The rich `constitutional_architecture/isr/model/isr.py:ISR` carries: business_ca
 
 **R1-B policy:** semantic properties from the constitutional ISR that are genuinely semantic (e.g. requirement-layer semantic obligation / test / verification distinction, technology-leakage rejection) **may** be selectively migrated into `isr/core/invariants.py` (or a new `isr/core/semantics/`) in R1-D.1. Semantic properties that duplicate downstream contracts (e.g. architecture decisions belong in D04 ArchitectureCandidate; acceptance criteria are already in D02 RequirementGraph) **must not** be migrated.
 
-The rich `System/Module/Entity/Service/Workflow/Interface/Event/Deployment/...` model is **not** the canonical ISR. The canonical ISR is flat (9 NodeType, 8 EdgeType). R1-D.1 selectively absorbs the genuinely-semantic validators; the rich model is retired as runtime.
+The rich `System/Module/Entity/Service/Workflow/Interface/Event/Deployment/...` model is **not** the canonical ISR. The canonical ISR is flat; schemas 1.x retain 9 NodeType/8 EdgeType, while the approved schema 2.0 extension adds the five frontend/behavioral node kinds and ten relationship kinds documented in §16. R1-D.1 selectively absorbs the genuinely-semantic validators; the rich model is retired as runtime.
 
 ## 9. Hashing and serialization
 
 - **Serialization:** canonical JSON with sorted keys.
-- **Hashing:** SHA-256 over canonical serialization. The hash is the ISR's identity.
+- **Hashing:** SHA-256 over canonical serialization. Graph semantic identity and revision-envelope identity are separate.
 - **Graph content hash:** SHA-256 over canonical graph JSON plus schema version; this represents semantic graph identity and is independent of author/timestamp lineage.
 - **Revision envelope hash:** SHA-256 over system ID, schema version, graph content hash, and canonical Provenance. This binds the immutable revision to its provenance without conflating semantic equivalence with derivation history.
 

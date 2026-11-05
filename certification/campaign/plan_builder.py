@@ -22,6 +22,7 @@ from genesis.mapper import (
 )
 from isr.core.identity import Provenance, compute_content_hash
 from isr.core.revision import ISRRevision
+from isr.schema import CURRENT_SCHEMA_VERSION
 from reqgraph.core.graph import (
     Priority, RequirementEdge, RequirementEdgeType, RequirementGraph,
     RequirementKind, RequirementNode,
@@ -452,7 +453,7 @@ def intent_to_requirement_graph(w: Workload) -> RequirementGraph:
             update={"properties": {**node.properties, **extra}}
         )
 
-    return RequirementGraph(schema_version="1.0", nodes=nodes, edges=edges)
+    return RequirementGraph(schema_version=CURRENT_SCHEMA_VERSION, nodes=nodes, edges=edges)
 
 
 def build_artifacts_for(w: Workload) -> PlanArtifacts:

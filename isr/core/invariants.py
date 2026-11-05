@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from itertools import chain
-from typing import Sequence
+from typing import Mapping, Sequence
 
 from isr.core.graph import EDGE_TYPE_COMPATIBILITY, Edge, EdgeType, ISRGraph, Node, NodeType
 
@@ -70,7 +70,10 @@ _TESTING_RE = re.compile(
 )
 
 
-def validate_invariants(graph: ISRGraph) -> None:
+def validate_invariants(
+    graph: ISRGraph,
+    edge_type_compatibility: Mapping[EdgeType, tuple[frozenset[NodeType], frozenset[NodeType]]] | None = None,
+) -> None:
     """Enforces constitutional invariants on the ISR graph.  Raises on the
     first violation encountered (fail-closed)."""
 
@@ -96,7 +99,8 @@ def validate_invariants(graph: ISRGraph) -> None:
         src_type = graph.nodes[edge.source_id].type
         tgt_type = graph.nodes[edge.target_id].type
 
-        compat = EDGE_TYPE_COMPATIBILITY.get(edge.type)
+        compatibility = EDGE_TYPE_COMPATIBILITY if edge_type_compatibility is None else edge_type_compatibility
+        compat = compatibility.get(edge.type)
         if compat is not None:
             src_allowed, tgt_allowed = compat
             if src_type not in src_allowed:

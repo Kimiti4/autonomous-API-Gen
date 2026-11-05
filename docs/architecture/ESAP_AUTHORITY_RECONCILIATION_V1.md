@@ -1,8 +1,9 @@
 # ESAP Authority Reconciliation — FS-00 Remediation Phase 1
 
 **Document ID:** ESAP-ADR-FS00-001  
-**Status:** IMPLEMENTATION BASELINE — GOVERNANCE RATIFICATION REQUIRED FOR SCHEMA/CONSUMER MIGRATIONS  
-**Branch:** `remediation/fs00-authority-reconciliation`  
+**Status:** APPROVED IMPLEMENTATION BASELINE — FS-00 A1–A4 IMPLEMENTATION IN PROGRESS  
+**Design branch:** `remediation/fs00-authority-reconciliation`  
+**Implementation branch:** `remediation/fs00-authority-implementation`  
 **Parent audit:** FS-00 Checkpoint 15, commit `15d28b79726bd020e8d39dbbb98dd97f5d56d09e`  
 **Scope:** authority ownership, contract/version reconciliation, migration boundaries and fail-closed rules.  
 **Non-scope:** no production route rewiring, schema mutation, backend retirement, capability promotion, certification, or artifact publication changes in this phase.
@@ -88,7 +89,7 @@ An adapter must reject relationships or fields it cannot preserve. It must emit 
 
 ### 4.2 ISR
 
-D03 is not an accurate description of the inspected current `isr/core` taxonomy. A dedicated schema ADR must:
+D03 originally froze 9/8 for schema 1.x. The user approved the A2 schema ADR to preserve those versions as historical contracts and formalize the current 14/18 vocabulary as schema 2.0. The implementation must:
 
 1. inventory every current node/edge kind and compatibility rule;
 2. identify which additions are required semantic carriers versus derived/operational metadata;
@@ -102,13 +103,7 @@ No node/edge kind is removed in this phase. No existing hash is rewritten. Any s
 
 ### 4.3 CompilerIR
 
-D07 and the current stabilization model are not yet the same contract. A dedicated ADR must compare the D07 required surface with `CompilationPlan`, including source ISR and ArchitectureCandidate references, target requirements, components, interfaces, data flows, persistence, API contracts, frontend/backend responsibilities, security, deployment, observability, backend constraints, lowering metadata and provenance.
-
-The decision must be one of:
-- **Formalize:** version `CompilationPlan` as a conforming implementation of the D07 CompilerIR contract after every required field and invariant is implemented and tested; or
-- **Migrate:** implement the D07 canonical CompilerIR as a distinct versioned model and provide a loss-aware adapter from the current plan.
-
-Until that ADR is approved and implemented, `CompilationPlan` is the current behavioral path's transitional IR, not proof of a universal canonical CompilerIR.
+The user approved A3: implement a distinct, versioned canonical CompilerIR, retain `CompilationPlan` as a transitional execution-plan projection, and preserve source lineage and explicit projection coverage. The initial implementation is `compiler/core/canonical_ir.py`; the D07 contract is updated accordingly. Backend protocols still consume `CompilationPlan`, so direct CompilerIR consumption across all backend families remains open.
 
 ## 5. Mandatory adapter contract
 
@@ -131,10 +126,10 @@ Every adapter between an approved source, RequirementGraph, ISR, CompilerIR or b
 
 | Sequence | Work package | Required output | Exit condition |
 |---|---|---|---|
-| A1 | RequirementGraph consumer inventory | Exact consumer/route matrix for canonical and noncanonical graph types | Every consumer classified; adapters and production reachability evidenced |
-| A2 | ISR schema reconciliation | D03 schema ADR, compatibility matrix and migration tests | Current 14/18 implementation has an explicit versioned contract; 9/8 compatibility is tested |
-| A3 | CompilerIR reconciliation | D07-to-CompilationPlan field/invariant comparison and ADR | One approved canonical IR decision; no second competing model |
-| A4 | Adapter enforcement design | Shared adapter protocol and deterministic loss report | Contract test suite specifies fail-closed behavior |
+| A1 | RequirementGraph consumer inventory | Exact consumer/route matrix for canonical and noncanonical graph types | Inventory complete for identified models; full production reachability remains open |
+| A2 | ISR schema reconciliation | Versioned registry, 1.x compatibility, 2.0 taxonomy, migration and dual identity | Implemented on remediation branch; CI/test evidence pending |
+| A3 | CompilerIR reconciliation | Distinct canonical CompilerIR and transitional CompilationPlan projection | Initial model, lineage, content hash and route integration implemented; full backend migration open |
+| A4 | Adapter enforcement | Projection report, explicit loss partition, backend constraints and capability gate | Initial report/gate and two route integrations implemented; universal enforcement open |
 | A5 | Route adoption | Incremental migration of each production compiler entrypoint | Each route proves approved source → graph → ISR → IR before generation |
 | A6 | Publication integration | Common quarantine, independent verification and authorization contract | Every artifact publication route is gated; bypass tests demonstrate refusal |
 
@@ -164,23 +159,25 @@ Tests must be independent of the adapter implementation where practical. A test 
 | Select target RequirementGraph owner | DECIDED: `reqgraph/core` |
 | Select target ISR owner | DECIDED: `isr/core` |
 | A1 RequirementGraph model/consumer inventory | COMPLETE FOR IDENTIFIED MODELS; production reachability and migration remain open |
-| Reconcile D03 with actual 14/18 schema | PROPOSAL READY — human approval required; see [ISR Schema Reconciliation ADR](ESAP_ISR_SCHEMA_RECONCILIATION_ADR_V1.md) |
-| Select final CompilerIR implementation | PROPOSAL READY — human approval required; see [CompilerIR Reconciliation ADR](ESAP_COMPILER_IR_RECONCILIATION_ADR_V1.md) |
-| Inventory every live consumer and production route | PARTIAL — A1 inventory published; route reachability remains open |
-| Implement mandatory adapters across all routes | NOT STARTED |
-| Enforce universal loss/completeness gate | NOT ESTABLISHED |
+| Reconcile D03 with actual 14/18 schema | APPROVED; schema registry, 1.x/2.0 validators, migrations and revision envelope implemented on branch; tests pending |
+| Select final CompilerIR implementation | APPROVED; canonical CompilerIR and transitional plan projection implemented on branch; full backend migration open |
+| Inventory every live consumer and production route | PARTIAL — A1 inventory published; complete route reachability remains open |
+| Implement mandatory adapters across all routes | PARTIAL — canonical boundary adopted by Campaign A and authorization campaign; other routes open |
+| Enforce universal loss/completeness gate | PARTIAL — CompilerIR projection partition and backend compatibility gate implemented; universal route coverage not established |
 | Enforce universal quarantine and publication gates | NOT ESTABLISHED |
 
 **A1 artifact:** [ESAP RequirementGraph Consumer Inventory](ESAP_REQUIREMENT_GRAPH_CONSUMER_INVENTORY_V1.md). It identifies five materially different graph/IR representations and their direct consumers; it does not yet establish full production route reachability.
 
-**A2 artifact:** [ISR Schema Reconciliation ADR](ESAP_ISR_SCHEMA_RECONCILIATION_ADR_V1.md). It proposes preserving the current 14/18 taxonomy as schema 2.0, formal schema registry enforcement, and a separate revision/provenance identity. This is explicitly awaiting human governance approval; no schema or runtime code has changed.
+**A2 artifact:** [ISR Schema Reconciliation ADR](ESAP_ISR_SCHEMA_RECONCILIATION_ADR_V1.md). Approved by the user. The implementation branch adds the single registry, strict schema-version/taxonomy validation, deterministic 1.x→2.0 migration, and a separate provenance-bound revision hash. CI evidence is pending.
 
-**A3 artifact:** [CompilerIR Reconciliation ADR](ESAP_COMPILER_IR_RECONCILIATION_ADR_V1.md). It proposes a distinct canonical, versioned CompilerIR and retains `CompilationPlan` as a transitional backend execution-plan projection. It records current lineage and semantic projection gaps, including omitted requirement references and silent null/filtered frontend bindings. This awaits human governance approval; no compiler code has changed.
+**A3 artifact:** [CompilerIR Reconciliation ADR](ESAP_COMPILER_IR_RECONCILIATION_ADR_V1.md). Approved by the user. The implementation branch adds the canonical CompilerIR, source lineage and projection report; `CompilationPlan` remains transitional.
 
-**Phase 1 outcome:** target ownership is made explicit without pretending the contracts and runtime are already reconciled. The next implementation unit is A1, the RequirementGraph consumer inventory, followed by A2 and A3. No target is retired and no capability/certification status is upgraded.
+**A4 artifact:** [Adapter Enforcement](ESAP_ADAPTER_ENFORCEMENT_V1.md). The initial report/gate exists and two identified production routes use it. System-wide route enforcement and runtime proof remain open.
+
+**Current outcome:** A1–A4 are approved and their initial implementation is on `remediation/fs00-authority-implementation`. No compiler target is retired, and no backend capability or certification status is upgraded.
 
 ## 9. Governance and change control
 
 This document does not supersede the canonical contract registry or D02/D03/D07. Where it identifies conflicts, the conflicting contracts remain visibly unresolved until a dedicated ADR and migration evidence are accepted. A schema change requires its own versioned ADR, compatibility tests and independent review. The human governance authority remains the approval point for changes to constitutional or canonical semantic authority.
 
-**No production behavior is changed by this document.**
+**Change control:** the approved implementation branch contains runtime/schema changes. This design document records the authority boundary; it does not itself certify those changes.

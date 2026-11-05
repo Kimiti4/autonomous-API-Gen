@@ -143,5 +143,17 @@ class CompilationPlan(BaseModel):
     invariant_bindings: list[InvariantBinding] = Field(default_factory=list)
     blocking_diagnostics: list[str] = Field(default_factory=list)
     backend_constraints: list[str] = Field(default_factory=list)
+    source_isr_revision_id: str | None = None
+    source_isr_content_hash: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    source_isr_revision_hash: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    projection_integrity_hash: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     frontend_routes: list[FrontendRoute] = Field(default_factory=list)
     frontend_interactions: list[FrontendInteraction] = Field(default_factory=list)
+
+
+
+def compute_plan_projection_hash(plan: CompilationPlan) -> str:
+    """Hash a plan projection while excluding only its derived integrity field."""
+    payload = plan.model_dump(mode="json", exclude={"projection_integrity_hash"})
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()

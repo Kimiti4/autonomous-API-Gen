@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -27,8 +26,6 @@ class ISRRevision(BaseModel):
     provenance: Provenance
     content_hash: str = Field(min_length=64, max_length=64)
     revision_hash: str = Field(default="")
-
-    _EXPECTED_CONTENT_HASH: ClassVar[int] = 64
 
     @field_validator("schema_version")
     @classmethod

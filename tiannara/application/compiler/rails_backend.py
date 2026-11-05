@@ -101,6 +101,10 @@ class RailsBackend:
                 "app/controllers/health_controller.rb": self._health_controller(),
                 "app/models/application_record.rb": self._application_record(),
                 "app/models/generated_models.rb": self._models(model),
+                "storage/.keep": "",
+                "log/.keep": "",
+                "tmp/cache/.keep": "",
+                "tmp/pids/.keep": "",
                 "test/test_helper.rb": self._test_helper(),
                 "test/controllers/health_controller_test.rb": self._test(),
                 "bin/rails": self._bin_rails(),
@@ -209,7 +213,7 @@ end
                 "end",
                 "",
             ])
-        return "\\n".join(lines)
+        return "\n".join(lines)
 
     def _test_helper(self):
         return '''ENV["RAILS_ENV"] ||= "test"

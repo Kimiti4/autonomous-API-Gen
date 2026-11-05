@@ -7,7 +7,6 @@ formalizes the expanded 14-node/18-edge taxonomy under an explicit ADR.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable
 from uuid import NAMESPACE_URL, uuid5
 
 from isr.core.graph import EDGE_TYPE_COMPATIBILITY, Edge, EdgeType, ISRGraph, Node, NodeType
@@ -164,13 +163,10 @@ def migrate_revision(
     if not migration_id.strip():
         raise ValueError("migration_id must be non-empty")
     migrated_graph = migrate_graph(revision.graph, revision.schema_version, target_version)
-    from isr.core.identity import Provenance, compute_content_hash
+    from isr.core.identity import Provenance, compute_content_hash, compute_revision_hash
     from isr.core.revision import ISRRevision
 
     graph_hash = compute_content_hash(target_version, migrated_graph)
-    new_revision_id = str(uuid5(
-        NAMESPACE_URL, f"esap:isr:{revision.system_id}:{graph_hash}"
-    ))
     provenance = Provenance(
         parent_revision_id=revision.revision_id,
         requirement_refs=list(revision.provenance.requirement_refs),
@@ -184,6 +180,12 @@ def migrate_revision(
         created_by=f"migration:{migration_id}",
         created_at=created_at,
     )
+    revision_envelope_hash = compute_revision_hash(
+        revision.system_id, target_version, graph_hash, provenance
+    )
+    new_revision_id = str(uuid5(
+        NAMESPACE_URL, f"esap:isr:{revision.system_id}:{revision_envelope_hash}"
+    ))
     return ISRRevision.create(
         system_id=revision.system_id,
         revision_id=new_revision_id,

@@ -7,7 +7,7 @@ import json
 from enum import Enum
 from typing import Any, Mapping
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ChromosomeFamily(str, Enum):
@@ -38,8 +38,35 @@ class Genome(BaseModel):
 
     system_id: str = Field(min_length=1)
     chromosomes: Mapping[str, Chromosome] = Field(default_factory=dict)
-    # Immutable semantic substrate carried through evolution; not an evolvable gene.
+    # Immutable semantic substrate and exact ISR revision lineage; never evolvable genes.
     source_graph: Mapping[str, Any] = Field(default_factory=dict)
+    source_isr_revision_id: str | None = None
+    source_isr_schema_version: str | None = None
+    source_isr_content_hash: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    source_isr_revision_hash: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+
+    @model_validator(mode="after")
+    def _validate_source_isr_lineage(self) -> "Genome":
+        identity = (
+            self.source_isr_revision_id,
+            self.source_isr_schema_version,
+            self.source_isr_content_hash,
+            self.source_isr_revision_hash,
+        )
+        if not self.source_graph and all(value is None for value in identity):
+            # Unbound genomes remain constructible for isolated operator tests;
+            # they are not valid ISR-derived ArchitectureCandidates.
+            return self
+        if not self.source_graph or any(value is None for value in identity):
+            raise ValueError("ISR-derived Genome requires complete source ISR revision identity")
+        from isr.core.graph import ISRGraph
+        from isr.core.identity import compute_content_hash
+
+        graph = ISRGraph.model_validate(dict(self.source_graph))
+        expected = compute_content_hash(self.source_isr_schema_version, graph)
+        if expected != self.source_isr_content_hash:
+            raise ValueError("Genome source ISR content hash does not match source_graph")
+        return self
 
 
 def genome_content_hash(genome: Genome) -> str:
@@ -48,7 +75,15 @@ def genome_content_hash(genome: Genome) -> str:
     Order-independent: genes within each chromosome are sorted by gene_id,
     chromosomes are sorted by family value.
     """
-    canonical: dict[str, Any] = {"system_id": genome.system_id, "chromosomes": {}, "source_graph": dict(genome.source_graph)}
+    canonical: dict[str, Any] = {
+        "system_id": genome.system_id,
+        "chromosomes": {},
+        "source_graph": dict(genome.source_graph),
+        "source_isr_revision_id": genome.source_isr_revision_id,
+        "source_isr_schema_version": genome.source_isr_schema_version,
+        "source_isr_content_hash": genome.source_isr_content_hash,
+        "source_isr_revision_hash": genome.source_isr_revision_hash,
+    }
     for fam_key in sorted(genome.chromosomes.keys()):
         chrom = genome.chromosomes[fam_key]
         canonical["chromosomes"][fam_key] = {

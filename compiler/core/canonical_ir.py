@@ -15,7 +15,7 @@ from uuid import NAMESPACE_URL, uuid5
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from compiler.core.capabilities import (
-    BackendCapabilities, assert_plan_supported,
+    BackendCapabilities, UnsupportedSemanticsError, assert_plan_supported,
     required_features, required_frontend_features,
 )
 from compiler.core.plan import CompilationPlan
@@ -239,6 +239,7 @@ class CompilerIR(BaseModel):
         *,
         source_architecture_candidate_content_hash: str | None = None,
         architecture_reference_reason: str | None = None,
+        backend_constraints: tuple[str, ...] = (),
     ) -> "CompilerIR":
         if source_architecture_candidate_content_hash is None and not architecture_reference_reason:
             raise ValueError(
@@ -256,8 +257,11 @@ class CompilerIR(BaseModel):
                 semantic_type=node.type.value,
                 properties=dict(node.properties),
                 source_requirement_ids=tuple(sorted(
-                    value for value in node.properties.get("source_requirement_ids", ())
-                    if isinstance(value, str)
+                    value for value in (
+                        node.properties.get("source_requirement_ids", ())
+                        if isinstance(node.properties.get("source_requirement_ids", ()), (list, tuple, set, frozenset))
+                        else ()
+                    ) if isinstance(value, str)
                 )),
             )
             for _, node in sorted(revision.graph.nodes.items())
@@ -308,7 +312,7 @@ class CompilerIR(BaseModel):
             "relationships": [item.model_dump(mode="json") for item in relationships],
             "projection_report": projection_report.model_dump(mode="json"),
             "execution_plan": execution_plan.model_dump(mode="json"),
-            "backend_constraints": [],
+            "backend_constraints": list(backend_constraints),
             "required_capabilities": capabilities,
             "provenance": provenance.model_dump(mode="json"),
             "lowering_operator": operator,
@@ -333,7 +337,7 @@ def assert_compiler_ir_supported(
 ) -> None:
     """Enforce target constraints and semantic capability checks before lowering."""
     if compiler_ir.backend_constraints and capabilities.backend_id not in compiler_ir.backend_constraints:
-        raise ValueError(
+        raise UnsupportedSemanticsError(
             f"Backend {capabilities.backend_id!r} is excluded by CompilerIR constraints "
             f"{compiler_ir.backend_constraints}"
         )

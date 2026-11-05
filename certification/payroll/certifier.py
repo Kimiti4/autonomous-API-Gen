@@ -19,9 +19,9 @@ from compiler.core.capabilities import (
     BackendCapabilities,
     SemanticFeature,
     UnsupportedSemanticsError,
-    assert_plan_supported,
     required_features,
 )
+from compiler.core.canonical_ir import CompilerIR, assert_compiler_ir_supported
 from compiler.core.plan import CompilationPlan
 from isr.core.graph import ISRGraph, NodeType
 from isr.core.revision import ISRRevision
@@ -39,6 +39,7 @@ PAYROLL_BEHAVIORAL_FEATURES = frozenset({
     SemanticFeature.AUTHORIZATION_POLICIES,
     SemanticFeature.EFFECT_SEMANTICS,
     SemanticFeature.INVARIANTS,
+    SemanticFeature.INVARIANT_BINDINGS,
     SemanticFeature.TYPED_EVENTS,
 })
 
@@ -113,6 +114,9 @@ class BackendRuntimeEvidence:
 class PayrollCertificationReport:
     verdict: str
     candidate_sha256: str
+    isr_revision_hash: str
+    compiler_ir_id: str
+    compiler_ir_hash: str
     checks: tuple[str, ...]
     findings: tuple[str, ...]
 
@@ -125,6 +129,9 @@ class PayrollCertificationReport:
             "verdict": self.verdict,
             "certified": self.certified,
             "candidate_sha256": self.candidate_sha256,
+            "isr_revision_hash": self.isr_revision_hash,
+            "compiler_ir_id": self.compiler_ir_id,
+            "compiler_ir_hash": self.compiler_ir_hash,
             "checks": list(self.checks),
             "findings": list(self.findings),
         }
@@ -219,6 +226,7 @@ def compute_payroll_candidate_hash(
     *,
     requirement_graph: RequirementGraph,
     revision: ISRRevision,
+    compiler_ir: CompilerIR,
     plan: CompilationPlan,
     tor_source_id: str,
     tor_source_sha256: str,
@@ -234,6 +242,9 @@ def compute_payroll_candidate_hash(
     """Hash the ISR, lowered plan, exact emitted backend/frontend artifacts, and TOR review state."""
     manifest = {
         "isr_content_hash": revision.content_hash,
+        "isr_revision_hash": revision.revision_hash,
+        "compiler_ir_id": compiler_ir.compilation_id,
+        "compiler_ir_hash": compiler_ir.content_hash,
         "reviewed_requirements": [
             {
                 "id": node.id,
@@ -277,6 +288,7 @@ def certify_payroll_candidate(
     *,
     requirement_graph: RequirementGraph,
     revision: ISRRevision,
+    compiler_ir: CompilerIR,
     plan: CompilationPlan,
     candidate_sha256: str,
     tor_source_id: str,
@@ -306,6 +318,7 @@ def certify_payroll_candidate(
         "candidate-hash-valid",
         "mandatory-requirement-coverage",
         "behavioral-isr-completeness",
+        "canonical-compiler-ir-lineage",
         "backend-capability-compatibility",
         "statutory-source-and-effective-date",
         "independent-requirement-derived-oracles",
@@ -357,6 +370,14 @@ def certify_payroll_candidate(
             findings.append(f"unsupported TOR review disposition: {record.disposition}")
     if plan.isr_id != revision.system_id:
         findings.append("compilation plan is bound to a different ISR system ID")
+    if (
+        compiler_ir.source_isr_revision_id != revision.revision_id
+        or compiler_ir.source_isr_content_hash != revision.content_hash
+        or compiler_ir.source_isr_revision_hash != revision.revision_hash
+    ):
+        findings.append("canonical CompilerIR is not bound to the exact supplied ISR revision")
+    if compiler_ir.execution_plan.model_dump(mode="json") != plan.model_dump(mode="json"):
+        findings.append("compilation plan does not match canonical CompilerIR execution_plan projection")
     if plan.plan_id != f"plan:{revision.content_hash[:16]}":
         findings.append("compilation plan ID is not bound to the supplied ISR revision")
     if set(backend_artifact_hashes) != set(required_backends):
@@ -369,6 +390,7 @@ def certify_payroll_candidate(
     expected_candidate_hash = compute_payroll_candidate_hash(
         requirement_graph=requirement_graph,
         revision=revision,
+        compiler_ir=compiler_ir,
         plan=plan,
         tor_source_id=tor_source_id,
         tor_source_sha256=tor_source_sha256,
@@ -430,7 +452,7 @@ def certify_payroll_candidate(
             findings.append(f"missing capability declaration for backend: {backend_id}")
             continue
         try:
-            assert_plan_supported(plan, capabilities)
+            assert_compiler_ir_supported(compiler_ir, capabilities)
         except UnsupportedSemanticsError as exc:
             findings.append(f"backend {backend_id} cannot implement this payroll plan: {exc}")
 
@@ -563,6 +585,9 @@ def certify_payroll_candidate(
     return PayrollCertificationReport(
         verdict="CERTIFIED" if not findings else "NOT_CERTIFIED",
         candidate_sha256=candidate_sha256,
+        isr_revision_hash=revision.revision_hash,
+        compiler_ir_id=compiler_ir.compilation_id,
+        compiler_ir_hash=compiler_ir.content_hash,
         checks=checks,
         findings=tuple(findings),
     )

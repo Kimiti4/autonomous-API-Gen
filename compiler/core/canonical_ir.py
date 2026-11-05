@@ -42,6 +42,7 @@ class CompilerIRProvenance(BaseModel):
     model_config = ConfigDict(frozen=True)
     source_isr_revision_id: str = Field(min_length=1)
     source_isr_content_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    source_isr_revision_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
     source_architecture_candidate_content_hash: str | None = Field(
         default=None, pattern=r"^[a-f0-9]{64}$"
     )
@@ -59,6 +60,7 @@ class CompilerIR(BaseModel):
     schema_version: str = Field(pattern=r"^\d+\.\d+\.\d+$")
     source_isr_revision_id: str = Field(min_length=1)
     source_isr_content_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    source_isr_revision_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
     source_architecture_candidate_content_hash: str | None = Field(
         default=None, pattern=r"^[a-f0-9]{64}$"
     )
@@ -88,7 +90,9 @@ class CompilerIR(BaseModel):
             if not (self.architecture_reference_reason or "").strip():
                 raise ValueError("NOT_APPLICABLE architecture reference requires an explicit reason")
         if self.provenance.source_isr_content_hash != self.source_isr_content_hash:
-            raise ValueError("CompilerIR provenance/source ISR hash mismatch")
+            raise ValueError("CompilerIR provenance/source ISR graph hash mismatch")
+        if self.provenance.source_isr_revision_hash != self.source_isr_revision_hash:
+            raise ValueError("CompilerIR provenance/source ISR revision hash mismatch")
         if self.provenance.source_architecture_candidate_content_hash != self.source_architecture_candidate_content_hash:
             raise ValueError("CompilerIR provenance/source architecture hash mismatch")
         expected = self.compute_content_hash(self.model_dump(mode="json", exclude={"content_hash"}))
@@ -161,6 +165,7 @@ class CompilerIR(BaseModel):
         provenance = CompilerIRProvenance(
             source_isr_revision_id=revision.revision_id,
             source_isr_content_hash=revision.content_hash,
+            source_isr_revision_hash=revision.revision_hash,
             source_architecture_candidate_content_hash=source_architecture_candidate_content_hash,
             lowering_operator=operator,
             lowering_timestamp=timestamp,
@@ -173,6 +178,7 @@ class CompilerIR(BaseModel):
             "schema_version": "1.0.0",
             "source_isr_revision_id": revision.revision_id,
             "source_isr_content_hash": revision.content_hash,
+            "source_isr_revision_hash": revision.revision_hash,
             "source_architecture_candidate_content_hash": source_architecture_candidate_content_hash,
             "architecture_reference_state": state,
             "architecture_reference_reason": architecture_reference_reason,

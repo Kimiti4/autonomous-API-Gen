@@ -363,6 +363,7 @@ def test_manifest_binds_exact_isr_revision_and_compiler_ir(campaign_run) -> None
         manifest = json.loads((workload_dir / "manifest.json").read_text(encoding="utf-8"))
         isr = json.loads((workload_dir / "isr.json").read_text(encoding="utf-8"))
         compiler_ir = json.loads((workload_dir / "compiler-ir.json").read_text(encoding="utf-8"))
+        assert manifest["schema_version"] == "1.2.0"
         assert manifest["isr_revision_hash"] == isr["revision_hash"]
         assert manifest["compiler_ir_id"] == compiler_ir["compilation_id"]
         assert manifest["compiler_ir_hash"] == compiler_ir["content_hash"]

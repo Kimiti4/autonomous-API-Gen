@@ -79,7 +79,13 @@ def source_snapshot_from_plan_artifacts(plan_artifacts: Any) -> dict[str, Any]:
     plan = dump(getattr(plan_artifacts, "plan", None), "compilation plan")
     revision = dump(getattr(plan_artifacts, "revision", None), "ISR revision")
     compiler_ir = dump(getattr(plan_artifacts, "compiler_ir", None), "canonical CompilerIR")
-    genome = dump(getattr(plan_artifacts, "genome", None), "genome")
+    genome_object = getattr(plan_artifacts, "genome", None)
+    from evolution.core.genome import Genome, genome_content_hash
+    if isinstance(genome_object, Genome):
+        actual_genome_hash = genome_content_hash(genome_object)
+        if getattr(plan_artifacts, "genome_hash", None) != actual_genome_hash:
+            raise ValueError("ArchitectureCandidate Genome hash is stale or does not bind its current source lineage")
+    genome = dump(genome_object, "genome")
     req_graph = dump(getattr(plan_artifacts, "requirement_graph", None), "requirement graph")
 
     refs: set[str] = set()

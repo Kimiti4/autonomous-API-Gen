@@ -3,6 +3,9 @@ name: Publication and Deployment Hardening
 on:
   pull_request:
     paths:
+      - "autonomous-api/app/engine/backends.py"
+      - "autonomous-api/tests/engine/test_backends.py"
+      - "autonomous-api/tests/test_artifact_backup_restore.py"
       - "certification/campaign/campaign_b.py"
       - "certification/campaign/runner.py"
       - "compiler/api.py"
@@ -62,6 +65,9 @@ jobs:
       - name: Compile changed Python modules
         run: |
           python -m compileall -q \
+            autonomous-api/app/engine/backends.py \
+            autonomous-api/tests/engine/test_backends.py \
+            autonomous-api/tests/test_artifact_backup_restore.py \
             certification/campaign/campaign_b.py \
             certification/campaign/runner.py \
             compiler/api.py compiler/security.py compiler/validation.py compiler/packaging.py \
@@ -70,6 +76,8 @@ jobs:
             tiannara/application/factory/factory.py \
             tiannara/application/materializer \
             tiannara/application/publication \
+            autonomous-api/tests/engine/test_backends.py \
+            autonomous-api/tests/test_artifact_backup_restore.py \
             tests/cbc1/test_campaign_b.py \
             tests/cbc1/test_cbc1_gates.py \
             tests/test_compiler_runtime.py tests/test_compiler_sdk.py \

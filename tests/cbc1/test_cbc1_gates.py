@@ -19,7 +19,6 @@ from certification.core.trial import (
     REQUIRED_STAGES,
 )
 from certification.core.metrics import compute
-from certification.stages.execution_mode import ExecutionMode, StageExecution
 from certification.stages.protocols import (
     Builder,
     StageTestRunner,

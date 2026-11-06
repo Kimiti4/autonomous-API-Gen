@@ -222,3 +222,19 @@ def test_api_production_compile_requires_certification_and_governance(tmp_path: 
     )
     assert response.status_code == 400
     assert "requires a certified backend" in response.json()["message"]
+
+
+def test_api_rejects_non_boolean_authorization_decision(tmp_path: Path) -> None:
+    app = create_app(
+        output_root=tmp_path,
+        authorization_dependency=lambda _request: {"user": "operator"},
+    )
+    client = TestClient(app)
+    response = client.post(
+        "/v1/compiler/compile",
+        json={
+            "isr": minimal_isr(),
+            "target": {"backend_id": "reference.summary"},
+        },
+    )
+    assert response.status_code == 403

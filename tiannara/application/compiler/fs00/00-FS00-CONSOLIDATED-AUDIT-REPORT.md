@@ -2041,3 +2041,57 @@ Still open:
 - Universal full-stack composition, canonical ISR/IR orchestration, product-level payroll/global-domain acceptance and real publication/deployment remain open.
 
 PR #208 remains open/draft/unmerged. No merge to `main` is authorized.
+
+
+## 32. Checkpoint 33 — governance principal authentication and multi-member decision attestation
+
+**Scope:** harden the governance write routes so caller-supplied actor names cannot substitute for authenticated identity; preserve council attestations in the immutable event stream; require production-specific role credentials.
+
+### 32.1 FS00-FS-035 — identity-spoofing portion remediated; trusted evidence resolution remains open
+
+**Remediation authored in PR #208:**
+- Added `PrincipalApiKeyAuthProvider`, which authenticates a principal against a dedicated header and returns only its configured governance scope.
+- Added separate `GOVERNANCE_COUNCIL_API_KEYS`, `GOVERNANCE_EVALUATOR_API_KEYS`, and `GOVERNANCE_CERTIFIER_API_KEY` settings.
+- Production startup requires all role credentials, `GOVERNANCE_ENFORCEMENT_REQUIRED=true`, unique secrets distinct from `ADMIN_API_KEY`, and disjoint council/evaluator/certifier identities.
+- `main.py` wires council, evaluator and certifier providers separately from the administrative provider. The recognized certifier identity comes from configuration rather than a hard-coded literal.
+- Gate-evaluation routes require evaluator scope and bind `evaluatedBy` to the authenticated subject.
+- Certification grant/revoke routes require certifier scope and bind `certifiedBy`/`revokedBy` to the authenticated subject.
+- Decision routes require a council-scoped authenticated submitter, require `requestedBy` to match that subject, and verify HMAC-SHA256 attestations from every member in `decidedBy` over the same canonical command.
+- Council member signatures are now stored in the immutable `GovernanceDecision` event, not discarded after request validation.
+- Added production environment examples and deployment documentation for the separate credentials and decision-signature contract.
+
+**Cryptographic boundary:** HMAC-SHA256 protects command integrity and proves possession of each configured shared secret to this service. Because the server holds the same secrets, this is not public-key non-repudiation. A future stronger governance boundary should consider asymmetric member signatures with public keys held by the service and private keys held only by the members.
+
+### 32.2 FS00-FS-039 — evidence references are still caller-supplied strings, not registry-resolved attestations (Critical)
+
+**Remaining source-confirmed gap:**
+- Gate evaluations, governance decisions and certifications accept `evidenceRefs` as arbitrary strings.
+- The signed governance event log preserves the strings and now preserves council signatures, but no trusted evidence registry resolves each reference to a separately registered immutable evidence object.
+- The promotion gate checks that the same `sha256:<digest>` string appears in decision and certification evidence references. It does not independently prove that the digest was produced by the candidate evaluator, corresponds to the candidate's actual artifact manifest, or represents a successful runtime evaluation.
+- A valid council signature therefore proves that the configured members signed a command containing the reference; it does not prove the referenced evidence is genuine.
+
+**Required next remediation:**
+1. Add an immutable evidence record/event with candidate ID, artifact digest, manifest/file-set digest, source revision, compiler/backend, run/generation, evaluation mode, build result, runtime result, verifier identity, and capture timestamp.
+2. Register evidence from the trusted candidate-evaluation path only after manifest validation and runtime probes complete. Static-only records must remain explicitly non-promotable.
+3. Require gate evaluations, certification and `selected → deployed` decisions to reference registered evidence IDs, not free-form digest strings.
+4. Have the promotion gate resolve the evidence record from the governance event store and re-check candidate, artifact digest, runtime status, verifier authority, revocation/expiry and source provenance.
+5. Add negative tests for fabricated evidence IDs, cross-candidate references, digest mismatch, stale or revoked evidence, static-only evidence, wrong verifier, and missing manifest provenance.
+
+**Status:** OPEN — no trusted evidence registry or producer integration is claimed.
+
+### 32.3 Checkpoint execution evidence
+
+GitHub Actions workflow **Publication and Deployment Hardening**, run **42265040587** (run number 127), completed successfully on the identity-attestation changes:
+- Python module compilation: PASS.
+- Root ESAP targeted suite: **159 passed**.
+- Autonomous-api evolution/governance suite: **56 passed**.
+- Total: **215 passed, 0 failed**.
+
+The 56-test suite includes the earlier candidate promotion/runtime/configuration tests plus the new role-separation, principal authentication, council signature validation, payload-tampering rejection, and event-log signature-persistence tests.
+
+**Disposition:**
+- FS00-FS-035 identity spoofing / role separation / council command attestation: REMEDIATION VERIFIED BY TARGETED TESTS.
+- FS00-FS-039 trusted evidence registry and producer integration: OPEN.
+- FS00-FS-038 deployment engine adapter integration: OPEN.
+- PR #208 remains open/draft/unmerged; no merge to `main` is authorized.
+- FS-00 remains NOT CLOSED.

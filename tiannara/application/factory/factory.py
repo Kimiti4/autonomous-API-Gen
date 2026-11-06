@@ -85,7 +85,7 @@ class SoftwareFactory:
             out_root = tempfile.mkdtemp(prefix="tiannara-factory-")
 
         materialization = self._materializer.materialize(
-            compilation_report, out_root=out_root, force=force
+            compilation_report, out_root=out_root, force=force, defer_commit=True
         )
         bundles = tuple(getattr(materialization, "bundles", ()) or ())
         if not bundles:
@@ -119,6 +119,22 @@ class SoftwareFactory:
             raise SoftwareFactoryError(
                 "one or more bundles failed verification after repair",
                 report=report,
+            )
+
+        # Promotion to a local source-control commit happens only after every
+        # bundle has passed the factory's static/runtime verification path.
+        commit_materialization = getattr(self._materializer, "commit", None)
+        if callable(commit_materialization):
+            materialization = commit_materialization(materialization)
+            report = SoftwareFactoryReport(
+                statement_hash=report.statement_hash,
+                isr_hash=report.isr_hash,
+                plan_id=report.plan_id,
+                policy_name=report.policy_name,
+                materialization=materialization,
+                verification_outcomes=report.verification_outcomes,
+                fitness=report.fitness,
+                ok=report.ok,
             )
         return report
 

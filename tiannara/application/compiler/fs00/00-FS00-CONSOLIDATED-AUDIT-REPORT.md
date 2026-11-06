@@ -1457,3 +1457,101 @@ These files were inspected at the PR branch. Tests were not run in this checkpoi
 - FS-00 remains NOT CLOSED; PR #201 remains open, draft and unmerged.
 
 **Next checkpoint:** trace every publication/deployment adapter and production entry point (including CLI/API routes and any repository publisher) to determine whether any common immutable promotion gate exists outside CampaignRunner. Then complete the route matrix: entry point → ISR/IR authority → backend registry → semantic preflight → generation → verification → publication → deployment → runtime identity/evidence. Keep this audit documentation-only until FS-00 and the architecture decision are formally approved.
+
+
+## 21. Checkpoint 22 — publication, materialization and deployment adapter audit
+
+**Scope:** trace CLI/factory entry points, repository materialization/source-control behavior, publication provider, publication demo, Campaign B stage order, and deployment handoff. Documentation-only audit; no tests executed.
+
+### 21.1 Reachable entry points and local materialization
+
+The inspected ProjectCompiler route is reachable from:
+- `tiannara/interfaces/cli/main.py`: CLI `create` invokes `build_project_compiler(...).compile_intent(...)`; `factory` invokes `SoftwareFactory.run()`.
+- `tiannara/application/factory/factory.py`: factory calls ProjectCompiler, then RepositoryMaterializer, then static/runtime verification and bounded repair/re-verification.
+
+The factory order is materialization before runtime verification:
+1. compile intent;
+2. materialize generated bundles;
+3. construct bundle verifier;
+4. run static verification and optional execution environment;
+5. bounded repair and re-verification;
+6. return success or raise.
+
+RepositoryMaterializer writes generated files, writes a provenance manifest, and—when configured—initializes a local Git repository, stages files and commits them before SoftwareFactory performs its runtime verification. The materializer checks the compiler's existing `verification_report` before final manifest/commit, but it cannot know the later factory runtime result. Therefore its local commit is a pre-runtime-verification snapshot, not a release/publish event. The source-control port exposes push/PR methods, but LocalGitBackend push requires a configured remote and is not called by RepositoryMaterializer; LocalGitBackend explicitly refuses PR creation through its CLI implementation.
+
+The in-memory materializer tests cover successful local commit, refusing a failed static verification unless forced, forced override recording, no-VCS materialization and no successful outputs. They do not establish runtime verification before local commit. The existing test for failed static verification checks absence of the manifest, but does not assert that generated application files were never written.
+
+### 21.2 FS00-FS-019 — local materialization/commit precedes factory runtime verification (High)
+
+The ProjectCompiler/SoftwareFactory path does not publish remotely, but it writes and can locally commit candidate files before the factory's runtime verification completes. A failed runtime result causes SoftwareFactory to raise, but the already-materialized files and local commit remain.
+
+**Required:** separate candidate staging from promotion. Runtime/static acceptance must be complete before an immutable accepted snapshot is committed or marked publishable. If pre-verification materialization is needed for Docker/build execution, use a quarantine/staging workspace with no release branch, remote push, publication event or trusted release manifest. Failed candidates must remain clearly quarantined and must not be mistaken for accepted outputs. Add failure tests that assert no promotion/commit event is emitted after failed or missing verification.
+
+### 21.3 FS00-FS-020 — publication contract does not enforce its injected certification gate or publish candidate contents (Critical)
+
+In `tiannara/application/publication/repository_publisher_contract.py`:
+- `publish_bundle(..., certification_gate)` accepts a certification gate argument but never calls it.
+- It checks ledger events by reference and payload verdict only; the inspected code does not require the referenced event to have `EventType.CERTIFICATION`, does not bind its `subject_id` to the exact artifact hash, and does not require the certificate payload to bind the same ISR/artifact digest.
+- It creates a new ledger event with `EventType.CERTIFICATION` for publication, which confuses publication with earned certification.
+- It calls `provider.create_repository()`, but does not call `push_repository()`; the contract receives no local artifact path or artifact-file manifest to publish. The returned repository URL therefore does not prove that generated application files were uploaded.
+- The current function accepts only an artifact hash string, not the candidate content or a verifiable content manifest; it cannot recompute the artifact hash from the published bytes.
+
+This is a release-boundary integrity defect, not merely missing production integration. The injected gate is dead input and publication success can be reported without uploading the candidate.
+
+**Required:** fail closed unless an authoritative certification verifier explicitly approves the exact candidate and ISR binding; require a non-empty artifact manifest/content source and recompute its digest; require a provider operation that returns independently observed repository/commit identity for the exact bytes uploaded; record publication as a publication/delivery event, never as certification. Missing/malformed evidence or simulated provider behavior must return a blocked/non-success result.
+
+### 21.4 FS00-FS-021 — Uber-for-Boats demonstration manufactures certification evidence and uses a simulated provider (Critical)
+
+`tiannara/application/publication/uber_for_boats.py` constructs fixed ISR/artifact hash strings, appends its own `CERTIFICATION` event with payload `verdict=CERTIFIED`, then supplies that newly manufactured reference to the publisher. It does not run the compiler, build, independent verifier or certification authority for that artifact. Its provider is `tiannara/application/publication/providers/github.py`, whose methods return formatted strings and explicitly simulate repository creation/push/release/milestone/issue/branch protection/security; no GitHub API request occurs. The demo also loops over named local gates with `pass`, so those names are not executed checks. Its deployment handoff correctly returns `not_configured` and `deployed=False`, and the demo returns `verified=False`; this honesty does not cure the fabricated certification event or simulated publication claim.
+
+**Required:** remove the path that self-issues `CERTIFIED` evidence. The demo must consume a certificate created by the independent certification authority for the exact candidate or stop before publication. The simulated GitHub provider must be explicitly test-only and must never return a production-looking successful publication result. Keep deployment handoff `not_configured` until a real adapter supplies independently observed evidence.
+
+### 21.5 FS00-FS-022 — Campaign B performs deploy/runtime before independent verification and lacks prerequisite short-circuiting (Critical)
+
+`certification/campaign/campaign_b.py:CampaignBRunner.run_trial()` currently:
+1. calls `backend.compile(plan)` and `backend.conformance(plan, repo)`;
+2. materializes generated files;
+3. calls build, test, deploy, runtime probe and destroy stages in sequence;
+4. runs independent verification only after those stages;
+5. then evaluates required execution mode and composes the verdict.
+
+The inspected sequence does not short-circuit deployment when build/test results are failed, and does not gate deployment on independent verification. The stage calls are not enclosed in a cleanup `try/finally`; an exception in an earlier stage can bypass destroy. This is a separate runner from Campaign A and must be hardened independently.
+
+**Required:** enforce compile-time semantic preflight before backend invocation; require explicit successful build and test results before deploy; require source-bound, candidate-bound independent verification before any deployment stage that represents promotion; use `try/finally` cleanup for every successfully created resource; do not mark missing adapters or skipped stages as pass. Distinguish ephemeral test-container execution from actual environment promotion, and bind image digest/container identity to evidence.
+
+### 21.6 FS00-FS-023 — no live deployment provider is established by the publication path (High)
+
+`deployment_handoff.py` explicitly reports `not_configured`, `deployed=False`, CI unverified, health unchecked and telemetry disconnected. The GitHub provider is simulated. LocalGitBackend can perform real local Git operations but the materializer does not push. This is the correct current disposition: repository materialization and local commit are not remote publication, and container test deployment is not production deployment.
+
+The inspected deployment handoff must remain blocked/unconfigured until a real provider, explicit authorization, observed deployment identity, health checks and telemetry evidence are available.
+
+### 21.7 Consolidated route matrix
+
+| Route | ISR/IR | Generation | Verification | Materialization/publication | Deployment |
+|---|---|---|---|---|---|
+| Campaign A | requirement graph → ISR → root CompilationPlan | root BackendRegistry | structural/semantic, independent, source-bound/full-stack; currently after deploy/runtime | temporary candidate + provenance bundle | test container may be deployed before final VERIFY |
+| Campaign B | caller-supplied plan/revision | root BackendRegistry | independent verifier after build/test/deploy/runtime/destroy | temporary candidate + campaign ledger | deploy stage is invoked without a prior independent verification gate |
+| ProjectCompiler CLI | intent compiler → typed SystemModel | ProjectCompiler registry → executor.generate | BundleVerifier after generation | CompilationResult bundle | no live deploy path established |
+| SoftwareFactory CLI | ProjectCompiler typed SystemModel | ProjectCompiler → materializer | static/runtime verification and repair after materialization | files and optional local Git commit precede runtime acceptance | no remote push in factory |
+| Publication demo | fixed synthetic hashes; no real authoritative ISR build | fixed repository metadata | no real build/test/security/certification; self-appends CERTIFIED event | simulated GitHub provider; no artifact bytes pushed | explicit not_configured handoff |
+
+### 21.8 Updated disposition
+
+- **FS00-FS-019 — local materialization/commit precedes factory runtime verification:** SOURCE-CONFIRMED; HIGH; open.
+- **FS00-FS-020 — publisher ignores injected certification gate and does not publish candidate bytes:** SOURCE-CONFIRMED; CRITICAL; open.
+- **FS00-FS-021 — demonstration manufactures certification evidence and uses simulated provider:** SOURCE-CONFIRMED; CRITICAL; open.
+- **FS00-FS-022 — Campaign B deploys before independent verification and lacks prerequisite/cleanup short-circuiting:** SOURCE-CONFIRMED; CRITICAL; open.
+- **FS00-FS-023 — live deployment provider not configured:** SOURCE-CONFIRMED; HIGH; explicitly blocked/not implemented, not a false-success claim.
+- Existing deployment handoff correctly reports unknown/not configured; preserve that fail-closed behavior.
+- No tests executed in this checkpoint. No source code, tests, workflows or certification states changed.
+- FS-00 remains NOT CLOSED. PR #201 remains open/draft/unmerged.
+
+### 21.9 Remediation sequence authorized for follow-on work
+
+1. Harden publisher contract first: require a real explicit gate result, exact certificate/artifact/ISR binding, content digest recomputation, a real provider result and a distinct publication ledger event. Make simulation incapable of returning production success.
+2. Remove self-issued certification from the Uber-for-Boats demonstration; make it consume real evidence or stop with an explicit blocker.
+3. Harden Campaign B stage prerequisites and cleanup; move independent candidate verification ahead of deployment/promotion. Keep ephemeral test execution distinct from promotion.
+4. Separate SoftwareFactory quarantine materialization from accepted local commit/promotion; ensure failed runtime verification cannot leave a trusted/release-looking commit or manifest.
+5. Apply equivalent gate ordering to Campaign A and all other audited routes; add counting-adapter tests proving zero deploy/publish calls on failed/missing prerequisites.
+6. Add path, symlink, credential, content-hash, immutable manifest and provenance integrity tests to the publication/materialization boundary.
+7. Run targeted unit/integration tests and CI; only then update finding status based on observed evidence. No backend is to be retired.

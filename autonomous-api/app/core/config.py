@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     ADMIN_API_KEY: str = ""
     GOVERNANCE_AUDIT_SIGNING_KEY: str = ""
     GOVERNANCE_ENFORCEMENT_REQUIRED: bool = False
+    GOVERNANCE_COUNCIL_API_KEYS: dict[str, str] = {}
+    GOVERNANCE_EVALUATOR_API_KEYS: dict[str, str] = {}
+    GOVERNANCE_CERTIFIER_API_KEY: str = ""
+    GOVERNANCE_CERTIFIER_ID: str = "certifier-1"
 
     RATE_LIMIT_GENERAL: int = 100
     RATE_LIMIT_EVOLUTION: int = 20
@@ -73,6 +77,23 @@ class Settings(BaseSettings):
                     "GOVERNANCE_ENFORCEMENT_REQUIRED must be true in production; "
                     "ungoverned candidate promotion is prohibited"
                 )
+            if not self.GOVERNANCE_COUNCIL_API_KEYS:
+                raise ValueError("GOVERNANCE_COUNCIL_API_KEYS is required in production")
+            if not self.GOVERNANCE_EVALUATOR_API_KEYS:
+                raise ValueError("GOVERNANCE_EVALUATOR_API_KEYS is required in production")
+            if not self.GOVERNANCE_CERTIFIER_API_KEY:
+                raise ValueError("GOVERNANCE_CERTIFIER_API_KEY is required in production")
+            if not self.GOVERNANCE_CERTIFIER_ID or self.GOVERNANCE_CERTIFIER_ID in self.GOVERNANCE_COUNCIL_API_KEYS:
+                raise ValueError("governance certifier identity must be distinct from council members")
+            role_keys = (
+                list(self.GOVERNANCE_COUNCIL_API_KEYS.values())
+                + list(self.GOVERNANCE_EVALUATOR_API_KEYS.values())
+                + [self.GOVERNANCE_CERTIFIER_API_KEY]
+            )
+            if any(not key for key in role_keys) or len(set(role_keys)) != len(role_keys):
+                raise ValueError("governance principal API keys must be non-empty and unique")
+            if self.ADMIN_API_KEY in role_keys:
+                raise ValueError("governance principal API keys must differ from ADMIN_API_KEY")
         return self
 
     model_config = SettingsConfigDict(

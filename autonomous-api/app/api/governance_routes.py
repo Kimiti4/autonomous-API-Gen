@@ -6,7 +6,7 @@ same fail-closed API-key boundary as the evolution control plane.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.governance.commands import (
     GrantCertification,
@@ -21,6 +21,14 @@ from app.middleware.security import require_auth
 from app.governance.runtime import get_governance
 
 router = APIRouter(prefix="/governance", tags=["governance"])
+
+
+def _require_governance_actor(auth, *, scope: str, actor: str) -> None:
+    """Bind a governance command's claimed actor to a scoped authenticated principal."""
+    if scope not in getattr(auth, "scopes", ()):
+        raise HTTPException(status_code=403, detail="Governance authority scope required")
+    if actor != getattr(auth, "subject", None):
+        raise HTTPException(status_code=403, detail="Governance actor must match authenticated principal")
 
 
 @router.post("/council")
@@ -48,6 +56,9 @@ async def register_policy(
 async def record_gate_evaluation(
     command: RecordGateEvaluation, _auth=Depends(require_auth)
 ):
+    _require_governance_actor(
+        _auth, scope="governance:evaluate", actor=command.evaluatedBy
+    )
     return await get_governance().record_gate_evaluation(command)
 
 
@@ -55,6 +66,14 @@ async def record_gate_evaluation(
 async def request_decision(
     command: RequestGovernanceDecision, _auth=Depends(require_auth)
 ):
+    _require_governance_actor(
+        _auth, scope="governance:decide", actor=command.requestedBy
+    )
+    if command.decidedBy != [_auth.subject]:
+        raise HTTPException(
+            status_code=403,
+            detail="A council principal may submit only its own decision attestation",
+        )
     return await get_governance().request_decision(command)
 
 
@@ -62,6 +81,9 @@ async def request_decision(
 async def grant_certification(
     command: GrantCertification, _auth=Depends(require_auth)
 ):
+    _require_governance_actor(
+        _auth, scope="governance:certify", actor=command.certifiedBy
+    )
     return await get_governance().grant_certification(command)
 
 
@@ -69,6 +91,9 @@ async def grant_certification(
 async def revoke_certification(
     command: RevokeCertification, _auth=Depends(require_auth)
 ):
+    _require_governance_actor(
+        _auth, scope="governance:certify", actor=command.revokedBy
+    )
     return await get_governance().revoke_certification(command)
 
 

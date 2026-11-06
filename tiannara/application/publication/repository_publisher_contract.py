@@ -59,13 +59,14 @@ def _validate_artifact_files(files: Mapping[str, str]) -> dict[str, str]:
             or "\\" in path
         ):
             raise ValueError(f"publication blocked: unsafe artifact path {path!r}")
+        raw_parts = path.split("/")
         posix = PurePosixPath(path)
         windows = PureWindowsPath(path)
         if (
             posix.is_absolute()
             or windows.is_absolute()
             or bool(windows.drive)
-            or any(part in ("", ".", "..") for part in posix.parts)
+            or any(part in ("", ".", "..") for part in raw_parts)
         ):
             raise ValueError(f"publication blocked: unsafe artifact path {path!r}")
         if not isinstance(content, str):

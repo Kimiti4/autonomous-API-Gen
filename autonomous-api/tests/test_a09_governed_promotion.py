@@ -223,6 +223,15 @@ async def test_run_level_governance_denial_fails_closed_without_promotion(monkey
         lambda: _Governance(lambda _candidate_id: denied_state),
     )
 
+    builder_reached = False
+
+    def _builder(*_args, **_kwargs):
+        nonlocal builder_reached
+        builder_reached = True
+        raise AssertionError("unverified builder must not write the release directory")
+
+    monkeypatch.setattr("app.engine.evolution.build_genome_output", _builder)
+
     publisher_reached = False
 
     def _publisher(*_args, **_kwargs):
@@ -246,6 +255,7 @@ async def test_run_level_governance_denial_fails_closed_without_promotion(monkey
     )
 
     assert publisher_reached is False
+    assert builder_reached is False
     assert result["output_path"] is None
     assert result["best_genome"] is None
     assert result["build_error"] is not None
@@ -288,6 +298,15 @@ async def test_run_level_authorized_candidate_promotes_exactly_once(monkeypatch)
 
     monkeypatch.setattr("app.engine.evolution.evaluate_candidate_async", _verified)
     monkeypatch.setattr("app.engine.evolution.get_settings", lambda: _Settings())
+
+    builder_reached = False
+
+    def _builder(*_args, **_kwargs):
+        nonlocal builder_reached
+        builder_reached = True
+        raise AssertionError("governed path must promote the verified candidate directory directly")
+
+    monkeypatch.setattr("app.engine.evolution.build_genome_output", _builder)
     monkeypatch.setattr(
         "app.engine.evolution.get_governance",
         lambda: SimpleNamespace(materialize_candidate=_materialize),
@@ -312,6 +331,7 @@ async def test_run_level_authorized_candidate_promotes_exactly_once(monkeypatch)
         generations=1, population_size=2, use_docker=True, seed=3
     )
 
+    assert builder_reached is False
     assert result["build_error"] is None
     assert result["output_path"] == "output/generated_api"
     assert result["best_genome"] is not None

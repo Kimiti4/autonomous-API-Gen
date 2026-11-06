@@ -1352,3 +1352,108 @@ Required evidence: a repeatable vertical-slice protocol and multiple materially 
 - FS-00 remains NOT CLOSED. PR #201 remains a draft and unmerged.
 
 **Next checkpoint:** audit the actual frontend/backend/data/auth/infrastructure/deployment composition and lineage routes, then reconcile the source-bound full-stack subsystem with the root behavioral compiler and ProjectCompiler. The first implementation slice should be chosen only after the architecture boundary is approved; payroll is a strong candidate for the first substantial domain acceptance product, not a reason to bypass the FS-00 gates.
+
+
+## 20. Checkpoint 21 — full-stack composition, candidate verification and lineage route
+
+**Scope:** source-trace the certification campaign's actual ISR-to-candidate route, source-bound mapping and full-stack verification; compare it with the root behavioral compiler and ProjectCompiler; inspect the boundary between verification, deployment and provenance. Documentation-only audit. No tests executed in this checkpoint.
+
+### 20.1 Three compiler families and their actual boundaries
+
+The source trace confirms three distinct execution families:
+
+1. **Root behavioral compiler:** `certification/campaign/plan_builder.py` builds a requirement graph, genesis ISR, genome, materialized candidate ISR and then calls `compiler.core.lowering.isr_to_plan()`. The resulting `compiler.core.plan.CompilationPlan` carries typed data models, events, security policies, API operations, effects, bindings, consequences, invariants, frontend routes and frontend interactions. `compiler.core.capabilities` derives required features and provides fail-closed backend support assertions. The root composition registry currently registers Python/FastAPI, Rust/Axum and Android structural backends.
+2. **Source-bound full-stack verification subsystem:** `autonomous-api/app/engine/source_bound_full_stack.py` snapshots Campaign A `PlanArtifacts`, deterministically produces an explicit mapping from the source ISR, lowers that mapping to `LoweredFullStackIR`, validates requirement coverage/typed bindings/semantic obligations, and checks candidate/source/mapping hashes. It is invoked by the certification campaign as a verification path around the generated repository; it is not the same IR schema as `compiler.core.plan.CompilationPlan`.
+3. **ProjectCompiler:** `tiannara/application/compiler/composition.py` registers a separate family of frontend and backend implementations. `ProjectCompiler.compile_intent()` converts intent to a typed `SystemModel`, derives selection requirements, selects from its own registry, and calls `CompilationExecutor.execute()`. The executor calls `backend.generate(system_model)`. This path does not call root `isr_to_plan()`, the root semantic capability gate, or the source-bound full-stack lowering in the inspected call chain.
+
+The registries, input models, backend interfaces, selectors and verification contracts are distinct. The campaign's root compiler and source-bound verifier are connected to each other; the inspected ProjectCompiler route is not shown to be adapted into that same orchestration or evidence contract.
+
+### 20.2 Positive source-bound evidence
+
+The Campaign A route is more than an unused design seam:
+
+- `plan_builder.py:build_artifacts_from_graph()` constructs the requirement graph, genesis ISR, genome, materialized candidate ISR, and `CompilationPlan` through `isr_to_plan()`; it returns these in `PlanArtifacts`.
+- `CampaignRunner.run_trial()` accepts those authoritative artifacts. When explicit semantic-correspondence inputs are absent, it builds a canonical source snapshot using `source_snapshot_from_plan_artifacts()`, then calls `produce_architecture_mapping()`.
+- The mapping producer extracts explicit ISR node/edge types (including requirements, data models, services, APIs, events, policies, infrastructure targets, frontend routes/interactions, effects, invariants and consequences). It refuses to invent missing semantics and returns canonical mapping only when its declared conditions are met.
+- The runner binds the produced mapping to the exact generated repository hash. The semantic-correspondence verifier recomputes the candidate digest, validates requirement coverage and typed target bindings, re-runs deterministic source-to-ISR mapping and compares the submitted mapping, then lowers and checks the full-stack IR.
+- The runner only derives the five canonical IR inputs after semantic correspondence passes. The candidate-bound full-stack verifier receives and echoes the candidate hash; missing inputs, missing verifier methods, mismatches and failed findings are non-passing.
+- The source-bound helper `lower_source_bound_candidate()` separately checks source hash, candidate hash, mapping hash, source refs, requirement coverage, typed bindings and explicit mapping lowering. Its readiness predicate does not itself authorize certification or claim runtime enforcement.
+
+This is a substantive source-bound verification foundation. It should be preserved and integrated, not discarded or treated as proof that every compiler entry point uses it.
+
+### 20.3 FS00-FS-016 — full-stack verification is recorded after deployment/runtime stages in CampaignRunner (High)
+
+In `certification/campaign/runner.py:run_trial()`, the actual order is:
+
+1. `backend.compile(plan)` is called before the candidate workspace and verification stages.
+2. Generated files are materialized into a temporary candidate directory.
+3. Backend conformance and build/test stages are evaluated.
+4. The deployer may deploy the candidate; the runtime prober may exercise the deployed container; the destroyer may clean it up.
+5. The runner writes the independent-verification plan, builds source-bound correspondence inputs, performs full-stack IR derivation/verification, and records the combined result as `TrialStage.VERIFY`.
+6. The trial verdict is composed from the stage results.
+
+Thus the source-bound/full-stack checks are meaningful certification gates for the final verdict, but they are not pre-build or pre-deployment authorization gates in this route. A candidate can reach deployment/runtime before the full-stack/source-correspondence verdict is known. This is especially important where the desired production policy requires semantic proof before publication or deployment.
+
+**Required:** separate mandatory gates by lifecycle stage. At minimum: source/IR and backend semantic preflight before generation; artifact integrity and semantic verification before publication; deployment authorization before deployment; post-deployment independent runtime acceptance before production promotion. Tests must prove that failed/missing upstream gates cause zero calls to downstream side-effecting adapters.
+
+### 20.4 FS00-FS-017 — current source-bound full-stack IR is not the complete deployment/infrastructure artifact contract (High)
+
+The explicit `LoweredFullStackIR` currently contains frontend, API, backend, effects and consequences. The mapping's required top-level layers are those five; the canonical lowerer rejects unknown keys and requires explicit provenance. The mapping producer can inspect infrastructure-target ISR nodes, but the five-layer IR object does not expose a corresponding infrastructure/deployment/CI/CD/operations artifact contract.
+
+Therefore, the subsystem proves a bounded five-layer coherence contract, not the entire `folder/prefull.md` acceptance surface. The inspected runner does not show the same canonical IR lowering and independent source-to-deployed-instance lineage for infrastructure configuration, deployment manifests, CI/CD, observability, secrets/configuration, runtime environment and deployed instance identity.
+
+**Required:** extend or formally compose the canonical contract for infrastructure, packaging, deployment, runtime configuration, operational controls and deployed-instance identity. Each layer needs typed source bindings, implementation-bound capability declarations, artifact hashes and independently checked lineage. Do not infer these from an infrastructure target name or a successful Docker stage.
+
+### 20.5 FS00-FS-018 — root campaign and ProjectCompiler do not share a mandatory orchestration/publication authority (High)
+
+The campaign root route uses `ISRRevision → isr_to_plan() → root BackendRegistry → CompilerBackend.compile(plan) → GeneratedRepository`, followed by campaign conformance and evidence stages. ProjectCompiler uses `IntentCompiler → SystemModel → BackendCapabilityDeclaration/CompilerRegistry → CompilationExecutor.generate(system_model) → CompilationResult → BundleVerifier`.
+
+The ProjectCompiler executor invokes generation before its bundle verification. Its verifier checks documentation, required files, selected syntax and dependency direction; it is not the root behavioral semantic gate or the candidate-bound full-stack verifier. The ProjectCompiler report is not shown to produce the campaign's source-bound requirement-to-candidate correspondence record. Conversely, the campaign's root backend registry does not include the ProjectCompiler's full frontend/backend family.
+
+The repository therefore contains meaningful but separate compiler capabilities, not one demonstrated mandatory route that all user-facing compilation entry points must traverse. This confirms and sharpens FS00-FS-013.
+
+**Required:** after architecture approval, designate one authoritative orchestration boundary and define one-way, loss-reporting adapters for each retained compiler family. All production routes must bind the same immutable ISR revision and canonical IR digest, run the same required-semantic derivation, enforce backend-specific support before invocation, and pass through common verification/publication/deployment authorization. No backend family should be retired merely to simplify integration.
+
+### 20.6 Provenance and lineage: what is established versus missing
+
+Established in the campaign route:
+- `PlanArtifacts` includes plan, ISR revision, genome, requirement graph and their declared hashes.
+- `ProvenanceBundle.emit()` records corpus, requirement graph, genome, ISR revision/content, plan, backend identity/version and application repository hash, and emits source snapshots plus evidence manifest.
+- `ProvenanceBundle.verify_bundle()` recomputes the application repository hash and checks ISR, genome and requirement-graph hash relationships.
+- Candidate-bound full-stack and semantic-correspondence checks bind verification to the generated repository content hash.
+
+Not established by this evidence:
+- a universal, immutable lineage record spanning every frontend/backend/database/auth/infrastructure/deployment artifact from one canonical IR;
+- a verified mapping from the generated repository hash to a deployed artifact/image digest and a stable deployed-instance identity in the same end-to-end lineage;
+- one common publication authority that rejects unverified candidates across Campaign A, ProjectCompiler and other compiler routes;
+- atomic/immutable publication semantics and promotion/rollback controls for all routes.
+
+The provenance bundle is valuable evidence, but its own module states it is a record rather than the certification authority. It must not be mistaken for a universal publication gate.
+
+### 20.7 Test evidence and limitations
+
+Inspected source/test contracts:
+- `tests/cbc1/test_source_bound_full_stack_projection.py`: missing/incomplete mapping refusal, known-source-ref checks, digest sensitivity, snapshot construction, explicit mapping lowering and unknown-field rejection.
+- `tests/certification/test_campaign_semantic_input_wiring.py` and `tests/certification/test_architecture_mapping_producer.py`: campaign source snapshot/mapping producer wiring and related mapping behavior.
+- `certification/campaign/runner.py`: candidate-bound verifier invocation and stage ordering.
+- `certification/campaign/plan_builder.py`: requirement graph/ISR/genome/plan production.
+- `compiler/core/plan.py`, `lowering.py`, `capabilities.py`, `compiler/composition.py`: root behavioral IR, lowering, semantic feature gate and registry.
+- `tiannara/application/compiler/composition.py`, `project_compiler.py`, `executor.py`, `verification.py`, `writer.py`: separate ProjectCompiler route and verification/materialization behavior.
+- `certification/provenance/bundle.py`: campaign provenance and hash checks.
+
+These files were inspected at the PR branch. Tests were not run in this checkpoint; test definitions are not represented as executed evidence. The inspection does not claim that no other publisher/deployment integration exists elsewhere in the repository; the finding is that the audited routes do not establish one shared mandatory authority or complete lineage.
+
+### 20.8 Updated integrated disposition
+
+- **FS00-FS-016 — verification occurs after deployment/runtime in CampaignRunner:** SOURCE-CONFIRMED; HIGH; open.
+- **FS00-FS-017 — five-layer full-stack IR omits explicit infrastructure/deployment artifact contract:** SOURCE-CONFIRMED; HIGH; open.
+- **FS00-FS-018 — root campaign and ProjectCompiler are separate orchestration/verification routes:** SOURCE-CONFIRMED; HIGH; open.
+- Positive source-bound mapping, candidate binding and campaign provenance foundations: CONFIRMED as bounded capabilities; not universal route/certification proof.
+- Root behavioral compiler: remains the strongest inspected technology-neutral semantic backend route, but not the universal orchestration authority.
+- ProjectCompiler: remains a separate typed-SystemModel generator family; its backend declarations and structural bundle verifier do not substitute for source-bound semantic verification.
+- Full-stack coherence: partial five-layer source-bound verification exists in Campaign A; pre-deployment gate, full infrastructure/deployment contract and universal entry-point enforcement remain NOT ESTABLISHED.
+- Payroll/global product capability conclusions from Checkpoint 20 are unchanged.
+- No production code, tests, workflows, backend registrations, certification states or approvals changed. No tests executed. No backend retired.
+- FS-00 remains NOT CLOSED; PR #201 remains open, draft and unmerged.
+
+**Next checkpoint:** trace every publication/deployment adapter and production entry point (including CLI/API routes and any repository publisher) to determine whether any common immutable promotion gate exists outside CampaignRunner. Then complete the route matrix: entry point → ISR/IR authority → backend registry → semantic preflight → generation → verification → publication → deployment → runtime identity/evidence. Keep this audit documentation-only until FS-00 and the architecture decision are formally approved.

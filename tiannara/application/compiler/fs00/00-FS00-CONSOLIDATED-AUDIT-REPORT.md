@@ -1949,7 +1949,7 @@ PR #208 remains open/draft/unmerged and targets the draft Stage A branch. PR #20
 
 Tests added for production configuration, ungoverned staging classification, no promotion event/authority, and synchronous-path refusal.
 
-**Status:** REMEDIATION CODED; targeted CI pending.
+**Status:** REMEDIATION VERIFIED BY TARGETED CI — run 42263581168 passed the root suite (159) and autonomous-api suite (46), including the new production-config, staged-status, synchronous-path and elite-path regression tests.
 
 ### 30.2 FS00-FS-035 — governance decision and certification identities are caller-asserted rather than bound to authenticated principals (Critical)
 
@@ -1992,6 +1992,52 @@ Tests added for production configuration, ungoverned staging classification, no 
 - The result includes `promotion_status` and `governance_required`.
 - Regression tests assert no artifact builder invocation when governance is required and explicit staged status in non-governed mode.
 
-**Status:** REMEDIATION CODED; targeted CI pending.
+**Status:** REMEDIATION VERIFIED BY TARGETED CI — run 42263581168 passed the root suite (159) and autonomous-api suite (46).
 
 This finding demonstrates why governance must be enforced across every production entry point, not just the primary `EvolutionEngine`.
+
+
+## 31. Checkpoint 32 — deployment engine runtime wiring and simulated-actuation boundary
+
+**Scope:** trace the standalone `constitutional_architecture/deployment/` subsystem, its default composition, stage behavior, rollout behavior, and imports from inspected application entry points.
+
+### 31.1 FS00-FS-038 — deployment subsystem is not a production deployment path and its simulated stages can emit success-shaped telemetry (Critical)
+
+**Source evidence:**
+- The inspected production composition root `autonomous-api/app/main.py`, primary `EvolutionEngine`, `EliteEvolutionEngine`, and API route layer do not invoke `constitutional_architecture.deployment.DeploymentEngine`. Code search surfaced the engine's construction in its own deployment tests, not a production caller. The deployment library is therefore not the deployed-artifact promotion path.
+- `DeploymentEngine.__init__()` defaults to an empty `DeploymentPipeline`; no production composition root registers real stages. The default deployment call therefore fails with "No stages registered in pipeline".
+- When stages are manually registered, `BuildStage` creates only a `DeploymentArtifact` metadata object at `./build/`; `PackageStage` describes a tarball but does not write it; `InfrastructureStage` describes Terraform/Compose output but does not emit IaC; `ProvisionStage` returns `infrastructure_provisioned=True` without invoking a provisioner; `ContainerStage` describes an image without building it; `DeployStage` records `deployed=True` after checking stage-result flags without invoking a deployment target.
+- `RolloutManager` changes its in-memory plan status to `completed` and returns `DeploymentStatus.RUNNING` without performing traffic shifting or contacting a target executor.
+- `DeploymentEngine.deploy()` records `deployment_success=1.0` before validating rollout result, and emits `DEPLOYMENT_COMPLETED` after the rollout result reports `RUNNING`; it does not require a live target endpoint or health evidence. Its returned `DeploymentResult` defaults `is_healthy=False`, so the result's `is_successful` property is false even though completion telemetry was emitted.
+
+**Impact:** this library is a design/test scaffold, not evidence of infrastructure provisioning, packaging, container build, deployment, traffic shifting, health verification, or rollback. It must not be wired into a product-release route or used to assert deployment success until real adapters and independent runtime evidence exist.
+
+**Required remediation:**
+1. Define explicit executor ports for build, package, IaC generation, provisioning, container build, target deployment, health checks, rollout and rollback.
+2. Make the default deployment composition fail closed unless each required port is configured and reports independently verifiable evidence.
+3. Do not emit `DEPLOYMENT_COMPLETED` or record success metrics until a real target confirms the exact artifact digest, endpoint and health result.
+4. Bind deployment result to candidate ID, ISR revision, compiler/plan revision, artifact digest, environment, target identity, rollout and rollback evidence.
+5. Integrate this deployment path only through the canonical full-stack orchestration authority after the architecture decision and governance gate are approved.
+6. Add tests proving that missing adapters cannot produce artifacts, deployment endpoints, healthy status, success metrics or completion events.
+
+**Status:** OPEN — source-confirmed; no deployment adapter implementation or production wiring is claimed.
+
+### 31.2 Verification summary and current finding dispositions
+
+Workflow run **42263581168** (Publication and Deployment Hardening, run 100) completed successfully on the code changes:
+- Python module compilation: PASS.
+- Root ESAP targeted regression suite: **159 passed**.
+- Autonomous-api evolution/governance suite: **46 passed**.
+- Total: **205 passed, 0 failed**.
+
+Verified by this run:
+- FS00-FS-034 — production must require governance enforcement; ungoverned runs must be labelled staged; synchronous path cannot bypass governance.
+- FS00-FS-037 — EliteEvolutionEngine cannot build artifacts in governed production mode and labels non-governed output as staged.
+- FS00-FS-032/-033 — candidate-bound digest approval and runtime-only promotion checks remain passing.
+
+Still open:
+- FS00-FS-035 — governance principal identity and evidence attestation producer.
+- FS00-FS-038 — real deployment adapter path and truthful deployment telemetry.
+- Universal full-stack composition, canonical ISR/IR orchestration, product-level payroll/global-domain acceptance and real publication/deployment remain open.
+
+PR #208 remains open/draft/unmerged. No merge to `main` is authorized.

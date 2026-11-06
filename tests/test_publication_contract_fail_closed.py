@@ -151,12 +151,18 @@ def test_publication_requires_remote_readback_verification():
     ledger, ref = _certified_ledger()
 
     class _NoReadbackProvider:
+        def __init__(self):
+            self.calls = []
+
         def publish_repository(self, name, bundle, files):
+            self.calls.append("publish")
             return ProviderPublicationReceipt(
                 repo_url="https://example.invalid/repo",
                 commit_sha="commit-123",
                 artifact_hash=canonical_hash(files),
             )
 
+    provider = _NoReadbackProvider()
     with pytest.raises(ValueError, match="remote read-back verification"):
-        publish_bundle(_bundle([ref]), _NoReadbackProvider(), ledger, lambda _ref: True)
+        publish_bundle(_bundle([ref]), provider, ledger, lambda _ref: True)
+    assert provider.calls == []

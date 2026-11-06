@@ -13,7 +13,7 @@ import httpx
 from app.core.logger import logger
 from app.engine.builder import build_genome_output
 from app.engine.backend_contract import BackendTarget, PYTHON_FASTAPI
-from app.engine.backends import get_backend
+from app.engine.backends import get_backend, _validate_verified_artifact
 from app.engine.capability_evidence import inspect_artifact, summarize
 from app.engine.docker_runner import DockerRunner
 from app.engine.fitness import calculate_fitness
@@ -64,10 +64,21 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
         "health_ok": False, "openapi_ok": False, "auth_boundary_ok": False, "crud_ok": False,
         "crud_checks": {}, "contract_ok": False, "artifact_capabilities": {}, "capability_evidence": {},
         "runtime_capabilities": {}, "runtime_score": 0.0 if use_docker else None,
+        "artifact_compile_ok": False, "artifact_digest": "",
+        "verification_status": "unknown",
         "static_score": calculate_fitness(genome) if not use_docker else None, "error": None,
     }
     try:
         build_genome_output(genome, candidate_dir, target=target)
+        manifest_path = os.path.join(candidate_dir, "artifact-manifest.json")
+        with open(manifest_path, "r", encoding="utf-8") as manifest_file:
+            manifest = json.load(manifest_file)
+        digest = manifest.get("artifact_digest")
+        if not isinstance(digest, str) or len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
+            raise ValueError("generated artifact manifest has no canonical SHA-256 digest")
+        _validate_verified_artifact(candidate_dir, digest)
+        evidence["artifact_digest"] = f"sha256:{digest}"
+        evidence["artifact_compile_ok"] = True
         evidence["build_ok"] = True
         if target == PYTHON_FASTAPI:
             evidence["artifact_capabilities"] = inspect_artifact(genome, candidate_dir)
@@ -76,11 +87,13 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
             evidence["capability_evidence"] = {"backend_id": target.backend_id, "verified": True}
     except Exception as exc:
         evidence["error"] = f"candidate build failed: {exc}"
+        evidence["verification_status"] = "failed"
         logger.error("Candidate build failed", exc_info=True)
         return evidence
     if not use_docker or not get_backend(target.backend_id).runtime_supported:
         evidence["evaluation_mode"] = "static"
         evidence["static_score"] = calculate_fitness(genome) if evidence["build_ok"] else 0.0
+        evidence["verification_status"] = "static_only" if evidence["artifact_compile_ok"] else "failed"
         return evidence
 
     runner = DockerRunner()
@@ -96,6 +109,7 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
         )
         if not success:
             evidence["error"] = error or "candidate container failed to start"
+            evidence["verification_status"] = "failed"
             return evidence
 
         base = f"http://127.0.0.1:{port}"
@@ -213,10 +227,19 @@ def evaluate_candidate(genome: Genome, *, use_docker: bool = True, output_dir: s
         evidence["runtime_score"] = _runtime_score(evidence["health_ok"], evidence["openapi_ok"], evidence["auth_boundary_ok"], evidence["crud_ok"], evidence["contract_ok"])
         if evidence["runtime_score"] < 1.0:
             evidence["error"] = evidence["error"] or "runtime capability or contract probes did not fully pass"
+            evidence["verification_status"] = "failed"
+        else:
+            evidence["verification_status"] = (
+                "verified"
+                if evidence["build_ok"] is True and evidence["artifact_compile_ok"] is True
+                and evidence["evaluation_mode"] == "runtime"
+                else "failed"
+            )
         return evidence
     except Exception as exc:
         logger.error("Candidate runtime evaluation failed", exc_info=True)
         evidence["error"] = str(exc)
+        evidence["verification_status"] = "failed"
         return evidence
     finally:
         runner.stop_container(container_name)

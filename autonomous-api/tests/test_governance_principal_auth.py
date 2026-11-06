@@ -177,3 +177,66 @@ def test_governance_actor_guard_rejects_wrong_scope_and_spoofed_certifier():
             actor="certifier-1",
         )
     assert spoofed_actor.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_governance_event_log_retains_verified_member_signatures():
+    from app.core.contracts.governance import (
+        CouncilComposition,
+        CouncilMember,
+        GovernanceGate,
+        TransitionRef,
+    )
+    from app.core.governance.commands import (
+        RecordGateEvaluation,
+        RegisterGate,
+    )
+    from app.governance.adapters.memory import (
+        InMemoryGovernanceEventStore,
+        InMemoryGovernanceReferenceStore,
+    )
+    from app.governance.subsystem import GovernanceSubsystem
+
+    events = InMemoryGovernanceEventStore()
+    references = InMemoryGovernanceReferenceStore()
+    governance = GovernanceSubsystem(
+        event_store=events,
+        reference_store=references,
+        quorum_threshold=1.0,
+        recognized_certifiers={"certifier-1"},
+    )
+    await references.save_council(CouncilComposition(members=[
+        CouncilMember(memberId="council-1", name="One", role="member", votingWeight=0.6),
+        CouncilMember(memberId="council-2", name="Two", role="member", votingWeight=0.4),
+    ]))
+    await governance.register_gate(RegisterGate(
+        gate=GovernanceGate(
+            gateId="intake",
+            name="Intake",
+            category="intake",
+            guards=[TransitionRef(fromState="proposed", toState="evaluating")],
+        ),
+        registeredBy="operator",
+    ))
+    await governance.record_gate_evaluation(RecordGateEvaluation(
+        gateId="intake",
+        candidateId="candidate-42",
+        status="passed",
+        evaluatedBy="evaluator-1",
+        evidenceRefs=["sha256:" + ("b" * 64)],
+    ))
+
+    command = _decision()
+    signatures = _sign(command, COUNCIL_KEYS)
+    persisted_command = command.model_copy(update={"memberSignatures": signatures})
+    await governance.request_decision(persisted_command)
+
+    state = await governance.materialize_candidate("candidate-42")
+    assert len(state.decisions) == 1
+    assert state.decisions[0].memberSignatures == signatures
+    stored_events = await events.load("candidate-42")
+    decision_event = next(
+        event for event in stored_events
+        if type(event).__name__ == "GovernanceDecisionMade"
+    )
+    assert decision_event.decision.memberSignatures == signatures

@@ -181,3 +181,18 @@ def test_factory_isolation_from_environment_errors(tmp_path):
         factory.run("build svc", out_root=str(tmp_path))
     assert factory._materializer.defer_commit_requested is True
     assert factory._materializer.committed is False
+
+
+def test_factory_requires_explicit_static_and_runtime_verification(tmp_path):
+    materializer = _Materializer(tmp_path)
+    factory = SoftwareFactory(
+        project_compiler=_Compiler(),
+        materializer=materializer,
+        execution_environment=None,
+        repair_provider=NullRepairProvider(),
+        verifier_factory=None,
+    )
+    with pytest.raises(SoftwareFactoryError):
+        factory.run("build svc", out_root=str(tmp_path))
+    assert materializer.defer_commit_requested is True
+    assert materializer.committed is False

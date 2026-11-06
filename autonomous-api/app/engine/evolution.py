@@ -117,28 +117,70 @@ class EvolutionEngine:
             return 0.0
         return float(score) if score is not None else 0.0
 
-    async def _governance_allows_promotion(self, genome) -> bool:
+    async def _governance_allows_promotion(self, genome, artifact_digest: str) -> bool:
+        """Require an active candidate certificate and exact deployed-transition approval."""
         if not getattr(get_settings(), "GOVERNANCE_ENFORCEMENT_REQUIRED", False):
-            return True
-        state = await get_governance().materialize_candidate(genome.genome_id)
+            return False
+
+        digest = artifact_digest.removeprefix("sha256:")
+        if len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
+            return False
+        artifact_ref = f"sha256:{digest}"
+        candidate_id = getattr(genome, "genome_id", None)
+        if not isinstance(candidate_id, str) or not candidate_id:
+            return False
+
+        state = await get_governance().materialize_candidate(candidate_id)
+        if getattr(state, "candidate_id", None) != candidate_id:
+            return False
+        if getattr(state, "current_state", None) != "deployed":
+            return False
+
         decision = state.latest_decision()
         if decision is None:
             return False
-        return (
-            getattr(decision, "verdict", None) == "approve"
-            and bool(getattr(decision, "authorizesTransition", False))
+        if (
+            getattr(decision, "candidateId", None) != candidate_id
+            or getattr(decision, "verdict", None) != "approve"
+            or getattr(decision, "authorizesTransition", None) is not True
+            or getattr(decision, "fromState", None) != "selected"
+            or getattr(decision, "toState", None) != "deployed"
+            or artifact_ref not in getattr(decision, "evidenceRefs", ())
+        ):
+            return False
+
+        active_certifications = getattr(state, "active_certifications", None)
+        if not callable(active_certifications):
+            return False
+        return any(
+            getattr(certification, "candidateId", None) == candidate_id
+            and getattr(certification, "revokedAt", None) is None
+            and artifact_ref in getattr(certification, "evidenceRefs", ())
+            for certification in active_certifications()
         )
 
     async def _publish_governed_candidate(self, genome, evidence: dict):
-        if not await self._governance_allows_promotion(genome):
-            raise ValueError("governance promotion gate denied")
-        source = evidence.get("artifact_path") or evidence.get("output_path")
-        destination = evidence.get("output_path") or evidence.get("artifact_path")
         digest = str(evidence.get("artifact_digest") or "")
-        if digest.startswith("sha256:"):
-            digest = digest[len("sha256:"):]
-        return promote_verified_artifact(source, destination, expected_digest=digest)
+        if (
+            evidence.get("build_ok") is not True
+            or evidence.get("artifact_compile_ok") is not True
+            or evidence.get("verification_status") != "verified"
+            or evidence.get("evaluation_mode") != "runtime"
+            or evidence.get("runtime_score") != 1.0
+        ):
+            raise ValueError("candidate is not fully runtime-verified for governed promotion")
+        if not await self._governance_allows_promotion(genome, digest):
+            raise ValueError("governance promotion gate denied or is not bound to this artifact")
 
+        source = evidence.get("artifact_path")
+        destination = evidence.get("output_path")
+        if not isinstance(source, str) or not source or not isinstance(destination, str) or not destination:
+            raise ValueError("governed promotion requires explicit source and destination artifact paths")
+        return promote_verified_artifact(
+            source,
+            destination,
+            expected_digest=digest.removeprefix("sha256:"),
+        )
     async def _run_async_unleased(self, generations: int = 10, population_size: int = 10, use_docker: bool = True, seed: Optional[int] = None) -> dict:
         if generations < 1 or population_size < 2: raise ValueError("generations must be >= 1 and population_size must be >= 2")
         run_id = str(uuid.uuid4())

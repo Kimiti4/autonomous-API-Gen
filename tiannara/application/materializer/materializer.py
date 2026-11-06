@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from tiannara.application.compiler.project_compiler import ProjectCompilationReport
-from tiannara.application.compiler.writer import write_bundle
+from tiannara.application.compiler.writer import validate_bundle_paths, write_bundle
 from tiannara.application.materializer.provenance_builder import build_manifest
 from tiannara.domain.models.bundle import SystemDeploymentBundle
 from tiannara.domain.models.compilation import CompilationResult
@@ -166,6 +166,16 @@ class RepositoryMaterializer:
 
         # Validate the entire selected set before the first candidate write.
         # A failed verification must not leave a partial trusted-looking tree.
+        seen_paths: set[Path] = set()
+        for outcome in successful:
+            targets = validate_bundle_paths(outcome.result, out_root)
+            collisions = seen_paths.intersection(targets)
+            if collisions:
+                raise MaterializationError(
+                    f"generated bundles contain colliding paths: {sorted(map(str, collisions))}"
+                )
+            seen_paths.update(targets)
+
         for outcome in successful:
             write_bundle(outcome.result, out_root)
 

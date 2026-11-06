@@ -4,7 +4,7 @@ import asyncio
 import uuid
 import random
 from typing import Callable, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from app.core.logger import logger
 from app.engine.genome import Genome
 from app.core.population import Population
@@ -152,12 +152,27 @@ class EvolutionEngine:
         active_certifications = getattr(state, "active_certifications", None)
         if not callable(active_certifications):
             return False
-        return any(
-            getattr(certification, "candidateId", None) == candidate_id
-            and getattr(certification, "revokedAt", None) is None
-            and artifact_ref in getattr(certification, "evidenceRefs", ())
-            for certification in active_certifications()
-        )
+        for certification in active_certifications():
+            if (
+                getattr(certification, "candidateId", None) != candidate_id
+                or getattr(certification, "revokedAt", None) is not None
+                or artifact_ref not in getattr(certification, "evidenceRefs", ())
+            ):
+                continue
+            valid_until = getattr(certification, "validUntil", None)
+            if valid_until is not None:
+                try:
+                    expiry = (
+                        valid_until
+                        if isinstance(valid_until, datetime)
+                        else datetime.fromisoformat(str(valid_until).replace("Z", "+00:00"))
+                    )
+                except (TypeError, ValueError):
+                    continue
+                if expiry.tzinfo is None or expiry <= datetime.now(timezone.utc):
+                    continue
+            return True
+        return False
 
     async def _publish_governed_candidate(self, genome, evidence: dict):
         digest = str(evidence.get("artifact_digest") or "")

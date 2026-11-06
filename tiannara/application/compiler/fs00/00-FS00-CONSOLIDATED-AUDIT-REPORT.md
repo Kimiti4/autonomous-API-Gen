@@ -1640,3 +1640,57 @@ The remediation work is isolated in PR #208, targeting `remediation/esap-android
 No backend was retired. No changes were made to `main`. FS-00 remains NOT CLOSED.
 
 **Next checkpoint:** finish auditing remaining API and CLI entry points and their callers, then inspect the candidate-level authorization, evidence-ledger and deployment promotion paths. After that, run the focused hardening suite, correct failures, and only then update finding statuses.
+
+
+## 23. Checkpoint 24 — autonomous-api evolution artifact materialization and promotion hardening
+
+**Scope:** trace the autonomous-api evolution candidate artifact path from the authenticated evolution API through candidate evaluation, final best-genome build and optional governed promotion; inspect staging writes, manifest verification, backup/restore and rollback. This checkpoint extends the file-hardening work to the separate evolution engine. Tests were authored but not executed.
+
+### 23.1 Reachability
+
+The autonomous-api application composes `app.api.routes` in `app.main`. The authenticated `/api/v1/evolve/start` route schedules `EvolutionEngine.run_async()`; `/evolve/sync` invokes the synchronous engine. The evolution engine calls `evaluate_candidate_async()`, whose candidate evaluator calls `build_genome_output()`. That helper calls `compile_and_materialize()`, which compiles through the separate autonomous-api backend registry and calls `app.engine.backends.materialize()`.
+
+After selecting the best genome, the evolution engine calls `build_genome_output(best_genome)` again for the final output tree. When governance enforcement is required, it calls `_publish_governed_candidate()`, which requires an approval decision and then invokes `promote_verified_artifact()` using the evidence digest. This is a real, separately governed evolution artifact path; it is not the canonical ESAP ISR→CompilationPlan route.
+
+### 23.2 FS00-FS-029 — evolution artifact materializer wrote untrusted paths before validating the manifest (High)
+
+Prior `app.engine.backends.materialize()` created a staging directory and immediately wrote each backend-provided `relative_path` using `staging / relative_path`. Only after all writes did it create and validate the manifest. A path such as `../escape.txt` could therefore write outside the staging directory before `_validate_verified_artifact()` rejected the resulting candidate. The post-write integrity check could detect the malformed artifact, but could not undo the outside write.
+
+The prior manifest verifier also validated listed file digests but did not require the on-disk file set to equal the manifest's file set; unmanifested extra files could remain in the candidate tree. Symlinks within the root were not explicitly rejected if their resolved targets remained under the root.
+
+**Remediation authored in PR #208:**
+- Added a preflight path policy before staging creation/writes: reject absolute paths, drive/UNC/rooted paths, NULs, traversal/dot/empty segments, reserved `.git`/`.tiannara` metadata and the reserved artifact manifest.
+- Normalize safe Windows-relative separators into canonical POSIX manifest paths. This preserves the existing Windows backend use of `os.path.join` while rejecting Windows drive/UNC/traversal paths.
+- Reject normalized/case-folded path collisions and non-text artifact contents.
+- Verify every listed path with symlink-component checks and resolved-root containment.
+- Require the actual on-disk file set to equal the manifest's listed files plus the manifest itself; reject symlinks and unmanifested files.
+- Added regression tests for traversal, absolute/drive/UNC paths, reserved paths, collisions, safe Windows path normalization and unmanifested files.
+
+**Status:** REMEDIATION CODED; NOT TEST-VERIFIED.
+
+### 23.3 Related existing promotion boundary
+
+`backup_verified_artifact()`, `restore_verified_artifact()` and `promote_verified_artifact()` call `_validate_verified_artifact()` before copying/restoring/promoting and preserve a previous destination as a rollback point. Strengthening the shared verifier therefore hardens those callers as well. The evolution path's deployment/promotion remains a local verified-artifact replacement; it does not by itself prove a live production service rollout, health acceptance or universal compiler publication lineage.
+
+### 23.4 Updated remediation matrix
+
+- FS00-FS-016: Campaign A verification moved before deploy; tests added, unexecuted.
+- FS00-FS-019: SoftwareFactory commit deferred until explicit static/runtime verification; CLI `create` leaves staged candidate output without a commit; tests added, unexecuted.
+- FS00-FS-020/021: publisher now requires candidate-bound independent certification, exact artifact bytes, explicit gate approval, provider publish and remote read-back; publication is DELIVERY, not CERTIFICATION; demo/provider fail closed; tests added, unexecuted.
+- FS00-FS-022: Campaign B now gates deploy on structural/semantic conformance, real build, tests and independent verification; returned container cleanup is in `finally`; tests added, unexecuted.
+- FS00-FS-025: standalone compiler API now defaults to deny without a host authorizer, wires the governance wrapper by default and protects compile, job, SDK and governance routes; tests added, unexecuted.
+- FS00-FS-026: ProjectCompiler writer and standalone compiler ArtifactPackager now preflight canonical paths, symlinks, collisions and clean output workspaces; tests added, unexecuted.
+- FS00-FS-029: autonomous-api evolution materializer and manifest verifier hardened; tests added, unexecuted.
+
+Safe Windows-relative paths are normalized rather than rejected in the three file-generation paths (ProjectCompiler writer, standalone compiler packager, autonomous-api evolution materializer). Absolute/drive/UNC/rooted/traversal paths remain blocked.
+
+### 23.5 Remaining open items
+
+- FS00-FS-017: full-stack IR still lacks an explicit infrastructure/deployment/operations layer.
+- FS00-FS-018: no single universal orchestration/publication authority across compiler families.
+- FS00-FS-024: standalone compiler API remains a separate noncanonical compilation route.
+- FS00-FS-027: backend sample-contract certification is not product-level semantic/runtime certification.
+- Campaign B now gates deployment on its independent repository verifier, but it still does not demonstrate Campaign A's source-bound five-layer correspondence path; common semantic evidence remains an integration requirement.
+- The autonomous-api evolution engine and its local artifact promotion remain separate from ESAP's canonical source-bound compiler and do not establish payroll/global product capability.
+
+No test execution is claimed. PR #208 remains open/draft; PR #201 remains open/draft/unmerged; no backend has been retired and `main` has not been changed.

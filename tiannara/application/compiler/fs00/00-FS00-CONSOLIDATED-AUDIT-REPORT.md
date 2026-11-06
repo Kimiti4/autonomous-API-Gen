@@ -1009,3 +1009,99 @@ A non-blocking Python SyntaxWarning about an invalid escape sequence is emitted 
 - PR #201 remains open, draft and unmerged. The Android cloud build remains NOT RUN by the PR-triggered workflow.
 
 **Checkpoint disposition:** targeted evidence-freshness reconciliation COMPLETE for these four changed backends. This does not close FS-00 or approve FS-01, the proposed architecture ADR, benchmark decisions R1/R5/R6/R7, or PR #201.
+
+
+## 17. Semantic capability preflight and invocation-order delta — 2026-11-06
+
+### 17.1 Scope and inspected current-head paths
+
+This targeted continuation inspected the current PR branch's capability/conformance implementation and its call ordering, including:
+
+- `tiannara/application/compiler/selector.py`
+- `tiannara/application/compiler/composition.py`
+- `tiannara/application/compiler/executor.py`
+- `tiannara/application/compiler/project_compiler.py`
+- `tiannara/application/compiler/verification.py`
+- `tiannara/application/compilation/backend_conformance.py`
+- `tiannara/application/compilation/backend_capability_registry.py`
+- `tiannara/application/compilation/integrity_gate.py`
+- `tiannara/application/campaign/backend_matrix.py`
+- Existing R2.10.7/R2.10.8 test and design references found by repository search.
+
+This is a source-level audit. No tests were executed in this connector inspection, and no production code or certification state was changed.
+
+### 17.2 Finding FS00-CAP-009 — ProjectCompiler selection is declaration-only and does not enforce semantic support at invocation (High)
+
+**Observed path**
+
+1. `composition.py:build_compiler_registry()` registers the 11 backend-service implementations alongside the frontend targets.
+2. `selector.py:BackendSelector.rank/select()` calls `BackendCapabilityDeclaration.supports()` and ranks declarations using artifact kind and the required capability names.
+3. `project_compiler.py:compile_intent()` derives compilation requirements, selects a declaration, then invokes `CompilationExecutor.execute()`.
+4. `executor.py:execute()` obtains the selected backend and calls `backend.generate(system_model)` directly.
+5. The executor does not call a target semantic-coverage preflight, does not establish that unsupported requested ISR elements are rejected, and does not require zero backend invocation/output when support is absent.
+6. `project_compiler.py:_verify()` runs after generation. Its generic verifier is structural: required-file checks, Python syntax checks and dependency-direction checks; Go has a toolchain-free structural verifier. This is not a substitute for pre-generation semantic refusal or native execution.
+
+**Impact**
+
+The declaration-based selector can select a backend based on advertised capability names, but this route does not prove that every requested semantic is consumed. A successful generated bundle may therefore omit requested services, API operations, event/effect behavior or policies while still reaching post-generation structural verification.
+
+This confirms and sharpens FS00-CAP-001, FS00-CAP-004 and FS00-CAP-005: the required fail-closed boundary is not demonstrated on this production ProjectCompiler route.
+
+**Required evidence**
+
+For every selected backend, derive the complete required semantic set from the bound ISR/SystemModel and compare it with an implementation-bound, evidence-backed support map before calling `generate()`. Unsupported, partially supported where full support is required, or unknown semantics must produce an explicit non-success disposition. A negative test must assert that the backend invocation count remains zero and no deliverable artifact is emitted or published.
+
+### 17.3 Finding FS00-CAP-010 — Campaign's “before compiling” unsupported decision occurs after conformance has already invoked the backend (High)
+
+**Observed path**
+
+The campaign matrix documentation states that an all-unsupported case is disposed before compiling. The current call order in `MatrixHarness._run_case()` is:
+
+1. Compute `required`, `coverage` and `unsupported`.
+2. Call `self._evaluator.conform(adapter, isr, target)`.
+3. Record the conformance report.
+4. Only then test `if required <= frozenset(unsupported)` and return `EXPLICITLY_UNSUPPORTED`.
+5. Otherwise call `adapter.compile(isr, target)` for the matrix case.
+
+The evaluator's `conform()` calls `CompilationIntegrityGate.verify()`. That gate calls `backend.compile()` three times: primary compile, determinism twin and alternate-target independence probe. The adapter's `compile()` translates the semantic projection and invokes the real backend's `compile()` or `compile_system()`.
+
+**Impact**
+
+The matrix's terminal disposition may correctly say `EXPLICITLY_UNSUPPORTED`, and no matrix-case artifact is subsequently recorded for that disposition, but the backend has already been invoked three times during conformance. Therefore the statement that an all-unsupported case is never compiled is not true for this execution path. The post-conformance branch prevents the later matrix compile; it does not provide pre-invocation refusal.
+
+This is distinct from the ProjectCompiler finding above: the matrix uses the separate seven-backend conformance registry and campaign, not the 11-service ProjectCompiler registry.
+
+**Required evidence**
+
+Move or introduce the required-semantics/unsupported decision ahead of any conformance call that invokes the backend. If conformance of a backend itself must exercise its declared unsupported surface, keep that as a separately named conformance experiment and do not describe it as a no-invocation refusal test. Add a counting backend test proving zero calls for an all-unsupported case in the campaign path.
+
+### 17.4 Clarification — explicit UNSUPPORTED coverage is not itself a semantic PASS
+
+The eight-gate integrity contract intentionally distinguishes silent omission from an explicit unsupported declaration. Gate D checks whether every expressed semantic identifier appears in the coverage list; an explicit `UNSUPPORTED` entry is therefore allowed to satisfy the coverage-presence gate. This is useful for honest reporting, but it must not be interpreted as proof that the backend implements that semantic.
+
+The separate artifact verifier and campaign disposition must continue to distinguish:
+- coverage declared;
+- semantic supported;
+- semantic partially supported;
+- semantic explicitly unsupported;
+- behavior independently verified.
+
+A report with complete coverage metadata can be internally well-formed while correctly recording that some semantics are unsupported. It must not be promoted to a successful implementation for a request requiring those semantics.
+
+### 17.5 Cross-family boundary
+
+The repository contains at least two distinct capability/conformance mechanisms in the inspected paths:
+
+- **ProjectCompiler family:** 11 backend-service targets plus frontend targets; selection declarations and `SystemModel` generation through `generate()`.
+- **R2.10.7 conformance family:** seven registered real compilers (React, FastAPI, Postgres, Terraform, CI/CD, Pytest, Markdown) wrapped by `BackendConformanceAdapter` and evaluated against the 14-carrier/12-capability semantic vocabulary.
+
+Evidence from the seven-backend conformance family does not establish preflight enforcement for the 11 ProjectCompiler backend-service targets. Likewise, target-specific CI evidence for Ktor/Laravel/Rails/Spring Boot does not prove the R2.10.7 adapter/campaign path is correct. These ledgers and execution routes must remain separate until a governed convergence is demonstrated.
+
+### 17.6 Disposition and next work
+
+- FS00-CAP-009: SOURCE-CONFIRMED; HIGH; remediation required before this ProjectCompiler route can claim semantic fail-closed enforcement.
+- FS00-CAP-010: SOURCE-CONFIRMED; HIGH; campaign documentation/call-order mismatch requires a pre-invocation refusal test and corrected ordering or narrower wording.
+- Existing FS00-CAP-001 through FS00-CAP-008 remain open; this delta does not close them.
+- No backend is retired. No capability, readiness or certification state is upgraded. FS-00 remains NOT CLOSED.
+
+**Next checkpoint:** trace the per-backend semantic projection/generation code for FastAPI, Go, Rust/Axum, NestJS, ASP.NET Core and Phoenix; identify the exact ISR fields consumed versus ignored/refused; then map negative tests to each route. Preserve the separate ProjectCompiler and R2.10.7 evidence families.

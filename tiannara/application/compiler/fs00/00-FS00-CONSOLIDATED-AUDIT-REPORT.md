@@ -1185,3 +1185,170 @@ A test that only checks missing typed model, invalid field type, generated file 
 - This checkpoint changes documentation only; no production source, tests, workflow, registry or certification state was modified.
 
 **Next checkpoint:** locate and map the actual generator, integration, negative, and invocation-count tests for these six targets; then reconcile each target's declared `BundleCapability` list with the exact semantics its implementation consumes. Keep remediation separate from this read-only audit unless separately authorized.
+
+
+## 19. Checkpoint 20 — backend test evidence, full-stack coherence and product capability — 2026-11-06
+
+### 19.1 Scope and family separation
+
+This checkpoint inspected current PR-branch test and implementation sources for the six ProjectCompiler targets, then traced the separate root behavioral compiler and full-stack design boundary:
+
+- ProjectCompiler tests: `tests/test_go_hexagonal_backend.py`, `tests/test_r24_fastapi_runtime.py`, `tests/test_nestjs_backend.py`, `tests/test_aspnet_core_backend.py`, and the corresponding target test files where present.
+- Root behavioral compiler: `compiler/core/lowering.py`, `compiler/core/plan.py`, `compiler/core/capabilities.py`, `compiler/backends/python_fastapi.py`, `compiler/backends/rust_axum.py`.
+- Root behavioral tests: `tests/test_behavioral_backend_emission.py`, `tests/integration/test_generated_backend_behavior_builds.py).
+- Full-stack source-bound design: `autonomous-api/app/engine/source_bound_full_stack.py`.
+- Full-stack architectural acceptance and sequencing: `folder/prefull.md`.
+
+This was a source/test-contract inspection through GitHub. Tests were not executed in this checkpoint. The ProjectCompiler targets and root behavioral compiler are distinct execution families, even where their backend names overlap. Evidence must not be transferred between them.
+
+### 19.2 ProjectCompiler test evidence: six-target interpretation
+
+The inspected tests have uneven strength:
+
+| Target | Test evidence found | What it does prove | What it does not prove |
+|---|---|---|---|
+| FastAPI | Runtime-profile/harness tests in `test_r24_fastapi_runtime.py`; portions stub subprocess execution; optional real-Docker test | Build/test command composition and harness wiring; optional generated-bundle test path | Not complete semantic parity or full-stack product acceptance; stubbed subprocess results are not real runtime evidence |
+| Go | `test_go_hexagonal_backend.py` source-shape and manifest/profile assertions; optional Docker Go test | Expected emitted files, module shape, struct tags, declared build/test profile; optional native Go compilation/test when Docker exists | Most tests explicitly do not run Go; no general requirement-to-behavior or unsupported-before-invocation proof |
+| Rust/Axum (ProjectCompiler) | No matching `tests/test_rust_axum_backend.py` at the guessed path; separate root behavioral Rust tests exist | Root behavioral Rust tests are evidence for the separate root compiler only | They do not certify ProjectCompiler Rust/Axum |
+| NestJS | `test_nestjs_backend.py` checks registration/profile and health-controller test source shape | Registry presence, independent profile and a narrow generated health-controller assertion | No requirement-derived business API, persistence, auth, workflow, full-stack integration or semantic refusal proof |
+| ASP.NET Core | Target-specific test file exists and is narrow; source review identifies health-focused scaffolding | Limited registration/profile/scaffold contract | No evidence here of requirement-faithful domain/API operations, persistence or end-to-end runtime behavior |
+| Phoenix | Target-specific test file exists and is narrow; source review identifies health-focused scaffolding | Limited registration/profile/scaffold contract | No evidence here of requirement-faithful domain/API operations, persistence or end-to-end runtime behavior |
+
+No target-specific test inspected in this checkpoint establishes the complete negative-test tuple: actual ISR-derived unsupported semantic, zero backend invocations, zero output materialization, partial-support refusal, and auditable non-success disposition. This does not assert that no such test exists anywhere; it records that the inspected test surface does not establish it.
+
+The optional Go Docker test is materially stronger than source-only assertions when it actually runs, but a conditional test definition is not evidence that a particular CI run executed it. The FastAPI runtime test file includes mocked subprocess composition tests; those must not be counted as generated application runtime proof.
+
+### 19.3 Separate root behavioral compiler: real foundations
+
+The root compiler has a substantially stronger semantic contract than the ProjectCompiler backend shells:
+
+1. `compiler/core/lowering.py:isr_to_plan()` projects typed ISR node behavior and explicit graph relations into a technology-neutral `CompilationPlan`. It preserves typed data models, events, security policies, API operations, effects, effect bindings, consequences, invariants, frontend routes and interactions. It rejects unresolved effect/consequence bindings and ambiguous API-to-service bindings.
+2. `compiler/core/capabilities.py:required_features()` derives required semantic features from the plan. `assert_plan_supported()` rejects requirements outside the selected backend's declared supported feature set.
+3. Root `PythonFastAPIBackend.compile()` and `RustAxumBackend.compile()` call that semantic gate before emission.
+4. The Python backend declares typed fields, decimal shape, expressions, business rules, state transitions, API contracts, authorization policies, effect policy/binding preservation, consequence preservation and executable effects. Its source describes generated CRUD routes, in-memory repositories, event handlers and fail-closed API-key authorization.
+5. The root Rust backend declares typed fields, decimal shape, expressions, business rules, state transitions, and preservation of effect policies/bindings/consequences. It does not declare API contracts, authorization policies or effect execution as supported; those semantics should be rejected by the feature gate when required.
+
+This is a meaningful reference implementation and a valid route for expanding ESAP's behavioral capabilities. It is not the same as the six ProjectCompiler backend-service implementations, and it is not proof that all ESAP entry points use this gate.
+
+### 19.4 Runtime and oracle evidence boundary
+
+`tests/test_behavioral_backend_emission.py` builds a small payroll-shaped ISR with:
+- Employee identifier, base salary and allowances;
+- a gross-pay expression (base salary plus allowances);
+- a guarded draft-to-submitted state transition;
+- a persistence relation between the payroll service and employee model.
+
+The tests assert the required semantic feature set, exercise capability acceptance for the two root reference backends, inspect generated Python/Rust behavior methods and generated test source, and verify that a structural-only backend rejects the behavioral plan.
+
+`tests/integration/test_generated_backend_behavior_builds.py` goes further for separately constructed backend plans:
+- generated Python application installation and its generated test suite;
+- generated Python authorization-policy runtime tests;
+- generated Python executable-effect contract tests, including authorization, pre/postconditions and replay behavior;
+- generated Rust `cargo test`.
+
+These are valuable native generated-application tests. However, the inspected integration tests do not show that the exact payroll fixture from `test_behavioral_backend_emission.py` is installed and run through the generated payroll application. The payroll-specific tests in that file inspect emitted method/test source; they are not, by themselves, proof that a payroll application was executed end to end.
+
+The root Rust capability declaration also intentionally does not claim API-contract, authorization-policy or effect-execution support. It is therefore not yet a parity-equivalent substitute for the Python reference backend across all payroll requirements.
+
+### 19.5 Full-stack coherence: architectural design versus implemented route
+
+`folder/prefull.md` states the correct acceptance criterion: validated technology-neutral ISR → deterministic Compiler IR lowering → complete full-stack application → verification/quarantine → immutable evidence → lineage from requirement to deployed instance. It explicitly sequences FS-00, FS-01 ISR↔IR contract, FS-02 orchestration, FS-03 backend/artifact contracts and FS-04 first vertical slice. It also says implementation must not begin before the FS-00 gate and ADR approval.
+
+The source-bound full-stack subsystem has a `LoweredFullStackIR` with frontend, API, backend, effects and consequences. Its explicit mapping lowerer rejects unknown keys, requires explicit frontend/API/backend sections and provenance, validates required sections, and avoids inferring omitted architecture. This is a useful fail-closed design boundary.
+
+But the existence of the design document and a mapping-to-IR function does not demonstrate the full acceptance criterion. The audited report still records:
+- no approved universal Compiler IR boundary/ADR;
+- no single mandatory orchestration authority across compiler families;
+- no demonstrated production composition of frontend, API, backend, data, auth, infrastructure and deployment artifacts from one authoritative ISR/IR;
+- no verified universal requirement → graph → ISR → IR → backend artifact → deployed instance lineage;
+- no full-stack independent acceptance verdict for a real generated product.
+
+The root behavioral `CompilationPlan` carries frontend route/interaction semantics, but the two inspected reference backend classes are backend emitters. That is not evidence of a complete, coordinated frontend compiler plus backend plus persistence/auth/deployment composition route. The separate source-bound full-stack IR path must not be silently equated with the root behavioral plan or ProjectCompiler's SystemModel route.
+
+**Full-stack coherence disposition:** ARCHITECTURALLY SPECIFIED IN PART; IMPLEMENTATION/UNIVERSAL ROUTE NOT ESTABLISHED. This is consistent with the earlier FS-00 conclusion and does not authorize starting a new parallel full-stack architecture.
+
+### 19.6 Can ESAP create the payroll system?
+
+**Current evidence supports a narrow payroll behavior-generation experiment, not a complete payroll product.**
+
+Demonstrated in source/tests:
+- employee typed fields and decimal precision/scale;
+- gross-pay arithmetic expression;
+- a guarded payroll submission state transition;
+- generation of corresponding Python/Rust behavior methods;
+- Python and Rust backend capability checks for that limited feature set;
+- broader Python generated-application runtime tests for CRUD, authorization and executable effects on other fixtures.
+
+Not established for a complete payroll system:
+- jurisdiction-specific tax and statutory contribution rules, rates, effective dates and versioned tables;
+- employee lifecycle, contracts, pay groups, pay periods and multi-company/multi-country support;
+- earnings, allowances, overtime, leave, benefits, deductions, garnishments and adjustments;
+- tax/social-contribution calculation, rounding, caps, exemptions and year-to-date reconciliation;
+- approval workflows, segregation of duties and payroll-period locking;
+- durable transactional storage, migrations, concurrency controls and audit-grade change history;
+- bank/payment-provider integration, idempotent disbursement, reconciliation and failure/reversal handling;
+- payslip generation, statutory filings, accounting/GL exports and reporting;
+- privacy, tenant isolation, access control, retention and jurisdictional compliance;
+- independent golden payroll oracles covering boundary cases and multiple jurisdictions;
+- full frontend-to-API-to-backend-to-database runtime, deployment and recovery tests.
+
+The narrow fixture uses an in-memory/persistence-shaped model and two simple behaviors. It is a useful seed for a vertical slice, not a certified payroll implementation. Prior payroll parity work also remains constrained to in-memory FastAPI and Elixir implementations; durable storage and bank-transfer semantics were not established in that work. No evidence in this checkpoint changes that status.
+
+### 19.7 Can ESAP create novel global software products?
+
+The compiler's intended architecture is general enough to target many domains, but universal product capability is not demonstrated by a general-purpose design or by a handful of backend scaffolds.
+
+For each proposed global product, ESAP must be able to preserve and implement its domain semantics—not just create a UI, CRUD API and database schema. It must model:
+- authoritative domain entities, constraints, workflows and invariants;
+- actor identities, permissions, trust boundaries and abuse cases;
+- API/event contracts, consistency and transaction semantics;
+- durable storage, migration, backup and recovery;
+- integration protocols and external-system failure handling;
+- localization, accessibility, jurisdiction and regulatory variations where applicable;
+- scale, availability, observability, cost and operational controls;
+- independent acceptance oracles, adversarial tests and runtime evidence.
+
+A universal developer system should retain broad language/framework targets while honestly restricting each target to the semantic subset it can prove. It should not promise every product merely because a backend can emit a project shell.
+
+### 19.8 New findings and integrated priorities
+
+**FS00-FS-013 — behavioral reference compiler and ProjectCompiler are not shown to converge on one governed full-stack route (High).**
+
+The repository has a stronger root behavioral pipeline (`ISRRevision → CompilationPlan → capability gate → Python/Rust emitter`) alongside ProjectCompiler's typed `SystemModel` route and the separate source-bound full-stack mapping/IR subsystem. Their schemas, registries, selection paths and evidence are not shown to converge through one mandatory orchestration and publication authority.
+
+Required evidence: one approved ISR↔IR contract; one mandatory orchestrator; explicit adapters with loss reports; shared backend semantic contracts; coordinated frontend/API/backend/data/security/infrastructure lowering; common verification/publication gates; and end-to-end lineage.
+
+**FS00-FS-014 — payroll capability is a narrow behavioral demonstration, not a complete payroll product (High).**
+
+The payroll fixture demonstrates typed employee money fields, one gross-pay expression and one guarded state transition. Generated source assertions exist, but the inspected payroll-specific test does not execute that exact fixture as a complete payroll application. Full payroll workflows, jurisdictional rules, durable storage, payment, reconciliation, statutory outputs and independent domain oracles remain unestablished.
+
+Required evidence: a technology-neutral payroll ISR with versioned jurisdictional rule packs; independent golden calculation oracles; durable transactional persistence; secure approvals; payment/reconciliation adapters; generated UI/API/backend/database; and native runtime, failure/recovery and cross-target parity tests.
+
+**FS00-FS-015 — global-product capability has no domain-independent end-to-end acceptance evidence (High).**
+
+The inspected repository does not establish that an arbitrary complex domain can be carried from validated requirements through coherent full-stack generation to independently verified deployment. This is an evidence gap, not a reason to narrow the system's ambition or retire target languages.
+
+Required evidence: a repeatable vertical-slice protocol and multiple materially different reference products, each with complete requirement lineage, independent domain oracles, native builds, runtime behavior, security and operational acceptance.
+
+### 19.9 Recommended order of work
+
+1. Finish the FS-00 audit and reconcile the multiple compiler families, semantic authorities and artifact/publication routes. Do not create another parallel full-stack implementation.
+2. Resolve and approve the architecture/IR decision through the required governance process; deferred decisions remain deferred until explicitly decided.
+3. Define the shared ISR↔IR and orchestration contracts, including frontend, API, backend, data, auth, effects, events, infrastructure and deployment.
+4. Build one coherent vertical slice using the root behavioral reference backends, with explicit adapters rather than hidden schema conversion.
+5. Use payroll as the first substantial business-domain acceptance product: start with one clearly bounded jurisdiction and payroll cycle, then expand jurisdiction coverage only with versioned rules and independent oracles.
+6. Select a second, materially different global problem domain to test whether the architecture generalizes beyond payroll.
+7. Expand and certify each backend family incrementally against the same semantic conformance suite. Preserve all useful targets; unsupported features must fail closed rather than be silently omitted.
+
+### 19.10 Disposition
+
+- Checkpoint 20 source/test mapping: COMPLETE for the inspected files; no tests were executed in this checkpoint.
+- FS00-FS-013, FS00-FS-014 and FS00-FS-015: SOURCE/DOCUMENTATION-CONFIRMED; HIGH; remain open.
+- Root behavioral Python/Rust compiler: meaningful reference capability; not universal ESAP certification.
+- Payroll: narrow behavioral proof only; complete payroll product capability NOT ESTABLISHED.
+- Full-stack coherence: design foundations exist; one governed end-to-end full-stack route NOT ESTABLISHED.
+- Global software generation: intended ambition retained; domain-independent product acceptance NOT ESTABLISHED.
+- No backend retired; no capability/readiness/certification state upgraded; no production code, tests, workflows, registrations or approvals changed.
+- FS-00 remains NOT CLOSED. PR #201 remains a draft and unmerged.
+
+**Next checkpoint:** audit the actual frontend/backend/data/auth/infrastructure/deployment composition and lineage routes, then reconcile the source-bound full-stack subsystem with the root behavioral compiler and ProjectCompiler. The first implementation slice should be chosen only after the architecture boundary is approved; payroll is a strong candidate for the first substantial domain acceptance product, not a reason to bypass the FS-00 gates.

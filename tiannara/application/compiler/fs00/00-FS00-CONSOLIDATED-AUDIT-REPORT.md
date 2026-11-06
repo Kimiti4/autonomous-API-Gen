@@ -2095,3 +2095,36 @@ The 56-test suite includes the earlier candidate promotion/runtime/configuration
 - FS00-FS-038 deployment engine adapter integration: OPEN.
 - PR #208 remains open/draft/unmerged; no merge to `main` is authorized.
 - FS-00 remains NOT CLOSED.
+
+
+## 33. Checkpoint 34 — governed promotion must precede final artifact materialization
+
+### 33.1 FS00-FS-040 — EvolutionEngine wrote an unapproved artifact to the shared release directory before governance approval (Critical)
+
+**Source evidence:** the prior `_run_async_unleased()` sequence called `build_genome_output(best_genome)` first, which writes to the shared default `output/generated_api` directory. Only after this write did it call `_publish_governed_candidate()`. If governance denied promotion, the method set the returned `output_path` to `None`, but did not remove the unapproved output already written to the shared release directory.
+
+**Impact:** a failed governance decision could leave unapproved candidate files at the conventional final output path even though the run result and event stream reported promotion failure. A consumer that reads the directory directly rather than checking the governed run record could observe those files.
+
+**Remediation authored in PR #208:**
+- Governed mode no longer calls `build_genome_output()` before approval.
+- It passes the evaluator-produced candidate directory and verified artifact digest directly to `_publish_governed_candidate()`, with `output/generated_api` only as the promotion destination.
+- The promotion helper is now the only writer to the final release directory in governed mode, and it runs only after runtime evidence and candidate-bound governance approval pass.
+- The `building_best` event reports `output_path=None` and `promotion_status="awaiting_governance"` while the gate is pending.
+- On denial, the result remains failed with no new unverified final artifact written.
+- In non-governed development mode, the legacy builder remains available but its result is labelled `staged_unapproved`.
+
+Regression tests now replace the builder with a failing sentinel and assert it is never invoked in either a denied or approved governed run; the approved path invokes the digest-verifying promotion adapter exactly once.
+
+**Status:** REMEDIATION VERIFIED BY TARGETED CI.
+
+### 33.2 Checkpoint 34 execution evidence
+
+GitHub Actions workflow **Publication and Deployment Hardening**, run **42265717579** (run number 132), completed successfully on the governed-materialization change:
+- Python module compilation: PASS.
+- Root ESAP targeted suite: **159 passed**.
+- Autonomous-api evolution/governance suite: **56 passed**.
+- Total: **215 passed, 0 failed**.
+
+FS00-FS-040 is REMEDIATION VERIFIED BY TARGETED TESTS. FS00-FS-035 identity/role separation remains verified by run 127; FS00-FS-039 trusted evidence registry remains OPEN; FS00-FS-038 real deployment adapter integration remains OPEN.
+
+PR #208 remains open/draft/unmerged. No merge to `main` is authorized. FS-00 remains NOT CLOSED.

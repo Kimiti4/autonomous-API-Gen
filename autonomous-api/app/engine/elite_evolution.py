@@ -73,6 +73,7 @@ class EliteEvolutionEngine:
                 if use_multi_population and (gen+1)%3==0: self.multi_pop.cross_pollinate()
                 await asyncio.sleep(.05)
             build_error = None
+            output_path = None
             from app.core.config import get_settings
             governance_required = bool(getattr(get_settings(), "GOVERNANCE_ENFORCEMENT_REQUIRED", False))
             promotion_status = "not_attempted"

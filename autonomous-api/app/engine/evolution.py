@@ -234,28 +234,34 @@ class EvolutionEngine:
                 while len(new_population) < population_size: new_population.append(mutate(crossover(parents[0], parents[1]), mutation_rate=0.2))
                 population.replace(new_population)
             build_error = None
+            governance_required = bool(getattr(get_settings(), "GOVERNANCE_ENFORCEMENT_REQUIRED", False))
+            promotion_status = "not_attempted"
             if best_genome:
                 try:
                     output_path = build_genome_output(best_genome, target=self.target)
+                    promotion_status = "staged_unapproved"
                 except ValueError as exc:
                     output_path = None
                     build_error = f"best genome not lowerable: {exc}"
+                    promotion_status = "failed"
                     logger.error("Best genome build failed: %s", exc)
-                await self._emit_update({"type":"building_best","run_id":run_id,"output_path":output_path}, run_id=run_id)
-                if output_path and not build_error and getattr(get_settings(), "GOVERNANCE_ENFORCEMENT_REQUIRED", False):
+                await self._emit_update({"type":"building_best","run_id":run_id,"output_path":output_path,"promotion_status":promotion_status}, run_id=run_id)
+                if output_path and not build_error and governance_required:
                     publish_evidence = dict(best_evidence or {})
                     publish_evidence["output_path"] = output_path
                     publish_evidence.setdefault("artifact_path", output_path)
                     try:
                         output_path = await self._publish_governed_candidate(best_genome, publish_evidence)
+                        promotion_status = "published"
                         await self._emit_update({"type":"candidate_promoted","run_id":run_id,"output_path":output_path}, run_id=run_id)
                     except ValueError as exc:
                         output_path = None
                         build_error = str(exc)
+                        promotion_status = "failed"
                         logger.error("Governed promotion denied: %s", exc)
             elif best_genome is None:
                 build_error = "no candidate could be lowered by the selected backend"
-            result = {"run_id":run_id,"best_genome":best_genome.encode() if best_genome and not build_error else None,"best_fitness":best_fitness if best_genome and not build_error else 0.0,"production_readiness":self.production_analyzer.analyze(best_genome) if best_genome and not build_error else None,"history":history,"output_path":output_path,"build_error":build_error,"total_generations":generations,"evaluation_mode":"runtime" if use_docker and get_backend(self.target.backend_id).runtime_supported else "static","backend_id":self.target.backend_id,"seed":seed}
+            result = {"run_id":run_id,"best_genome":best_genome.encode() if best_genome and not build_error else None,"best_fitness":best_fitness if best_genome and not build_error else 0.0,"production_readiness":self.production_analyzer.analyze(best_genome) if best_genome and not build_error else None,"history":history,"output_path":output_path,"build_error":build_error,"promotion_status":promotion_status,"governance_required":governance_required,"total_generations":generations,"evaluation_mode":"runtime" if use_docker and get_backend(self.target.backend_id).runtime_supported else "static","backend_id":self.target.backend_id,"seed":seed}
             db = SessionLocal()
             try:
                 record = db.query(EvolutionRun).filter(EvolutionRun.run_id == run_id).first()
@@ -264,7 +270,7 @@ class EvolutionEngine:
                     if build_error:
                         record.history={"schema_version":1,"phase":"failed","promotion_status":"failed","generations":history,"build_error":build_error,"error":build_error}
                     else:
-                        record.history={"schema_version":1,"phase":"completed","promotion_status":"published","generations":history,"build_error":None}
+                        record.history={"schema_version":1,"phase":"completed","promotion_status":promotion_status,"governance_required":governance_required,"generations":history,"build_error":None}
                         if best_evidence and best_evidence.get("artifact_digest"):
                             record.history["best_artifact_digest"]=best_evidence["artifact_digest"]
                     db.commit()

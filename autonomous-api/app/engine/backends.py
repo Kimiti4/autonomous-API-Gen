@@ -529,17 +529,18 @@ def _safe_artifact_parts(relative_path: str) -> tuple[str, ...]:
         not isinstance(relative_path, str)
         or not relative_path
         or "\x00" in relative_path
-        or "\\" in relative_path
     ):
         raise ValueError(f"unsafe artifact path: {relative_path!r}")
 
-    raw_parts = relative_path.split("/")
-    posix = PurePosixPath(relative_path)
+    normalized_input = relative_path.replace("\\", "/")
+    raw_parts = normalized_input.split("/")
+    posix = PurePosixPath(normalized_input)
     windows = PureWindowsPath(relative_path)
     if (
         posix.is_absolute()
         or windows.is_absolute()
         or bool(windows.drive)
+        or bool(windows.root)
         or any(part in ("", ".", "..") for part in raw_parts)
         or any(part.casefold() in {".git", ".tiannara"} for part in raw_parts)
         or "/".join(part.casefold() for part in posix.parts) == "artifact-manifest.json"
@@ -672,7 +673,8 @@ def materialize(artifact: CompiledArtifact, output_dir: str) -> str:
         if not isinstance(content, str):
             raise ValueError(f"artifact content must be text: {relative_path}")
         seen.add(normalized)
-        planned.append((relative_path, content, parts))
+        canonical_path = "/".join(parts)
+        planned.append((canonical_path, content, parts))
 
     destination = Path(output_dir).resolve()
     destination.parent.mkdir(parents=True, exist_ok=True)

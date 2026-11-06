@@ -6,6 +6,10 @@ on:
       - "remediation/publication-deployment-gates"
     paths:
       - "autonomous-api/app/engine/backends.py"
+      - "autonomous-api/app/engine/evolution.py"
+      - "autonomous-api/app/engine/candidate_evaluator.py"
+      - "autonomous-api/tests/test_a09_governed_promotion.py"
+      - "autonomous-api/tests/engine/test_candidate_evaluator_governance_evidence.py"
       - "autonomous-api/tests/engine/test_backends.py"
       - "autonomous-api/tests/test_artifact_backup_restore.py"
       - "certification/campaign/campaign_b.py"
@@ -98,6 +102,10 @@ jobs:
         run: |
           python -m compileall -q \
             autonomous-api/app/engine/backends.py \
+            autonomous-api/app/engine/evolution.py \
+            autonomous-api/app/engine/candidate_evaluator.py \
+            autonomous-api/tests/test_a09_governed_promotion.py \
+            autonomous-api/tests/engine/test_candidate_evaluator_governance_evidence.py \
             autonomous-api/tests/engine/test_backends.py \
             autonomous-api/tests/test_artifact_backup_restore.py \
             certification/campaign/campaign_b.py \
@@ -143,4 +151,6 @@ jobs:
         run: |
           python -m pytest -q \
             tests/engine/test_backends.py \
-            tests/test_artifact_backup_restore.py
+            tests/test_artifact_backup_restore.py \
+            tests/test_a09_governed_promotion.py \
+            tests/engine/test_candidate_evaluator_governance_evidence.py

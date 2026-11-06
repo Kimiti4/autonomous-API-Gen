@@ -307,11 +307,15 @@ class EvolutionEngine:
             while len(new_population) < population_size: new_population.append(mutate(crossover(parents[0], parents[1]), mutation_rate=0.2))
             population.replace(new_population)
         build_error = None
+        governance_required = bool(getattr(get_settings(), "GOVERNANCE_ENFORCEMENT_REQUIRED", False))
         if best_genome:
-            try:
-                output_path = build_genome_output(best_genome, target=self.target)
-            except ValueError as exc:
-                output_path = None
-                build_error = f"best genome not lowerable: {exc}"
-                logger.error("Best genome build failed: %s", exc)
-        return {"best_genome": best_genome.encode() if best_genome and not build_error else None, "best_fitness": best_fitness if best_genome and not build_error else 0.0, "production_readiness": self.production_analyzer.analyze(best_genome) if best_genome and not build_error else None, "history": history, "output_path": output_path, "build_error": build_error, "total_generations": generations, "backend_id": self.target.backend_id}
+            if governance_required:
+                build_error = "synchronous evolution cannot perform governed runtime verification and promotion"
+            else:
+                try:
+                    output_path = build_genome_output(best_genome, target=self.target)
+                except ValueError as exc:
+                    output_path = None
+                    build_error = f"best genome not lowerable: {exc}"
+                    logger.error("Best genome build failed: %s", exc)
+        return {"best_genome": best_genome.encode() if best_genome and not build_error else None, "best_fitness": best_fitness if best_genome and not build_error else 0.0, "production_readiness": self.production_analyzer.analyze(best_genome) if best_genome and not build_error else None, "history": history, "output_path": output_path, "build_error": build_error, "promotion_status": "staged_unapproved" if output_path and not governance_required else ("failed" if build_error else "not_attempted"), "governance_required": governance_required, "total_generations": generations, "backend_id": self.target.backend_id}

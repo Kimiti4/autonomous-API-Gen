@@ -260,7 +260,7 @@ class EvolutionEngine:
             try:
                 record = db.query(EvolutionRun).filter(EvolutionRun.run_id == run_id).first()
                 if record:
-                    record.status="failed" if build_error else "completed"; record.best_fitness=result["best_fitness"]; record.best_genome=result["best_genome"]; record.completed_at=datetime.utcnow()
+                    record.status="failed" if build_error else "completed"; record.best_fitness=result["best_fitness"]; record.best_genome=result["best_genome"]; record.completed_at=datetime.now(timezone.utc).replace(tzinfo=None)
                     if build_error:
                         record.history={"schema_version":1,"phase":"failed","promotion_status":"failed","generations":history,"build_error":build_error,"error":build_error}
                     else:

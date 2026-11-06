@@ -170,13 +170,13 @@ For each decision R1–R7, record one: `APPROVE`, `REJECT`, or `DEFER`, with rat
 
 | Decision | Reviewer verdict | Rationale / conditions |
 |---|---|---|
-| R1 — Benchmark intent | | |
-| R2 — Problem statement |APPROVED | |
-| R3 — Acceptance criteria |APPROVED | |
-| R4 — FS-00/FS-01 scope |APPROVED |Complete and record a scope ruling before adding ISR semantics or broadening backend capabilities. If the gate applies, satisfy it; if it does not, record the architectural basis and the applicable alternative governance path. |
-| R5 — ISR proposal direction |APPROVED | |
-| R6 — Implementation scope |APPROVED | |
-| R7 — Freeze/status reconciliation |APPROVED | |
+| R1 — Benchmark intent | **NOT RECORDED — DEFERRED** | No explicit reviewer decision located. |
+| R2 — Problem statement | **APPROVED** | Explicitly approved at the exact v1.0.0 baseline recorded in Section 2. |
+| R3 — Acceptance criteria | **APPROVED** | Explicitly approved for AC-001 through AC-013 and the strict evidence policy. |
+| R4 — FS-00/FS-01 scope | **APPROVED — GATE APPLIES** | Complete and record the scope ruling before adding ISR semantics or broadening backend capabilities; the FS-00/FS-01 gate applies. |
+| R5 — ISR proposal direction | **NOT RECORDED — DEFERRED** | Proposal authorization remains pending; no normative ISR change is authorized. |
+| R6 — Implementation scope | **NOT RECORDED — DEFERRED** | Implementation authorization remains pending the architecture and ISR decisions. |
+| R7 — Freeze/status reconciliation | **NOT RECORDED — DEFERRED** | Freeze/status reconciliation remains pending; preserve the current normative bytes and status conflict until separately authorized. |
 
 **Overall review outcome:** `APPROVED` / `REJECTED` / `DEFERRED`
 

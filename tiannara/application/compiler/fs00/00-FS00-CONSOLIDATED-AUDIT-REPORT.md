@@ -1897,3 +1897,34 @@ Tests added:
 `promote_verified_artifact()` remains a local artifact replacement helper. The stricter caller checks ensure the evolution engine invokes it only after runtime and candidate-bound governance approval. This does not implement a live production deployment or replace the standalone publication provider. A real provider must independently read back the remote repository tree and bind its delivery record to the same artifact digest.
 
 FS00-FS-032 and FS00-FS-033 are added as HIGH findings. Their targeted regression run is tracked separately; no finding is marked verified until the workflow completes successfully.
+
+
+## 29. Checkpoint 30 — candidate-bound promotion regression execution
+
+**Execution evidence:** GitHub Actions workflow `Publication and Deployment Hardening`, run **42261035797**, completed successfully on the current remediation code and report head.
+
+- Python 3.14 dependency installation: PASS.
+- Changed Python module compilation: PASS.
+- Root ESAP targeted suite: **159 passed** in 14.15 seconds.
+- Autonomous-api evolution/governance suite: **39 passed** in 24.54 seconds.
+- Total: **198 passed, 0 failed**.
+
+The autonomous-api suite now includes the candidate-evaluator artifact-digest/static-only test and the governed-promotion tests for exact candidate ID, selected-to-deployed transition, matching artifact digest in both decision and active certification, revoked/missing/expired certification, static-only denial, run-level denial, and exactly-once promotion event behavior.
+
+### 29.1 Finding status
+
+- **FS00-FS-032 — governance approval was not transition/candidate/digest constrained:** REMEDIATION VERIFIED BY TARGETED TESTS.
+- **FS00-FS-033 — governed promotion did not require runtime acceptance or artifact digest binding:** REMEDIATION VERIFIED BY TARGETED TESTS.
+- The prior FS00-FS-016/-019/-020/-021/-022/-025/-026/-029/-030 targeted remediations remain passing in the same run.
+- A successful static evaluation is now explicitly `static_only`; it cannot be represented as promotion-verified.
+- Candidate promotion now requires a verified artifact manifest, a complete runtime score, and an active unexpired candidate certification plus a latest approval for the exact `selected → deployed` transition and exact SHA-256 digest.
+
+### 29.2 Remaining production integration boundary
+
+The tests use controlled governance state and a mocked promotion adapter; they do not call the live governance service or a production deployment provider. No current governance decision/certification producer was shown to create candidate-specific evidence references containing the generated artifact digest. Until the authorized governance workflow supplies those references, promotion intentionally fails closed. Existing approvals without digest binding are not migrated or silently upgraded.
+
+The runtime acceptance gate's behavior is tested, but no real Docker end-to-end rollout or production health/rollback exercise is claimed. The evolution engine's promotion remains local artifact replacement, not a production deployment.
+
+The new warning from `datetime.utcnow()` in the evolution completion path was also removed by using a timezone-aware UTC source while preserving the database's naive-UTC storage convention. The remaining pytest-asyncio fixture-scope and GitHub Actions Node.js deprecation warnings are non-blocking.
+
+PR #208 remains open/draft/unmerged and targets the draft Stage A branch. PR #201 remains open/draft/unmerged; `main` remains unchanged. FS-00 remains NOT CLOSED: universal compiler orchestration, full-stack infrastructure/deployment lineage, standalone compiler convergence, product-level certification and live publication remain open.

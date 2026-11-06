@@ -55,8 +55,11 @@ class _Materializer:
     def __init__(self, root, skip=()):
         self._root = Path(root)
         self._skip = set(skip)
+        self.defer_commit_requested = False
+        self.committed = False
 
-    def materialize(self, report, out_root=None, force=False):
+    def materialize(self, report, out_root=None, force=False, defer_commit=False):
+        self.defer_commit_requested = defer_commit
         for rel, content in FILES.items():
             if rel in self._skip:
                 continue
@@ -64,6 +67,10 @@ class _Materializer:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(content, encoding="utf-8")
         return _Materialization([_Bundle(self._root)])
+
+    def commit(self, result):
+        self.committed = True
+        return result
 
 
 class _Compiler:
@@ -126,6 +133,8 @@ def test_factory_happy_path(tmp_path):
     assert outcome.repair_attempts == 0
     assert outcome.repaired is False
     assert getattr(report.fitness, "metrics")["verification"] == 1.0
+    assert factory._materializer.defer_commit_requested is True
+    assert factory._materializer.committed is True
 
 
 def test_factory_repairs_missing_file(tmp_path):
@@ -170,3 +179,5 @@ def test_factory_isolation_from_environment_errors(tmp_path):
     )
     with pytest.raises(SoftwareFactoryError):
         factory.run("build svc", out_root=str(tmp_path))
+    assert factory._materializer.defer_commit_requested is True
+    assert factory._materializer.committed is False

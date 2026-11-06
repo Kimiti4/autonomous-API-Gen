@@ -332,3 +332,93 @@ async def test_run_level_authorized_candidate_promotes_exactly_once(monkeypatch)
         assert record.history["promotion_status"] == "published"
     finally:
         db.close()
+
+
+@pytest.mark.asyncio
+async def test_ungoverned_run_is_staged_not_reported_as_published(monkeypatch):
+    from app.storage.db import SessionLocal
+    from app.storage.models import EvolutionRun
+
+    async def _static_evidence(*_args, **_kwargs):
+        return {
+            "build_ok": True,
+            "artifact_compile_ok": True,
+            "artifact_digest": ARTIFACT_REF,
+            "verification_status": "static_only",
+            "evaluation_mode": "static",
+            "static_score": 0.9,
+            "runtime_score": None,
+            "artifact_path": "/tmp/candidate-static",
+        }
+
+    monkeypatch.setattr("app.engine.evolution.evaluate_candidate_async", _static_evidence)
+    monkeypatch.setattr(
+        "app.engine.evolution.get_settings",
+        lambda: SimpleNamespace(GOVERNANCE_ENFORCEMENT_REQUIRED=False),
+    )
+    monkeypatch.setattr(
+        "app.engine.evolution.build_genome_output",
+        lambda *_args, **_kwargs: "/tmp/staged-candidate",
+    )
+
+    emitted = []
+
+    async def _capture(*, stream_id, event_type, payload, correlation_id, generation):
+        emitted.append((event_type, payload.get("type")))
+
+    engine = EvolutionEngine()
+    engine.dispatcher = SimpleNamespace(emit=_capture)
+    result = await engine.run_async(
+        generations=1, population_size=2, use_docker=False, seed=17
+    )
+
+    assert result["build_error"] is None
+    assert result["output_path"] == "/tmp/staged-candidate"
+    assert result["promotion_status"] == "staged_unapproved"
+    assert result["governance_required"] is False
+    assert not any(event == "candidate.promoted" for event, _ in emitted)
+    assert EvolutionEngine._is_authoritative(
+        SimpleNamespace(status="completed", history={
+            "phase": "completed",
+            "promotion_status": result["promotion_status"],
+            "best_artifact_digest": ARTIFACT_REF,
+        })
+    ) is False
+
+    db = SessionLocal()
+    try:
+        record = (
+            db.query(EvolutionRun)
+            .filter(EvolutionRun.run_id == result["run_id"])
+            .first()
+        )
+        assert record is not None
+        assert record.status == "completed"
+        assert record.history["promotion_status"] == "staged_unapproved"
+        assert record.history["governance_required"] is False
+    finally:
+        db.close()
+
+
+def test_synchronous_evolution_cannot_bypass_required_governance(monkeypatch):
+    monkeypatch.setattr(
+        "app.engine.evolution.get_settings",
+        lambda: SimpleNamespace(GOVERNANCE_ENFORCEMENT_REQUIRED=True),
+    )
+    build_called = False
+
+    def _build(*_args, **_kwargs):
+        nonlocal build_called
+        build_called = True
+        return "/tmp/should-not-exist"
+
+    monkeypatch.setattr("app.engine.evolution.build_genome_output", _build)
+    result = EvolutionEngine().run_synchronous(generations=1, population_size=3)
+
+    assert build_called is False
+    assert result["output_path"] is None
+    assert result["best_genome"] is None
+    assert result["build_error"] == (
+        "synchronous evolution cannot perform governed runtime verification and promotion"
+    )
+    assert result["promotion_status"] == "failed"

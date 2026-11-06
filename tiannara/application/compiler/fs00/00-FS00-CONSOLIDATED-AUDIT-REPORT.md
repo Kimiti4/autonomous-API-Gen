@@ -1772,3 +1772,29 @@ The prior `secret_boundary.py` exposed only exact-string helpers (`is_credential
 - FS00-FS-030 is added as HIGH and remains pending targeted test confirmation.
 - Existing publication contract, candidate-bound certification and no-simulated-provider boundaries remain as documented in Checkpoints 22–25.
 - No production provider or deployment adapter is claimed.
+
+
+## 26. Checkpoint 27 — secret-boundary regression execution and final hardening evidence
+
+**Execution evidence:** GitHub Actions workflow `Publication and Deployment Hardening`, run **42259469514**, code/workflow commit `1d30973aa5cdf78477cb21172eb8214151517ce6`, completed successfully.
+
+- Python 3.14 dependency installation: PASS.
+- Changed Python module compilation: PASS.
+- Root ESAP targeted suite, including the new secret-boundary tests: **159 passed** in 13.23 seconds.
+- Autonomous-api evolution artifact suite: **31 passed** in 21.52 seconds.
+- Total: **190 passed, 0 failed** across the two isolated pytest processes.
+
+This run includes the publication secret scanner and verifies that secret-bearing artifacts are rejected before the provider is called. It also repeats the previously passing Campaign A/B ordering, compiler API authorization/governance, ProjectCompiler writer, standalone packager, factory/materializer and evolution materializer regressions.
+
+### 26.1 Updated finding status
+
+- **FS00-FS-030 — artifact secret scanning absent from publication:** REMEDIATION VERIFIED BY TARGETED TESTS. The publisher rejects common credential patterns and sensitive credential-file paths before provider invocation.
+- **FS00-FS-016, -019, -020, -021, -022, -025, -026, -029:** remain as recorded in Checkpoint 25; their targeted remediation tests passed in the same suite.
+- The secret scanner is heuristic and not exhaustive. It is not a substitute for provider-side scanning, dependency scanning, malware scanning, or a dedicated secret-detection service.
+- No actual GitHub provider was exercised: the repository's GitHub adapter intentionally remains non-operational and fails closed.
+- No production deployment was exercised. Campaign A/B tests use controlled stage adapters; the evolution suite verifies local artifact integrity and promotion/backup contracts, not a production rollout.
+- Product-level payroll/global-domain acceptance remains NOT ESTABLISHED.
+
+The successful run supersedes the earlier Checkpoint 26 pending-test status. The workflow emits non-blocking pytest-asyncio configuration and GitHub Actions Node.js deprecation warnings; no test failures or Python compilation errors were reported.
+
+PR #208 remains open/draft/unmerged and targets the draft Stage A branch. PR #201 remains open/draft/unmerged. `main` remains unchanged. FS-00 remains NOT CLOSED because the universal orchestration, full-stack infrastructure/deployment contract, and product-level certification findings remain open.

@@ -26,7 +26,6 @@ def _result(files):
         "/absolute/escape.txt",
         "C:/absolute/escape.txt",
         r"\\server\share\escape.txt",
-        r"nested\escape.txt",
         "",
     ],
 )

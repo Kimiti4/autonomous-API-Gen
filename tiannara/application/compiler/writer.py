@@ -28,6 +28,7 @@ def _safe_target(root: Path, relative_path: str) -> Path:
         or windows.is_absolute()
         or bool(windows.drive)
         or any(part in ("", ".", "..") for part in raw_parts)
+        or any(part.casefold() in {".git", ".tiannara"} for part in raw_parts)
     ):
         raise ValueError(f"unsafe generated path: {relative_path!r}")
 
@@ -55,7 +56,8 @@ def validate_bundle_paths(result: CompilationResult, output_dir: str | Path) -> 
     root.mkdir(parents=True, exist_ok=True)
     root = root.resolve()
     targets = tuple(_safe_target(root, relative_path) for relative_path in result.files)
-    if len(set(targets)) != len(targets):
+    normalized = ["/".join(part.casefold() for part in target.relative_to(root).parts) for target in targets]
+    if len(set(normalized)) != len(normalized):
         raise ValueError("generated bundle contains duplicate normalized paths")
     return targets
 

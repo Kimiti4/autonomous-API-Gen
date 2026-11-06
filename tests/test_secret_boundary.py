@@ -13,12 +13,14 @@ def test_secret_scanner_detects_common_tokens_and_private_key_material():
     files = {
         "src/config.py": "GITHUB_TOKEN = 'ghp_" + "A" * 36 + "'",
         "keys/deploy.pem": "not even needed",
+        ".env.production": "DATABASE_PASSWORD=real-password-material",
         "src/key.txt": "-----BEGIN PRIVATE KEY-----",
         "src/db.txt": "DATABASE_URL=postgres://app:supersecretpassword@db.example/app",
     }
     findings = scan_artifact_secrets(files)
     assert any("GITHUB_TOKEN" in item for item in findings)
     assert any("SENSITIVE_CREDENTIAL_FILE" in item for item in findings)
+    assert any(".env.production" in item for item in findings)
     assert any("PRIVATE_KEY_BLOCK" in item for item in findings)
     assert any("DATABASE_URL_CREDENTIALS" in item for item in findings)
 

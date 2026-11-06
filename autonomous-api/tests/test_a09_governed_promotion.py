@@ -422,3 +422,63 @@ def test_synchronous_evolution_cannot_bypass_required_governance(monkeypatch):
         "synchronous evolution cannot perform governed runtime verification and promotion"
     )
     assert result["promotion_status"] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_elite_evolution_refuses_artifact_build_when_governance_is_required(monkeypatch):
+    from app.engine.elite_evolution import EliteEvolutionEngine
+
+    monkeypatch.setattr(
+        "app.core.config.get_settings",
+        lambda: SimpleNamespace(GOVERNANCE_ENFORCEMENT_REQUIRED=True),
+    )
+    build_called = False
+
+    def _build(*_args, **_kwargs):
+        nonlocal build_called
+        build_called = True
+        return "/tmp/should-not-exist"
+
+    monkeypatch.setattr("app.engine.elite_evolution.build_genome_output", _build)
+    result = await EliteEvolutionEngine().run_elite_evolution(
+        generations=1,
+        population_size=2,
+        use_multi_population=False,
+        enable_adaptive_mutation=False,
+        seed=19,
+    )
+
+    assert build_called is False
+    assert result["output_path"] is None
+    assert result["best_genome"] is None
+    assert result["build_error"] == (
+        "elite evolution has no runtime evidence or governed promotion path"
+    )
+    assert result["promotion_status"] == "failed"
+    assert result["governance_required"] is True
+
+
+@pytest.mark.asyncio
+async def test_elite_evolution_labels_non_governed_output_as_staged(monkeypatch):
+    from app.engine.elite_evolution import EliteEvolutionEngine
+
+    monkeypatch.setattr(
+        "app.core.config.get_settings",
+        lambda: SimpleNamespace(GOVERNANCE_ENFORCEMENT_REQUIRED=False),
+    )
+    monkeypatch.setattr(
+        "app.engine.elite_evolution.build_genome_output",
+        lambda *_args, **_kwargs: "/tmp/elite-staged",
+    )
+    result = await EliteEvolutionEngine().run_elite_evolution(
+        generations=1,
+        population_size=2,
+        use_multi_population=False,
+        enable_adaptive_mutation=False,
+        seed=23,
+    )
+
+    assert result["build_error"] is None
+    assert result["output_path"] == "/tmp/elite-staged"
+    assert result["promotion_status"] == "staged_unapproved"
+    assert result["governance_required"] is False

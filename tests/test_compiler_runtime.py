@@ -138,7 +138,7 @@ def test_api_compile(tmp_path: Path) -> None:
 
 
 def test_api_invalid_isr(tmp_path: Path) -> None:
-    app = create_app(output_root=tmp_path)
+    app = create_app(output_root=tmp_path, authorization_dependency=lambda _request: True)
     client = TestClient(app)
 
     invalid_isr = minimal_isr()

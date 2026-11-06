@@ -1798,3 +1798,49 @@ This run includes the publication secret scanner and verifies that secret-bearin
 The successful run supersedes the earlier Checkpoint 26 pending-test status. The workflow emits non-blocking pytest-asyncio configuration and GitHub Actions Node.js deprecation warnings; no test failures or Python compilation errors were reported.
 
 PR #208 remains open/draft/unmerged and targets the draft Stage A branch. PR #201 remains open/draft/unmerged. `main` remains unchanged. FS-00 remains NOT CLOSED because the universal orchestration, full-stack infrastructure/deployment contract, and product-level certification findings remain open.
+
+
+## 27. Checkpoint 28 — final entry-point/caller matrix and publication reachability
+
+**Scope:** reconcile the call sites of ProjectCompiler, SoftwareFactory, RepositoryMaterializer, standalone compiler API, SDK/governance routers, publication contract and autonomous-api evolution engine after the remediation changes.
+
+### 27.1 Audited route matrix
+
+| Entry point | Actual path | Gate/evidence boundary | Disposition |
+|---|---|---|---|
+| CLI `create` | `build_project_compiler() → ProjectCompiler.compile_intent() → RepositoryMaterializer.materialize()` | ProjectCompiler's bundle verification; materializer requires explicit verification and clean workspace. CLI now uses `defer_commit=True`. | Staged local candidate only; no commit, certification or deployment. |
+| CLI `factory` | `build_project_compiler() → SoftwareFactory.run() → static verifier → local runtime tests → deferred materializer commit` | Explicit static and runtime pass required before commit; missing adapters fail closed. | Strongest inspected ProjectCompiler product path; local commit only, not external publication. |
+| Standalone `compiler.api:app` | `CompilationRequest → UniversalCompiler → backend registry → output validation → ArtifactPackager` | Host authorization required; governance wrapper is wired by default; production compile denied without backend certification and governance approval. | Separate compiler API; not canonical ISR/IR or full-stack campaign route. Module-level app has no host authorizer configured and therefore fails closed. |
+| SDK certification/governance routers | `BackendCertificationEngine` sample ISR contract + determinism + output-schema tests; governance enforcer consumes backend status. | All SDK/governance routes require host authorization. Backend certification is not product certification. | Protected backend-level evidence route; product acceptance remains separate. |
+| Campaign A | root `ISRRevision → isr_to_plan → root backend registry → candidate → source-bound correspondence/full-stack verification` | Candidate-bound verification now precedes deploy; tests prove deploy is skipped on verification failure. | Certification harness; not a universal production publisher. |
+| Campaign B | root plan/backend → independent repository verifier → deployment/runtime probe/cleanup | Independent verifier now precedes deploy; structural/build/test prerequisites required. | Separate certification harness; source-bound five-layer mapping remains unintegrated. |
+| Autonomous-api evolution | authenticated `/evolve/start`/`/evolve/sync` → Evolution Engine → candidate evaluator → `build_genome_output` → evolution backend materializer → optional governed local promotion | Docker build/runtime evaluation and candidate manifest/digest; artifact path and exact file-set verification hardened. | Separate evolution/evaluation route; not canonical ESAP ISR/IR or production service rollout. |
+| Publication contract | `publish_bundle(bundle, provider, ledger, gate)` | Candidate-bound certification, exact file bytes/hash, secret scan, explicit gate, provider receipt and remote read-back required. | **No production caller/provider is wired.** Contract tests pass, but publication capability is NOT ESTABLISHED. |
+
+### 27.2 FS00-FS-031 — no reachable production publication adapter consumes the hardened publication contract (High)
+
+The prior Uber-for-Boats demonstration was the only discovered caller of `publish_bundle()`. That demonstration has been changed to return BLOCKED and no longer invokes the publisher or creates evidence. The GitHub provider is an explicit non-operational placeholder. The CLI factory commits locally after static/runtime verification; the CLI create command stages locally without a commit. Neither is an external repository publication/deployment path.
+
+Therefore, the new `publish_bundle()` contract is hardened and regression-tested, but it is not yet connected to a production caller, live provider, or deployment promotion workflow. No real repository upload, release, deployment or production service is claimed.
+
+**Required:** implement and security-review a real provider adapter that uploads the exact bytes, reads back and verifies the remote tree/commit, records DELIVERY evidence, and exposes idempotency/reconciliation for partial failures. Integrate it only after candidate-specific certification and explicit governance authorization. The provider must not mint certification evidence.
+
+### 27.3 Caller audit conclusions
+
+- The ProjectCompiler product path is CLI/factory-oriented; no production API route was found invoking it directly.
+- The standalone compiler API is a distinct module-level FastAPI app, not mounted by the autonomous-api `app/main.py` inspected here. Its default module-level instance is intentionally unavailable for compiler operations until a host authorization callback is configured.
+- The autonomous-api application is an evolution service with authenticated start/sync routes and real candidate Docker evaluation; its compiler registry and artifact lineage remain separate.
+- Campaign A and Campaign B are certification harnesses. Their deployment stages are not the same as governed production release.
+- The publisher contract has no live provider/caller after the demonstration was made fail-closed.
+- No one route currently composes every retained frontend/backend/data/auth/infrastructure/deployment family from one canonical ISR revision and emits a single independently verified deployed-instance lineage.
+
+### 27.4 Integrated status
+
+- FS00-FS-031 is added as HIGH and OPEN.
+- FS00-FS-016/-019/-020/-021/-022/-025/-026/-029/-030 remain remediation-verified by the targeted suite, within their stated boundaries.
+- FS00-FS-017/-018/-024/-027/-031 remain OPEN.
+- The payroll and global product conclusions remain unchanged: complete payroll product acceptance and domain-independent global product acceptance are NOT ESTABLISHED.
+- Targeted regression evidence: run 42259469514, 159 root tests + 31 autonomous-api tests = 190 passed, 0 failed.
+- PR #208 remains open/draft/unmerged; PR #201 remains open/draft/unmerged; `main` remains unchanged.
+
+**Next architectural checkpoint:** after the remaining FS-00 entry-point inventory is reconciled, use the existing deferred ADR/governance process to decide the canonical ISR↔IR/orchestration contract. Do not begin universal-route implementation or promote any product capability until the architecture decision is approved and the route's preflight, verification, publication and deployment gates are enforceable.

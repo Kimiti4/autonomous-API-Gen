@@ -116,6 +116,8 @@ def publish_bundle(
             raise ValueError(f"publication blocked: {ref!r} is not a certification event")
         if event.subject_id != bundle.artifact_hash:
             raise ValueError(f"publication blocked: certification {ref!r} is for another artifact")
+        if event.artifact_hash != bundle.artifact_hash or event.isr_hash != bundle.isr_hash:
+            raise ValueError(f"publication blocked: certification {ref!r} typed hashes do not bind this candidate")
         if event.payload.get("verdict") != "CERTIFIED" or event.payload.get("bounded") is not False:
             raise ValueError(f"publication blocked: certification {ref!r} is not unbounded CERTIFIED evidence")
         if event.payload.get("artifact_hash") != bundle.artifact_hash:
@@ -174,6 +176,7 @@ def publish_bundle(
             "commit_sha": receipt.commit_sha,
             "artifact_hash": computed_hash,
             "isr_hash": bundle.isr_hash,
+            "deployment_ref": bundle.deployment_ref,
             "certification_refs": list(bundle.certification_refs),
         },
     )

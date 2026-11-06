@@ -154,6 +154,31 @@ class SessionAuthProvider:
 
 
 
+class PrincipalApiKeyAuthProvider:
+    """Authenticate one of several named governance principals through a dedicated header."""
+
+    def __init__(self, *, keys: dict[str, str], header_name: str, scope: str) -> None:
+        if not keys or any(not principal or not key for principal, key in keys.items()):
+            raise ValueError("principal API keys must contain non-empty principal IDs and secrets")
+        if not header_name or not scope:
+            raise ValueError("principal API key header and scope are required")
+        self._keys = dict(keys)
+        self._header_name = header_name
+        self._scope = scope
+
+    async def authenticate(self, request: Request) -> Optional[AuthContext]:
+        supplied = request.headers.get(self._header_name, "")
+        if not supplied:
+            return None
+        matched_principal = None
+        for principal, expected in self._keys.items():
+            if hmac.compare_digest(supplied, expected):
+                matched_principal = principal
+        if matched_principal is None:
+            return None
+        return AuthContext(subject=matched_principal, scopes=(self._scope,))
+
+
 class ApiKeyAuthProvider:
     """Constant-time API-key authentication for headers, bearer auth, or cookie."""
 

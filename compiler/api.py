@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from .backends.production.register import register_production_backends
@@ -21,6 +21,8 @@ from .kernel import UniversalCompiler
 from .models import CapabilityQuery, CompilationRequest
 from .registry import BackendRegistry
 from .sdk.routes import enable_compiler_sdk
+from .governance.routes import enable_compiler_governance
+from .security import require_compiler_authorization
 
 
 def create_default_compiler(output_root: str | Path) -> UniversalCompiler:
@@ -36,7 +38,10 @@ def create_default_compiler(output_root: str | Path) -> UniversalCompiler:
     )
 
 
-def create_app(output_root: str | Path = ".var/compiler/artifacts") -> FastAPI:
+def create_app(
+    output_root: str | Path = ".var/compiler/artifacts",
+    authorization_dependency=None,
+) -> FastAPI:
     """Create the compiler API application."""
 
     app = FastAPI(
@@ -50,9 +55,19 @@ def create_app(output_root: str | Path = ".var/compiler/artifacts") -> FastAPI:
 
     compiler = create_default_compiler(output_root)
 
+    # No compiler or certification mutation is available until the host
+    # explicitly supplies an authorization callback returning literal True.
+    app.state.compiler_authorizer = authorization_dependency
     app.state.compiler = compiler
 
     enable_compiler_sdk(app, compiler)
+    certification_engine = app.state.certification_engine
+    compiler = enable_compiler_governance(
+        app,
+        compiler,
+        certification_engine=certification_engine,
+    )
+    app.state.compiler = compiler
 
     @app.exception_handler(ISRValidationError)
     async def isr_validation_handler(
@@ -145,7 +160,10 @@ def create_app(output_root: str | Path = ".var/compiler/artifacts") -> FastAPI:
             "backend_error": backend_error,
         }
 
-    @app.post("/v1/compiler/compile")
+    @app.post(
+        "/v1/compiler/compile",
+        dependencies=[Depends(require_compiler_authorization)],
+    )
     def compile_isr(payload: CompilationRequest):
         return compiler.compile(payload)
 

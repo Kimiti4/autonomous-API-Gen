@@ -49,6 +49,13 @@ def _safe_target(root: Path, relative_path: str) -> Path:
     return target
 
 
+def validate_bundle_paths(result: CompilationResult, output_dir: str | Path) -> tuple[Path, ...]:
+    root = Path(output_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    root = root.resolve()
+    return tuple(_safe_target(root, relative_path) for relative_path in result.files)
+
+
 def write_bundle(result: CompilationResult, output_dir: str | Path) -> Path:
     root = Path(output_dir)
     root.mkdir(parents=True, exist_ok=True)
@@ -57,8 +64,9 @@ def write_bundle(result: CompilationResult, output_dir: str | Path) -> Path:
     # Validate the complete path set before the first write. A later unsafe
     # entry must not leave a partially materialized candidate.
     targets = [
-        (relative_path, _safe_target(root, relative_path), content)
-        for relative_path, content in result.files.items()
+        (relative_path, target, content)
+        for (relative_path, content), target
+        in zip(result.files.items(), validate_bundle_paths(result, root))
     ]
     for _, target, content in targets:
         target.parent.mkdir(parents=True, exist_ok=True)

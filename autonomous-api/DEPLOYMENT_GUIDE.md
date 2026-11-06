@@ -77,6 +77,36 @@ LOG_LEVEL=INFO
 LOG_FILE=logs/app.log
 ```
 
+### 4.1 Configure separate governance principals
+
+Production startup now requires `GOVERNANCE_ENFORCEMENT_REQUIRED=true` and separate credentials for council members, evidence evaluators, and certifiers. Do not reuse `ADMIN_API_KEY` or reuse a secret across governance principals.
+
+```env
+ENVIRONMENT=production
+GOVERNANCE_ENFORCEMENT_REQUIRED=true
+GOVERNANCE_AUDIT_SIGNING_KEY=<unique-audit-signing-secret>
+
+# JSON maps: principal ID -> unique high-entropy secret
+GOVERNANCE_COUNCIL_API_KEYS={"council-1":"<secret-1>","council-2":"<secret-2>"}
+GOVERNANCE_EVALUATOR_API_KEYS={"runtime-verifier-1":"<verifier-secret>"}
+GOVERNANCE_CERTIFIER_ID=certifier-1
+GOVERNANCE_CERTIFIER_API_KEY=<certifier-secret>
+```
+
+Use these dedicated headers:
+- `X-Governance-Council-Key` for a council member submitting a decision.
+- `X-Governance-Evaluator-Key` for an evaluator recording a gate outcome.
+- `X-Governance-Certifier-Key` for a recognized certifier granting or revoking certification.
+- `X-API-Key` remains the administrative control-plane credential; it is not a substitute for the governance roles.
+
+A governance decision must carry an HMAC-SHA256 signature from every member listed in `decidedBy`. Each member signs the same canonical JSON representation of the command *excluding* `memberSignatures`: UTF-8 JSON, sorted keys, compact separators `(",", ":")`, and `ensure_ascii=False`. The hex digest is supplied under that member's ID in `memberSignatures`. The authenticated council principal must also be the `requestedBy` submitter and one of the listed signers. The signatures are retained in the immutable governance decision event.
+
+The current API verifies council signatures and binds evaluator/certifier actor fields to their authenticated principals. It does **not yet provide a trusted evidence registry**: `evidenceRefs` must still be independently resolved and validated before treating the referenced evidence as authoritative. Do not use caller-supplied references alone as proof of runtime verification.
+
+`GOVERNANCE_COUNCIL_API_KEYS`, `GOVERNANCE_EVALUATOR_API_KEYS`, and `GOVERNANCE_CERTIFIER_API_KEY` must be stored in a secret manager in production. Never commit populated values to `.env`, source control, workflow logs, or deployment manifests.
+
+---
+
 ### 5. Initialize Database
 
 ```bash

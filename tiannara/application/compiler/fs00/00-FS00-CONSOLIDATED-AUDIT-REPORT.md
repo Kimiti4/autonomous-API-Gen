@@ -1928,3 +1928,55 @@ The runtime acceptance gate's behavior is tested, but no real Docker end-to-end 
 The new warning from `datetime.utcnow()` in the evolution completion path was also removed by using a timezone-aware UTC source while preserving the database's naive-UTC storage convention. The remaining pytest-asyncio fixture-scope and GitHub Actions Node.js deprecation warnings are non-blocking.
 
 PR #208 remains open/draft/unmerged and targets the draft Stage A branch. PR #201 remains open/draft/unmerged; `main` remains unchanged. FS-00 remains NOT CLOSED: universal compiler orchestration, full-stack infrastructure/deployment lineage, standalone compiler convergence, product-level certification and live publication remain open.
+
+
+## 30. Checkpoint 31 — governance evidence production, identity binding and default enforcement
+
+**Scope:** trace production settings, application composition, HTTP authentication, governance command routes, governance subsystem handlers, candidate evaluation, and the local evolution promotion path. This checkpoint separates (a) the promotion consumer, (b) governance command acceptance, and (c) the authenticated principal that is allowed to assert governance authority.
+
+### 30.1 FS00-FS-034 — production configuration allowed governance enforcement to be disabled (Critical)
+
+**Source evidence:**
+- `autonomous-api/app/core/config.py` declared `GOVERNANCE_ENFORCEMENT_REQUIRED: bool = False`; production validation required API key, secret, CORS and governance audit signing key, but did not require the enforcement flag.
+- `autonomous-api/app/engine/evolution.py` generated a best-candidate output regardless of governance enforcement. The governed promotion path was conditional on the setting being true.
+- When the setting was false, the engine did not call `_publish_governed_candidate()`, yet persisted `promotion_status="published"` for every non-error result. This could make an unapproved staged artifact appear authoritative to consumers that inspect the persisted run history.
+
+**Remediation authored in PR #208:**
+1. Production `Settings` validation now rejects configuration unless `GOVERNANCE_ENFORCEMENT_REQUIRED=True`.
+2. Async evolution explicitly reports `staged_unapproved` when governance is disabled. It no longer emits `candidate.promoted` and no longer records the run as published.
+3. Run result and persisted history include `promotion_status` and `governance_required`; `_is_authoritative()` remains restricted to `promotion_status == "published"`.
+4. Synchronous evolution now refuses to build/promote when governance is required, because that path has no runtime evaluation and no async governance approval.
+
+Tests added for production configuration, ungoverned staging classification, no promotion event/authority, and synchronous-path refusal.
+
+**Status:** REMEDIATION CODED; targeted CI pending.
+
+### 30.2 FS00-FS-035 — governance decision and certification identities are caller-asserted rather than bound to authenticated principals (Critical)
+
+**Source evidence:**
+- `autonomous-api/app/main.py` configures one `ApiKeyAuthProvider` from `ADMIN_API_KEY`. A successful API-key authentication returns `AuthContext(subject="admin", scopes=("observe", "control"))`.
+- `autonomous-api/app/api/governance_routes.py` protects mutation routes with `require_auth`, but ignores the returned principal for all governance writes.
+- `RequestGovernanceDecision` accepts caller-provided `requestedBy` and `decidedBy`; `GrantCertification` accepts caller-provided `certifiedBy`.
+- `GovernanceSubsystem.request_decision()` validates council membership/quorum and transition/gate invariants against these command fields, but does not bind the claimed deciders to the HTTP principal or cryptographic member attestations.
+- `GovernanceSubsystem.grant_certification()` checks `certifiedBy` against the configured recognized-certifier set. The production composition currently hard-codes `recognized_certifiers={"certifier-1"}`; the shared API-key principal is still `admin`. The route does not establish that the caller is actually `certifier-1`.
+- Both decision and certification commands accept `evidenceRefs` as strings. The governance command handler appends these references to the signed event log, but does not independently resolve a reference to an immutable evidence object and verify its artifact digest, source, runtime result, or verifier identity.
+
+**Impact:** the append-only event log provides tamper-evident history of the command accepted; it does not, by itself, prove that the person named in the command is the person who authenticated or that the referenced evidence was independently verified. The current route therefore does not establish separation of duties or trustworthy signer provenance. The stricter promotion consumer prevents mismatched digest strings, but the command producer can still accept self-asserted identity/evidence references.
+
+**Required remediation:**
+1. Introduce explicit governance principals with distinct authentication credentials and scopes for council members, certifiers, and ordinary operators. Never accept `requestedBy`, `decidedBy`, or `certifiedBy` as proof of caller identity.
+2. Bind each council member's vote to an authenticated member principal or cryptographically verifiable signed attestation. A caller must not be able to claim the quorum by listing multiple member IDs.
+3. Bind certification to an authenticated recognized certifier and enforce separation-of-duties policy against the decision authors and artifact producer.
+4. Introduce a trusted evidence registry/attestation contract. Evidence references must resolve to immutable records whose candidate ID, artifact digest, evaluation mode, runtime result, verifier, source revision, and capture time are checked before governance acceptance.
+5. Require the `selected → deployed` decision and deployment certification to reference the same registered artifact attestation, not merely matching caller-supplied strings.
+6. Add negative tests for caller identity spoofing, quorum inflation, certifier spoofing, cross-candidate evidence, stale evidence, mismatched digest, missing attestation, and separation-of-duties violations.
+
+**Status:** OPEN — audit confirmed; no identity or evidence producer has been represented as implemented.
+
+### 30.3 Checkpoint execution state
+
+- The governance promotion consumer remains digest-bound and runtime-only from Checkpoint 29.
+- FS00-FS-034 and its regression tests are implemented in the remediation branch; run **42262578517** was observed in progress at report preparation. No passing result is claimed yet.
+- FS00-FS-035 is a new Critical finding. Do not enable real production promotion until authenticated governance identities and a trusted evidence registry are implemented and tested.
+- PR #208 remains open/draft/unmerged and targets the draft Stage A branch. No merge to `main` is authorized.
+- FS-00 remains NOT CLOSED.

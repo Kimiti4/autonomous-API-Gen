@@ -27,6 +27,8 @@ class RequestGovernanceDecision(BaseModel):
     rationale: str = ""
     supersedesDecisionId: Optional[str] = None
     evidenceRefs: list = Field(default_factory=list)
+    # HMAC-SHA256 attestations from each named council member over the canonical command.
+    memberSignatures: dict[str, str] = Field(default_factory=dict)
 
 
 class RecordGateEvaluation(BaseModel):

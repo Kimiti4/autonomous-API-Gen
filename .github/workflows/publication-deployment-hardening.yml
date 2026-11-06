@@ -31,6 +31,7 @@ on:
       - "tests/test_phase17_materializer_inmemory.py"
       - "tests/test_phase18_factory.py"
       - "tests/test_publication_contract_fail_closed.py"
+      - "tests/test_secret_boundary.py"
       - ".github/workflows/publication-deployment-hardening.yml"
   workflow_dispatch:
 
@@ -88,7 +89,8 @@ jobs:
             tests/test_compiler_writer_path_security.py \
             tests/test_phase17_materializer_inmemory.py \
             tests/test_phase18_factory.py \
-            tests/test_publication_contract_fail_closed.py
+            tests/test_publication_contract_fail_closed.py \
+            tests/test_secret_boundary.py
 
       - name: Run root ESAP regression tests
         env:

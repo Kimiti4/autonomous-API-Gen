@@ -2,7 +2,7 @@
 
 from typing import List
 
-from pydantic import field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,8 +27,8 @@ class Settings(BaseSettings):
     ADMIN_API_KEY: str = ""
     GOVERNANCE_AUDIT_SIGNING_KEY: str = ""
     GOVERNANCE_ENFORCEMENT_REQUIRED: bool = False
-    GOVERNANCE_COUNCIL_API_KEYS: dict[str, str] = {}
-    GOVERNANCE_EVALUATOR_API_KEYS: dict[str, str] = {}
+    GOVERNANCE_COUNCIL_API_KEYS: dict[str, str] = Field(default_factory=dict)
+    GOVERNANCE_EVALUATOR_API_KEYS: dict[str, str] = Field(default_factory=dict)
     GOVERNANCE_CERTIFIER_API_KEY: str = ""
     GOVERNANCE_CERTIFIER_ID: str = "certifier-1"
 
@@ -63,6 +63,22 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _validate_production_security(self):
+        council_ids = set(self.GOVERNANCE_COUNCIL_API_KEYS)
+        evaluator_ids = set(self.GOVERNANCE_EVALUATOR_API_KEYS)
+        if council_ids & evaluator_ids:
+            raise ValueError("governance council and evaluator identities must be distinct")
+        if self.GOVERNANCE_CERTIFIER_ID and self.GOVERNANCE_CERTIFIER_ID in council_ids | evaluator_ids:
+            raise ValueError("governance certifier identity must be distinct from council and evaluator identities")
+        role_keys = (
+            list(self.GOVERNANCE_COUNCIL_API_KEYS.values())
+            + list(self.GOVERNANCE_EVALUATOR_API_KEYS.values())
+            + ([self.GOVERNANCE_CERTIFIER_API_KEY] if self.GOVERNANCE_CERTIFIER_API_KEY else [])
+        )
+        if any(not key for key in role_keys) or len(set(role_keys)) != len(role_keys):
+            raise ValueError("governance principal API keys must be non-empty and unique")
+        if self.ADMIN_API_KEY and self.ADMIN_API_KEY in role_keys:
+            raise ValueError("governance principal API keys must differ from ADMIN_API_KEY")
+
         if self.ENVIRONMENT == "production":
             if not self.ADMIN_API_KEY:
                 raise ValueError("ADMIN_API_KEY is required in production")
@@ -83,17 +99,8 @@ class Settings(BaseSettings):
                 raise ValueError("GOVERNANCE_EVALUATOR_API_KEYS is required in production")
             if not self.GOVERNANCE_CERTIFIER_API_KEY:
                 raise ValueError("GOVERNANCE_CERTIFIER_API_KEY is required in production")
-            if not self.GOVERNANCE_CERTIFIER_ID or self.GOVERNANCE_CERTIFIER_ID in self.GOVERNANCE_COUNCIL_API_KEYS:
-                raise ValueError("governance certifier identity must be distinct from council members")
-            role_keys = (
-                list(self.GOVERNANCE_COUNCIL_API_KEYS.values())
-                + list(self.GOVERNANCE_EVALUATOR_API_KEYS.values())
-                + [self.GOVERNANCE_CERTIFIER_API_KEY]
-            )
-            if any(not key for key in role_keys) or len(set(role_keys)) != len(role_keys):
-                raise ValueError("governance principal API keys must be non-empty and unique")
-            if self.ADMIN_API_KEY in role_keys:
-                raise ValueError("governance principal API keys must differ from ADMIN_API_KEY")
+            if not self.GOVERNANCE_CERTIFIER_ID:
+                raise ValueError("GOVERNANCE_CERTIFIER_ID is required in production")
         return self
 
     model_config = SettingsConfigDict(

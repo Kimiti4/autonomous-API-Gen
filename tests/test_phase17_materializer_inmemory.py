@@ -189,3 +189,12 @@ def test_materializer_treats_missing_verification_as_failure(tmp_path):
         RepositoryMaterializer(backend).materialize(_report(outcome), tmp_path)
     assert not (tmp_path / _SYSTEM / "main.py").exists()
     assert backend.calls == []
+
+
+def test_materializer_refuses_nonempty_output_workspace(tmp_path):
+    (tmp_path / "preexisting.txt").write_text("do not overwrite", encoding="utf-8")
+    backend = InMemorySourceControlBackend()
+    with pytest.raises(MaterializationError, match="must be empty"):
+        RepositoryMaterializer(backend).materialize(_report(_outcome()), tmp_path)
+    assert (tmp_path / "preexisting.txt").read_text(encoding="utf-8") == "do not overwrite"
+    assert backend.calls == []

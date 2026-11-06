@@ -57,6 +57,7 @@ def _validate_artifact_files(files: Mapping[str, str]) -> dict[str, str]:
     if not isinstance(files, Mapping) or not files:
         raise ValueError("publication blocked: exact artifact files are required")
     normalized: dict[str, str] = {}
+    seen_paths: set[str] = set()
     for path, content in files.items():
         if (
             not isinstance(path, str)
@@ -73,12 +74,15 @@ def _validate_artifact_files(files: Mapping[str, str]) -> dict[str, str]:
             or windows.is_absolute()
             or bool(windows.drive)
             or any(part in ("", ".", "..") for part in raw_parts)
+            or any(part.casefold() in {".git", ".tiannara"} for part in raw_parts)
         ):
             raise ValueError(f"publication blocked: unsafe artifact path {path!r}")
         if not isinstance(content, str):
             raise ValueError(f"publication blocked: artifact {path!r} is not text")
-        if path in normalized:
-            raise ValueError(f"publication blocked: duplicate artifact path {path!r}")
+        path_key = "/".join(part.casefold() for part in posix.parts)
+        if path_key in seen_paths:
+            raise ValueError(f"publication blocked: duplicate normalized artifact path {path!r}")
+        seen_paths.add(path_key)
         normalized[path] = content
     return normalized
 

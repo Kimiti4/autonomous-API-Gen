@@ -1105,3 +1105,83 @@ Evidence from the seven-backend conformance family does not establish preflight 
 - No backend is retired. No capability, readiness or certification state is upgraded. FS-00 remains NOT CLOSED.
 
 **Next checkpoint:** trace the per-backend semantic projection/generation code for FastAPI, Go, Rust/Axum, NestJS, ASP.NET Core and Phoenix; identify the exact ISR fields consumed versus ignored/refused; then map negative tests to each route. Preserve the separate ProjectCompiler and R2.10.7 evidence families.
+
+
+## 18. ProjectCompiler backend semantic-consumption delta — 2026-11-06
+
+### 18.1 Scope and evidence boundary
+
+Inspected the current PR-branch implementations and composition registration for:
+
+- `tiannara/application/compiler/composition.py`
+- `fastapi_hexagonal_backend.py`
+- `go_hexagonal_backend.py`
+- `rust_axum_backend.py`
+- `nestjs_backend.py`
+- `aspnet_core_backend.py`
+- `phoenix_backend.py`
+
+This checkpoint is a source-level consumption audit. It did not execute generated applications or tests. The conclusions below describe the code paths visible in these files; they are not runtime certification findings. The separate R2.10.7 seven-backend conformance registry is not used as evidence for these six ProjectCompiler targets.
+
+### 18.2 Registration and input boundary
+
+`composition.py:build_compiler_registry()` registers FastAPI, Go, Rust/Axum, NestJS, ASP.NET Core and Phoenix as separate `CompilerBackend` implementations. The default ProjectCompiler selection path uses these declarations; the declarations expose broad `BundleCapability` lists, not an implementation-bound map of individual ISR semantic identifiers.
+
+The six implementations divide into two input-handling groups:
+
+- **FastAPI and Go:** call `isr.system_model()`; when it returns no typed model, each has a legacy conversion path.
+- **Rust/Axum, NestJS, ASP.NET Core and Phoenix:** require `isr.system_model()` to return a typed `SystemModel`, otherwise raise `ValueError`.
+
+A typed-model-presence check is a schema/input precondition only. None of the four strict typed-model guards, as inspected, checks whether all requested semantics in that model are implemented by the target.
+
+### 18.3 Per-backend consumption map
+
+| Backend | Consumed input visible in generator | Explicitly narrowed or omitted surface in inspected implementation | Fail-closed boundary evidenced |
+|---|---|---|---|
+| FastAPI | Typed model's system name, data models/fields, services, capabilities, security authentication posture, and operational observability requirements. Legacy conversion maps legacy data models, services/responsibilities, service-derived capabilities, and authentication posture into a reduced typed model. | Legacy conversion creates a single general domain and synthesizes requirement graph identity from the ISR hash; legacy field types are best-effort mapped. Generated API routes/services are model-derived, but the inspected conversion does not preserve a full requirement graph, workflow/event/effect semantics or complete authorization/business policy model. The observability map explicitly marks business audit-event generation NOT_IMPLEMENTED and external trace export absent. | Legacy fallback is permissive/best-effort; no complete required-semantic preflight before `generate()` is evidenced. |
+| Go | Typed model's system name and a selected primary data entity, including its field definitions, drive generated domain, repository, service, in-memory infrastructure and HTTP handler scaffolding. | `_primary_entity()` deliberately selects one entity; the generated service is therefore not evidence that every declared entity/service/capability is realized. Legacy conversion creates data models from legacy field names but maps their types to TEXT and does not carry the full typed services/security/operational policy surface. | No unsupported-semantic rejection or complete-model coverage check is evidenced before generation. |
+| Rust/Axum | Typed model's system name and data models/fields drive Rust structs and type mapping. Optional fields become `Option<T>`; unsupported field types and field-name collisions raise errors. | The emitted application router is a fixed `/health` route; generated data structs are not wired to CRUD/API operations, persistence, authorization, or business workflows in the inspected source. | Rejects missing typed model and certain invalid field/type cases; does not reject a valid model whose requested business semantics are not implemented. |
+| NestJS | Typed model's system name and data models/fields drive package naming and TypeScript interfaces. | `_module(model)` emits a fixed module containing only the health controller; the model argument is not used to derive controllers/services/routes. No persistence, domain operations, authorization or workflow realization is visible in this backend file. | Rejects missing typed model; no semantic coverage/refusal gate for a valid model is evidenced. |
+| ASP.NET Core | Typed model's system name and data models/fields drive project naming and C# domain classes. | `Program.cs` emits only a fixed `/health` minimal API route. The test source's health assertion compares the literal string `"/health"` with itself; it does not exercise a generated HTTP endpoint. No persistence, API/domain operation, authorization or workflow realization is visible here. | Rejects missing typed model; no semantic coverage/refusal gate for a valid model is evidenced. |
+| Phoenix | Typed model's system name and data models/fields drive project naming and Elixir type declarations. | `lib/generated_web.ex` emits a fixed Plug health route. The generated domain module contains typespec-like declarations, not persistence schemas, business operations, controllers or workflow execution. The test asserts a literal path equals itself rather than exercising a running endpoint. | Rejects missing typed model; no semantic coverage/refusal gate for a valid model is evidenced. |
+
+The FastAPI backend has a materially broader generated scaffold than the other five inspected implementations, including application services, repositories, in-memory repositories, API schemas/routes, API-key configuration, observability and generated API tests. That breadth must not be conflated with complete semantic fidelity: the legacy conversion is lossy, generated persistence is in-memory, and the observability map itself declares specific limitations.
+
+### 18.4 Finding FS00-CAP-011 — backend declarations are broader than demonstrated per-target semantic consumption (High)
+
+**Evidence:** the composition root registers these six implementations using capability declarations based on `BundleCapability` lists (FastAPI's declaration lists all `BundleCapability` values; the other backends derive their declarations from their manifests). The inspected backend generators consume materially different subsets of `SystemModel`: Go selects one primary entity; Rust emits model structs plus a fixed health router; NestJS emits interfaces plus a fixed health-only module; ASP.NET Core emits domain classes plus a fixed health route; Phoenix emits type declarations plus a fixed health route. These files contain no target-specific full semantic coverage map that binds every required ISR semantic to generated behavior and evidence.
+
+**Impact:** selector eligibility can be interpreted more broadly than the generator's demonstrated semantic realization. A generated scaffold may pass structural verification while requested entities, operations, persistence, policies, workflows or effects remain unrealized. This is a per-target manifestation of FS00-CAP-009, not a separate proof that every such request has already escaped in production.
+
+**Required evidence/remediation:** define an implementation-bound semantic support declaration for each target; derive the required semantics from the same bound ISR/SystemModel; reject unsupported, partial-when-full-is-required, and unknown requirements before backend invocation. Add negative tests per backend that assert zero generator invocation and zero artifact materialization for unsupported requests. Positive tests must bind generated behavior to requirement-specific independent oracles rather than only checking file presence or type declarations.
+
+### 18.5 Finding FS00-CAP-012 — typed-model acceptance is not semantic validation (High)
+
+**Evidence:** Rust/Axum, NestJS, ASP.NET Core and Phoenix raise when `isr.system_model()` is absent. Once a typed model is present, their generation paths do not perform a general semantic completeness check. Their model consumers are limited to fields/type declarations and, in some cases, project naming; their application routes/modules remain fixed health scaffolds.
+
+**Impact:** the guard prevents a missing or legacy-only payload from silently entering these backends, but a well-formed typed model containing unsupported business/API/persistence/security semantics is still accepted by the visible generator path. This is not a fail-closed semantic boundary.
+
+**Required evidence/remediation:** preserve strict typed-model requirements where intentional, but add semantic preflight after binding and before `generate()`. Distinguish schema validity from target capability and behavior verification in the disposition ledger.
+
+### 18.6 Negative-test and evidence status
+
+This checkpoint inspected the backend implementations and composition root, not the complete backend test inventory. Therefore, it does not claim that no relevant negative tests exist anywhere in the repository. It does establish that the inspected generator paths do not themselves enforce the required semantic refusal. The next test-mapping pass must locate each backend's tests and determine whether they prove all of the following independently:
+
+1. unsupported semantic is identified from the actual bound ISR;
+2. generator/backend invocation count remains zero;
+3. no output directory, bundle or publication artifact is produced;
+4. partial support is not treated as full support;
+5. the refusal is recorded as a non-success, auditable disposition.
+
+A test that only checks missing typed model, invalid field type, generated file presence, or health response does not prove these properties.
+
+### 18.7 Disposition and next work
+
+- FS00-CAP-011: SOURCE-CONFIRMED; HIGH; declaration breadth is not bound to demonstrated per-target semantic consumption.
+- FS00-CAP-012: SOURCE-CONFIRMED; HIGH; typed-model presence checks do not provide semantic fail-closed enforcement.
+- FastAPI is comparatively broader, but legacy conversion and in-memory persistence constrain its demonstrated fidelity.
+- Go's single-primary-entity path and the four typed-only health-scaffold paths require explicit semantic limits until expanded and independently verified.
+- No backend is retired. No capability, readiness or certification state is upgraded. FS-00 remains NOT CLOSED.
+- This checkpoint changes documentation only; no production source, tests, workflow, registry or certification state was modified.
+
+**Next checkpoint:** locate and map the actual generator, integration, negative, and invocation-count tests for these six targets; then reconcile each target's declared `BundleCapability` list with the exact semantics its implementation consumes. Keep remediation separate from this read-only audit unless separately authorized.

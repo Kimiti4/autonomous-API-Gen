@@ -2128,3 +2128,42 @@ GitHub Actions workflow **Publication and Deployment Hardening**, run **42265717
 FS00-FS-040 is REMEDIATION VERIFIED BY TARGETED TESTS. FS00-FS-035 identity/role separation remains verified by run 127; FS00-FS-039 trusted evidence registry remains OPEN; FS00-FS-038 real deployment adapter integration remains OPEN.
 
 PR #208 remains open/draft/unmerged. No merge to `main` is authorized. FS-00 remains NOT CLOSED.
+
+
+## 34. Checkpoint 35 — governance approval lifecycle and recoverable pending-promotion state
+
+### 34.1 FS00-FS-041 — evaluation and governance approval are coupled in one run, with no recoverable awaiting-approval state (Critical)
+
+**Source trace:**
+- `EvolutionEngine._run_async_unleased()` evaluates candidates, then in the same call immediately attempts `_publish_governed_candidate()` for the best candidate when governance is required.
+- The governance subsystem's decision and certification routes are separate HTTP operations. The evolution run does not pause to await those operations or expose a durable pending-approval task.
+- If the decision/certification does not already exist, promotion is denied; the engine sets `build_error`, returns `output_path=None`, clears `best_genome` from the result, and persists the run as `failed`.
+- The failed-run history records the error but does not persist the complete `best_evidence` record, immutable candidate artifact path, evidence ID, and a resumable promotion command.
+- Candidate evaluation data is included in `GenomeRecord.genome_data.evaluation`, but no inspected API endpoint reconstructs that candidate evidence and resumes the same run through governance approval and promotion.
+- The promotion gate therefore has no normal interactive lifecycle in which a newly evaluated candidate can first be staged, independently reviewed, approved/certified, and then promoted.
+
+**Impact:** requiring a pre-existing approval for a just-created artifact is operationally circular. If approval is absent, the run is marked failed rather than awaiting review. This prevents the current engine from functioning as a proper human/council-governed release workflow, even though the denial itself is fail-closed.
+
+**Required remediation — separate the lifecycle into two durable phases:**
+
+1. **Evaluate and stage:** evaluate candidate, verify artifact, write it only to an immutable candidate-specific quarantine/staging path, register trusted evidence, and persist a candidate record with run/generation/source/target/artifact/evidence lineage.
+2. **Await governance:** return `awaiting_governance`, not `failed`, when evidence is valid but no decision/certification exists. Expose the candidate ID and evidence references without exposing it as a released artifact.
+3. **Review and authorize:** council members sign the exact evidence-bound decision; a distinct certifier grants certification; gate outcomes reference registry-resolved evidence.
+4. **Promote:** a separate authorized action re-loads the candidate and evidence from durable stores, verifies current approval/certification/expiry/revocation and exact digest, then atomically promotes the immutable staged artifact.
+5. **Reject or expire:** preserve the audit evidence and mark the candidate rejected/expired; quarantine or safely remove staged bytes under explicit retention policy. Never convert a missing approval into a successful or completed release.
+6. **Recover:** restart-safe processing must resume pending candidates from durable state without regenerating different bytes or silently changing the artifact digest.
+
+The evidence registry in FS00-FS-039 and this two-phase promotion lifecycle must be designed together. A registry without a resumable lifecycle still leaves approval operationally circular; a pending state without trusted evidence still permits false approvals.
+
+**Status:** OPEN — source-confirmed; design requirement only. No pending-promotion state machine or resume endpoint is claimed.
+
+### 34.2 Current verification and release boundary
+
+The latest code workflow run **42265717579** (run 132) passed:
+- Root ESAP targeted suite: **159 passed**.
+- Autonomous-api evolution/governance suite: **56 passed**.
+- Total: **215 passed, 0 failed**.
+
+The documentation/report update was also exercised by workflow run **42266047724** (run 133), which passed the same **215 tests**.
+
+FS00-FS-040 (no unverified pre-approval write to the shared release directory) remains verified. FS00-FS-039 (trusted evidence registry), FS00-FS-041 (two-phase approval/resume), FS00-FS-038 (real deployment adapters), and the universal ISR/IR/full-stack architecture remain open. PR #208 remains open/draft/unmerged. FS-00 remains NOT CLOSED.

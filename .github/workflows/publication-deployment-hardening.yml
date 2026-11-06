@@ -1,6 +1,9 @@
 name: Publication and Deployment Hardening
 
 on:
+  push:
+    branches:
+      - "remediation/publication-deployment-gates"
   pull_request:
     paths:
       - "autonomous-api/app/engine/backends.py"

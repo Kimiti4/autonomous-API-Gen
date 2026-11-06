@@ -84,7 +84,7 @@ def test_publication_requires_candidate_bound_certification():
         artifact_files=bundle.artifact_files,
     )
     provider = _Provider()
-    with pytest.raises(ValueError, match="does not bind ISR"):
+    with pytest.raises(ValueError, match="typed hashes do not bind"):
         publish_bundle(bundle, provider, ledger, lambda _ref: True)
     assert provider.calls == []
 
@@ -113,7 +113,10 @@ def test_publication_requires_provider_receipt_bound_to_uploaded_bytes():
                 artifact_hash="wrong-hash",
             )
 
-    with pytest.raises(ValueError, match="receipt does not bind"):
+        def verify_publication(self, receipt, files):
+            return True
+
+    with pytest.raises(ValueError, match="receipt does not bind uploaded artifact bytes"):
         publish_bundle(_bundle([ref]), _BadProvider(), ledger, lambda _ref: True)
 
 

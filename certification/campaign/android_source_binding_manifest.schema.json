@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tiannara.dev/schemas/esap-android-source-binding-v1.json",
+  "title": "ESAP-APP-001 Android source-to-ISR binding manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "benchmark_id",
+    "source_spec_path",
+    "source_spec_sha256",
+    "isr_revision_path",
+    "isr_revision_file_sha256",
+    "isr_revision_content_hash"
+  ],
+  "properties": {
+    "schema_version": { "const": "1" },
+    "benchmark_id": { "const": "ESAP-APP-001" },
+    "source_spec_path": { "type": "string", "minLength": 1 },
+    "source_spec_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "isr_revision_path": { "type": "string", "minLength": 1 },
+    "isr_revision_file_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "isr_revision_content_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  }
+}

@@ -1,0 +1,2218 @@
+# FS-00 Deliverable 1 — Existing Architecture Map
+
+**Status:** REVIEW DRAFT — not an FS-00 pass or authorization for FS-01  
+**Repository/ref:** `Kimiti4/autonomous-API-Gen` / `remediation/esap-android-compiler-stage-a`  
+**Source commit:** `68696e2a07595fed98a19e24ee96c3e4e0e5bfeb`  
+**Tree:** `2b27b960ac164c92a34986e1e02c806454379ffd` (recursive tree API reported truncated=false)  
+**Inventory scope:** Every blob under the nine roots named in `folder/prefull.md` §10.1. The root-level inventory is path-complete for this tree snapshot; the classification is provisional and not proof of runtime ownership.
+
+## 1. Acceptance criterion and boundary decision
+
+The governing acceptance criterion is `folder/prefull.md` §2: validated technology-neutral ISR → deterministic Compiler IR lowering → complete full-stack application → verification → immutable evidence/provenance → requirement-to-deployed-artifact lineage.
+
+The current candidate boundary is **between `compiler/core/` and `compiler/backends/`**. It is a recommendation in this draft, not an approved architecture decision. See Deliverable 4.
+
+## 2. Inventory summary
+
+Total repository blobs: **3468**. Counts by top-level FS-00 root:
+- `tiannara/`: 336
+- `compiler/`: 57
+- `constitutional_architecture/`: 564
+- `certification/`: 61
+- `learning/`: 48
+- `knowledge/`: 41
+- `evolution/`: 59
+- `autonomous-api/`: 730
+- `generated/`: 61
+
+Path-based provisional categories (categories overlap conceptually but each file is assigned exactly one provisional label by the deterministic rule in this document):
+- Out-of-scope root file / review by exact path: 1481
+- Generated/reference application or runtime; not compiler core: 730
+- Constitutional architecture / governance: 460
+- Tiannara application; owner requires module-level confirmation: 159
+- Evolution / candidate generation: 115
+- ISR / semantic source: 112
+- Learning / knowledge: 89
+- Generated artifact / fixture; not authoritative source: 61
+- Certification / governance / campaign: 49
+- Infrastructure / execution: 49
+- Application compiler integration: 35
+- Compiler / orchestration: 27
+- Campaign / certification integration: 24
+- Verification / compilation consumption: 22
+- Compiler backend / plugin: 15
+- Compiler core / IR and protocol: 15
+- Requirement intelligence / intent: 8
+- Verification / certification: 7
+- Certification / evidence: 5
+- Evolution / self-improvement: 5
+
+**Classification limitation:** This is an exhaustive path inventory with provisional path-based labels, not yet a semantic review of every module's imports, public API, side effects, or runtime activation. Files labeled “owner requires module-level confirmation” and all cross-root dependencies remain unresolved until reviewed. Therefore Architectural Evidence remains **PARTIAL**, not PASS.
+
+## 3. Root-by-root one-line inventory
+
+### `tiannara/` — 336 files
+- `tiannara/.env.example` — Tiannara application; owner requires module-level confirmation
+- `tiannara/__init__.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/adversarial/__init__.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/adversarial/composition.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/__init__.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/campaign/__init__.py` — Campaign / certification integration
+- `tiannara/application/campaign/analyzer_evidence.py` — Campaign / certification integration
+- `tiannara/application/campaign/backend_matrix.py` — Campaign / certification integration
+- `tiannara/application/campaign/calibration.py` — Campaign / certification integration
+- `tiannara/application/campaign/campaign_b.py` — Campaign / certification integration
+- `tiannara/application/campaign/campaign_d.py` — Campaign / certification integration
+- `tiannara/application/campaign/campaign_runner.py` — Campaign / certification integration
+- `tiannara/application/campaign/certification.py` — Campaign / certification integration
+- `tiannara/application/campaign/corpus.py` — Campaign / certification integration
+- `tiannara/application/campaign/defect_injection.py` — Campaign / certification integration
+- `tiannara/application/campaign/dry_run.py` — Campaign / certification integration
+- `tiannara/application/campaign/evolutionary_feedback.py` — Campaign / certification integration
+- `tiannara/application/campaign/failure_taxonomy.py` — Campaign / certification integration
+- `tiannara/application/campaign/failure_taxonomy_validation.py` — Campaign / certification integration
+- `tiannara/application/campaign/harness.py` — Campaign / certification integration
+- `tiannara/application/campaign/phase31_contract.py` — Campaign / certification integration
+- `tiannara/application/campaign/phase31_contract_002.py` — Campaign / certification integration
+- `tiannara/application/campaign/phase31_gate_sequence.py` — Campaign / certification integration
+- `tiannara/application/campaign/provenance_blind_evaluation.py` — Campaign / certification integration
+- `tiannara/application/campaign/provisioning.py` — Campaign / certification integration
+- `tiannara/application/campaign/scale_ramp.py` — Campaign / certification integration
+- `tiannara/application/campaign/semantic_sensitivity.py` — Campaign / certification integration
+- `tiannara/application/campaign/surface_exercise_contract.py` — Campaign / certification integration
+- `tiannara/application/campaign/surface_exercise_gate.py` — Campaign / certification integration
+- `tiannara/application/certification/dimension_adapters.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/certification/hardening_certification.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/certification/phase36_campaign.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/certification/phase36_orchestrator.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/certification/production_readiness.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/chaos/chaos_contract.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/chaos/chaos_injector.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/chaos/chaos_taxonomy.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/chaos/stateful_engine.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/cicd/__init__.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/cicd/capability_stages.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/compilation/__init__.py` — Verification / compilation consumption
+- `tiannara/application/compilation/artifact_verification.py` — Verification / compilation consumption
+- `tiannara/application/compilation/backend_capability_registry.py` — Verification / compilation consumption
+- `tiannara/application/compilation/backend_conformance.py` — Verification / compilation consumption
+- `tiannara/application/compilation/consumption_contract.py` — Verification / compilation consumption
+- `tiannara/application/compilation/cross_backend_campaign.py` — Verification / compilation consumption
+- `tiannara/application/compilation/integrity_gate.py` — Verification / compilation consumption
+- `tiannara/application/compilation/projection_seams.py` — Verification / compilation consumption
+- `tiannara/application/compilation/reference_backend.py` — Verification / compilation consumption
+- `tiannara/application/compiler/__init__.py` — Application compiler integration
+- `tiannara/application/compiler/android_backend.py` — Application compiler integration
+- `tiannara/application/compiler/angular_frontend.py` — Application compiler integration
+- `tiannara/application/compiler/aspnet_core_backend.py` — Application compiler integration
+- `tiannara/application/compiler/build_profile.py` — Application compiler integration
+- `tiannara/application/compiler/composition.py` — Application compiler integration
+- `tiannara/application/compiler/derivation.py` — Application compiler integration
+- `tiannara/application/compiler/documentation.py` — Application compiler integration
+- `tiannara/application/compiler/executor.py` — Application compiler integration
+- `tiannara/application/compiler/express_backend.py` — Application compiler integration
+- `tiannara/application/compiler/fastapi_hexagonal_backend.py` — Application compiler integration
+- `tiannara/application/compiler/frontend_targets.py` — Application compiler integration
+- `tiannara/application/compiler/go_hexagonal_backend.py` — Application compiler integration
+- `tiannara/application/compiler/hologram_frontend.py` — Application compiler integration
+- `tiannara/application/compiler/ktor_backend.py` — Application compiler integration
+- `tiannara/application/compiler/laravel_backend.py` — Application compiler integration
+- `tiannara/application/compiler/liveview_frontend.py` — Application compiler integration
+- `tiannara/application/compiler/naming.py` — Application compiler integration
+- `tiannara/application/compiler/nestjs_backend.py` — Application compiler integration
+- `tiannara/application/compiler/next_frontend.py` — Application compiler integration
+- `tiannara/application/compiler/nuxt_frontend.py` — Application compiler integration
+- `tiannara/application/compiler/phoenix_backend.py` — Application compiler integration
+- `tiannara/application/compiler/project_compiler.py` — Application compiler integration
+- `tiannara/application/compiler/rails_backend.py` — Application compiler integration
+- `tiannara/application/compiler/react_frontend.py` — Application compiler integration
+- `tiannara/application/compiler/registry.py` — Application compiler integration
+- `tiannara/application/compiler/rust_axum_backend.py` — Application compiler integration
+- `tiannara/application/compiler/rust_axum_typed_adapter.py` — Application compiler integration
+- `tiannara/application/compiler/scenic_frontend.py` — Application compiler integration
+- `tiannara/application/compiler/selector.py` — Application compiler integration
+- `tiannara/application/compiler/spring_boot_backend.py` — Application compiler integration
+- `tiannara/application/compiler/svelte_frontend.py` — Application compiler integration
+- `tiannara/application/compiler/verification.py` — Application compiler integration
+- `tiannara/application/compiler/vue_frontend.py` — Application compiler integration
+- `tiannara/application/compiler/writer.py` — Application compiler integration
+- `tiannara/application/diagnosis/__init__.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/diagnosis/classifier.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/enterprise/authorization.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/enterprise/compliance_compiler.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/enterprise/enterprise_contract.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/enterprise/enterprise_gate.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/enterprise/enterprise_security.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/enterprise/identity.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/evolution/__init__.py` — Evolution / candidate generation
+- `tiannara/application/evolution/adversarial_lab.py` — Evolution / candidate generation
+- `tiannara/application/evolution/anti_monoculture.py` — Evolution / candidate generation
+- `tiannara/application/evolution/architecture.py` — Evolution / candidate generation
+- `tiannara/application/evolution/architecture_constraint_detector.py` — Evolution / candidate generation
+- `tiannara/application/evolution/architecture_evolution_campaign.py` — Evolution / candidate generation
+- `tiannara/application/evolution/architecture_evolution_contract.py` — Evolution / candidate generation
+- `tiannara/application/evolution/architecture_evolution_gate.py` — Evolution / candidate generation
+- `tiannara/application/evolution/architecture_fitness.py` — Evolution / candidate generation
+- `tiannara/application/evolution/architecture_hypothesis.py` — Evolution / candidate generation
+- `tiannara/application/evolution/architecture_migration.py` — Evolution / candidate generation
+- `tiannara/application/evolution/architecture_model.py` — Evolution / candidate generation
+- `tiannara/application/evolution/architecture_semantic_gate.py` — Evolution / candidate generation
+- `tiannara/application/evolution/architecture_transformer.py` — Evolution / candidate generation
+- `tiannara/application/evolution/authorization.py` — Evolution / candidate generation
+- `tiannara/application/evolution/autonomous_repair.py` — Evolution / candidate generation
+- `tiannara/application/evolution/boundary_mutation.py` — Evolution / candidate generation
+- `tiannara/application/evolution/candidate_gate.py` — Evolution / candidate generation
+- `tiannara/application/evolution/candidate_sandbox.py` — Evolution / candidate generation
+- `tiannara/application/evolution/capability_mutation.py` — Evolution / candidate generation
+- `tiannara/application/evolution/certification.py` — Evolution / candidate generation
+- `tiannara/application/evolution/competitive_evolution.py` — Evolution / candidate generation
+- `tiannara/application/evolution/compiler_sandbox.py` — Evolution / candidate generation
+- `tiannara/application/evolution/deployment_mutation.py` — Evolution / candidate generation
+- `tiannara/application/evolution/diversity.py` — Evolution / candidate generation
+- `tiannara/application/evolution/docker_diagnosis.py` — Evolution / candidate generation
+- `tiannara/application/evolution/documentation_mutation.py` — Evolution / candidate generation
+- `tiannara/application/evolution/evaluation_boundary.py` — Evolution / candidate generation
+- `tiannara/application/evolution/evolution_certification.py` — Evolution / candidate generation
+- `tiannara/application/evolution/evolution_certification_dimensions.py` — Evolution / candidate generation
+- `tiannara/application/evolution/evolution_policy_mutation.py` — Evolution / candidate generation
+- `tiannara/application/evolution/evolution_state.py` — Evolution / candidate generation
+- `tiannara/application/evolution/fitness.py` — Evolution / candidate generation
+- `tiannara/application/evolution/identity.py` — Evolution / candidate generation
+- `tiannara/application/evolution/identity_index.py` — Evolution / candidate generation
+- `tiannara/application/evolution/isr_capability_audit.py` — Evolution / candidate generation
+- `tiannara/application/evolution/ledger.py` — Evolution / candidate generation
+- `tiannara/application/evolution/migration_mutation.py` — Evolution / candidate generation
+- `tiannara/application/evolution/multi_defect.py` — Evolution / candidate generation
+- `tiannara/application/evolution/multi_generation.py` — Evolution / candidate generation
+- `tiannara/application/evolution/multi_generation_evolution.py` — Evolution / candidate generation
+- `tiannara/application/evolution/mutation_operators.py` — Evolution / candidate generation
+- `tiannara/application/evolution/operator_scheduling.py` — Evolution / candidate generation
+- `tiannara/application/evolution/primitive_contract.py` — Evolution / candidate generation
+- `tiannara/application/evolution/primitive_gate.py` — Evolution / candidate generation
+- `tiannara/application/evolution/protection.py` — Evolution / candidate generation
+- `tiannara/application/evolution/red_team.py` — Evolution / candidate generation
+- `tiannara/application/evolution/reliability_mutation.py` — Evolution / candidate generation
+- `tiannara/application/evolution/reproducibility_audit.py` — Evolution / candidate generation
+- `tiannara/application/evolution/requirement_mutation.py` — Evolution / candidate generation
+- `tiannara/application/evolution/semantic_evolution_gate.py` — Evolution / candidate generation
+- `tiannara/application/evolution/temporal_mutation.py` — Evolution / candidate generation
+- `tiannara/application/evolution/testing_anchor_mutation.py` — Evolution / candidate generation
+- `tiannara/application/evolution/transition_restoration.py` — Evolution / candidate generation
+- `tiannara/application/evolution/universal_evolution.py` — Evolution / candidate generation
+- `tiannara/application/evolution/variation.py` — Evolution / candidate generation
+- `tiannara/application/factory/__init__.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/factory/evidence_sink.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/factory/factory.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/factory/fitness.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/factory/repair_providers.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/factory/report.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/framework_knowledge.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/framework_knowledge_registry.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/framework_reasoning.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/hardening/fullstack_gates.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/harness/__init__.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/harness/calibration/__init__.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/harness/calibration/corpus.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/harness/calibration/generator.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/harness/calibration/harness.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/harness/calibration/report.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/harness/calibration_harness.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/harness/manifest.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/identity/name_generator.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/identity/naming_contract.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/identity/naming_intent.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/intelligence/__init__.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/intelligence/accounting.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/intelligence/autonomy.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/intelligence/bridge.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/intelligence/cascade.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/intelligence/context_assembler.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/intelligence/context_budgeter.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/intelligence/prompt_compiler.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/intelligence/registry.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/intelligence/router.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/intelligence/tokenizing.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/intent/__init__.py` — Requirement intelligence / intent
+- `tiannara/application/intent/compiler.py` — Requirement intelligence / intent
+- `tiannara/application/intent/config.py` — Requirement intelligence / intent
+- `tiannara/application/intent/errors.py` — Requirement intelligence / intent
+- `tiannara/application/intent/graph_builder.py` — Requirement intelligence / intent
+- `tiannara/application/intent/prompts.py` — Requirement intelligence / intent
+- `tiannara/application/intent/schemas.py` — Requirement intelligence / intent
+- `tiannara/application/intent/synthesis.py` — Requirement intelligence / intent
+- `tiannara/application/materializer/materializer.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/materializer/provenance_builder.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/organization/organization_contract.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/pipeline/__init__.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/pipeline/execution_pipeline.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/publication/deployment_handoff.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/publication/git_history.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/publication/providers/github.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/publication/repository_assembler.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/publication/repository_publisher_contract.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/publication/secret_boundary.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/publication/uber_for_boats.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/publisher/__init__.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/publisher/gate_evaluator.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/publisher/publisher_orchestrator.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/quality/__init__.py` — Verification / compilation consumption
+- `tiannara/application/quality/analyzer_contract.py` — Verification / compilation consumption
+- `tiannara/application/quality/decision_traceability.py` — Verification / compilation consumption
+- `tiannara/application/quality/engineering_certification.py` — Verification / compilation consumption
+- `tiannara/application/quality/engineering_contract.py` — Verification / compilation consumption
+- `tiannara/application/quality/failure_obligation_derivation.py` — Verification / compilation consumption
+- `tiannara/application/quality/metric_analyzers.py` — Verification / compilation consumption
+- `tiannara/application/quality/operational_evidence.py` — Verification / compilation consumption
+- `tiannara/application/quality/responsibility_concentration.py` — Verification / compilation consumption
+- `tiannara/application/quality/security_traceability.py` — Verification / compilation consumption
+- `tiannara/application/quality/senior_quality_contract.py` — Verification / compilation consumption
+- `tiannara/application/quality/tool_adapters.py` — Verification / compilation consumption
+- `tiannara/application/quality/tool_availability.py` — Verification / compilation consumption
+- `tiannara/application/resilience/chaos_campaign.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/resilience/chaos_stateful.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/resilience/evidence_chain.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/resilience/failure_injection.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/resilience/failure_taxonomy.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/resilience/metrics.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/resilience/recovery_state.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/resilience/resilience_contract.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/resilience/resilience_gate.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/security/artifact_identity.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/security/attack_definition.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/security/attack_registry.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/security/attack_taxonomy.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/security/blind_evaluation.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/security/campaign.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/security/campaign_planner.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/security/constitution_extension.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/security/container_security.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/security/dast_campaign.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/security/data_security.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/security/evolutionary_feedback.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/security/execution/sandbox.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/security/secret_security.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/security/security_analyzer_contract.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/security/security_certification_contract.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/security/security_discrimination.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/security/security_evidence.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/security/security_gate.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/security/security_metrics.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/security/security_policy_compiler.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/security/security_regression_memory.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/security/security_state.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/security/security_surface.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/security/supply_chain.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/security/surface_security_contract.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/security/tier3_campaign.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/security/universal_pipeline.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/self_improvement/compiler_evolution.py` — Evolution / self-improvement
+- `tiannara/application/self_improvement/failure_attribution.py` — Evolution / self-improvement
+- `tiannara/application/self_improvement/fitness_governance.py` — Evolution / self-improvement
+- `tiannara/application/self_improvement/generation_analyzer.py` — Evolution / self-improvement
+- `tiannara/application/self_improvement/self_improvement_contract.py` — Evolution / self-improvement
+- `tiannara/application/synthesis/__init__.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/synthesis/personas.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/synthesis/render_planner.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/synthesis/render_schemas.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/synthesis/sampler.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/synthesis/statement_renderer.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/application/synthesis/taxonomy.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/bootstrap.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/__init__.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/governance/__init__.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/governance/backend_coupling_registry.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/governance/backend_coupling_scanner.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/governance/coupling_registry.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/governance/coupling_scanner.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/models/__init__.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/models/backend_declaration.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/models/bundle.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/models/capability_manifest.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/models/compilation.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/models/context_graph.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/models/evidence.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/models/fitness.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/models/genome.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/models/intelligence.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/models/intent.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/models/isr.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/models/model_call.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/models/observation.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/models/provenance.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/models/requirement_graph.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/models/requirement_sketch.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/models/semantic_resolution.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/models/system_model.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/models/taskflow_semantic_contract.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/ports/__init__.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/ports/intelligence.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/ports/language_model.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/ports/repair.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/ports/source_control.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/ports/tokenizer.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/services/__init__.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/services/canonical.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/services/graph_analysis.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/domain/services/test_identity.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/evidence/__init__.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/evidence/integrity.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/evidence/replay.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/infrastructure/__init__.py` — Infrastructure / execution
+- `tiannara/infrastructure/backends/__init__.py` — Infrastructure / execution
+- `tiannara/infrastructure/backends/minimal_container_backend.py` — Infrastructure / execution
+- `tiannara/infrastructure/config/__init__.py` — Infrastructure / execution
+- `tiannara/infrastructure/config/settings.py` — Infrastructure / execution
+- `tiannara/infrastructure/evolution/__init__.py` — Infrastructure / execution
+- `tiannara/infrastructure/evolution/baseline_evolution_engine.py` — Infrastructure / execution
+- `tiannara/infrastructure/git/__init__.py` — Infrastructure / execution
+- `tiannara/infrastructure/git/github_publisher.py` — Infrastructure / execution
+- `tiannara/infrastructure/intelligence/__init__.py` — Infrastructure / execution
+- `tiannara/infrastructure/intelligence/local_model_provider.py` — Infrastructure / execution
+- `tiannara/infrastructure/intelligence/local_topology.py` — Infrastructure / execution
+- `tiannara/infrastructure/intent/__init__.py` — Infrastructure / execution
+- `tiannara/infrastructure/intent/structured_intent_compiler.py` — Infrastructure / execution
+- `tiannara/infrastructure/ledger/__init__.py` — Infrastructure / execution
+- `tiannara/infrastructure/ledger/jsonl_evidence_ledger.py` — Infrastructure / execution
+- `tiannara/infrastructure/llm/__init__.py` — Infrastructure / execution
+- `tiannara/infrastructure/llm/recorded_provider.py` — Infrastructure / execution
+- `tiannara/infrastructure/llm/recording_provider.py` — Infrastructure / execution
+- `tiannara/infrastructure/llm/transcript.py` — Infrastructure / execution
+- `tiannara/infrastructure/publishers/__init__.py` — Infrastructure / execution
+- `tiannara/infrastructure/publishers/local_publisher.py` — Infrastructure / execution
+- `tiannara/infrastructure/sandbox/__init__.py` — Infrastructure / execution
+- `tiannara/infrastructure/sandbox/docker_environment.py` — Infrastructure / execution
+- `tiannara/infrastructure/sandbox/local_environment.py` — Infrastructure / execution
+- `tiannara/infrastructure/source_control/in_memory.py` — Infrastructure / execution
+- `tiannara/infrastructure/source_control/local_git.py` — Infrastructure / execution
+- `tiannara/interfaces/__init__.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/interfaces/cli/__init__.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/interfaces/cli/main.py` — Tiannara application; owner requires module-level confirmation
+- `tiannara/manifest.example.yaml` — Tiannara application; owner requires module-level confirmation
+
+### `compiler/` — 57 files
+- `compiler/__init__.py` — Compiler / orchestration
+- `compiler/api.py` — Compiler / orchestration
+- `compiler/backends/__init__.py` — Compiler backend / plugin
+- `compiler/backends/_naming.py` — Compiler backend / plugin
+- `compiler/backends/android.py` — Compiler backend / plugin
+- `compiler/backends/production/__init__.py` — Compiler backend / plugin
+- `compiler/backends/production/cicd_backend.py` — Compiler backend / plugin
+- `compiler/backends/production/docker_backend.py` — Compiler backend / plugin
+- `compiler/backends/production/fastapi_backend.py` — Compiler backend / plugin
+- `compiler/backends/production/isr_helpers.py` — Compiler backend / plugin
+- `compiler/backends/production/openapi_backend.py` — Compiler backend / plugin
+- `compiler/backends/production/postgres_backend.py` — Compiler backend / plugin
+- `compiler/backends/production/register.py` — Compiler backend / plugin
+- `compiler/backends/python_fastapi.py` — Compiler backend / plugin
+- `compiler/backends/react_frontend.py` — Compiler backend / plugin
+- `compiler/backends/reference_backend.py` — Compiler backend / plugin
+- `compiler/backends/rust_axum.py` — Compiler backend / plugin
+- `compiler/composition.py` — Compiler / orchestration
+- `compiler/core/__init__.py` — Compiler core / IR and protocol
+- `compiler/core/authorization.py` — Compiler core / IR and protocol
+- `compiler/core/behavior_oracle.py` — Compiler core / IR and protocol
+- `compiler/core/capabilities.py` — Compiler core / IR and protocol
+- `compiler/core/clickhouse_telemetry.py` — Compiler core / IR and protocol
+- `compiler/core/code_quality.py` — Compiler core / IR and protocol
+- `compiler/core/conformance.py` — Compiler core / IR and protocol
+- `compiler/core/declared_api.py` — Compiler core / IR and protocol
+- `compiler/core/effect_verification.py` — Compiler core / IR and protocol
+- `compiler/core/ledger.py` — Compiler core / IR and protocol
+- `compiler/core/lowering.py` — Compiler core / IR and protocol
+- `compiler/core/plan.py` — Compiler core / IR and protocol
+- `compiler/core/protocol.py` — Compiler core / IR and protocol
+- `compiler/core/registry.py` — Compiler core / IR and protocol
+- `compiler/core/repository.py` — Compiler core / IR and protocol
+- `compiler/errors.py` — Compiler / orchestration
+- `compiler/governance/__init__.py` — Compiler / orchestration
+- `compiler/governance/audit.py` — Compiler / orchestration
+- `compiler/governance/client.py` — Compiler / orchestration
+- `compiler/governance/compiler.py` — Compiler / orchestration
+- `compiler/governance/enforcer.py` — Compiler / orchestration
+- `compiler/governance/models.py` — Compiler / orchestration
+- `compiler/governance/routes.py` — Compiler / orchestration
+- `compiler/ids.py` — Compiler / orchestration
+- `compiler/kernel.py` — Compiler / orchestration
+- `compiler/models.py` — Compiler / orchestration
+- `compiler/optimization.py` — Compiler / orchestration
+- `compiler/packaging.py` — Compiler / orchestration
+- `compiler/registry.py` — Compiler / orchestration
+- `compiler/sdk/__init__.py` — Compiler / orchestration
+- `compiler/sdk/artifacts.py` — Compiler / orchestration
+- `compiler/sdk/base.py` — Compiler / orchestration
+- `compiler/sdk/capabilities.py` — Compiler / orchestration
+- `compiler/sdk/certification.py` — Compiler / orchestration
+- `compiler/sdk/context.py` — Compiler / orchestration
+- `compiler/sdk/models.py` — Compiler / orchestration
+- `compiler/sdk/routes.py` — Compiler / orchestration
+- `compiler/sdk/testing.py` — Compiler / orchestration
+- `compiler/validation.py` — Compiler / orchestration
+
+### `constitutional_architecture/` — 564 files
+- `constitutional_architecture/CORE_CONSTITUTION.md` — Constitutional architecture / governance
+- `constitutional_architecture/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/ckb/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/ckb/knowledge_base.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/artifacts/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/artifacts/artifact_model.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/backends/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/backends/backend_interface.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/backends/backend_registry.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/backends/backend_selector.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/backends/fastapi_backend.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/bir/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/bir/model.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/cache/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/cache/compilation_cache.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/capability.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/compilation_config.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/compiler_context.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/compiler_result.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/contract.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/intent_entrypoint.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/observability/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/observability/compiler_events.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/observability/compiler_metrics.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/pass_interface.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/pass_manager.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/pass_registry.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/passes/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/passes/capability_resolution_pass.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/passes/code_generation_pass.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/passes/cross_target_pass.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/passes/lowering_pass.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/passes/normalization_pass.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/passes/optimization_pass.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/passes/validation_pass.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/passes/verification_pass.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/pipeline.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/quality/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/quality/diagnostics.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/quality/optimization_engine.py` — Constitutional architecture / governance
+- `constitutional_architecture/compiler/source_binding.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/backend/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/backend/base.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/backend/fastapi/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/backend/fastapi/compiler.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/database/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/database/base.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/database/postgres/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/database/postgres/compiler.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/deployment/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/deployment/base.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/deployment/cicd/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/deployment/cicd/compiler.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/documentation/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/documentation/base.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/documentation/markdown/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/documentation/markdown/compiler.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/frontend/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/frontend/base.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/frontend/react/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/frontend/react/compiler.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/infrastructure/__init__.py` — Infrastructure / execution
+- `constitutional_architecture/compilers/infrastructure/adapters.py` — Infrastructure / execution
+- `constitutional_architecture/compilers/infrastructure/base.py` — Infrastructure / execution
+- `constitutional_architecture/compilers/infrastructure/terraform/__init__.py` — Infrastructure / execution
+- `constitutional_architecture/compilers/infrastructure/terraform/compiler.py` — Infrastructure / execution
+- `constitutional_architecture/compilers/operational/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/operational/base.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/operational/intelligence/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/operational/intelligence/compiler.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/runtime_policy/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/runtime_policy/compiler.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/testing/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/testing/base.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/testing/pytest/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/compilers/testing/pytest/compiler.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/agents/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/agents/base.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/agents/specialized.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/build/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/build/dag.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/build/provenance.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/ckb/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/ckb/archetype_registry.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/ckb/heuristics.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/ckb/patterns.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/constitution.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/contracts/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/contracts/compiler.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/evolution/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/evolution/fitness.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/evolution/operators.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/evolution/pareto.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/governance.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/hil/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/hil/capabilities.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/hil/policy_engine.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/hil/uipm.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/kernels/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/kernels/engineering/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/kernels/engineering/uem.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/kernels/evolution/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/kernels/evolution/simulator.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/kernels/governance/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/kernels/governance/agents.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/kernels/learning/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/kernels/learning/ckb.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/kernels/runtime/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/kernels/runtime/experimentation.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/learning/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/learning/ckb_updater.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/learning/empirical_fitness.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/learning/engine.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/learning/fitness_update.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/learning/models.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/learning/telemetry_ingestor.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/macro_evolution/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/macro_evolution/fleet_analyzer.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/macro_evolution/synthesizer.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/models/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/models/bundle.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/models/genome.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/models/intent.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/models/isr.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/models/requirements_graph.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/models/universal_isr.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/orchestrator/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/orchestrator/composite_orchestrator.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/orchestrator/negotiation.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/orchestrator/provenance_orchestrator.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/pipeline/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/pipeline/intent_analyzer.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/pipeline/isr_transpiler.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/pipeline/topology_resolver.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/registry/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/core/registry/compiler_registry.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/deployment_context.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/deployment_engine.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/deployment_events.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/deployment_metrics.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/deployment_pipeline.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/deployment_registry.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/deployment_result.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/environment_manager.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/health/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/health/health_monitor.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/rollout/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/rollout/promotion_manager.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/rollout/rollback_manager.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/rollout/rollout_manager.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/stages/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/stages/build_stage.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/stages/container_stage.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/stages/deploy_stage.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/stages/health_stage.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/stages/infrastructure_stage.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/stages/package_stage.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/stages/provision_stage.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/stages/stage_interface.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/targets/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/targets/docker_target.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/targets/kubernetes_target.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/targets/local_target.py` — Constitutional architecture / governance
+- `constitutional_architecture/deployment/targets/target_interface.py` — Constitutional architecture / governance
+- `constitutional_architecture/eir/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/eir/transformation.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/adapters/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/adapters/eir_applier.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/adapters/evolution_loop.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/adapters/graph_to_isr.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/adapters/isr_to_graph.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/adaptive_mutation.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/bridges/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/bridges/autonomous_pipeline.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/bridges/compiler_bridge.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/bridges/fitness_bridge.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/bridges/topology_bridge.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/bridges/verification_bridge.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/compiler_bridge.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/config.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/convergence_detector.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/crossover_engine.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/diversity_manager.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/elite_manager.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/evolution_engine.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/evolution_events.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/evolution_loop.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/evolution_memory.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/evolution_metrics.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/evolution_scheduler.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/fitness.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/individual.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/isr_adapter.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/lineage_tracker.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/mutation_engine.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/mutation_operators.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/mutation_planner.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/mutation_registry.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/mutation_validator.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/mutations/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/mutations/add_cache.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/mutations/base.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/mutations/extract_interface.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/mutations/introduce_event_bus.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/mutations/merge_services.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/mutations/registry.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/mutations/replace_auth_strategy.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/mutations/split_module.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/novelty_search.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/pareto_optimizer.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/passes/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/passes/intent_analysis_pass.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/passes/intent_validation_pass.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/plugins.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/population_manager.py` — Constitutional architecture / governance
+- `constitutional_architecture/engine/verification_bridge.py` — Constitutional architecture / governance
+- `constitutional_architecture/frontend/hil/ESAP-HIL-ARCH-001.html` — Constitutional architecture / governance
+- `constitutional_architecture/frontend/hil/phase16_hil_prototype.html` — Constitutional architecture / governance
+- `constitutional_architecture/generated/Dockerfile` — Constitutional architecture / governance
+- `constitutional_architecture/generated/monolithshop/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/generated/monolithshop/api/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/generated/monolithshop/application/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/generated/monolithshop/application/monolith_service.py` — Constitutional architecture / governance
+- `constitutional_architecture/generated/monolithshop/config.py` — Constitutional architecture / governance
+- `constitutional_architecture/generated/monolithshop/domain/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/generated/monolithshop/infrastructure/__init__.py` — Infrastructure / execution
+- `constitutional_architecture/generated/monolithshop/infrastructure/database.py` — Infrastructure / execution
+- `constitutional_architecture/generated/monolithshop/main.py` — Constitutional architecture / governance
+- `constitutional_architecture/generated/monolithshop/tests/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/generated/monolithshop/tests/test_api.py` — Constitutional architecture / governance
+- `constitutional_architecture/generated/requirements.txt` — Constitutional architecture / governance
+- `constitutional_architecture/governance/README.md` — Constitutional architecture / governance
+- `constitutional_architecture/governance/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/api/openapi.yaml` — Constitutional architecture / governance
+- `constitutional_architecture/governance/approval_workflow.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/audit.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/compliance.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/constitution.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/constitutional_authorization.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/app.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/auth.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/client.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/config.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/console.html` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/docs/dashboard_architecture.md` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/docs/dashboard_operator_guide.md` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/docs/dashboard_security.md` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/errors.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/render_console.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/service.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/static/app.js` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/static/styles.css` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/templates/approvals/detail.html` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/templates/approvals/queue.html` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/templates/audit/event_detail.html` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/templates/audit/integrity.html` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/templates/audit/list.html` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/templates/base.html` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/templates/constitutions/detail.html` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/templates/constitutions/list.html` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/templates/errors/forbidden.html` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/templates/errors/notfound.html` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/templates/errors/unauthorized.html` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/templates/errors/unavailable.html` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/templates/evaluations/detail.html` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/templates/evaluations/list.html` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/templates/evaluations/reconstruction.html` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/templates/exceptions/detail.html` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/templates/exceptions/list.html` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/templates/health/summary.html` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/templates/index.html` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/templates/lineage/artifact_detail.html` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/templates/lineage/explorer.html` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/templates/login.html` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/templates/policy_sets/detail.html` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/templates/policy_sets/list.html` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/tests/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/tests/conftest.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/tests/test_dashboard_approvals.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/tests/test_dashboard_audit_integrity.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/tests/test_dashboard_auth.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/tests/test_dashboard_exceptions.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/tests/test_dashboard_lineage.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/tests/test_dashboard_views.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/dashboard/view_models.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/default_policies.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/docs/phase28_28_1_verification_note.md` — Constitutional architecture / governance
+- `constitutional_architecture/governance/docs/phase28_baseline_exclusions.md` — Constitutional architecture / governance
+- `constitutional_architecture/governance/docs/phase28_completion_report.md` — Constitutional architecture / governance
+- `constitutional_architecture/governance/docs/phase28_governance_kernel_spec_v0.1.md` — Constitutional architecture / governance
+- `constitutional_architecture/governance/evidence_signing.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/exception_manager.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/exceptions.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/governance_dashboard.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/governance_design_fitness.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/governance_fitness.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/governance_genes.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/integration.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/kernel.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/lineage.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/pep/README.md` — Constitutional architecture / governance
+- `constitutional_architecture/governance/pep/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/pep/client.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/pep/context.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/pep/decorators.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/pep/enforcement.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/pep/errors.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/pep/evolution_guard.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/policy_compiler.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/schemas.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/testing.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/versioning.py` — Constitutional architecture / governance
+- `constitutional_architecture/governance/voting.py` — Constitutional architecture / governance
+- `constitutional_architecture/irr/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/irr/schema.py` — Constitutional architecture / governance
+- `constitutional_architecture/isr/__init__.py` — ISR / semantic source
+- `constitutional_architecture/isr/completeness/__init__.py` — ISR / semantic source
+- `constitutional_architecture/isr/completeness/checker.py` — ISR / semantic source
+- `constitutional_architecture/isr/completeness/levels.py` — ISR / semantic source
+- `constitutional_architecture/isr/diff/__init__.py` — ISR / semantic source
+- `constitutional_architecture/isr/diff/semantic_diff.py` — ISR / semantic source
+- `constitutional_architecture/isr/diff/structural_diff.py` — ISR / semantic source
+- `constitutional_architecture/isr/eir/__init__.py` — ISR / semantic source
+- `constitutional_architecture/isr/eir/model.py` — ISR / semantic source
+- `constitutional_architecture/isr/eir/taxonomy.py` — ISR / semantic source
+- `constitutional_architecture/isr/eir/transformation.py` — ISR / semantic source
+- `constitutional_architecture/isr/graph/__init__.py` — ISR / semantic source
+- `constitutional_architecture/isr/graph/operations.py` — ISR / semantic source
+- `constitutional_architecture/isr/graph/queries.py` — ISR / semantic source
+- `constitutional_architecture/isr/graph/traversal.py` — ISR / semantic source
+- `constitutional_architecture/isr/graph/typed_graph.py` — ISR / semantic source
+- `constitutional_architecture/isr/irr/__init__.py` — ISR / semantic source
+- `constitutional_architecture/isr/irr/extraction.py` — ISR / semantic source
+- `constitutional_architecture/isr/irr/graph.py` — ISR / semantic source
+- `constitutional_architecture/isr/irr/model.py` — ISR / semantic source
+- `constitutional_architecture/isr/irr/requirement.py` — ISR / semantic source
+- `constitutional_architecture/isr/isr_graph.py` — ISR / semantic source
+- `constitutional_architecture/isr/legacy_model.py` — ISR / semantic source
+- `constitutional_architecture/isr/metrics/__init__.py` — ISR / semantic source
+- `constitutional_architecture/isr/metrics/cohesion.py` — ISR / semantic source
+- `constitutional_architecture/isr/metrics/complexity.py` — ISR / semantic source
+- `constitutional_architecture/isr/metrics/coupling.py` — ISR / semantic source
+- `constitutional_architecture/isr/metrics/static_fitness.py` — ISR / semantic source
+- `constitutional_architecture/isr/model/__init__.py` — ISR / semantic source
+- `constitutional_architecture/isr/model/api_contract.py` — ISR / semantic source
+- `constitutional_architecture/isr/model/component.py` — ISR / semantic source
+- `constitutional_architecture/isr/model/constraints.py` — ISR / semantic source
+- `constitutional_architecture/isr/model/deployment.py` — ISR / semantic source
+- `constitutional_architecture/isr/model/edges.py` — ISR / semantic source
+- `constitutional_architecture/isr/model/entity.py` — ISR / semantic source
+- `constitutional_architecture/isr/model/event.py` — ISR / semantic source
+- `constitutional_architecture/isr/model/fields.py` — ISR / semantic source
+- `constitutional_architecture/isr/model/interface.py` — ISR / semantic source
+- `constitutional_architecture/isr/model/isr.py` — ISR / semantic source
+- `constitutional_architecture/isr/model/module.py` — ISR / semantic source
+- `constitutional_architecture/isr/model/nodes.py` — ISR / semantic source
+- `constitutional_architecture/isr/model/policy.py` — ISR / semantic source
+- `constitutional_architecture/isr/model/service.py` — ISR / semantic source
+- `constitutional_architecture/isr/model/system.py` — ISR / semantic source
+- `constitutional_architecture/isr/model/workflow.py` — ISR / semantic source
+- `constitutional_architecture/isr/profiles/__init__.py` — ISR / semantic source
+- `constitutional_architecture/isr/profiles/frontend_edges.py` — ISR / semantic source
+- `constitutional_architecture/isr/profiles/frontend_model.py` — ISR / semantic source
+- `constitutional_architecture/isr/profiles/frontend_nodes.py` — ISR / semantic source
+- `constitutional_architecture/isr/profiles/frontend_schema.json` — ISR / semantic source
+- `constitutional_architecture/isr/profiles/frontend_transformer.py` — ISR / semantic source
+- `constitutional_architecture/isr/profiles/frontend_validator.py` — ISR / semantic source
+- `constitutional_architecture/isr/semantics/__init__.py` — ISR / semantic source
+- `constitutional_architecture/isr/semantics/application_identity.py` — ISR / semantic source
+- `constitutional_architecture/isr/semantics/boundary.py` — ISR / semantic source
+- `constitutional_architecture/isr/semantics/capability.py` — ISR / semantic source
+- `constitutional_architecture/isr/semantics/decision.py` — ISR / semantic source
+- `constitutional_architecture/isr/semantics/deployment.py` — ISR / semantic source
+- `constitutional_architecture/isr/semantics/documentation.py` — ISR / semantic source
+- `constitutional_architecture/isr/semantics/evolution_policy.py` — ISR / semantic source
+- `constitutional_architecture/isr/semantics/intent_architecture.py` — ISR / semantic source
+- `constitutional_architecture/isr/semantics/intent_projection.py` — ISR / semantic source
+- `constitutional_architecture/isr/semantics/migration.py` — ISR / semantic source
+- `constitutional_architecture/isr/semantics/policy_postures.py` — ISR / semantic source
+- `constitutional_architecture/isr/semantics/projection.py` — ISR / semantic source
+- `constitutional_architecture/isr/semantics/reliability.py` — ISR / semantic source
+- `constitutional_architecture/isr/semantics/requirement.py` — ISR / semantic source
+- `constitutional_architecture/isr/semantics/security_posture.py` — ISR / semantic source
+- `constitutional_architecture/isr/semantics/temporal.py` — ISR / semantic source
+- `constitutional_architecture/isr/semantics/testing_anchor.py` — ISR / semantic source
+- `constitutional_architecture/isr/semantics/threat.py` — ISR / semantic source
+- `constitutional_architecture/isr/serialization/__init__.py` — ISR / semantic source
+- `constitutional_architecture/isr/serialization/deserializer.py` — ISR / semantic source
+- `constitutional_architecture/isr/serialization/schema.py` — ISR / semantic source
+- `constitutional_architecture/isr/serialization/serializer.py` — ISR / semantic source
+- `constitutional_architecture/isr/types/__init__.py` — ISR / semantic source
+- `constitutional_architecture/isr/types/type_checker.py` — ISR / semantic source
+- `constitutional_architecture/isr/types/type_rules.py` — ISR / semantic source
+- `constitutional_architecture/isr/types/type_system.py` — ISR / semantic source
+- `constitutional_architecture/isr/validation/__init__.py` — ISR / semantic source
+- `constitutional_architecture/isr/validation/diagnostics.py` — ISR / semantic source
+- `constitutional_architecture/isr/validation/invariants.py` — ISR / semantic source
+- `constitutional_architecture/isr/validation/rules.py` — ISR / semantic source
+- `constitutional_architecture/isr/validation/validator.py` — ISR / semantic source
+- `constitutional_architecture/isr/versioning/__init__.py` — ISR / semantic source
+- `constitutional_architecture/isr/versioning/hash.py` — ISR / semantic source
+- `constitutional_architecture/isr/versioning/lineage.py` — ISR / semantic source
+- `constitutional_architecture/isr/versioning/snapshot.py` — ISR / semantic source
+- `constitutional_architecture/isr/versioning/version.py` — ISR / semantic source
+- `constitutional_architecture/isr/views/__init__.py` — ISR / semantic source
+- `constitutional_architecture/isr/views/api.py` — ISR / semantic source
+- `constitutional_architecture/isr/views/data.py` — ISR / semantic source
+- `constitutional_architecture/isr/views/deployment.py` — ISR / semantic source
+- `constitutional_architecture/isr/views/evolution.py` — ISR / semantic source
+- `constitutional_architecture/isr/views/security.py` — ISR / semantic source
+- `constitutional_architecture/isr/views/structural.py` — ISR / semantic source
+- `constitutional_architecture/isr/views/workflow.py` — ISR / semantic source
+- `constitutional_architecture/knowledge/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/knowledge/anti_pattern_repository.py` — Constitutional architecture / governance
+- `constitutional_architecture/knowledge/base.py` — Constitutional architecture / governance
+- `constitutional_architecture/knowledge/compatibility_repository.py` — Constitutional architecture / governance
+- `constitutional_architecture/knowledge/events.py` — Constitutional architecture / governance
+- `constitutional_architecture/knowledge/fitness_repository.py` — Constitutional architecture / governance
+- `constitutional_architecture/knowledge/knowledge_engine.py` — Constitutional architecture / governance
+- `constitutional_architecture/knowledge/knowledge_graph.py` — Constitutional architecture / governance
+- `constitutional_architecture/knowledge/knowledge_types.py` — Constitutional architecture / governance
+- `constitutional_architecture/knowledge/metrics.py` — Constitutional architecture / governance
+- `constitutional_architecture/knowledge/mutation_repository.py` — Constitutional architecture / governance
+- `constitutional_architecture/knowledge/pattern_repository.py` — Constitutional architecture / governance
+- `constitutional_architecture/knowledge/persistence.py` — Constitutional architecture / governance
+- `constitutional_architecture/knowledge/reasoning_engine.py` — Constitutional architecture / governance
+- `constitutional_architecture/knowledge/recommendation_engine.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/agent_optimizer.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/benchmarking_engine.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/compiler_optimizer.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/events.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/genome/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/genome/chromosomes.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/genome/compilers/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/genome/compilers/i_frontend_compiler.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/genome/components/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/genome/components/component_api_mutator.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/genome/evaluators/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/genome/evaluators/concrete_evaluators.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/genome/evaluators/i_fitness_evaluator.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/genome/evolution/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/genome/evolution/pareto_coordinator.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/genome/factory.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/genome/genes.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/genome/knowledge_graph/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/genome/knowledge_graph/graph_data.json` — Constitutional architecture / governance
+- `constitutional_architecture/meta/genome/knowledge_graph/iknowledge_graph.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/genome/knowledge_graph/in_memory_graph.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/genome/lethality.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/genome/memory/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/genome/memory/constitutional_memory.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/genome/operators.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/genome/seeder/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/genome/seeder/heuristic_injector.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/genome/transcriber.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/genome/visual_intel/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/genome/visual_intel/headless_analyzer.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/knowledge_optimizer.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/meta_evolution_engine.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/platform_fitness.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/platform_genome.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/platform_lineage.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/platform_mutation.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/safety_gate.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/sandbox_evaluator.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/scheduler_optimizer.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/strategy_optimizer.py` — Constitutional architecture / governance
+- `constitutional_architecture/meta/verification_optimizer.py` — Constitutional architecture / governance
+- `constitutional_architecture/operations/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/operations/anomaly_detector.py` — Constitutional architecture / governance
+- `constitutional_architecture/operations/classification.py` — Constitutional architecture / governance
+- `constitutional_architecture/operations/cost_analyzer.py` — Constitutional architecture / governance
+- `constitutional_architecture/operations/drift_detector.py` — Constitutional architecture / governance
+- `constitutional_architecture/operations/events.py` — Constitutional architecture / governance
+- `constitutional_architecture/operations/fitness_feedback.py` — Constitutional architecture / governance
+- `constitutional_architecture/operations/incident_engine.py` — Constitutional architecture / governance
+- `constitutional_architecture/operations/log_analyzer.py` — Constitutional architecture / governance
+- `constitutional_architecture/operations/metrics_collector.py` — Constitutional architecture / governance
+- `constitutional_architecture/operations/observation_model.py` — Constitutional architecture / governance
+- `constitutional_architecture/operations/operational_memory.py` — Constitutional architecture / governance
+- `constitutional_architecture/operations/recommendation_engine.py` — Constitutional architecture / governance
+- `constitutional_architecture/operations/reliability_analyzer.py` — Constitutional architecture / governance
+- `constitutional_architecture/operations/telemetry_engine.py` — Constitutional architecture / governance
+- `constitutional_architecture/operations/tracing_engine.py` — Constitutional architecture / governance
+- `constitutional_architecture/pyproject.toml` — Constitutional architecture / governance
+- `constitutional_architecture/serialization/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/serialization/parser.py` — Constitutional architecture / governance
+- `constitutional_architecture/serialization/serializer.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/test_benchmarking_engine.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/test_completeness.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/test_constitutional_boundary.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/test_deployment_constitutional_boundary.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/test_deployment_engine.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/test_e2e_all_phases.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/test_end_to_end.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/test_evolution_engine.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/test_fitness.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/test_frontend_profile.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/test_genome.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/test_governance_dashboard.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/test_governance_kernel.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/test_governance_pep.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/test_hil_projection.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/test_meta_evolution_engine.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/test_model.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/test_pareto.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/test_phase_0.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/test_phases_4_to_12.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/test_platform_genome.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/test_platform_mutation.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/test_safety_gate.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/test_sandbox_evaluator.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/test_serialization.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/test_type_system.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/test_validation.py` — Constitutional architecture / governance
+- `constitutional_architecture/tests/test_verification_engine.py` — Constitutional architecture / governance
+- `constitutional_architecture/validation/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/validation/checker.py` — Constitutional architecture / governance
+- `constitutional_architecture/validators/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/validators/constitution_validator.py` — Constitutional architecture / governance
+- `constitutional_architecture/validators/genome_validator.py` — Constitutional architecture / governance
+- `constitutional_architecture/validators/intent_validator.py` — Constitutional architecture / governance
+- `constitutional_architecture/validators/isr_graph_validator.py` — Constitutional architecture / governance
+- `constitutional_architecture/validators/run_precommit.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/repair/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/repair/repair_planner.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/repair/repair_validator.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/testgen/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/testgen/test_generator.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/testgen/test_runner.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/verification_context.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/verification_engine.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/verification_events.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/verification_metrics.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/verification_pipeline.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/verification_registry.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/verification_report.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/verification_result.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/verifiers/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/verifiers/architecture_verifier.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/verifiers/compliance_verifier.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/verifiers/contract_verifier.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/verifiers/dependency_verifier.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/verifiers/deployment_verifier.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/verifiers/interface_verifier.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/verifiers/observability_verifier.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/verifiers/performance_verifier.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/verifiers/policy_verifier.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/verifiers/runtime_verifier.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/verifiers/scalability_verifier.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/verifiers/security_verifier.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/verifiers/static_verifier.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/verifiers/verifier_interface.py` — Constitutional architecture / governance
+- `constitutional_architecture/verification/verifiers/workflow_verifier.py` — Constitutional architecture / governance
+- `constitutional_architecture/versioning/__init__.py` — Constitutional architecture / governance
+- `constitutional_architecture/versioning/version.py` — Constitutional architecture / governance
+
+### `certification/` — 61 files
+- `certification/__init__.py` — Certification / governance / campaign
+- `certification/authorization/__init__.py` — Certification / governance / campaign
+- `certification/authorization/campaign.py` — Certification / governance / campaign
+- `certification/authorization/candidate.py` — Certification / governance / campaign
+- `certification/authorization/corpus.py` — Certification / governance / campaign
+- `certification/authorization/runtime.py` — Certification / governance / campaign
+- `certification/authorization/verifier.py` — Certification / governance / campaign
+- `certification/authorization/workload_declared_api.py` — Certification / governance / campaign
+- `certification/authorization/workload_inventory.py` — Certification / governance / campaign
+- `certification/authorization/workload_kit.py` — Certification / governance / campaign
+- `certification/authorization/workload_orders.py` — Certification / governance / campaign
+- `certification/authorization/workload_payroll.py` — Certification / governance / campaign
+- `certification/authorization/workload_shipments.py` — Certification / governance / campaign
+- `certification/authorization/workloads.py` — Certification / governance / campaign
+- `certification/campaign/ANDROID_CLOUD_BUILD.md` — Certification / governance / campaign
+- `certification/campaign/__init__.py` — Certification / governance / campaign
+- `certification/campaign/amplification.py` — Certification / governance / campaign
+- `certification/campaign/android_source_binding_manifest.schema.json` — Certification / governance / campaign
+- `certification/campaign/android_structural_runner.py` — Certification / governance / campaign
+- `certification/campaign/campaign_a.py` — Certification / governance / campaign
+- `certification/campaign/campaign_b.py` — Certification / governance / campaign
+- `certification/campaign/decision.py` — Certification / governance / campaign
+- `certification/campaign/plan_builder.py` — Certification / governance / campaign
+- `certification/campaign/preflight.py` — Certification / governance / campaign
+- `certification/campaign/runner.py` — Certification / governance / campaign
+- `certification/campaign/verdict.py` — Certification / governance / campaign
+- `certification/campaign/verify_campaign.py` — Verification / certification
+- `certification/campaign/waves.py` — Certification / governance / campaign
+- `certification/contracts/PHASE31_4_5_ISOLATION_INVESTIGATION.md` — Certification / governance / campaign
+- `certification/contracts/PHASE31_EXECUTION_CONTRACT.md` — Certification / governance / campaign
+- `certification/core/__init__.py` — Certification / governance / campaign
+- `certification/core/metrics.py` — Certification / governance / campaign
+- `certification/core/trial.py` — Certification / governance / campaign
+- `certification/corpus/__init__.py` — Certification / governance / campaign
+- `certification/corpus/corpus.py` — Certification / governance / campaign
+- `certification/corpus/stratified_corpus.py` — Certification / governance / campaign
+- `certification/evidence/__init__.py` — Certification / evidence
+- `certification/evidence/infra_storm.py` — Certification / evidence
+- `certification/evidence/ledger.py` — Certification / evidence
+- `certification/feedback/__init__.py` — Certification / governance / campaign
+- `certification/feedback/candidate.py` — Certification / governance / campaign
+- `certification/feedback/execution.py` — Certification / governance / campaign
+- `certification/feedback/policy.py` — Certification / governance / campaign
+- `certification/feedback/repair.py` — Certification / governance / campaign
+- `certification/feedback/rule.py` — Certification / governance / campaign
+- `certification/governance/escalation_policy.py` — Certification / governance / campaign
+- `certification/governance/registry.py` — Certification / governance / campaign
+- `certification/payroll/README.md` — Certification / governance / campaign
+- `certification/payroll/__init__.py` — Certification / governance / campaign
+- `certification/payroll/certifier.py` — Certification / governance / campaign
+- `certification/payroll/readiness.py` — Certification / governance / campaign
+- `certification/provenance/__init__.py` — Certification / evidence
+- `certification/provenance/bundle.py` — Certification / evidence
+- `certification/remediation/__init__.py` — Certification / governance / campaign
+- `certification/remediation/register.py` — Certification / governance / campaign
+- `certification/stages/__init__.py` — Verification / certification
+- `certification/stages/docker_stages.py` — Verification / certification
+- `certification/stages/execution_mode.py` — Verification / certification
+- `certification/stages/independent_verify.py` — Verification / certification
+- `certification/stages/protocols.py` — Verification / certification
+- `certification/stages/stub_stages.py` — Verification / certification
+
+### `learning/` — 48 files
+- `learning/__init__.py` — Learning / knowledge
+- `learning/analytics/__init__.py` — Learning / knowledge
+- `learning/analytics/api.py` — Learning / knowledge
+- `learning/analytics/baseline.py` — Learning / knowledge
+- `learning/analytics/correlation.py` — Learning / knowledge
+- `learning/analytics/detection.py` — Learning / knowledge
+- `learning/analytics/engine.py` — Learning / knowledge
+- `learning/analytics/models.py` — Learning / knowledge
+- `learning/analyzers.py` — Learning / knowledge
+- `learning/api.py` — Learning / knowledge
+- `learning/certification/__init__.py` — Learning / knowledge
+- `learning/certification/api.py` — Learning / knowledge
+- `learning/certification/engine.py` — Learning / knowledge
+- `learning/certification/models.py` — Learning / knowledge
+- `learning/engine.py` — Learning / knowledge
+- `learning/evolution_integration/__init__.py` — Learning / knowledge
+- `learning/evolution_integration/api.py` — Learning / knowledge
+- `learning/evolution_integration/engine.py` — Learning / knowledge
+- `learning/evolution_integration/gateway.py` — Learning / knowledge
+- `learning/evolution_integration/models.py` — Learning / knowledge
+- `learning/feedback_compiler.py` — Learning / knowledge
+- `learning/governance/__init__.py` — Learning / knowledge
+- `learning/governance/api.py` — Learning / knowledge
+- `learning/governance/engine.py` — Learning / knowledge
+- `learning/governance/models.py` — Learning / knowledge
+- `learning/governance/quality.py` — Learning / knowledge
+- `learning/governance/safety.py` — Learning / knowledge
+- `learning/knowledge_sync/__init__.py` — Learning / knowledge
+- `learning/knowledge_sync/api.py` — Learning / knowledge
+- `learning/knowledge_sync/engine.py` — Learning / knowledge
+- `learning/knowledge_sync/mapper.py` — Learning / knowledge
+- `learning/knowledge_sync/models.py` — Learning / knowledge
+- `learning/models.py` — Learning / knowledge
+- `learning/observability/__init__.py` — Learning / knowledge
+- `learning/observability/api.py` — Learning / knowledge
+- `learning/observability/engine.py` — Learning / knowledge
+- `learning/observability/models.py` — Learning / knowledge
+- `learning/pipeline.py` — Learning / knowledge
+- `learning/production_certification/__init__.py` — Learning / knowledge
+- `learning/production_certification/api.py` — Learning / knowledge
+- `learning/production_certification/engine.py` — Learning / knowledge
+- `learning/production_certification/models.py` — Learning / knowledge
+- `learning/recommendations.py` — Learning / knowledge
+- `learning/telemetry/__init__.py` — Learning / knowledge
+- `learning/telemetry/adapters.py` — Learning / knowledge
+- `learning/telemetry/api.py` — Learning / knowledge
+- `learning/telemetry/models.py` — Learning / knowledge
+- `learning/utils.py` — Learning / knowledge
+
+### `knowledge/` — 41 files
+- `knowledge/__init__.py` — Learning / knowledge
+- `knowledge/adapters/__init__.py` — Learning / knowledge
+- `knowledge/adapters/sqlite_plugin.py` — Learning / knowledge
+- `knowledge/adapters/sqlite_stores.py` — Learning / knowledge
+- `knowledge/api.py` — Learning / knowledge
+- `knowledge/audit.py` — Learning / knowledge
+- `knowledge/auth.py` — Learning / knowledge
+- `knowledge/compiler.py` — Learning / knowledge
+- `knowledge/errors.py` — Learning / knowledge
+- `knowledge/governance.py` — Learning / knowledge
+- `knowledge/ids.py` — Learning / knowledge
+- `knowledge/models.py` — Learning / knowledge
+- `knowledge/ontology.py` — Learning / knowledge
+- `knowledge/plugins/__init__.py` — Learning / knowledge
+- `knowledge/plugins/bootstrap.py` — Learning / knowledge
+- `knowledge/plugins/manifest.py` — Learning / knowledge
+- `knowledge/plugins/registry.py` — Learning / knowledge
+- `knowledge/plugins/routes.py` — Learning / knowledge
+- `knowledge/plugins/testing.py` — Learning / knowledge
+- `knowledge/production_app.py` — Learning / knowledge
+- `knowledge/recommendation.py` — Learning / knowledge
+- `knowledge/recommendations/__init__.py` — Learning / knowledge
+- `knowledge/recommendations/conflicts.py` — Learning / knowledge
+- `knowledge/recommendations/dedupe.py` — Learning / knowledge
+- `knowledge/recommendations/engine.py` — Learning / knowledge
+- `knowledge/recommendations/models.py` — Learning / knowledge
+- `knowledge/recommendations/routes.py` — Learning / knowledge
+- `knowledge/recommendations/scoring.py` — Learning / knowledge
+- `knowledge/runtime.py` — Learning / knowledge
+- `knowledge/search.py` — Learning / knowledge
+- `knowledge/store.py` — Learning / knowledge
+- `knowledge/traceability/__init__.py` — Learning / knowledge
+- `knowledge/traceability/engine.py` — Learning / knowledge
+- `knowledge/traceability/models.py` — Learning / knowledge
+- `knowledge/traceability/routes.py` — Learning / knowledge
+- `knowledge/traceability/weights.py` — Learning / knowledge
+- `knowledge/visualization/__init__.py` — Learning / knowledge
+- `knowledge/visualization/export.py` — Learning / knowledge
+- `knowledge/visualization/models.py` — Learning / knowledge
+- `knowledge/visualization/routes.py` — Learning / knowledge
+- `knowledge/visualization/static/graph.html` — Learning / knowledge
+
+### `evolution/` — 59 files
+- `evolution/__init__.py` — Evolution / candidate generation
+- `evolution/analytics.py` — Evolution / candidate generation
+- `evolution/api.py` — Evolution / candidate generation
+- `evolution/campaigns/__init__.py` — Evolution / candidate generation
+- `evolution/campaigns/api.py` — Evolution / candidate generation
+- `evolution/campaigns/engine.py` — Evolution / candidate generation
+- `evolution/campaigns/gateway.py` — Evolution / candidate generation
+- `evolution/campaigns/memory.py` — Evolution / candidate generation
+- `evolution/campaigns/models.py` — Evolution / candidate generation
+- `evolution/campaigns/selection.py` — Evolution / candidate generation
+- `evolution/compiler_fitness.py` — Evolution / candidate generation
+- `evolution/compiler_loop.py` — Evolution / candidate generation
+- `evolution/core/__init__.py` — Evolution / candidate generation
+- `evolution/core/construction.py` — Evolution / candidate generation
+- `evolution/core/engine.py` — Evolution / candidate generation
+- `evolution/core/fitness.py` — Evolution / candidate generation
+- `evolution/core/fitness_evaluator.py` — Evolution / candidate generation
+- `evolution/core/genome.py` — Evolution / candidate generation
+- `evolution/core/governance_design.py` — Evolution / candidate generation
+- `evolution/core/governance_fitness.py` — Evolution / candidate generation
+- `evolution/core/materialize.py` — Evolution / candidate generation
+- `evolution/core/operations.py` — Evolution / candidate generation
+- `evolution/core/refinement.py` — Evolution / candidate generation
+- `evolution/core/selection.py` — Evolution / candidate generation
+- `evolution/engine.py` — Evolution / candidate generation
+- `evolution/errors.py` — Evolution / candidate generation
+- `evolution/feedback.py` — Evolution / candidate generation
+- `evolution/feedback_api.py` — Evolution / candidate generation
+- `evolution/feedback_engine.py` — Evolution / candidate generation
+- `evolution/fitness.py` — Evolution / candidate generation
+- `evolution/genome.py` — Evolution / candidate generation
+- `evolution/genome_mutations.py` — Evolution / candidate generation
+- `evolution/governance.py` — Evolution / candidate generation
+- `evolution/governance_api.py` — Evolution / candidate generation
+- `evolution/governance_fitness_evaluator.py` — Evolution / candidate generation
+- `evolution/governance_safety.py` — Evolution / candidate generation
+- `evolution/history.py` — Evolution / candidate generation
+- `evolution/memory.py` — Evolution / candidate generation
+- `evolution/models.py` — Evolution / candidate generation
+- `evolution/multi.py` — Evolution / candidate generation
+- `evolution/multi_api.py` — Evolution / candidate generation
+- `evolution/multi_generation.py` — Evolution / candidate generation
+- `evolution/multi_generation_api.py` — Evolution / candidate generation
+- `evolution/mutation.py` — Evolution / candidate generation
+- `evolution/observability.py` — Evolution / candidate generation
+- `evolution/observability_api.py` — Evolution / candidate generation
+- `evolution/orchestration.py` — Evolution / candidate generation
+- `evolution/orchestration_api.py` — Evolution / candidate generation
+- `evolution/pareto.py` — Evolution / candidate generation
+- `evolution/population.py` — Evolution / candidate generation
+- `evolution/ports/__init__.py` — Evolution / candidate generation
+- `evolution/ports/feedback.py` — Evolution / candidate generation
+- `evolution/promotion.py` — Evolution / candidate generation
+- `evolution/promotion_audit.py` — Evolution / candidate generation
+- `evolution/recombination.py` — Evolution / candidate generation
+- `evolution/recombination_api.py` — Evolution / candidate generation
+- `evolution/simulation.py` — Evolution / candidate generation
+- `evolution/utils.py` — Evolution / candidate generation
+- `evolution/verification.py` — Evolution / candidate generation
+
+### `autonomous-api/` — 730 files
+- `autonomous-api/.dockerignore` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/.env.example` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/.gitignore` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/BACKEND_OPTIMIZATIONS.md` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/CHECKLIST.md` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/CHECKLIST_COMPLETE.md` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/COMPLETE_TECHNICAL_DOCS.md` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/DEPLOYMENT_GUIDE.md` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/Dockerfile` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/ELITE_QUICKSTART.md` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/FINAL_SUMMARY.md` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/GIT_PUSH_INSTRUCTIONS.md` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/IMPLEMENTATION_COMPLETE.md` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/OPTIONS_CD_COMPLETE.md` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/PRODUCTION_HARDENING.md` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/QUICKSTART.md` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/README.md` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/README_COMPLETE.md` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/WHY_THIS_IS_SPECIAL.md` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/__init__.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/api/__init__.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/api/governance_routes.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/api/maintenance_outbox_routes.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/api/observation_routes.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/api/operator_auth.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/api/routes.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/api/ws.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/architecture_quality_gate.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/config.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/contracts/errors.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/contracts/events.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/contracts/evidence.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/contracts/governance.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/contracts/lineage.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/contracts/observations.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/contracts/provenance.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/crossover.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/error_handler.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/evidence/__init__.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/evidence/commands.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/evidence/events.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/evidence/invariants.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/exceptions.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/governance/__init__.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/governance/audit.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/governance/commands.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/governance/events.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/governance/executive.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/governance/invariants.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/governance/ports.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/ids.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/lineage/__init__.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/lineage/commands.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/lineage/events.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/lineage/invariants.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/lineage/ports.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/logger.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/memory_clear.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/metrics.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/mutation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/population.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/core/runtime_control.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/__init__.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/abort_evidence.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/adaptive.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/admission_verification.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/adversarial_deliberation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/adversarial_review.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/agents/base.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/agents/explorer.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/agents/heuristic.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/agents/optimizer.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/api_contract_bindings.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/api_ir.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/api_ui_contracts.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/architectural_memory.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/architecture_diff.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/architecture_ir.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/architecture_mutation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/architecture_obligations.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/architecture_pareto_evolution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/architecture_quality.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/architecture_quality_gate.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/architecture_selection.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/artifact_changes.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/atomic_evolution_transaction.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/backend_certification.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/backend_compiler.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/backend_contract.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/backend_contracts.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/backend_deep_equivalence.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/backend_equivalence.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/backend_ir.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/backends.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/benchmark.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/blueprint_marketplace.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/bounded_execution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/bucket3_integration.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/builder.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/candidate_comparison.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/candidate_evaluator.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/candidate_measurements.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/candidate_patch.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/candidate_workspaces.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/capability_constitution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/capability_contract.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/capability_domain_resolution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/capability_evidence.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/capability_repair_bridge.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/capability_repair_reexecution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/capability_repair_routing.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/capability_semantics.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/capability_verification.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/causal_differential.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/certified_documentation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/code_repair.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/comparable_repair_selection.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/competing_repair_evaluation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/compiler_graph.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/completion_gate.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/contract_propagation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/contract_synchronization.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/contradiction.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/correction_synthesis.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/counterexample_analysis.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/counterexample_generation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/counterexample_guidance.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/counterfactual_cycle.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/counterfactual_execution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/counterfactual_plan.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/counterfactual_work.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/cross_domain_evolution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/cross_layer_coherence.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/cross_layer_consistency.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/decision_engineering.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/dependency_reexecution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/deployed_app_observation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/deployed_app_workflow.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/design_exploration.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/desktop_build.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/desktop_release.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/desktop_target.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/docker_runner.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/domain_aware_compiler.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/domain_council.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/domain_mutation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/domain_proposals.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/effect_coherence.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/effect_consequences.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/elite_evolution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/engineering_capability.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/engineering_deliberation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/engineering_quality.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/engineering_review.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/evaluator.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/evidence_bounded_learning.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/evidence_fitness.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/evidence_gated_repair_selection.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/evidence_ledger.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/evidence_provenance.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/evidence_scoring.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/evolution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/evolution_domains.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/evolution_history.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/evolution_population.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/evolution_record.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/evolution_selection.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/evolution_transaction.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/evolver_admission.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/evolver_bridge.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/execute_coevolution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/execution_evidence.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/execution_policy.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/executor.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/existing_codebase_audit.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/existing_codebase_closure.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/existing_codebase_workflow.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/exploration_engine.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/express_compiler.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/fastapi_compiler.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/final_closure.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/fitness.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/fitness_adapters.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/flow_ir.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/frontend_certification.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/frontend_contracts.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/frontend_ir.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/frontend_registry.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/full_stack_verification.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/fullstack_architecture_ir.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/fullstack_fitness.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/fullstack_genome.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/fullstack_mutation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/fullstack_population.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/generation_scope.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/generator.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/genome.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/genome_compiler.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/governed_evolution_transaction.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/governed_maintenance_execution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/governed_maintenance_observatory.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/governed_maintenance_outbox.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/governed_maintenance_record.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/governed_pipeline.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/governed_work_routing.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/governed_workspace.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/impact_analysis.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/impact_discovery.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/impact_to_coevolution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/impact_verification_scope.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/implementation_ir.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/implementation_traceability.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/improver.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/invariant_conflicts.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/invariant_contracts.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/invariant_discovery.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/invariant_to_counterexample.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/layered_fastapi_compiler.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/learning_recommendations.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/llm.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/llm_guided_mutation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/macos_generation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/maintenance_outbox_worker.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/materialize_coevolution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/memory.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/migration_planner.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/mode_capability_mutations.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/multi_objective_optimization.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/multi_population.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/multi_target_equivalence.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/mutation_impact.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/natural_language_understanding.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/nfr_architecture.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/openapi_projection.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/pareto_architecture.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/policy_aware_generation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/problem_synthesis.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/production_analyzers.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/production_gate.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/production_readiness.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/project_completion.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/project_consistency.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/project_memory.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/project_scope.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/property_exploration.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/quality_evaluation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/quality_profiles.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/quality_requirements.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/quality_review.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/react_typescript_compiler.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/reasoning/consensus.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/reasoning/contradiction_graph.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/reasoning/orchestrator.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/reasoning/scorer.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/regression_preservation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/rejection_analysis.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/repair_atomic_admission.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/repair_candidate_execution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/repair_candidate_selection.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/repair_closure.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/repair_coevolution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/repair_engine_bridge.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/repair_feedback_loop.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/repair_observatory_stream.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/repair_population.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/repair_reexecution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/repair_report.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/repair_report_observatory.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/repository_audit_gate.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/repository_code_scan.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/repository_impact_analysis.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/repository_root_cause.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/repository_structure_scan.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/requirement_analyzer.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/requirement_architecture_bridge.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/requirement_certification.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/requirement_evidence_certification.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/requirement_implementation_verification_chain.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/requirement_ir.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/requirement_isr.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/requirement_isr_integrity.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/requirement_traceability_gate.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/rich_architecture_ir.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/root_cause_verification.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/schema_ir.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/scope_authorization.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/scope_control.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/scope_discipline.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/scope_verification.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/security.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/selection_quality.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/self_healing.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/source_bound_full_stack.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/specialized_capability_mutations.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/specialized_mutations.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/state_flow_impact.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/state_machine_ir.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/successor_admission.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/synthesis.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/tradeoff_experiments.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/transaction_atomicity.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/transaction_evidence.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/transaction_evidence_chain.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/transaction_isolation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/transaction_recovery.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/transaction_reproducibility.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/transaction_verification.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/trust_boundary.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/truth_gate.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/verification_acceptance.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/verification_artifacts.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/verification_command_planner.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/verification_compiler.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/verification_counterexamples.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/verification_executor.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/verification_failure_repair.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/verification_obligations.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/verification_plan.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/verification_plans.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/verification_repair_loop.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/verification_to_repair.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/work_capability.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/work_mode.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/work_mode_scope_validation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/work_scope.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/work_scope_verification.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/workflow_analysis.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/workflow_execution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/workflow_graph.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/workflow_properties.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/workflow_verification.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/workspace_evidence.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engine/workspace_materialization.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engineering_capability.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engineering_deliberation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/engineering_review.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/evidence/__init__.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/evidence/adapters/__init__.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/evidence/adapters/memory.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/evidence/subsystem.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/governance/__init__.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/governance/adapters/__init__.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/governance/adapters/memory.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/governance/adapters/sqlite.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/governance/aggregate.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/governance/observation_adapter.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/governance/runtime.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/governance/subsystem.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/lineage/__init__.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/lineage/adapters/__init__.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/lineage/adapters/memory.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/lineage/aggregate.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/lineage/observation_adapter.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/lineage/subsystem.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/lineage/wiring.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/main` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/main.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/marketplace/listing.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/marketplace/productization.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/middleware/__init__.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/middleware/error_handler.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/middleware/rate_limit.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/middleware/security.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/models/memory.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/observation/__init__.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/observation/capabilities.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/observation/contracts/work_scope.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/observation/gateway/__init__.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/observation/gateway/dispatcher.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/observation/gateway/heartbeat.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/observation/mutation_authorization_events.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/observation/mutation_execution_events.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/observation/mutation_verification_events.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/observation/projectors/__init__.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/observation/projectors/base.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/observation/projectors/fitness.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/observation/projectors/governance.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/observation/projectors/isr.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/observation/projectors/isr_binding.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/observation/projectors/lineage.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/observation/readmodel/__init__.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/observation/readmodel/reducer.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/observation/sequences/__init__.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/observation/sequences/memory.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/observation/sequences/persisted.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/observation/sequences/schema.sql` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/observation/sequences/sql_binding.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/observation/sequences/store.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/observation/snapshot_aggregator.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/observation/work_scope_events.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/observation/work_scope_lifecycle.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/observation/work_scope_lifecycle_validation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/schemas/__init__.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/schemas/evolution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/schemas/query.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/storage/atomic.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/storage/backup.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/storage/checkpoint.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/storage/cli.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/storage/db.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/storage/lease.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/storage/migrations.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/storage/models.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/tests/e2e/conftest.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/app/tests/e2e/oracle.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/docker-compose.yml` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/evolving-knowledge/pyproject.toml` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/load_test.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/monitoring/prometheus.yml` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/nginx/nginx.conf` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/nginx/ssl/.gitkeep` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/push-to-github.bat` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/pyproject.toml` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/requirements-dev.txt` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/requirements.txt` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/scripts/backup.sh` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/scripts/build_generated_frontend.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/src/autonomous_api/__init__.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/start.bat` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/start.sh` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/test_performance.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/test_production.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/test_system.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/__init__.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/conftest.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/engine/test_backend_contract.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/engine/test_backend_neutral_evolution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/engine/test_backends.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/engine/test_capability_semantics.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/engine/test_evolution_fail_closed.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/engine/test_single_flight_evolution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/integration/docker-compose.yml` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/observation/__init__.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/observation/conftest.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/observation/test_auth_fail_closed.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/observation/test_error_taxonomy.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/observation/test_event_envelope_audit.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/observation/test_evidence_subsystem.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/observation/test_fitness_authoritative_pareto.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/observation/test_governance_audit.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/observation/test_governance_audit_route.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/observation/test_governance_observation_routes.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/observation/test_governance_sqlite.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/observation/test_governance_subsystem.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/observation/test_isr_projector.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/observation/test_lineage_subsystem.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/observation/test_memory_clear.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/observation/test_provenance_integrity.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/observation/test_reducer_equivalence.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/observation/test_replay_exhaustion.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/observation/test_sequence_concurrency.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/observation/test_sequence_concurrency_pg.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/observation/test_sequence_store.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/observation/test_snapshot_data_aggregator.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/storage/test_control_plane_lease.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_a09_governance_invariants.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_a09_governance_persistence.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_a09_governed_promotion.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_a09_operator_auth.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_a09_runtime_kill_switch.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_abort_evidence.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_admission_verification.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_adversarial_deliberation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_adversarial_review.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_api_contract_bindings.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_api_ir.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_api_ui_contracts.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_api_versioning.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_architectural_memory.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_architecture_ir.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_architecture_mutation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_architecture_obligations.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_architecture_pareto_evolution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_architecture_quality.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_architecture_quality_gate.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_architecture_selection.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_artifact_backup_restore.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_artifact_changes.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_atomic_abort_evidence.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_atomic_boundary_integration.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_atomic_evolution_transaction.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_atomic_failure_injection.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_atomic_persistence.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_atomicity_hardening.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_backend_certification.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_backend_compiler.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_backend_contracts.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_backend_deep_equivalence.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_backend_equivalence.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_backend_ir.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_bounded_execution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_bucket3_integration.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_cache_capability.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_candidate_comparison.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_candidate_measurements.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_candidate_patch.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_candidate_workspaces.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_capability_constitution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_capability_contract.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_capability_domain_resolution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_capability_evidence.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_capability_mutation_builder.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_capability_mutation_resolution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_capability_repair_bridge.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_capability_repair_reexecution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_capability_repair_routing.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_capability_verification.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_causal_differential.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_certified_documentation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_circuit_breaker_capability.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_code_repair.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_comparable_repair_selection.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_competing_repair_evaluation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_compiler_graph.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_completion_gate.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_contract_propagation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_contract_synchronization.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_correction_synthesis.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_counterexample_analysis.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_counterexample_generation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_counterexample_guidance.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_counterfactual_execution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_counterfactual_plan.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_counterfactual_work.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_cross_domain_evolution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_cross_layer_coherence.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_cross_layer_consistency.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_decision_engineering.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_dependency_reexecution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_deployed_app_observation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_deployed_app_workflow.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_design_exploration.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_desktop_build.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_desktop_release.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_desktop_target.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_domain_aware_compiler.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_domain_council.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_domain_mutation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_domain_proposals.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_e2e_admission_gate.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_effect_coherence.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_effect_consequences.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_engineering_capability.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_engineering_deliberation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_engineering_quality.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_engineering_review.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_evidence_bounded_learning.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_evidence_fitness.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_evidence_gated_repair_selection.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_evidence_ledger.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_evidence_provenance.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_evidence_scoring.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_evolution_domains.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_evolution_history.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_evolution_lifecycle.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_evolution_operators.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_evolution_population.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_evolution_record.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_evolution_selection.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_evolution_transaction.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_evolver_admission.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_evolver_bridge.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_execute_coevolution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_execution_evidence.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_execution_policy.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_existing_codebase_audit.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_existing_codebase_closure.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_existing_codebase_workflow.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_exploration_engine.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_express_compiler.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_fastapi_compiler.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_final_closure.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_fitness_adapters.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_flow_ir.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_frontend_certification.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_frontend_ir.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_frontend_registry.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_full_stack_verification.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_fullstack_architecture_ir.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_fullstack_fitness.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_fullstack_genome.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_fullstack_mutation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_fullstack_population.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_generation_scope.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_genome_compiler.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_governed_evolution_transaction.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_governed_maintenance_execution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_governed_maintenance_lost_ack_retry.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_governed_maintenance_observatory.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_governed_maintenance_outbox.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_governed_maintenance_record.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_governed_pipeline.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_governed_work_routing.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_governed_workspace.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_impact_analysis.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_impact_discovery.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_impact_to_coevolution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_impact_verification_scope.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_implementation_ir.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_implementation_traceability.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_invariant_conflicts.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_invariant_contracts.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_invariant_discovery.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_invariant_to_counterexample.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_layered_fastapi_compiler.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_learning_recommendations.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_macos_generation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_maintenance_outbox_routes.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_maintenance_outbox_worker.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_marketplace_listing.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_marketplace_productization.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_materialize_coevolution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_migration_planner.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_mode_capability_mutations.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_multi_objective_optimization.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_multi_target_equivalence.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_mutation_authorization_events.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_mutation_execution_events.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_mutation_impact.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_mutation_verification_events.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_nfr_architecture.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_openapi_projection.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_pareto_architecture.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_persistent_memory_integrity.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_problem_synthesis.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_production_features.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_production_readiness.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_project_completion.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_project_consistency.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_project_memory.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_project_scope.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_property_exploration.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_quality_evaluation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_quality_profiles.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_quality_requirements.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_quality_review.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_react_frontend_certification.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_react_typescript_compiler_build_contract.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_regression_preservation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_rejection_analysis.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_repair_atomic_admission.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_repair_candidate_execution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_repair_candidate_selection.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_repair_closure.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_repair_coevolution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_repair_engine_bridge.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_repair_feedback_loop.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_repair_observatory_stream.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_repair_population.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_repair_reexecution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_repair_report.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_repair_report_observatory.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_repository_audit_gate.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_repository_code_scan.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_repository_impact_analysis.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_repository_root_cause.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_repository_structure_scan.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_requirement_analyzer.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_requirement_architecture_bridge.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_requirement_certification.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_requirement_evidence_certification.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_requirement_implementation_verification_chain.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_requirement_ir.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_requirement_isr.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_requirement_isr_integrity.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_requirement_traceability_gate.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_rich_architecture_ir.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_rich_implementation_ir.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_root_cause_verification.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_schema_ir.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_scope_authorization.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_scope_control.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_scope_discipline.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_scope_verification.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_selection_quality.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_specialized_capability_mutations.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_specialized_mutations.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_state_flow_impact.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_state_machine_ir.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_storage_backup_restore.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_storage_cli.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_storage_migrations.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_successor_admission.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_synthesis.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_system_checkpoint.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_tradeoff_experiments.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_transaction_atomicity.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_transaction_evidence.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_transaction_evidence_abort_unification.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_transaction_evidence_capability_context.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_transaction_evidence_chain.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_transaction_isolation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_transaction_recovery.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_transaction_reproducibility.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_transaction_verification.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_trust_boundary.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_truth_gate.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_verification_acceptance.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_verification_artifacts.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_verification_command_planner.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_verification_compiler.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_verification_counterexamples.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_verification_executor.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_verification_failure_repair.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_verification_obligations.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_verification_output_artifacts.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_verification_plan.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_verification_plans.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_verification_repair_loop.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_verification_to_repair.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_work_capability.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_work_capability_surface_boundaries.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_work_mode.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_work_mode_scope_validation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_work_mode_surface_modes.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_work_scope.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_work_scope_events.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_work_scope_lifecycle.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_work_scope_lifecycle_validation.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_work_scope_observation_event.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_work_scope_verification.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_workflow_analysis.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_workflow_execution.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_workflow_graph.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_workflow_properties.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_workflow_verification.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_workspace_evidence.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/tests/test_workspace_materialization.py` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/uv.lock` — Generated/reference application or runtime; not compiler core
+- `autonomous-api/verify_installation.py` — Generated/reference application or runtime; not compiler core
+
+### `generated/` — 61 files
+- `generated/Dockerfile` — Generated artifact / fixture; not authoritative source
+- `generated/monolithshop/__init__.py` — Generated artifact / fixture; not authoritative source
+- `generated/monolithshop/api/__init__.py` — Generated artifact / fixture; not authoritative source
+- `generated/monolithshop/application/__init__.py` — Generated artifact / fixture; not authoritative source
+- `generated/monolithshop/application/monolith_service.py` — Generated artifact / fixture; not authoritative source
+- `generated/monolithshop/config.py` — Generated artifact / fixture; not authoritative source
+- `generated/monolithshop/domain/__init__.py` — Generated artifact / fixture; not authoritative source
+- `generated/monolithshop/infrastructure/__init__.py` — Generated artifact / fixture; not authoritative source
+- `generated/monolithshop/infrastructure/database.py` — Generated artifact / fixture; not authoritative source
+- `generated/monolithshop/main.py` — Generated artifact / fixture; not authoritative source
+- `generated/monolithshop/tests/__init__.py` — Generated artifact / fixture; not authoritative source
+- `generated/monolithshop/tests/test_api.py` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/README.md` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/api/evidence.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/api/evolution.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/api/governance.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/api/knowledge.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/api/notifications.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/api/overview.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/api/requirements.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/api/runtime.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/event_bus.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/events/evidence_event.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/events/evolution_event.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/events/governance_event.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/events/repair_report_event.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/events/runtime_event.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/events/validator.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/gateway.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/governance.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/ingestion.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/projections.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/projections/evidence.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/projections/evolution.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/projections/governance.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/projections/helpers.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/projections/knowledge.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/projections/repair.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/projections/runtime.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/query.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/repair_notifications.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/repair_stream.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/store.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/supervisor.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/lib/observatory/tracer.ex` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/test/api_notifications_test.exs` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/test/repair_notifications_test.exs` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/test/repair_report_observatory_test.exs` — Generated artifact / fixture; not authoritative source
+- `generated/observatory/test/repair_stream_test.exs` — Generated artifact / fixture; not authoritative source
+- `generated/requirements.txt` — Generated artifact / fixture; not authoritative source
+- `generated/testshop/__init__.py` — Generated artifact / fixture; not authoritative source
+- `generated/testshop/api/__init__.py` — Generated artifact / fixture; not authoritative source
+- `generated/testshop/application/__init__.py` — Generated artifact / fixture; not authoritative source
+- `generated/testshop/application/core_service.py` — Generated artifact / fixture; not authoritative source
+- `generated/testshop/config.py` — Generated artifact / fixture; not authoritative source
+- `generated/testshop/domain/__init__.py` — Generated artifact / fixture; not authoritative source
+- `generated/testshop/infrastructure/__init__.py` — Generated artifact / fixture; not authoritative source
+- `generated/testshop/infrastructure/database.py` — Generated artifact / fixture; not authoritative source
+- `generated/testshop/main.py` — Generated artifact / fixture; not authoritative source
+- `generated/testshop/tests/__init__.py` — Generated artifact / fixture; not authoritative source
+- `generated/testshop/tests/test_api.py` — Generated artifact / fixture; not authoritative source
+
+## 4. Canonical pipeline evidenced by current source
+
+1. Requirement/workload construction: `certification/campaign/plan_builder.py` constructs requirement graph artifacts and derives ISR/plan artifacts.
+2. ISR source representation: `isr/core/graph.py` defines typed graph nodes/edges; `isr/core/revision.py` provides revision identity and validation.
+3. Lowering: `compiler/core/lowering.py` implements `isr_to_plan(ISRRevision)`.
+4. Stabilization IR: `compiler/core/plan.py` defines `CompilationPlan` and typed carriers.
+5. Backend protocol: `compiler/core/protocol.py` declares backend identity, test spec, element paths, compile and conformance surfaces; `compiler/core/registry.py` and `compiler/composition.py` register implementations.
+6. Backend generation: `compiler/backends/`, including `android.py`, emits target-specific repositories.
+7. Campaign verification/evidence: `certification/campaign/runner.py` coordinates candidate trials and verification stages.
+
+This sequence is evidenced structurally; it does **not** prove every stage is complete, every backend is behavioral, or the end-to-end full-stack acceptance criterion passes.
+
+## 5. Material current-state findings
+
+- `isr/core/graph.py` defines 14 node types and 18 edge types, including security policies, frontend routes/interactions, effects, invariants, consequences, and requirement relationships.
+- `compiler/core/plan.py` has typed carriers for several behavior-bearing constructs, but is documented as a stabilization IR. It is not demonstrated as the complete canonical Compiler IR.
+- `compiler/core/lowering.py` maps several ISR constructs into the plan but does not create dedicated plan carriers for every declared node/edge kind. In particular, domain/capability/infrastructure-target/requirement-ref nodes and requirement-to-requirement relations are not represented as dedicated first-class plan carriers in the inspected implementation.
+- `compiler/backends/android.py` identifies as `STRUCTURAL`, reports an empty supported-feature set, and rejects populated services, events, security, APIs, effects, effect bindings, consequences, invariants, frontend routes/interactions and typed data-model behavior. It is a static shell/catalogue backend, not a complete Android app compiler.
+- `certification/campaign/runner.py` contains candidate-bound verification surfaces, but existence of verifier classes does not establish a successful Android runtime certification.
+- `autonomous-api/app/main.py` has a concrete ISR observation gap: `_DbGenerationProvider.get_isr()` raises `NotImplementedError("ISR binding is a declared audit gap")`. Treat this as a disconnected lineage surface, not as proof the entire repository has no ISR persistence.
+- Existing R0/R1 documents are historical evidence inputs. Their module inventories and status statements must be reconciled against this source commit before relying on them.
+
+## 6. Named contracts visible to FS-01/02/03
+
+| Contract | Inputs | Outputs | Unknown/failure behavior to specify | Verification surface | Evidence surface |
+|---|---|---|---|---|---|
+| ISR revision | graph, system/schema identity, provenance/content hash | validated immutable revision | reject malformed schema/hash, unresolved references, unknown semantic primitive | graph/revision/invariant validators | source hash, schema version, validation result |
+| ISR → Compiler IR lowering | validated ISRRevision | CompilationPlan | fail closed on unrepresented/ambiguous semantics; no inferred owner bindings | determinism, round-trip/coverage and semantic-preservation checks | ISR hash, IR hash, mapping/omission report |
+| Compiler orchestration | validated ISR + backend selection policy | complete candidate/artifact set | quarantine backend failure; reject partial/incoherent output | full-stack composition and acceptance suite | orchestration run ID, selected backend versions, artifact manifest |
+| Backend protocol | IR + backend identity/config | GeneratedRepository + conformance report | capability mismatch must reject, not drop semantics | backend-specific build and behavior tests | backend identity, source/plan/repository hashes |
+| Verification/certification | candidate, bound source/plan, test specification | verification report/verdict | unknown evidence or corrupted lineage cannot pass | independent verifier, runtime and negative tests | immutable run record, raw logs, artifact hashes |
+| Provenance/lineage | requirements, requirement graph, ISR, IR, artifacts, deployed instance | verifiable chain | broken/missing edge quarantines; secrets redacted | chain verifier and completeness query | append-only/hash-chained references |
+| Governance/authorization | principal, action, artifact/evidence scope | allow/deny/escalate | default deny for unknown principal/state; human approval for protected transitions | policy tests and audit review | principal/action/decision/reason record |
+| Deployment/runtime | verified candidate + deployment target | deployed instance and observation handle | failed health/rollback must not be reported as deployment success | health, lifecycle, rollback and runtime acceptance tests | deployment ID, environment, runtime observations |
+
+## 7. Cross-document consistency rules
+
+- Deliverable 2 must use the same owner names and boundary as this map.
+- Deliverable 3 must assess ISR node/edge coverage against the acceptance criterion, not merely repeat the historical inventory.
+- Deliverable 4 must locate the boundary at the current `compiler/core/` ↔ `compiler/backends/` seam and explicitly identify remaining boundary crossings.
+- No deliverable may imply Android behavioral certification or complete full-stack capability without candidate-bound runtime evidence.
+
+## 8. FS-00 status
+
+**Architectural Evidence: PARTIAL.** The tree snapshot and all scoped paths are inventoried. Semantic classification of all modules, dependency graph completeness, all five evidence classes, and governance approval are not yet established.
+
+
+## 4.1 Cross-cutting finding: two active ISR model families
+
+The path inventory must be read alongside the authority finding in Deliverables 2 and 3. The repository has both:
+
+- `isr/core/{graph,revision,identity}.py` and the newer root-level ISRRevision-based pipeline;
+- `constitutional_architecture/isr/model/*`, its graph/serialization/semantic modules, and the richer ISR consumed by the constitutional compiler path.
+
+The existence of both is directly supported by source and import searches. The root-level compiler path and the constitutional Gen-C path use different input types; repository architecture notes explicitly record this mismatch. The map therefore does **not** assert that either model family is the sole system-wide constitutional ISR. The authoritative model, allowed adapter, and migration strategy remain unresolved and must be decided under governance before FS-00 closes.
+
+
+## 4.2 Additional substrate: UniversalISR and parallel compiler runtimes
+
+Further source search identified a third ISR family, `constitutional_architecture/core/models/isr.py:UniversalISR`, consumed by the per-category compiler framework under `constitutional_architecture/compilers/*`, the constitutional core contracts/orchestrator and Tiannara compilation projection/conformance surfaces. Existing `folder/R1_D2_COMPILER_INVENTORY.md` describes these per-category compilers as a separate runtime that bypasses `compiler.core.CompilationPlan`. Thus this inventory now identifies **at least three ISR model families** and multiple compiler runtimes, not merely two. Exact authority and the disposition of each family remain governed unresolved questions.
+
+
+## 4. Live source-review reconciliation — PR #201 head
+
+**Reviewed head:** `d02b2592c41fa546bafdaded75e7d0b55612fc02`  
+**Comparison:** the source snapshot at `68696e2a07595fed98a19e24ee96c3e4e0e5bfeb` is 15 commits behind this head; the comparison reports exactly four changed paths, all four FS-00 deliverables in this directory. No production source path changed between the inventory source commit and the reviewed head. The head tree therefore contains 3,472 blobs: the 3,468-blob source snapshot plus these four audit documents.
+
+The inventory above remains an accurate path inventory for its explicitly pinned source tree. It must not be described as a semantic dependency graph or as a current-head inventory including the four audit documents. The repository's ISR/compiler ownership and consumer findings are expanded in Deliverables 2 and 3 below.
+
+## 10. PR-head tree reconciliation — 2026-11-03
+
+The inventory above remains pinned to source commit `68696e2a07595fed98a19e24ee96c3e4e0e5bfeb` and must not be mistaken for a current-HEAD file count. A separate recursive Git tree read at PR-head commit `058810c9a2027d009dd9f0f0f6291da30bbc0417` returned **3,472 blobs** with `truncated=false`. The earlier baseline count of 3,468 is therefore historically scoped, not the current PR-head count.
+
+The PR-head tree contains these distinct source roots / surfaces relevant to ISR and compilation:
+
+- `isr/core/` — typed root graph/revision and behavioral/invariant validation.
+- `compiler/core/`, `compiler/backends/`, `compiler/api.py`, `compiler/kernel.py` — canonical-plan protocol plus separate UniversalCompiler API/kernel.
+- `constitutional_architecture/isr/` — rich ISR model, semantic validators, serializer/deserializer, graph/EIR, versioning and projection.
+- `constitutional_architecture/compiler/` — Gen-C 8-pass pipeline, BIR, backend protocol and source-binding entrypoint.
+- `constitutional_architecture/core/models/isr.py` and `core/models/universal_isr.py` — two different classes named `UniversalISR`.
+- `constitutional_architecture/compilers/` — per-category compiler contracts and implementations.
+- `tiannara/domain/models/isr.py` and `system_model.py`; `tiannara/application/compiler/` — typed ISR envelope, SystemModel payload and ProjectCompiler path.
+
+The full tree is not itself a dependency graph. This map now cross-references the PR-head source verification and boundary findings in Deliverables 2 and 3. A complete import/consumer inventory, dynamic reachability classification and deployment exposure audit remain outstanding. The source inventory is **not** a declaration that every listed compiler is active or production-ready.
+
+
+## 11. Updated ISR-family count and universal-backend scope — 2026-11-04
+
+The earlier section 4.2 was an intermediate discovery and said “third ISR family.” The subsequent PR-head source tracing in Deliverable 3 distinguishes **at least five ISR/model families**:
+
+1. root canonical `isr/core/ISRRevision`;
+2. rich constitutional ISR under `constitutional_architecture/isr/model/`;
+3. graph `UniversalISR` in `constitutional_architecture/core/models/isr.py`;
+4. the distinct `UniversalISR` in `constitutional_architecture/core/models/universal_isr.py`;
+5. Tiannara `IntermediateSoftwareRepresentation` with typed `SystemModel` payload.
+
+This count is the current audit classification; it does not imply that all five are independently authoritative or production-reachable. Deliverable 3 records the evidence and remaining reachability limits. The earlier count is retained as historical discovery context, not the final inventory.
+
+The backend inventory is also not a capability inventory. All discovered backend families and target capabilities must be reconciled in the Target Capability Preservation Matrix specified by Deliverable 4 before any implementation is consolidated, deprecated or retired. The intended universal language/framework/platform coverage is a requirement; repository presence alone is not proof of support, and absence of a conformant implementation must remain visible as NOT YET IMPLEMENTED / NOT CERTIFIED.
+
+
+## Backend/frontend hardening split and preliminary target capability matrix — 2026-11-04
+
+**Reviewer clarification:** frontend compiler hardening has been completed as a distinct workstream; backend compiler hardening remains outstanding. This is a scope/status distinction, not a certification upgrade. Each target still requires current, candidate-bound evidence across its own build, runtime, semantic, security and independent-verification obligations. Frontend hardening does not establish backend conformance, and a backend's registration or generated files do not establish a working target.
+
+### Registered compiler inventory
+
+The current `tiannara/application/compiler/composition.py` composition root registers 21 implementations: 12 backend/application targets and 9 frontend targets. This is a registration inventory only; it does not prove all routes are reachable or that all targets build and run.
+
+| Family | Registered targets | Audit treatment |
+|---|---|---|
+| Backend/application | Python/FastAPI Hexagonal; Go; Rust/Axum; NestJS; Spring Boot; ASP.NET Core; Phoenix; Kotlin/Ktor; Android; Express; Laravel; Rails | Backend hardening remains an open audit/remediation stream. Assess each implementation and feature set independently. |
+| Frontend | React; Vue; Angular; Next.js; Nuxt; Svelte; Phoenix LiveView; Hologram; Scenic | Frontend hardening work is recorded as completed by the reviewer. Retain per-target build/test/runtime/semantic/security evidence; do not infer universal certification from hardening completion. |
+
+### Preliminary evidence-backed backend capability rows
+
+The following is a triage matrix, not a final target capability preservation matrix. It records what the inspected source/evidence supports and makes unknowns explicit. The older `docs/compiler-audit/FRAMEWORK_AUDIT_REGISTER.md` is a dated evidence register from a separate compiler-hardening branch; its results are historical evidence, not automatically current-head CI evidence. Revalidate every row against the exact target commit before any certification decision.
+
+| Backend target / implementation | Source and declared scope | Build / test / runtime evidence currently established by inspected material | Semantic/security status | Preliminary disposition |
+|---|---|---|---|---|
+| Python / FastAPI Hexagonal (`tiannara/application/compiler/fastapi_hexagonal_backend.py`) | Source-present; typed `SystemModel` emitter; composition declaration advertises all `BundleCapability` values. That broad declaration is not proof that each capability is implemented. | Framework audit register historically marked generated-app build/test/runtime as unverified. | Source-bound authorization is enforced on the Python path for service-scoped policies in the remediation record, but declared API operations remain un-emitted; full semantic parity and independent certification remain open. | RETAIN for audit; hardening/conformance evidence required. Do not treat broad metadata as enforced capability. |
+| Go / net/http (`go_hexagonal_backend.py`) | Source-present; backend build profile exists. | Historical framework audit register: build and meaningful generated behavior execution unverified. | Semantic, authorization, security and independent verification unknown. | RETAIN for audit; NOT CERTIFIED pending evidence. |
+| Rust / Axum (`rust_axum_backend.py`) | Source-present; build profile and generated project tests exist. | Historical register records host-toolchain `cargo test` (two router tests) and release build passed on a prior CI head; pinned Docker build/runtime probes were pending. Not current-head proof. | Security/auth and source-to-artifact semantic correspondence remain unverified in that register. Separate authorization work has explicitly refused unsupported obligations rather than claiming parity. | RETAIN for audit; partial build evidence only; NOT CERTIFIED. |
+| NestJS / Node | Source-present and registered. | Historical register marked build/test/runtime unverified. | Semantic/security/authorization evidence unknown. | RETAIN for audit; NOT CERTIFIED. |
+| Spring Boot / Java | Source-present and registered. | Historical register marked source only; build/test/runtime unverified. | Semantic/security/authorization evidence unknown. | RETAIN for audit; NOT CERTIFIED. |
+| ASP.NET Core / C# | Source-present and registered. | Historical register marked source only; build/test/runtime unverified. | Semantic/security/authorization evidence unknown. | RETAIN for audit; NOT CERTIFIED. |
+| Phoenix / Elixir | Source-present and registered. | Historical register marked source only; build/test/runtime unverified. | Semantic/security/authorization evidence unknown. | RETAIN for audit; NOT CERTIFIED. |
+| Ktor / Kotlin | Source-present and registered. | Historical register marked source only; build/test/runtime unverified. | Semantic/security/authorization evidence unknown. | RETAIN for audit; NOT CERTIFIED. |
+| Express / Node | Source-present and registered. | Historical register records generated install/build/container and live HTTP checks as added but pending on that snapshot. | Security and semantic correspondence unverified; prior manifest claims were being narrowed to executable operations. | RETAIN for audit; NOT CERTIFIED. |
+| Laravel / PHP | Source-present and registered. | Historical register marked source only; build/test/runtime unverified. | Semantic/security/authorization evidence unknown. | RETAIN for audit; NOT CERTIFIED. |
+| Rails / Ruby | Source-present and registered. | Historical register marked source only; build/test/runtime unverified. | Semantic/security/authorization evidence unknown. | RETAIN for audit; NOT CERTIFIED. |
+| Android / Kotlin Jetpack Compose — Tiannara `AndroidBackend` | Source-present and registered in ProjectCompiler composition. It emits a static model-catalogue shell; declares only BUILD and DOCUMENTATION; rejects services, APIs and events. | PR #201 head `c229dd65b25f26411bb821e29a089512c6741507`: Android backend contract-test job passed. The Android cloud-build job was skipped on the pull-request event (manual dispatch only). The unit runner tests use a fake command runner and synthetic APK fixture; they are not native Gradle/emulator evidence. | No persistence, CRUD, authentication, synchronization or service/API/event runtime semantics claimed. Static-shell scope only. | RETAIN as narrow structural/static-shell implementation; NOT CERTIFIED for application behavior. |
+| Android / Kotlin Jetpack Compose — root campaign `AndroidStructuralBackend` | Separate implementation at `compiler/backends/android.py`; consumes `CompilationPlan`; backend class STRUCTURAL; supported feature set is empty; refuses services, events, policies, APIs, effects, consequences, invariants, frontend routes/interactions and behavioral data models. | Contract tests passed as part of PR #201 head workflow. The native runner test substitutes a fake Gradle/ADB runner and synthetic APK. Actual cloud build/emulator job was skipped. | Candidate/revision/plan hashes are bound in the source path and negative tests, but this is not proof of native Android execution or semantic behavior. | RETAIN as separate campaign structural backend pending route/convergence audit; do not conflate with Tiannara AndroidBackend. |
+
+### Frontend evidence boundary
+
+The historical framework audit register records React and Vue generated projects passing dependency installation, meaningful component tests and production builds on a prior CI head. Angular had a test assertion correction awaiting rerun; Next.js, Nuxt and Svelte generated-project CI checks were added but pending in that snapshot. Phoenix LiveView, Hologram and Scenic were source-only. The register still marked runtime/health, security/authentication, semantic correspondence and independent verification as unverified for all listed frontends.
+
+These historical details do not negate the reviewer-reported completion of the frontend hardening workstream. They identify which evidence must be refreshed and which certification dimensions remain separate from hardening. Record frontend hardening completion as a workstream milestone, not as a universal per-target certification verdict.
+
+### Backend hardening work still required
+
+The backend audit must cover, per implementation and supported feature set:
+
+1. **Governed input and admission:** canonical ISR revision/hash/provenance binding; authorization before selection/invocation; no backend-local authority or bypass.
+2. **Capability enforcement:** declarations must be checked against executable behavior. A registry entry, capability manifest or profile is metadata unless the orchestrator enforces it.
+3. **Semantic completeness:** requirements, entities/fields/invariants, services, API operations/contracts, events/order/delivery, frontend integration dependencies, effects/consequences, security policies, persistence, concurrency and deployment intent must be preserved or explicitly rejected before emission.
+4. **Fail-closed execution:** malformed, stale, ambiguous, unauthorized, unsupported or lossy inputs must result in zero backend invocation and zero deliverable artifacts.
+5. **Artifact purity and quarantine:** backend output must be returned as a candidate artifact set; backends must not publish directly. Publication requires central validation and evidence gates.
+6. **Build/runtime/behavior:** native toolchain build, meaningful tests, process/runtime health, persistence/restart behavior, API and event behavior, negative cases and cleanup.
+7. **Security:** authentication, authorization, tenant isolation, secrets, dependency/supply-chain checks and relevant threat cases.
+8. **Independent certification:** exact source, ISR, transformation, backend/version, toolchain, candidate and artifact hashes; fresh-process verification; UNKNOWN remains non-pass.
+
+### Cross-family issues requiring explicit closure
+
+- The ProjectCompiler registry's declarations are stored separately from backend objects; source inspection of `CompilerRegistry` shows registration and retrieval but no inherent enforcement of declared capabilities. Enforcement must be demonstrated in the selector/executor/orchestrator, not inferred from the registry.
+- The FastAPI declaration currently advertises every `BundleCapability`; this must be reconciled against generated operations and executed evidence before it can be trusted.
+- At least two Android backend implementations exist in different compiler families. Their shared target name does not prove shared authority, shared semantics or route convergence.
+- Root compiler backends, Tiannara ProjectCompiler backends, Gen-C backends and per-category compiler paths remain separate execution families. No wrapper or common directory establishes a single governed lifecycle.
+- The backend matrix must be expanded from these registered implementations to every backend-like implementation, target version, consumer, invocation route and dynamic/deployment entrypoint found in the repository.
+
+**Status:** Frontend hardening is a completed workstream per reviewer direction; backend hardening remains outstanding. This preliminary matrix is PARTIAL and not exhaustive. It does not authorize backend retirement, code/schema changes, FS-01, PR merge or FS-00 closure. All target dispositions remain provisional until the full capability/consumer/reachability matrix and independent evidence review are complete.
+
+
+## AI + senior frontend/backend engineering quality requirement — 2026-11-04
+
+The reviewer has added a product-quality requirement: frontend and backend compilers must combine advanced AI reasoning/generation with the judgement and disciplined practices of senior specialist engineers. This is a target architecture/capability requirement, not evidence that existing compilers already meet it.
+
+| Compiler family | AI contribution | Senior specialist engineering contribution | Required outcome |
+|---|---|---|---|
+| Frontend | Broad design exploration, user-workflow reasoning, alternative UI proposals, pattern/edge-case discovery, iterative refinement | Product/UX judgement, information architecture, design systems, interaction/state architecture, accessibility, responsive design, performance, browser resilience, security, testing and maintainability | A polished, accessible, coherent and responsive product whose real interactions and states are tested—not merely rendered screens |
+| Backend | Domain/requirements reasoning, architecture alternatives, API/data design proposals, edge-case and failure-mode discovery, iterative refinement | Domain modelling, service/API architecture, data integrity, persistence/transactions, authorization/security, concurrency, reliability/operations, performance, testing and maintainability | A secure, correct, reliable and operable implementation whose semantics and behavior are verified—not merely generated source |
+| Full stack | Cross-layer reasoning and consistency analysis | Senior integration discipline across API contracts, data models, identity, authorization, effects, error handling and deployment | Verified end-to-end semantic coherence between user interactions and backend behavior |
+
+### Required evidence, not role-play
+
+Each target's quality record must identify:
+- which AI reasoning/generation capabilities are actually available and under what governance;
+- which senior-specialist engineering checks are implemented as deterministic rules, static analysis, tests, review gates or toolchain evidence;
+- measurable quality budgets and mandatory non-compensable gates;
+- defects/risks found and their resolution evidence;
+- independent verifier results tied to exact source, ISR, compiler/backend version and artifacts.
+
+A model claiming that code is secure, accessible, performant or maintainable is not evidence. Require executable checks and appropriate specialist review. The generator must not be the sole reviewer or certifier of its output. No external LLM is a required dependency; any model component is replaceable and governed.
+
+### Status
+
+This requirement applies to all registered and subsequently discovered frontend/backend targets, not just React or FastAPI. Frontend hardening completion remains a workstream milestone; it does not automatically prove that every frontend target meets this richer combined capability profile. Backend hardening remains outstanding. Neither family is certified by this requirement being documented.
+
+**Open work:** translate the quality profiles into target-specific acceptance criteria and evidence fixtures; map each criterion to its responsible compiler stage, verifier, test suite and certification artifact. This remains FS-00 design/audit work until the independent reviewer separately authorizes implementation.

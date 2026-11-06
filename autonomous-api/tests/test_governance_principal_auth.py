@@ -226,7 +226,9 @@ async def test_governance_event_log_retains_verified_member_signatures():
         evidenceRefs=["sha256:" + ("b" * 64)],
     ))
 
-    command = _decision()
+    command = _decision().model_copy(
+        update={"fromState": "proposed", "toState": "evaluating"}
+    )
     signatures = _sign(command, COUNCIL_KEYS)
     persisted_command = command.model_copy(update={"memberSignatures": signatures})
     await governance.request_decision(persisted_command)

@@ -68,6 +68,11 @@ class Settings(BaseSettings):
                 raise ValueError("CORS_ORIGINS must be configured in production")
             if not self.GOVERNANCE_AUDIT_SIGNING_KEY:
                 raise ValueError("GOVERNANCE_AUDIT_SIGNING_KEY is required in production")
+            if not self.GOVERNANCE_ENFORCEMENT_REQUIRED:
+                raise ValueError(
+                    "GOVERNANCE_ENFORCEMENT_REQUIRED must be true in production; "
+                    "ungoverned candidate promotion is prohibited"
+                )
         return self
 
     model_config = SettingsConfigDict(

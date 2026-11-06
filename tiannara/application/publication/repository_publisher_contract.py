@@ -132,8 +132,11 @@ def publish_bundle(
             raise ValueError(f"publication blocked: certification gate did not explicitly approve {ref!r}")
 
     publish = getattr(provider, "publish_repository", None)
+    verify_publication = getattr(provider, "verify_publication", None)
     if not callable(publish):
         raise ValueError("publication blocked: provider lacks an exact-bytes publish operation")
+    if not callable(verify_publication):
+        raise ValueError("publication blocked: provider lacks remote read-back verification")
     receipt = publish(
         f"tiannara-{bundle.artifact_hash[:12]}",
         bundle,
@@ -148,9 +151,6 @@ def publish_bundle(
     ):
         raise ValueError("publication blocked: provider receipt does not bind uploaded artifact bytes")
 
-    verify_publication = getattr(provider, "verify_publication", None)
-    if not callable(verify_publication):
-        raise ValueError("publication blocked: provider lacks remote read-back verification")
     try:
         remotely_verified = verify_publication(receipt, files)
     except Exception as exc:

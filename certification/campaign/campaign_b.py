@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import time
@@ -103,16 +104,15 @@ class CampaignBRunner:
     ) -> Trial:
         trial_id = str(uuid.uuid4())
         ident: BackendIdentity = backend.identity()
-
-        stage_results: dict[TrialStage, bool] = {}
         evidence: list[StageEvidence] = []
+        stage_results: dict[TrialStage, bool] = {}
         exec_details: dict[str, Any] = {}
 
         def _record_execution(se: StageExecution) -> None:
-            stage_results[se.stage] = se.passed
+            stage_results[se.stage] = se.passed is True
             evidence.append(StageEvidence(
                 stage=se.stage,
-                passed=se.passed,
+                passed=se.passed is True,
                 started_at=_now(),
                 completed_at=_now(),
                 logs_hash=se.logs_hash,
@@ -128,151 +128,229 @@ class CampaignBRunner:
             ))
             exec_details[se.stage.value] = {
                 "mode": se.mode.value,
-                "passed": se.passed,
+                "passed": se.passed is True,
                 "duration_s": round(se.duration_s, 3),
                 "image_digest": se.image_digest,
+                "container_id": se.container_id,
                 "peak_resource": se.peak_resource,
                 "retries": se.retries,
                 "retry_signatures": list(se.retry_signatures),
                 "failure_class": se.failure_class,
             }
 
-        # Structural + semantic: conformance check
+        def _skipped(stage: TrialStage, reason: str) -> StageExecution:
+            return StageExecution(
+                stage=stage,
+                mode=ExecutionMode.SKIPPED,
+                passed=False,
+                duration_s=0.0,
+                logs_hash=_h(reason),
+                detail=f"skipped: {reason}",
+            )
+
+        def _failed(stage: TrialStage, reason: str) -> StageExecution:
+            return StageExecution(
+                stage=stage,
+                mode=ExecutionMode.FAILED,
+                passed=False,
+                duration_s=0.0,
+                logs_hash=_h(reason),
+                detail=f"failed: {reason}",
+                failure_class="adapter_error",
+            )
+
+        def _call(stage: TrialStage, fn, *args, **kwargs) -> StageExecution:
+            try:
+                result = fn(*args, **kwargs)
+            except Exception as exc:
+                return _failed(stage, f"{type(exc).__name__}: {exc}")
+            if not isinstance(result, StageExecution) or result.stage is not stage:
+                return _failed(stage, "adapter returned malformed or mismatched stage evidence")
+            return result
+
+        # The backend may emit a candidate, but no stateful execution is
+        # permitted until structural and semantic conformance has passed.
         repo = backend.compile(plan)
         conf = backend.conformance(plan, repo)
-        stage_results[TrialStage.STRUCTURAL] = conf.passed
-        stage_results[TrialStage.SEMANTIC] = conf.passed
-        evidence.append(StageEvidence(
-            stage=TrialStage.STRUCTURAL, passed=conf.passed,
-            started_at=_now(), completed_at=_now(),
-            logs_hash=_h(f"structural-{conf.missing}"),
-            detail=f"missing={conf.missing}",
-        ))
-        evidence.append(StageEvidence(
-            stage=TrialStage.SEMANTIC, passed=conf.passed,
-            started_at=_now(), completed_at=_now(),
-            logs_hash=_h(f"semantic-{conf.passed}"),
-            detail=f"semantic={conf.passed}",
-        ))
+        for stage, label in (
+            (TrialStage.STRUCTURAL, "structural"),
+            (TrialStage.SEMANTIC, "semantic"),
+        ):
+            detail = f"{label}_conformance={conf.passed}; missing={conf.missing}"
+            stage_results[stage] = conf.passed is True
+            evidence.append(StageEvidence(
+                stage=stage,
+                passed=conf.passed is True,
+                started_at=_now(),
+                completed_at=_now(),
+                logs_hash=_h(detail),
+                detail=detail,
+            ))
 
-        # Behavioral stages: build → test → deploy → runtime → destroy → verify
         tag = f"cbc1-b-{trial_id[:8]}"
         from certification.campaign.preflight import port_for_trial
         base = getattr(self, "port_base", 8000)
         span = getattr(self, "port_span", 1000)
         port = port_for_trial(trial_id, base, span)
 
-        # Materialize repo to disk for Docker build
         d = tempfile.mkdtemp(prefix="cbc1-b-")
-        for p, c in repo.files.items():
-            full = os.path.join(d, p)
-            os.makedirs(os.path.dirname(full), exist_ok=True)
-            with open(full, "w", encoding="utf-8") as f:
-                f.write(c)
+        cid = ""
+        try:
+            # Materialize only within the isolated candidate workspace.
+            for relative_path, content in repo.files.items():
+                if (
+                    not isinstance(relative_path, str)
+                    or not relative_path
+                    or "\x00" in relative_path
+                    or "\\" in relative_path
+                    or os.path.isabs(relative_path)
+                    or any(part in ("", ".", "..") for part in relative_path.split("/"))
+                ):
+                    raise ValueError(f"unsafe generated candidate path: {relative_path!r}")
+                full = os.path.realpath(os.path.join(d, relative_path))
+                root_real = os.path.realpath(d)
+                if os.path.commonpath((root_real, full)) != root_real:
+                    raise ValueError(f"generated candidate path escapes workspace: {relative_path!r}")
+                os.makedirs(os.path.dirname(full), exist_ok=True)
+                if os.path.islink(full):
+                    raise ValueError(f"generated candidate path targets a symlink: {relative_path!r}")
+                with open(full, "w", encoding="utf-8") as handle:
+                    handle.write(content)
 
-        se_build = self.stages.build(d, tag)
-        _record_execution(se_build)
+            if conf.passed is True:
+                se_build = _call(TrialStage.BUILD, self.stages.build, d, tag)
+            else:
+                se_build = _skipped(TrialStage.BUILD, "structural/semantic conformance failed")
+            _record_execution(se_build)
+            build_ok = se_build.passed is True and se_build.mode is self.required_mode and bool(se_build.image_digest)
 
-        # Test: dispatch on backend's declared TestSpec (no hardcoded commands)
-        spec = backend.test_spec()
-        se_test = self.stages.run_tests(tag, spec, repo_dir=d, tag=tag)
-        _record_execution(se_test)
+            if build_ok:
+                try:
+                    spec = backend.test_spec()
+                    se_test = _call(
+                        TrialStage.TEST, self.stages.run_tests,
+                        tag, spec, repo_dir=d, tag=tag,
+                    )
+                except Exception as exc:
+                    se_test = _failed(TrialStage.TEST, f"test specification failed: {type(exc).__name__}: {exc}")
+            else:
+                se_test = _skipped(TrialStage.TEST, "build did not produce a verified image")
+            _record_execution(se_test)
+            test_ok = se_test.passed is True and se_test.mode is self.required_mode
 
-        se_deploy = self.stages.deploy(tag, port)
-        _record_execution(se_deploy)
+            # Independent verification is a prerequisite to deployment, not a
+            # post-deployment report. It is run against the exact materialized
+            # candidate and only a successful explicit result can open deploy.
+            if build_ok and test_ok:
+                v_ok, v_out = _run_independent_verify(
+                    repo, plan, ident, conf, repo_dir=d,
+                )
+                se_verify = StageExecution(
+                    stage=TrialStage.VERIFY,
+                    mode=self.required_mode if v_ok else ExecutionMode.FAILED,
+                    passed=v_ok is True,
+                    duration_s=0.0,
+                    logs_hash=_h(v_out),
+                    detail=v_out[:1000],
+                    failure_class="" if v_ok else "verification_failed",
+                )
+            else:
+                v_ok = False
+                v_out = "independent verification skipped because build or test prerequisites failed"
+                se_verify = _skipped(TrialStage.VERIFY, v_out)
+            _record_execution(se_verify)
+            verify_ok = se_verify.passed is True and se_verify.mode is self.required_mode
 
-        cid = se_deploy.container_id
-        se_runtime = self.stages.probe(port, cid)
-        _record_execution(se_runtime)
+            prereqs_ok = conf.passed is True and build_ok and test_ok and verify_ok
+            if prereqs_ok:
+                se_deploy = _call(TrialStage.DEPLOY, self.stages.deploy, tag, port)
+            else:
+                se_deploy = _skipped(
+                    TrialStage.DEPLOY,
+                    "structural, semantic, build, test and independent verification gates must all pass",
+                )
+            _record_execution(se_deploy)
+            cid = se_deploy.container_id or ""
+            deploy_ok = se_deploy.passed is True and se_deploy.mode is self.required_mode and bool(cid)
 
-        se_destroy = self.stages.destroy(cid)
-        _record_execution(se_destroy)
+            try:
+                if deploy_ok:
+                    se_runtime = _call(TrialStage.RUNTIME, self.stages.probe, port, cid)
+                else:
+                    se_runtime = _skipped(TrialStage.RUNTIME, "deployment did not produce an accepted runtime candidate")
+                _record_execution(se_runtime)
+            finally:
+                # A container returned by a deployment adapter is cleaned up
+                # even when the runtime probe raises or fails.
+                if cid:
+                    se_destroy = _call(TrialStage.DESTROY, self.stages.destroy, cid)
+                else:
+                    se_destroy = _skipped(TrialStage.DESTROY, "no container identity was returned")
+                _record_execution(se_destroy)
 
-        # Independent verification (separate subprocess, real verifier against
-        # the materialized candidate workspace — never an in-process theater).
-        v_ok, v_out = _run_independent_verify(
-            repo, plan, ident, conf, repo_dir=d,
-        )
-        stage_results[TrialStage.VERIFY] = v_ok
-        evidence.append(StageEvidence(
-            stage=TrialStage.VERIFY, passed=v_ok,
-            started_at=_now(), completed_at=_now(),
-            logs_hash=_h(v_out),
-            detail=v_out[:500],
-            mode=ExecutionMode.REAL_DOCKER.value if self.required_mode == ExecutionMode.REAL_DOCKER else ExecutionMode.STUB.value,
-        ))
-        exec_details["verify"] = {
-            "mode": self.required_mode.value,
-            "passed": v_ok,
-            "duration_s": 0,
-            "image_digest": "",
-            "peak_resource": "",
-        }
-
-        # Mode enforcement: every behavioral stage must match required_mode
-        mode_ok = True
-        for se in [se_build, se_test, se_deploy, se_runtime, se_destroy]:
-            if se.mode != self.required_mode:
-                mode_ok = False
-                break
-        if not mode_ok:
-            verdict = "NOT_CERTIFIED"
-        else:
-            verdict = compose_verdict(stage_results, evidence_present=True,
-                                      required_mode=self.required_mode.value)
-
-        # Metrics
-        metrics = M.compute(
-            repo_files_count=len(repo.files),
-            stages=stage_results,
-            structural_passed=stage_results.get(TrialStage.STRUCTURAL, False),
-            test_passed=stage_results.get(TrialStage.TEST, False),
-            runtime_passed=stage_results.get(TrialStage.RUNTIME, False),
-            repo_content_hash=repo.content_hash,
-            files=repo.files,
-            stage_evidence=evidence,
-        )
-        # Extend metrics with execution detail
-        metrics = metrics.model_copy(update={
-            "execution_detail": exec_details,
-            "generated_repository_hash": repo.content_hash,
-            "independent_verifier_result": v_ok,
-        })
-
-        trial = Trial(
-            trial_id=trial_id,
-            intent=intent,
-            category=category,
-            novelty_class=novelty_class,
-            requirement_graph_hash=requirement_graph_hash,
-            genome_hash=genome_hash,
-            isr_revision_id=revision.revision_id,
-            backend=ident.name,
-            backend_class=ident.backend_class.value,
-            backend_version=ident.version,
-            compiler_version="1.4.0",
-            repo_hash=repo.content_hash,
-            corpus_hash=corpus_hash,
-            stages=evidence,
-            metrics=metrics,
-            verdict=verdict,
-            origin=origin,
-            parent_trial_id=parent_trial_id,
-        )
-
-        # Provenance bundle
-        if artifacts and workload is not None:
-            bundle = ProvenanceBundle.emit(
-                trial=trial, plan=artifacts.plan, revision=artifacts.revision,
-                genome=artifacts.genome, requirement_graph=artifacts.requirement_graph,
-                backend_identity=ident, conformance=conf,
+            mode_ok = all(
+                item.mode is self.required_mode
+                for item in (se_build, se_test, se_verify, se_deploy, se_runtime, se_destroy)
             )
-            bhash = ProvenanceBundle.bundle_hash(bundle)
-            trial = trial.model_copy(update={"bundle_hash": bhash})
+            verdict = (
+                compose_verdict(
+                    stage_results,
+                    evidence_present=True,
+                    required_mode=self.required_mode.value,
+                )
+                if mode_ok else "NOT_CERTIFIED"
+            )
 
-        self.ledger.append(trial.model_dump())
-        return trial
+            metrics = M.compute(
+                repo_files_count=len(repo.files),
+                stages=stage_results,
+                structural_passed=stage_results.get(TrialStage.STRUCTURAL, False),
+                test_passed=stage_results.get(TrialStage.TEST, False),
+                runtime_passed=stage_results.get(TrialStage.RUNTIME, False),
+                repo_content_hash=repo.content_hash,
+                files=repo.files,
+                stage_evidence=evidence,
+            )
+            metrics = metrics.model_copy(update={
+                "execution_detail": exec_details,
+                "generated_repository_hash": repo.content_hash,
+                "independent_verifier_result": v_ok,
+            })
 
+            trial = Trial(
+                trial_id=trial_id,
+                intent=intent,
+                category=category,
+                novelty_class=novelty_class,
+                requirement_graph_hash=requirement_graph_hash,
+                genome_hash=genome_hash,
+                isr_revision_id=revision.revision_id,
+                backend=ident.name,
+                backend_class=ident.backend_class.value,
+                backend_version=ident.version,
+                compiler_version="1.4.0",
+                repo_hash=repo.content_hash,
+                corpus_hash=corpus_hash,
+                stages=evidence,
+                metrics=metrics,
+                verdict=verdict,
+                origin=origin,
+                parent_trial_id=parent_trial_id,
+            )
+
+            if artifacts and workload is not None:
+                bundle = ProvenanceBundle.emit(
+                    trial=trial, plan=artifacts.plan, revision=artifacts.revision,
+                    genome=artifacts.genome, requirement_graph=artifacts.requirement_graph,
+                    backend_identity=ident, conformance=conf,
+                )
+                bhash = ProvenanceBundle.bundle_hash(bundle)
+                trial = trial.model_copy(update={"bundle_hash": bhash})
+
+            self.ledger.append(trial.model_dump())
+            return trial
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
 
 def _run_independent_verify(
     repo: Any, plan: Any, ident: BackendIdentity, conf: Any,

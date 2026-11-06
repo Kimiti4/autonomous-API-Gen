@@ -85,6 +85,7 @@ class GovernanceSubsystem:
             rationale=cmd.rationale,
             supersedesDecisionId=cmd.supersedesDecisionId,
             evidenceRefs=list(cmd.evidenceRefs),
+            memberSignatures=dict(cmd.memberSignatures),
             decidedAt=_now_iso(),
         )
 

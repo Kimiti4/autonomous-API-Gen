@@ -1555,3 +1555,615 @@ The inspected deployment handoff must remain blocked/unconfigured until a real p
 5. Apply equivalent gate ordering to Campaign A and all other audited routes; add counting-adapter tests proving zero deploy/publish calls on failed/missing prerequisites.
 6. Add path, symlink, credential, content-hash, immutable manifest and provenance integrity tests to the publication/materialization boundary.
 7. Run targeted unit/integration tests and CI; only then update finding status based on observed evidence. No backend is to be retired.
+
+
+## 22. Checkpoint 23 — standalone compiler API, governance wiring and artifact-packager audit
+
+**Scope:** inspect the additional `compiler.api` FastAPI application, SDK certification routes, governance wrapper, artifact packager, and distinguish the autonomous-api evolution service from the ESAP compiler route. This checkpoint also records remediation progress from PR #208. No tests have been executed in this environment.
+
+### 22.1 Additional standalone compiler route
+
+`compiler/api.py:create_app()` creates a separate FastAPI application (also exported as module-level `app`). Its route is independent of both the root behavioral compiler and ProjectCompiler:
+
+`CompilationRequest(dict ISR) → validate_isr_payload() → BackendRegistry → UniversalCompiler._build_plan() → OptimizationPipeline → backend.compile(CompilationContext) → validate_compilation_output() → ArtifactPackager.package() → CompilationResult`.
+
+The request carries a minimal dictionary ISR; the API's `CompilationPlan` is a separate metadata plan, not `compiler.core.plan.CompilationPlan`. This route does not call root `isr_to_plan()`, `required_features()/assert_plan_supported()`, source-bound full-stack mapping, or Campaign A/B candidate verification. Its output is a packaged artifact directory and manifest. It does not demonstrate full-stack application composition, product-level acceptance, publication, or deployment.
+
+The route is separately instantiable through `compiler.api:app`; the audit did not establish that this module-level app is mounted in the autonomous-api service's `app/main.py`. It must be treated as a distinct route and not counted as evidence for the root behavioral compiler or ProjectCompiler.
+
+### 22.2 FS00-FS-024 — standalone compiler API is a separate noncanonical compilation route (High)
+
+The standalone API has its own registry (reference backend plus production backend registrations), request/plan models, optimization pipeline, output validator and packager. It accepts the minimal dictionary ISR contract and calls backend compilation directly. It is not adapted into the source-bound canonical ISR/CompilationPlan path or the shared campaign evidence route.
+
+**Required:** either integrate this API behind the authoritative ISR→IR/orchestration boundary with explicit loss-reporting adapters and shared evidence, or retain it as a separately scoped API whose results cannot claim universal semantic conformance or product certification. No compiler family is to be removed solely to simplify this integration.
+
+### 22.3 FS00-FS-025 — standalone compiler API previously bypassed authorization and default governance wiring (Critical)
+
+Before remediation, `compiler.api:create_app()` called `enable_compiler_sdk()` but did not call `enable_compiler_governance()`; the compile endpoint and SDK certify/revoke routes had no authorization dependency. The governance wrapper and routes existed as opt-in helpers, so the default API could compile without the governance wrapper. SDK certification could be requested without authorization.
+
+**Remediation authored in PR #208:**
+- Added `compiler.security.require_compiler_authorization()`. The default is fail-closed (503 when no host authorizer is configured; only literal `True` authorizes).
+- `create_app()` accepts a host authorization callback, enables the SDK, wires the SDK certification engine into `enable_compiler_governance()`, and exposes the governed compiler as the compile route's compiler.
+- Compile, job-result, SDK certification/list/revoke, and governance routes now require the authorization dependency. Read-only backend discovery/validation and health remain public.
+- Default policy still requires backend certification and an available governance approval for production compilation; missing governance remains fail-closed.
+- Tests were added for default-deny authorization, governance route wiring, SDK authorization and production denial.
+
+**Status:** REMEDIATION CODED; NOT TEST-VERIFIED. The API's backend certification is still not product-level certification (see FS00-FS-027).
+
+### 22.4 FS00-FS-026 — compiler artifact packager path containment was vulnerable to prefix confusion and incomplete path validation (High)
+
+Prior `ArtifactPackager._safe_path()` used string-prefix containment (`str(candidate).startswith(str(output_root))`). This can confuse sibling paths sharing a prefix and does not by itself reject Windows drive/UNC paths, backslash traversal, symlink components, reserved Git/provenance metadata, or case-folded collisions. `validate_compilation_output()` previously checked for a `..` substring and an exact reserved manifest filename, which is not a complete cross-platform path contract.
+
+**Remediation authored in PR #208:**
+- Replaced prefix checks with canonical POSIX/Windows path parsing and resolved `Path.is_relative_to()` containment.
+- Rejects absolute, drive, UNC, backslash, NUL, empty/dot/traversal segments, `.git` and `.tiannara` metadata paths, and the reserved artifact manifest.
+- Preflights every artifact before the first write; rejects normalized/case-folded duplicate paths and non-empty output workspaces; rejects symlink redirection.
+- Strengthened `validate_compilation_output()` with the same canonical path and duplicate rules.
+- Added path traversal, Windows path, reserved metadata, symlink, collision and no-partial-write tests.
+
+**Status:** REMEDIATION CODED; NOT TEST-VERIFIED. Filesystem race resistance beyond the implemented preflight/recheck is not claimed.
+
+### 22.5 FS00-FS-027 — backend SDK CERTIFIED status is sample-contract certification, not generated-product certification (High)
+
+`BackendCertificationEngine.certify()` runs a default or supplied test ISR through backend contract tests, a determinism test, and output-schema validation. It records a backend-level `CERTIFIED` report. The inspected certification path does not run the generated product in a real runtime, prove full ISR requirement coverage, exercise payroll/global domain oracles, or bind a complete product candidate to deployed-instance evidence.
+
+The default governance enforcer consumes this backend-level status for environment policy. The default standalone API now additionally requires a governance client for production compilation and denies when unavailable, but a configured governance client approving the request does not transform backend certification into product certification.
+
+**Required:** keep backend certification and product certification as separate evidence types. Product promotion must require candidate-specific semantic correspondence, independent runtime/business oracles, exact artifact binding, and deployment identity/health evidence. Do not promote backend sample certification to product certification.
+
+### 22.6 Autonomous-api evolution service is a separate bounded generator/evaluator
+
+The autonomous-api `app/main.py` composes `app.api.routes` and evolution/governance subsystems. Its `/api/v1/evolve/start` route requires authentication and the evolution kill-switch guard, then schedules the Evolution Engine. The engine's generated-candidate path uses the Genome/backend/evaluator family; the Python/FastAPI and Go targets in `app/engine/backends.py` are separate from the root behavioral compiler and ProjectCompiler registries. The candidate evaluator has bounded local-Docker build/runtime probes, which is meaningful runtime evidence for that path, but it does not establish canonical ISR→Compiler IR provenance or full-stack product lineage.
+
+`autonomous-api/app/engine/fastapi_compiler.py` is a separate BackendProjectIR compiler; the inspected references found its direct instantiation in tests, not a production entry point. It is not counted as a production route without caller evidence.
+
+This distinction preserves the evolution engine's real bounded runtime capabilities without conflating them with ESAP's universal software compiler acceptance.
+
+### 22.7 Consolidated remediation status after Checkpoint 23
+
+| Finding | Remediation authored | Evidence status |
+|---|---|---|
+| FS00-FS-016 — Campaign A verify after deploy | Moved candidate-bound verification before deploy; deploy now requires build, test and verification | Regression test added; not run |
+| FS00-FS-019 — factory commit before runtime verification | Deferred factory commit until explicit static and runtime acceptance; CLI create remains staged | Regression tests added; not run |
+| FS00-FS-020 — publisher ignores certification gate/no byte upload | Requires exact artifact bytes, explicit gate approval, candidate-bound certification and provider receipt/read-back; records DELIVERY | Regression tests added; not run |
+| FS00-FS-021 — demo self-issues certification/simulates GitHub | Demo now returns BLOCKED; GitHub placeholder always fails closed | Regression tests added; not run |
+| FS00-FS-022 — Campaign B deploy before independent verification | Added structural/build/test/verify prerequisites, pre-deploy verification, short-circuiting and cleanup finally | Regression tests added; not run |
+| FS00-FS-025 — compiler API auth/governance bypass | Default-deny host authorization; governance wrapper enabled by default | Regression tests added; not run |
+| FS00-FS-026 — artifact path containment | Canonical path validation, preflight, symlink and collision checks | Regression tests added; not run |
+
+FS00-FS-017 (complete infrastructure/deployment IR), FS00-FS-018 (one universal orchestration/publication authority), FS00-FS-024 (standalone compiler route convergence), and FS00-FS-027 (product-level certification distinct from backend certification) remain OPEN.
+
+### 22.8 PR and execution boundary
+
+The remediation work is isolated in PR #208, targeting `remediation/esap-android-compiler-stage-a`; PR #201 remains open/draft/unmerged. A focused GitHub Actions workflow was added for the changed routes and tests. No workflow run or status check was returned for the current PR head, and no local test execution was performed; therefore no test is reported as passed and no finding is marked resolved. The code is an implementation candidate pending CI execution and review.
+
+No backend was retired. No changes were made to `main`. FS-00 remains NOT CLOSED.
+
+**Next checkpoint:** finish auditing remaining API and CLI entry points and their callers, then inspect the candidate-level authorization, evidence-ledger and deployment promotion paths. After that, run the focused hardening suite, correct failures, and only then update finding statuses.
+
+
+## 23. Checkpoint 24 — autonomous-api evolution artifact materialization and promotion hardening
+
+**Scope:** trace the autonomous-api evolution candidate artifact path from the authenticated evolution API through candidate evaluation, final best-genome build and optional governed promotion; inspect staging writes, manifest verification, backup/restore and rollback. This checkpoint extends the file-hardening work to the separate evolution engine. Tests were authored but not executed.
+
+### 23.1 Reachability
+
+The autonomous-api application composes `app.api.routes` in `app.main`. The authenticated `/api/v1/evolve/start` route schedules `EvolutionEngine.run_async()`; `/evolve/sync` invokes the synchronous engine. The evolution engine calls `evaluate_candidate_async()`, whose candidate evaluator calls `build_genome_output()`. That helper calls `compile_and_materialize()`, which compiles through the separate autonomous-api backend registry and calls `app.engine.backends.materialize()`.
+
+After selecting the best genome, the evolution engine calls `build_genome_output(best_genome)` again for the final output tree. When governance enforcement is required, it calls `_publish_governed_candidate()`, which requires an approval decision and then invokes `promote_verified_artifact()` using the evidence digest. This is a real, separately governed evolution artifact path; it is not the canonical ESAP ISR→CompilationPlan route.
+
+### 23.2 FS00-FS-029 — evolution artifact materializer wrote untrusted paths before validating the manifest (High)
+
+Prior `app.engine.backends.materialize()` created a staging directory and immediately wrote each backend-provided `relative_path` using `staging / relative_path`. Only after all writes did it create and validate the manifest. A path such as `../escape.txt` could therefore write outside the staging directory before `_validate_verified_artifact()` rejected the resulting candidate. The post-write integrity check could detect the malformed artifact, but could not undo the outside write.
+
+The prior manifest verifier also validated listed file digests but did not require the on-disk file set to equal the manifest's file set; unmanifested extra files could remain in the candidate tree. Symlinks within the root were not explicitly rejected if their resolved targets remained under the root.
+
+**Remediation authored in PR #208:**
+- Added a preflight path policy before staging creation/writes: reject absolute paths, drive/UNC/rooted paths, NULs, traversal/dot/empty segments, reserved `.git`/`.tiannara` metadata and the reserved artifact manifest.
+- Normalize safe Windows-relative separators into canonical POSIX manifest paths. This preserves the existing Windows backend use of `os.path.join` while rejecting Windows drive/UNC/traversal paths.
+- Reject normalized/case-folded path collisions and non-text artifact contents.
+- Verify every listed path with symlink-component checks and resolved-root containment.
+- Require the actual on-disk file set to equal the manifest's listed files plus the manifest itself; reject symlinks and unmanifested files.
+- Added regression tests for traversal, absolute/drive/UNC paths, reserved paths, collisions, safe Windows path normalization and unmanifested files.
+
+**Status:** REMEDIATION CODED; NOT TEST-VERIFIED.
+
+### 23.3 Related existing promotion boundary
+
+`backup_verified_artifact()`, `restore_verified_artifact()` and `promote_verified_artifact()` call `_validate_verified_artifact()` before copying/restoring/promoting and preserve a previous destination as a rollback point. Strengthening the shared verifier therefore hardens those callers as well. The evolution path's deployment/promotion remains a local verified-artifact replacement; it does not by itself prove a live production service rollout, health acceptance or universal compiler publication lineage.
+
+### 23.4 Updated remediation matrix
+
+- FS00-FS-016: Campaign A verification moved before deploy; tests added, unexecuted.
+- FS00-FS-019: SoftwareFactory commit deferred until explicit static/runtime verification; CLI `create` leaves staged candidate output without a commit; tests added, unexecuted.
+- FS00-FS-020/021: publisher now requires candidate-bound independent certification, exact artifact bytes, explicit gate approval, provider publish and remote read-back; publication is DELIVERY, not CERTIFICATION; demo/provider fail closed; tests added, unexecuted.
+- FS00-FS-022: Campaign B now gates deploy on structural/semantic conformance, real build, tests and independent verification; returned container cleanup is in `finally`; tests added, unexecuted.
+- FS00-FS-025: standalone compiler API now defaults to deny without a host authorizer, wires the governance wrapper by default and protects compile, job, SDK and governance routes; tests added, unexecuted.
+- FS00-FS-026: ProjectCompiler writer and standalone compiler ArtifactPackager now preflight canonical paths, symlinks, collisions and clean output workspaces; tests added, unexecuted.
+- FS00-FS-029: autonomous-api evolution materializer and manifest verifier hardened; tests added, unexecuted.
+
+Safe Windows-relative paths are normalized rather than rejected in the three file-generation paths (ProjectCompiler writer, standalone compiler packager, autonomous-api evolution materializer). Absolute/drive/UNC/rooted/traversal paths remain blocked.
+
+### 23.5 Remaining open items
+
+- FS00-FS-017: full-stack IR still lacks an explicit infrastructure/deployment/operations layer.
+- FS00-FS-018: no single universal orchestration/publication authority across compiler families.
+- FS00-FS-024: standalone compiler API remains a separate noncanonical compilation route.
+- FS00-FS-027: backend sample-contract certification is not product-level semantic/runtime certification.
+- Campaign B now gates deployment on its independent repository verifier, but it still does not demonstrate Campaign A's source-bound five-layer correspondence path; common semantic evidence remains an integration requirement.
+- The autonomous-api evolution engine and its local artifact promotion remain separate from ESAP's canonical source-bound compiler and do not establish payroll/global product capability.
+
+No test execution is claimed. PR #208 remains open/draft; PR #201 remains open/draft/unmerged; no backend has been retired and `main` has not been changed.
+
+
+## 24. Checkpoint 25 — remediation regression execution and evidence reconciliation
+
+**Execution evidence:** GitHub Actions workflow `Publication and Deployment Hardening`, run **42258475145**, commit `230a7113fa79e63f1a1514e2472f9a888cb19527`, completed successfully.
+
+- Python 3.14 dependency installation: PASS.
+- Changed Python module compilation (`compileall`): PASS.
+- Root ESAP targeted regression suite: **156 passed** in 13.48 seconds.
+- Autonomous-api evolution artifact suite: **31 passed** in 29.45 seconds.
+- Total: **187 passed, 0 failed** across the two targeted pytest processes.
+
+The test processes are deliberately separate because both repository subprojects contain a `tests/conftest.py` imported as `tests.conftest`. The first workflow attempt exposed a collection collision when both trees were passed to one pytest process; the workflow was corrected to run root and autonomous-api suites in separate processes. A subsequent root test run exposed 19 genuine test/fixture issues (Campaign B cleanup import, invalid capability manifest fixture, incorrect dataclass replacement, and stale publication expectations); those were corrected and the complete second run passed. The failures were not suppressed or marked xfail.
+
+### 24.1 Finding status after targeted execution
+
+| Finding | Status after code + targeted regression evidence | Remaining boundary |
+|---|---|---|
+| FS00-FS-016 — Campaign A verification after deploy | **REMEDIATION VERIFIED BY TARGETED TESTS** | No production promotion adapter is established; test proves deploy is not called after failed candidate verification. |
+| FS00-FS-019 — factory commit before runtime acceptance | **REMEDIATION VERIFIED BY TARGETED TESTS** | Direct lower-level materializer still supports local commit for explicit callers; CLI create stages without commit and SoftwareFactory commits only after explicit static/runtime pass. |
+| FS00-FS-020 — publisher ignored certification gate and did not upload candidate bytes | **FALSE-SUCCESS PATH CLOSED; CONTRACT TESTED** | Current GitHub provider has no live API and now fails closed; no real repository upload is claimed. |
+| FS00-FS-021 — demo manufactured CERTIFIED evidence | **REMEDIATION VERIFIED BY TARGETED TESTS** | Uber-for-Boats demo returns BLOCKED until real compile/certification/provider/deployment evidence exists. |
+| FS00-FS-022 — Campaign B deployed before independent verification | **REMEDIATION VERIFIED BY TARGETED TESTS** | Campaign B uses its independent repository verifier before deploy; shared source-bound five-layer mapping remains an integration gap. |
+| FS00-FS-025 — standalone compiler API auth/governance bypass | **REMEDIATION VERIFIED BY TARGETED TESTS** | Host must supply an actual secure authorization callback; default module-level app intentionally denies compiler/SDK/governance operations. |
+| FS00-FS-026 — compiler artifact path containment | **REMEDIATION VERIFIED BY TARGETED TESTS** | Filesystem race resistance beyond path preflight/rechecks is not claimed. |
+| FS00-FS-029 — autonomous-api evolution artifact path traversal | **REMEDIATION VERIFIED BY TARGETED TESTS** | This is artifact materialization/manifest evidence, not proof of full product or production deployment acceptance. |
+
+### 24.2 Findings that remain open
+
+- **FS00-FS-017:** the canonical full-stack contract still lacks explicit infrastructure/deployment/operations layers.
+- **FS00-FS-018:** root campaign, ProjectCompiler, standalone compiler API and autonomous-api evolution engine still do not share one mandatory ISR/IR/orchestration/publication authority.
+- **FS00-FS-024:** standalone `compiler.api` remains a separate noncanonical compilation route; auth/governance protection does not make it converge on canonical ISR/IR.
+- **FS00-FS-027:** backend SDK sample-contract certification remains distinct from product-specific semantic/runtime certification.
+- Campaign B still lacks Campaign A's source-bound requirement-to-five-layer correspondence input; its deployment gate is now ordered safely but its semantic evidence contract must converge.
+- No live GitHub provider or production deployment adapter is implemented. Both remain blocked/unconfigured rather than returning simulated success.
+- Payroll and global-product capability findings from Checkpoint 20 remain unchanged: complete payroll product capability and domain-independent global-product acceptance are NOT ESTABLISHED.
+
+### 24.3 Evidence scope and release disposition
+
+The 187 passing tests establish targeted regression behavior for the changed contracts and code paths. They do not establish:
+- live GitHub repository publication;
+- live production deployment, rollout, health/telemetry or rollback;
+- universal compiler-route conformance;
+- complete frontend/API/backend/data/auth/infrastructure composition;
+- payroll statutory/business correctness or a second global-domain acceptance oracle;
+- production certification of any generated product.
+
+PR #208 remains open/draft/unmerged and targets `remediation/esap-android-compiler-stage-a`. PR #201 remains open/draft/unmerged. `main` remains unchanged. No backend was retired and no certification state was upgraded by this checkpoint.
+
+**Next checkpoint:** conduct final diff/review hardening for PR #208, inspect any remaining call sites affected by the stricter factory/materializer and compiler API defaults, then begin the next architectural remediation tranche: one canonical orchestration/IR contract across retained compiler families and candidate-specific product acceptance. Payroll remains the first substantial vertical-slice target, followed by a materially different global domain.
+
+
+## 25. Checkpoint 26 — publication secret boundary audit and hardening
+
+**Scope:** inspect the existing secret-boundary helpers, repository assembler and actual publication contract after the publisher was changed to accept exact artifact bytes.
+
+### 25.1 FS00-FS-030 — publication did not scan artifact contents for embedded credentials (High)
+
+The prior `secret_boundary.py` exposed only exact-string helpers (`is_credential_in_isr`, `is_credential_in_artifact`, `is_credential_in_commit`). Those helpers required a credential value supplied by the caller, were not wired into `publish_bundle()`, and did not detect common credentials when the specific credential string was unknown. The repository assembler produced generic metadata/template files; it was not an artifact-content security gate.
+
+**Remediation authored in PR #208:**
+- Added `scan_artifact_secrets()`, which returns only path/rule identifiers and never returns or logs matched secret values.
+- Detects common AWS access-key IDs, GitHub tokens, Slack tokens, Google API keys, Stripe secret keys, private-key PEM blocks, credential-bearing database URLs, credential-like assignments and sensitive credential-file paths (including real `.env`, private key stores and credential directories).
+- Allows explicitly named example/template environment files but still scans their contents for non-placeholder credentials.
+- Integrated the scanner into `publish_bundle()` before provider invocation. Any finding blocks publication before the provider can create a repository or push bytes.
+- Added tests for common token types, private key blocks, database URLs, sensitive environment files, placeholder examples and zero provider invocation on a secret finding.
+
+**Status:** REMEDIATION CODED; targeted CI execution pending at the time of this checkpoint. This is a heuristic detector, not a proof that arbitrary secrets can never be embedded. Production publication still requires provider-side secret scanning and independent security verification.
+
+### 25.2 Publication assembly boundary
+
+`repository_assembler.assemble()` emits generic repository metadata/templates; it does not assemble the actual compiled application. The hardened publisher now takes the exact artifact file mapping as its input and hashes those bytes. The assembler output must not be mistaken for the generated product, and it is not used as a substitute for the exact-byte publication contract.
+
+### 25.3 Updated open/closed disposition
+
+- FS00-FS-030 is added as HIGH and remains pending targeted test confirmation.
+- Existing publication contract, candidate-bound certification and no-simulated-provider boundaries remain as documented in Checkpoints 22–25.
+- No production provider or deployment adapter is claimed.
+
+
+## 26. Checkpoint 27 — secret-boundary regression execution and final hardening evidence
+
+**Execution evidence:** GitHub Actions workflow `Publication and Deployment Hardening`, run **42259469514**, code/workflow commit `1d30973aa5cdf78477cb21172eb8214151517ce6`, completed successfully.
+
+- Python 3.14 dependency installation: PASS.
+- Changed Python module compilation: PASS.
+- Root ESAP targeted suite, including the new secret-boundary tests: **159 passed** in 13.23 seconds.
+- Autonomous-api evolution artifact suite: **31 passed** in 21.52 seconds.
+- Total: **190 passed, 0 failed** across the two isolated pytest processes.
+
+This run includes the publication secret scanner and verifies that secret-bearing artifacts are rejected before the provider is called. It also repeats the previously passing Campaign A/B ordering, compiler API authorization/governance, ProjectCompiler writer, standalone packager, factory/materializer and evolution materializer regressions.
+
+### 26.1 Updated finding status
+
+- **FS00-FS-030 — artifact secret scanning absent from publication:** REMEDIATION VERIFIED BY TARGETED TESTS. The publisher rejects common credential patterns and sensitive credential-file paths before provider invocation.
+- **FS00-FS-016, -019, -020, -021, -022, -025, -026, -029:** remain as recorded in Checkpoint 25; their targeted remediation tests passed in the same suite.
+- The secret scanner is heuristic and not exhaustive. It is not a substitute for provider-side scanning, dependency scanning, malware scanning, or a dedicated secret-detection service.
+- No actual GitHub provider was exercised: the repository's GitHub adapter intentionally remains non-operational and fails closed.
+- No production deployment was exercised. Campaign A/B tests use controlled stage adapters; the evolution suite verifies local artifact integrity and promotion/backup contracts, not a production rollout.
+- Product-level payroll/global-domain acceptance remains NOT ESTABLISHED.
+
+The successful run supersedes the earlier Checkpoint 26 pending-test status. The workflow emits non-blocking pytest-asyncio configuration and GitHub Actions Node.js deprecation warnings; no test failures or Python compilation errors were reported.
+
+PR #208 remains open/draft/unmerged and targets the draft Stage A branch. PR #201 remains open/draft/unmerged. `main` remains unchanged. FS-00 remains NOT CLOSED because the universal orchestration, full-stack infrastructure/deployment contract, and product-level certification findings remain open.
+
+
+## 27. Checkpoint 28 — final entry-point/caller matrix and publication reachability
+
+**Scope:** reconcile the call sites of ProjectCompiler, SoftwareFactory, RepositoryMaterializer, standalone compiler API, SDK/governance routers, publication contract and autonomous-api evolution engine after the remediation changes.
+
+### 27.1 Audited route matrix
+
+| Entry point | Actual path | Gate/evidence boundary | Disposition |
+|---|---|---|---|
+| CLI `create` | `build_project_compiler() → ProjectCompiler.compile_intent() → RepositoryMaterializer.materialize()` | ProjectCompiler's bundle verification; materializer requires explicit verification and clean workspace. CLI now uses `defer_commit=True`. | Staged local candidate only; no commit, certification or deployment. |
+| CLI `factory` | `build_project_compiler() → SoftwareFactory.run() → static verifier → local runtime tests → deferred materializer commit` | Explicit static and runtime pass required before commit; missing adapters fail closed. | Strongest inspected ProjectCompiler product path; local commit only, not external publication. |
+| Standalone `compiler.api:app` | `CompilationRequest → UniversalCompiler → backend registry → output validation → ArtifactPackager` | Host authorization required; governance wrapper is wired by default; production compile denied without backend certification and governance approval. | Separate compiler API; not canonical ISR/IR or full-stack campaign route. Module-level app has no host authorizer configured and therefore fails closed. |
+| SDK certification/governance routers | `BackendCertificationEngine` sample ISR contract + determinism + output-schema tests; governance enforcer consumes backend status. | All SDK/governance routes require host authorization. Backend certification is not product certification. | Protected backend-level evidence route; product acceptance remains separate. |
+| Campaign A | root `ISRRevision → isr_to_plan → root backend registry → candidate → source-bound correspondence/full-stack verification` | Candidate-bound verification now precedes deploy; tests prove deploy is skipped on verification failure. | Certification harness; not a universal production publisher. |
+| Campaign B | root plan/backend → independent repository verifier → deployment/runtime probe/cleanup | Independent verifier now precedes deploy; structural/build/test prerequisites required. | Separate certification harness; source-bound five-layer mapping remains unintegrated. |
+| Autonomous-api evolution | authenticated `/evolve/start`/`/evolve/sync` → Evolution Engine → candidate evaluator → `build_genome_output` → evolution backend materializer → optional governed local promotion | Docker build/runtime evaluation and candidate manifest/digest; artifact path and exact file-set verification hardened. | Separate evolution/evaluation route; not canonical ESAP ISR/IR or production service rollout. |
+| Publication contract | `publish_bundle(bundle, provider, ledger, gate)` | Candidate-bound certification, exact file bytes/hash, secret scan, explicit gate, provider receipt and remote read-back required. | **No production caller/provider is wired.** Contract tests pass, but publication capability is NOT ESTABLISHED. |
+
+### 27.2 FS00-FS-031 — no reachable production publication adapter consumes the hardened publication contract (High)
+
+The prior Uber-for-Boats demonstration was the only discovered caller of `publish_bundle()`. That demonstration has been changed to return BLOCKED and no longer invokes the publisher or creates evidence. The GitHub provider is an explicit non-operational placeholder. The CLI factory commits locally after static/runtime verification; the CLI create command stages locally without a commit. Neither is an external repository publication/deployment path.
+
+Therefore, the new `publish_bundle()` contract is hardened and regression-tested, but it is not yet connected to a production caller, live provider, or deployment promotion workflow. No real repository upload, release, deployment or production service is claimed.
+
+**Required:** implement and security-review a real provider adapter that uploads the exact bytes, reads back and verifies the remote tree/commit, records DELIVERY evidence, and exposes idempotency/reconciliation for partial failures. Integrate it only after candidate-specific certification and explicit governance authorization. The provider must not mint certification evidence.
+
+### 27.3 Caller audit conclusions
+
+- The ProjectCompiler product path is CLI/factory-oriented; no production API route was found invoking it directly.
+- The standalone compiler API is a distinct module-level FastAPI app, not mounted by the autonomous-api `app/main.py` inspected here. Its default module-level instance is intentionally unavailable for compiler operations until a host authorization callback is configured.
+- The autonomous-api application is an evolution service with authenticated start/sync routes and real candidate Docker evaluation; its compiler registry and artifact lineage remain separate.
+- Campaign A and Campaign B are certification harnesses. Their deployment stages are not the same as governed production release.
+- The publisher contract has no live provider/caller after the demonstration was made fail-closed.
+- No one route currently composes every retained frontend/backend/data/auth/infrastructure/deployment family from one canonical ISR revision and emits a single independently verified deployed-instance lineage.
+
+### 27.4 Integrated status
+
+- FS00-FS-031 is added as HIGH and OPEN.
+- FS00-FS-016/-019/-020/-021/-022/-025/-026/-029/-030 remain remediation-verified by the targeted suite, within their stated boundaries.
+- FS00-FS-017/-018/-024/-027/-031 remain OPEN.
+- The payroll and global product conclusions remain unchanged: complete payroll product acceptance and domain-independent global product acceptance are NOT ESTABLISHED.
+- Targeted regression evidence: run 42259469514, 159 root tests + 31 autonomous-api tests = 190 passed, 0 failed.
+- PR #208 remains open/draft/unmerged; PR #201 remains open/draft/unmerged; `main` remains unchanged.
+
+**Next architectural checkpoint:** after the remaining FS-00 entry-point inventory is reconciled, use the existing deferred ADR/governance process to decide the canonical ISR↔IR/orchestration contract. Do not begin universal-route implementation or promote any product capability until the architecture decision is approved and the route's preflight, verification, publication and deployment gates are enforceable.
+
+
+## 28. Checkpoint 29 — candidate-specific governance approval and runtime promotion audit
+
+**Scope:** trace the autonomous-api evolution engine's actual candidate evaluation, governance decision, certification and local artifact promotion sequence. This checkpoint audits whether a governance approval authorizes the exact bytes being promoted and whether static-only evidence can reach promotion.
+
+### 28.1 FS00-FS-032 — governance approval was not constrained to the exact deployed transition and candidate artifact (High)
+
+Prior `_governance_allows_promotion()` accepted a latest decision when `verdict == "approve"` and `authorizesTransition` was truthy. It did not require:
+- the decision's candidate ID to equal the genome being promoted;
+- the current candidate state to be `deployed`;
+- the approved transition to be exactly `selected → deployed`;
+- the decision's evidence references to bind the exact artifact digest;
+- an active certification for the same candidate and artifact digest;
+- that the certification had not expired.
+
+The aggregate's `active_certifications()` filters revoked certificates but does not itself filter expired certificates. Therefore an approval for a different transition or a certificate for a different/expired artifact could previously be insufficiently constrained at the promotion boundary.
+
+**Remediation authored in PR #208:**
+- Requires governance enforcement to be enabled; otherwise promotion authorization returns false.
+- Validates the candidate ID and SHA-256 digest.
+- Requires state candidate ID equality and current state `deployed`.
+- Requires the latest decision to name the same candidate, have literal `authorizesTransition is True`, verdict `approve`, transition exactly `selected → deployed`, and include `sha256:<artifact_digest>` in its evidence references.
+- Requires an active, non-revoked certification for the same candidate and exact artifact digest.
+- Rejects malformed, timezone-naive or expired `validUntil` timestamps.
+
+### 28.2 FS00-FS-033 — governed promotion did not require runtime acceptance or candidate-evidence digest binding (High)
+
+The prior candidate evaluator recorded artifact path, build/runtime probe outcomes and runtime score, but did not record a verified artifact-manifest digest or a single explicit promotion-readiness status. The promotion method did not independently require a full runtime score. Consequently, a static-only evaluation could reach the governed promotion call if a separate governance state appeared to approve it.
+
+**Remediation authored in PR #208:**
+- Candidate evaluation reads and verifies the generated artifact manifest and records `artifact_digest` as `sha256:<digest>`.
+- It records `artifact_compile_ok` only after exact manifest/file-set verification.
+- Static evaluation is explicitly `static_only`; failed build/runtime probes are `failed`.
+- `verification_status` becomes `verified` only when artifact verification passed, runtime mode was actually used, and the full runtime score is exactly 1.0.
+- `_publish_governed_candidate()` requires literal successful build and artifact verification, `verification_status == "verified"`, `evaluation_mode == "runtime"`, and `runtime_score == 1.0` before checking governance.
+- The exact digest is passed to `promote_verified_artifact()`.
+
+Tests added:
+- static-only candidate binds a real artifact digest but cannot be marked promotion-verified;
+- governance approval must bind candidate, exact selected-to-deployed transition and digest;
+- missing, wrong-transition, missing-certification and expired-certification cases deny;
+- static or incomplete runtime evidence cannot reach the promoter;
+- only a matching candidate/digest approval and active certification can promote;
+- run-level denied/approved promotion behavior and event emission.
+
+**Status at this checkpoint:** REMEDIATION CODED; targeted CI run pending. The governance decision and certification must now explicitly cite the artifact digest. Existing governance records that lack this binding will fail closed and must not be silently upgraded.
+
+### 28.3 Promotion semantics and remaining boundary
+
+`promote_verified_artifact()` remains a local artifact replacement helper. The stricter caller checks ensure the evolution engine invokes it only after runtime and candidate-bound governance approval. This does not implement a live production deployment or replace the standalone publication provider. A real provider must independently read back the remote repository tree and bind its delivery record to the same artifact digest.
+
+FS00-FS-032 and FS00-FS-033 are added as HIGH findings. Their targeted regression run is tracked separately; no finding is marked verified until the workflow completes successfully.
+
+
+## 29. Checkpoint 30 — candidate-bound promotion regression execution
+
+**Execution evidence:** GitHub Actions workflow `Publication and Deployment Hardening`, run **42261035797**, completed successfully on the current remediation code and report head.
+
+- Python 3.14 dependency installation: PASS.
+- Changed Python module compilation: PASS.
+- Root ESAP targeted suite: **159 passed** in 14.15 seconds.
+- Autonomous-api evolution/governance suite: **39 passed** in 24.54 seconds.
+- Total: **198 passed, 0 failed**.
+
+The autonomous-api suite now includes the candidate-evaluator artifact-digest/static-only test and the governed-promotion tests for exact candidate ID, selected-to-deployed transition, matching artifact digest in both decision and active certification, revoked/missing/expired certification, static-only denial, run-level denial, and exactly-once promotion event behavior.
+
+### 29.1 Finding status
+
+- **FS00-FS-032 — governance approval was not transition/candidate/digest constrained:** REMEDIATION VERIFIED BY TARGETED TESTS.
+- **FS00-FS-033 — governed promotion did not require runtime acceptance or artifact digest binding:** REMEDIATION VERIFIED BY TARGETED TESTS.
+- The prior FS00-FS-016/-019/-020/-021/-022/-025/-026/-029/-030 targeted remediations remain passing in the same run.
+- A successful static evaluation is now explicitly `static_only`; it cannot be represented as promotion-verified.
+- Candidate promotion now requires a verified artifact manifest, a complete runtime score, and an active unexpired candidate certification plus a latest approval for the exact `selected → deployed` transition and exact SHA-256 digest.
+
+### 29.2 Remaining production integration boundary
+
+The tests use controlled governance state and a mocked promotion adapter; they do not call the live governance service or a production deployment provider. No current governance decision/certification producer was shown to create candidate-specific evidence references containing the generated artifact digest. Until the authorized governance workflow supplies those references, promotion intentionally fails closed. Existing approvals without digest binding are not migrated or silently upgraded.
+
+The runtime acceptance gate's behavior is tested, but no real Docker end-to-end rollout or production health/rollback exercise is claimed. The evolution engine's promotion remains local artifact replacement, not a production deployment.
+
+The new warning from `datetime.utcnow()` in the evolution completion path was also removed by using a timezone-aware UTC source while preserving the database's naive-UTC storage convention. The remaining pytest-asyncio fixture-scope and GitHub Actions Node.js deprecation warnings are non-blocking.
+
+PR #208 remains open/draft/unmerged and targets the draft Stage A branch. PR #201 remains open/draft/unmerged; `main` remains unchanged. FS-00 remains NOT CLOSED: universal compiler orchestration, full-stack infrastructure/deployment lineage, standalone compiler convergence, product-level certification and live publication remain open.
+
+
+## 30. Checkpoint 31 — governance evidence production, identity binding and default enforcement
+
+**Scope:** trace production settings, application composition, HTTP authentication, governance command routes, governance subsystem handlers, candidate evaluation, and the local evolution promotion path. This checkpoint separates (a) the promotion consumer, (b) governance command acceptance, and (c) the authenticated principal that is allowed to assert governance authority.
+
+### 30.1 FS00-FS-034 — production configuration allowed governance enforcement to be disabled (Critical)
+
+**Source evidence:**
+- `autonomous-api/app/core/config.py` declared `GOVERNANCE_ENFORCEMENT_REQUIRED: bool = False`; production validation required API key, secret, CORS and governance audit signing key, but did not require the enforcement flag.
+- `autonomous-api/app/engine/evolution.py` generated a best-candidate output regardless of governance enforcement. The governed promotion path was conditional on the setting being true.
+- When the setting was false, the engine did not call `_publish_governed_candidate()`, yet persisted `promotion_status="published"` for every non-error result. This could make an unapproved staged artifact appear authoritative to consumers that inspect the persisted run history.
+
+**Remediation authored in PR #208:**
+1. Production `Settings` validation now rejects configuration unless `GOVERNANCE_ENFORCEMENT_REQUIRED=True`.
+2. Async evolution explicitly reports `staged_unapproved` when governance is disabled. It no longer emits `candidate.promoted` and no longer records the run as published.
+3. Run result and persisted history include `promotion_status` and `governance_required`; `_is_authoritative()` remains restricted to `promotion_status == "published"`.
+4. Synchronous evolution now refuses to build/promote when governance is required, because that path has no runtime evaluation and no async governance approval.
+
+Tests added for production configuration, ungoverned staging classification, no promotion event/authority, and synchronous-path refusal.
+
+**Status:** REMEDIATION VERIFIED BY TARGETED CI — run 42263581168 passed the root suite (159) and autonomous-api suite (46), including the new production-config, staged-status, synchronous-path and elite-path regression tests.
+
+### 30.2 FS00-FS-035 — governance decision and certification identities are caller-asserted rather than bound to authenticated principals (Critical)
+
+**Source evidence:**
+- `autonomous-api/app/main.py` configures one `ApiKeyAuthProvider` from `ADMIN_API_KEY`. A successful API-key authentication returns `AuthContext(subject="admin", scopes=("observe", "control"))`.
+- `autonomous-api/app/api/governance_routes.py` protects mutation routes with `require_auth`, but ignores the returned principal for all governance writes.
+- `RequestGovernanceDecision` accepts caller-provided `requestedBy` and `decidedBy`; `GrantCertification` accepts caller-provided `certifiedBy`.
+- `GovernanceSubsystem.request_decision()` validates council membership/quorum and transition/gate invariants against these command fields, but does not bind the claimed deciders to the HTTP principal or cryptographic member attestations.
+- `GovernanceSubsystem.grant_certification()` checks `certifiedBy` against the configured recognized-certifier set. The production composition currently hard-codes `recognized_certifiers={"certifier-1"}`; the shared API-key principal is still `admin`. The route does not establish that the caller is actually `certifier-1`.
+- Both decision and certification commands accept `evidenceRefs` as strings. The governance command handler appends these references to the signed event log, but does not independently resolve a reference to an immutable evidence object and verify its artifact digest, source, runtime result, or verifier identity.
+
+**Impact:** the append-only event log provides tamper-evident history of the command accepted; it does not, by itself, prove that the person named in the command is the person who authenticated or that the referenced evidence was independently verified. The current route therefore does not establish separation of duties or trustworthy signer provenance. The stricter promotion consumer prevents mismatched digest strings, but the command producer can still accept self-asserted identity/evidence references.
+
+**Required remediation:**
+1. Introduce explicit governance principals with distinct authentication credentials and scopes for council members, certifiers, and ordinary operators. Never accept `requestedBy`, `decidedBy`, or `certifiedBy` as proof of caller identity.
+2. Bind each council member's vote to an authenticated member principal or cryptographically verifiable signed attestation. A caller must not be able to claim the quorum by listing multiple member IDs.
+3. Bind certification to an authenticated recognized certifier and enforce separation-of-duties policy against the decision authors and artifact producer.
+4. Introduce a trusted evidence registry/attestation contract. Evidence references must resolve to immutable records whose candidate ID, artifact digest, evaluation mode, runtime result, verifier, source revision, and capture time are checked before governance acceptance.
+5. Require the `selected → deployed` decision and deployment certification to reference the same registered artifact attestation, not merely matching caller-supplied strings.
+6. Add negative tests for caller identity spoofing, quorum inflation, certifier spoofing, cross-candidate evidence, stale evidence, mismatched digest, missing attestation, and separation-of-duties violations.
+
+**Status:** OPEN — audit confirmed; no identity or evidence producer has been represented as implemented.
+
+### 30.3 Checkpoint execution state
+
+- The governance promotion consumer remains digest-bound and runtime-only from Checkpoint 29.
+- FS00-FS-034 and its regression tests are implemented in the remediation branch; run **42262578517** was observed in progress at report preparation. No passing result is claimed yet.
+- FS00-FS-035 is a new Critical finding. Do not enable real production promotion until authenticated governance identities and a trusted evidence registry are implemented and tested.
+- PR #208 remains open/draft/unmerged and targets the draft Stage A branch. No merge to `main` is authorized.
+- FS-00 remains NOT CLOSED.
+
+
+### 30.4 FS00-FS-037 — EliteEvolutionEngine bypassed runtime and governed promotion boundaries (High)
+
+**Source evidence:** `autonomous-api/app/engine/elite_evolution.py` used a separate static fitness path, then called `build_genome_output()` and returned an `output_path`. It did not invoke the candidate evaluator, require a verified artifact manifest/runtime evidence, consult the governance subsystem, or bind output to a digest-bound approval. Its event map did not emit `candidate.promoted`, but a successful result still exposed the built output without a promotion-status distinction.
+
+**Remediation authored in PR #208:**
+- If governance enforcement is required, Elite Evolution now refuses artifact building because this engine has no runtime-evidence and governed-promotion route.
+- If governance enforcement is disabled in non-production, its output is explicitly classified `staged_unapproved`; it is not represented as a governed promotion.
+- The result includes `promotion_status` and `governance_required`.
+- Regression tests assert no artifact builder invocation when governance is required and explicit staged status in non-governed mode.
+
+**Status:** REMEDIATION VERIFIED BY TARGETED CI — run 42263581168 passed the root suite (159) and autonomous-api suite (46).
+
+This finding demonstrates why governance must be enforced across every production entry point, not just the primary `EvolutionEngine`.
+
+
+## 31. Checkpoint 32 — deployment engine runtime wiring and simulated-actuation boundary
+
+**Scope:** trace the standalone `constitutional_architecture/deployment/` subsystem, its default composition, stage behavior, rollout behavior, and imports from inspected application entry points.
+
+### 31.1 FS00-FS-038 — deployment subsystem is not a production deployment path and its simulated stages can emit success-shaped telemetry (Critical)
+
+**Source evidence:**
+- The inspected production composition root `autonomous-api/app/main.py`, primary `EvolutionEngine`, `EliteEvolutionEngine`, and API route layer do not invoke `constitutional_architecture.deployment.DeploymentEngine`. Code search surfaced the engine's construction in its own deployment tests, not a production caller. The deployment library is therefore not the deployed-artifact promotion path.
+- `DeploymentEngine.__init__()` defaults to an empty `DeploymentPipeline`; no production composition root registers real stages. The default deployment call therefore fails with "No stages registered in pipeline".
+- When stages are manually registered, `BuildStage` creates only a `DeploymentArtifact` metadata object at `./build/`; `PackageStage` describes a tarball but does not write it; `InfrastructureStage` describes Terraform/Compose output but does not emit IaC; `ProvisionStage` returns `infrastructure_provisioned=True` without invoking a provisioner; `ContainerStage` describes an image without building it; `DeployStage` records `deployed=True` after checking stage-result flags without invoking a deployment target.
+- `RolloutManager` changes its in-memory plan status to `completed` and returns `DeploymentStatus.RUNNING` without performing traffic shifting or contacting a target executor.
+- `DeploymentEngine.deploy()` records `deployment_success=1.0` before validating rollout result, and emits `DEPLOYMENT_COMPLETED` after the rollout result reports `RUNNING`; it does not require a live target endpoint or health evidence. Its returned `DeploymentResult` defaults `is_healthy=False`, so the result's `is_successful` property is false even though completion telemetry was emitted.
+
+**Impact:** this library is a design/test scaffold, not evidence of infrastructure provisioning, packaging, container build, deployment, traffic shifting, health verification, or rollback. It must not be wired into a product-release route or used to assert deployment success until real adapters and independent runtime evidence exist.
+
+**Required remediation:**
+1. Define explicit executor ports for build, package, IaC generation, provisioning, container build, target deployment, health checks, rollout and rollback.
+2. Make the default deployment composition fail closed unless each required port is configured and reports independently verifiable evidence.
+3. Do not emit `DEPLOYMENT_COMPLETED` or record success metrics until a real target confirms the exact artifact digest, endpoint and health result.
+4. Bind deployment result to candidate ID, ISR revision, compiler/plan revision, artifact digest, environment, target identity, rollout and rollback evidence.
+5. Integrate this deployment path only through the canonical full-stack orchestration authority after the architecture decision and governance gate are approved.
+6. Add tests proving that missing adapters cannot produce artifacts, deployment endpoints, healthy status, success metrics or completion events.
+
+**Status:** OPEN — source-confirmed; no deployment adapter implementation or production wiring is claimed.
+
+### 31.2 Verification summary and current finding dispositions
+
+Workflow run **42263581168** (Publication and Deployment Hardening, run 100) completed successfully on the code changes:
+- Python module compilation: PASS.
+- Root ESAP targeted regression suite: **159 passed**.
+- Autonomous-api evolution/governance suite: **46 passed**.
+- Total: **205 passed, 0 failed**.
+
+Verified by this run:
+- FS00-FS-034 — production must require governance enforcement; ungoverned runs must be labelled staged; synchronous path cannot bypass governance.
+- FS00-FS-037 — EliteEvolutionEngine cannot build artifacts in governed production mode and labels non-governed output as staged.
+- FS00-FS-032/-033 — candidate-bound digest approval and runtime-only promotion checks remain passing.
+
+Still open:
+- FS00-FS-035 — governance principal identity and evidence attestation producer.
+- FS00-FS-038 — real deployment adapter path and truthful deployment telemetry.
+- Universal full-stack composition, canonical ISR/IR orchestration, product-level payroll/global-domain acceptance and real publication/deployment remain open.
+
+PR #208 remains open/draft/unmerged. No merge to `main` is authorized.
+
+
+## 32. Checkpoint 33 — governance principal authentication and multi-member decision attestation
+
+**Scope:** harden the governance write routes so caller-supplied actor names cannot substitute for authenticated identity; preserve council attestations in the immutable event stream; require production-specific role credentials.
+
+### 32.1 FS00-FS-035 — identity-spoofing portion remediated; trusted evidence resolution remains open
+
+**Remediation authored in PR #208:**
+- Added `PrincipalApiKeyAuthProvider`, which authenticates a principal against a dedicated header and returns only its configured governance scope.
+- Added separate `GOVERNANCE_COUNCIL_API_KEYS`, `GOVERNANCE_EVALUATOR_API_KEYS`, and `GOVERNANCE_CERTIFIER_API_KEY` settings.
+- Production startup requires all role credentials, `GOVERNANCE_ENFORCEMENT_REQUIRED=true`, unique secrets distinct from `ADMIN_API_KEY`, and disjoint council/evaluator/certifier identities.
+- `main.py` wires council, evaluator and certifier providers separately from the administrative provider. The recognized certifier identity comes from configuration rather than a hard-coded literal.
+- Gate-evaluation routes require evaluator scope and bind `evaluatedBy` to the authenticated subject.
+- Certification grant/revoke routes require certifier scope and bind `certifiedBy`/`revokedBy` to the authenticated subject.
+- Decision routes require a council-scoped authenticated submitter, require `requestedBy` to match that subject, and verify HMAC-SHA256 attestations from every member in `decidedBy` over the same canonical command.
+- Council member signatures are now stored in the immutable `GovernanceDecision` event, not discarded after request validation.
+- Added production environment examples and deployment documentation for the separate credentials and decision-signature contract.
+
+**Cryptographic boundary:** HMAC-SHA256 protects command integrity and proves possession of each configured shared secret to this service. Because the server holds the same secrets, this is not public-key non-repudiation. A future stronger governance boundary should consider asymmetric member signatures with public keys held by the service and private keys held only by the members.
+
+### 32.2 FS00-FS-039 — evidence references are still caller-supplied strings, not registry-resolved attestations (Critical)
+
+**Remaining source-confirmed gap:**
+- Gate evaluations, governance decisions and certifications accept `evidenceRefs` as arbitrary strings.
+- The signed governance event log preserves the strings and now preserves council signatures, but no trusted evidence registry resolves each reference to a separately registered immutable evidence object.
+- The promotion gate checks that the same `sha256:<digest>` string appears in decision and certification evidence references. It does not independently prove that the digest was produced by the candidate evaluator, corresponds to the candidate's actual artifact manifest, or represents a successful runtime evaluation.
+- A valid council signature therefore proves that the configured members signed a command containing the reference; it does not prove the referenced evidence is genuine.
+
+**Required next remediation:**
+1. Add an immutable evidence record/event with candidate ID, artifact digest, manifest/file-set digest, source revision, compiler/backend, run/generation, evaluation mode, build result, runtime result, verifier identity, and capture timestamp.
+2. Register evidence from the trusted candidate-evaluation path only after manifest validation and runtime probes complete. Static-only records must remain explicitly non-promotable.
+3. Require gate evaluations, certification and `selected → deployed` decisions to reference registered evidence IDs, not free-form digest strings.
+4. Have the promotion gate resolve the evidence record from the governance event store and re-check candidate, artifact digest, runtime status, verifier authority, revocation/expiry and source provenance.
+5. Add negative tests for fabricated evidence IDs, cross-candidate references, digest mismatch, stale or revoked evidence, static-only evidence, wrong verifier, and missing manifest provenance.
+
+**Status:** OPEN — no trusted evidence registry or producer integration is claimed.
+
+### 32.3 Checkpoint execution evidence
+
+GitHub Actions workflow **Publication and Deployment Hardening**, run **42265040587** (run number 127), completed successfully on the identity-attestation changes:
+- Python module compilation: PASS.
+- Root ESAP targeted suite: **159 passed**.
+- Autonomous-api evolution/governance suite: **56 passed**.
+- Total: **215 passed, 0 failed**.
+
+The 56-test suite includes the earlier candidate promotion/runtime/configuration tests plus the new role-separation, principal authentication, council signature validation, payload-tampering rejection, and event-log signature-persistence tests.
+
+**Disposition:**
+- FS00-FS-035 identity spoofing / role separation / council command attestation: REMEDIATION VERIFIED BY TARGETED TESTS.
+- FS00-FS-039 trusted evidence registry and producer integration: OPEN.
+- FS00-FS-038 deployment engine adapter integration: OPEN.
+- PR #208 remains open/draft/unmerged; no merge to `main` is authorized.
+- FS-00 remains NOT CLOSED.
+
+
+## 33. Checkpoint 34 — governed promotion must precede final artifact materialization
+
+### 33.1 FS00-FS-040 — EvolutionEngine wrote an unapproved artifact to the shared release directory before governance approval (Critical)
+
+**Source evidence:** the prior `_run_async_unleased()` sequence called `build_genome_output(best_genome)` first, which writes to the shared default `output/generated_api` directory. Only after this write did it call `_publish_governed_candidate()`. If governance denied promotion, the method set the returned `output_path` to `None`, but did not remove the unapproved output already written to the shared release directory.
+
+**Impact:** a failed governance decision could leave unapproved candidate files at the conventional final output path even though the run result and event stream reported promotion failure. A consumer that reads the directory directly rather than checking the governed run record could observe those files.
+
+**Remediation authored in PR #208:**
+- Governed mode no longer calls `build_genome_output()` before approval.
+- It passes the evaluator-produced candidate directory and verified artifact digest directly to `_publish_governed_candidate()`, with `output/generated_api` only as the promotion destination.
+- The promotion helper is now the only writer to the final release directory in governed mode, and it runs only after runtime evidence and candidate-bound governance approval pass.
+- The `building_best` event reports `output_path=None` and `promotion_status="awaiting_governance"` while the gate is pending.
+- On denial, the result remains failed with no new unverified final artifact written.
+- In non-governed development mode, the legacy builder remains available but its result is labelled `staged_unapproved`.
+
+Regression tests now replace the builder with a failing sentinel and assert it is never invoked in either a denied or approved governed run; the approved path invokes the digest-verifying promotion adapter exactly once.
+
+**Status:** REMEDIATION VERIFIED BY TARGETED CI.
+
+### 33.2 Checkpoint 34 execution evidence
+
+GitHub Actions workflow **Publication and Deployment Hardening**, run **42265717579** (run number 132), completed successfully on the governed-materialization change:
+- Python module compilation: PASS.
+- Root ESAP targeted suite: **159 passed**.
+- Autonomous-api evolution/governance suite: **56 passed**.
+- Total: **215 passed, 0 failed**.
+
+FS00-FS-040 is REMEDIATION VERIFIED BY TARGETED TESTS. FS00-FS-035 identity/role separation remains verified by run 127; FS00-FS-039 trusted evidence registry remains OPEN; FS00-FS-038 real deployment adapter integration remains OPEN.
+
+PR #208 remains open/draft/unmerged. No merge to `main` is authorized. FS-00 remains NOT CLOSED.
+
+
+## 34. Checkpoint 35 — governance approval lifecycle and recoverable pending-promotion state
+
+### 34.1 FS00-FS-041 — evaluation and governance approval are coupled in one run, with no recoverable awaiting-approval state (Critical)
+
+**Source trace:**
+- `EvolutionEngine._run_async_unleased()` evaluates candidates, then in the same call immediately attempts `_publish_governed_candidate()` for the best candidate when governance is required.
+- The governance subsystem's decision and certification routes are separate HTTP operations. The evolution run does not pause to await those operations or expose a durable pending-approval task.
+- If the decision/certification does not already exist, promotion is denied; the engine sets `build_error`, returns `output_path=None`, clears `best_genome` from the result, and persists the run as `failed`.
+- The failed-run history records the error but does not persist the complete `best_evidence` record, immutable candidate artifact path, evidence ID, and a resumable promotion command.
+- Candidate evaluation data is included in `GenomeRecord.genome_data.evaluation`, but no inspected API endpoint reconstructs that candidate evidence and resumes the same run through governance approval and promotion.
+- The promotion gate therefore has no normal interactive lifecycle in which a newly evaluated candidate can first be staged, independently reviewed, approved/certified, and then promoted.
+
+**Impact:** requiring a pre-existing approval for a just-created artifact is operationally circular. If approval is absent, the run is marked failed rather than awaiting review. This prevents the current engine from functioning as a proper human/council-governed release workflow, even though the denial itself is fail-closed.
+
+**Required remediation — separate the lifecycle into two durable phases:**
+
+1. **Evaluate and stage:** evaluate candidate, verify artifact, write it only to an immutable candidate-specific quarantine/staging path, register trusted evidence, and persist a candidate record with run/generation/source/target/artifact/evidence lineage.
+2. **Await governance:** return `awaiting_governance`, not `failed`, when evidence is valid but no decision/certification exists. Expose the candidate ID and evidence references without exposing it as a released artifact.
+3. **Review and authorize:** council members sign the exact evidence-bound decision; a distinct certifier grants certification; gate outcomes reference registry-resolved evidence.
+4. **Promote:** a separate authorized action re-loads the candidate and evidence from durable stores, verifies current approval/certification/expiry/revocation and exact digest, then atomically promotes the immutable staged artifact.
+5. **Reject or expire:** preserve the audit evidence and mark the candidate rejected/expired; quarantine or safely remove staged bytes under explicit retention policy. Never convert a missing approval into a successful or completed release.
+6. **Recover:** restart-safe processing must resume pending candidates from durable state without regenerating different bytes or silently changing the artifact digest.
+
+The evidence registry in FS00-FS-039 and this two-phase promotion lifecycle must be designed together. A registry without a resumable lifecycle still leaves approval operationally circular; a pending state without trusted evidence still permits false approvals.
+
+**Status:** OPEN — source-confirmed; design requirement only. No pending-promotion state machine or resume endpoint is claimed.
+
+### 34.2 Current verification and release boundary
+
+The latest code workflow run **42265717579** (run 132) passed:
+- Root ESAP targeted suite: **159 passed**.
+- Autonomous-api evolution/governance suite: **56 passed**.
+- Total: **215 passed, 0 failed**.
+
+The documentation/report update was also exercised by workflow run **42266047724** (run 133), which passed the same **215 tests**.
+
+FS00-FS-040 (no unverified pre-approval write to the shared release directory) remains verified. FS00-FS-039 (trusted evidence registry), FS00-FS-041 (two-phase approval/resume), FS00-FS-038 (real deployment adapters), and the universal ISR/IR/full-stack architecture remain open. PR #208 remains open/draft/unmerged. FS-00 remains NOT CLOSED.

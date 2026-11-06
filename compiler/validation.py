@@ -9,6 +9,7 @@ This module validates:
 from __future__ import annotations
 
 from typing import Any
+from pathlib import PurePosixPath, PureWindowsPath
 
 from .models import CompilationOutput, ValidationIssue, ValidationReport
 
@@ -122,10 +123,12 @@ def validate_compilation_output(output: CompilationOutput) -> ValidationReport:
             )
         )
 
+    seen_paths: set[str] = set()
     for index, artifact in enumerate(output.artifacts):
         artifact_path = f"$.artifacts[{index}].path"
+        path = artifact.path
 
-        if not artifact.path:
+        if not isinstance(path, str) or not path:
             issues.append(
                 ValidationIssue(
                     severity="ERROR",
@@ -136,17 +139,43 @@ def validate_compilation_output(output: CompilationOutput) -> ValidationReport:
             )
             continue
 
-        if ".." in artifact.path:
+        normalized_input = path.replace("\\", "/")
+        raw_parts = normalized_input.split("/")
+        posix = PurePosixPath(normalized_input)
+        windows = PureWindowsPath(path)
+        unsafe = (
+            "\x00" in path
+            or posix.is_absolute()
+            or windows.is_absolute()
+            or bool(windows.drive)
+            or bool(windows.root)
+            or any(part in ("", ".", "..") for part in raw_parts)
+            or any(part.casefold() in {".git", ".tiannara"} for part in raw_parts)
+        )
+        if unsafe:
             issues.append(
                 ValidationIssue(
                     severity="ERROR",
                     code="ARTIFACT_UNSAFE_PATH",
-                    message="Artifact path must not contain parent traversal.",
+                    message="Artifact path must be a canonical relative path without traversal or reserved metadata segments.",
                     path=artifact_path,
                 )
             )
+            continue
 
-        if artifact.path == "artifact-manifest.json":
+        normalized = "/".join(part.casefold() for part in posix.parts)
+        if normalized in seen_paths:
+            issues.append(
+                ValidationIssue(
+                    severity="ERROR",
+                    code="ARTIFACT_DUPLICATE_PATH",
+                    message="Artifact paths must be unique after normalization and case folding.",
+                    path=artifact_path,
+                )
+            )
+        seen_paths.add(normalized)
+
+        if normalized == "artifact-manifest.json":
             issues.append(
                 ValidationIssue(
                     severity="ERROR",

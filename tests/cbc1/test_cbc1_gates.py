@@ -353,3 +353,86 @@ def test_campaign_runner_records_full_stack_gate_against_candidate():
     assert "semantic correspondence unavailable" in verify.detail
     assert verify.passed is False
     assert trial.verdict == "NOT_CERTIFIED"
+
+
+
+def test_campaign_runner_does_not_deploy_when_candidate_verification_fails():
+    calls = []
+
+    class _Builder:
+        def build(self, directory, tag):
+            calls.append("build")
+            return type("Build", (), {
+                "stage": TrialStage.BUILD,
+                "mode": type("Mode", (), {"value": "real_docker"})(),
+                "passed": True,
+                "image_digest": "sha256:image",
+                "logs_hash": "build",
+                "failure_class": "",
+                "detail": "built",
+            })()
+
+    class _Tester:
+        def run_tests(self, image, spec, **kwargs):
+            calls.append("test")
+            return type("Test", (), {
+                "stage": TrialStage.TEST,
+                "mode": type("Mode", (), {"value": "real_docker"})(),
+                "passed": True,
+                "logs_hash": "test",
+                "failure_class": "",
+                "detail": "tested",
+            })()
+
+    class _Deployer:
+        def deploy(self, image, port):
+            calls.append("deploy")
+            raise AssertionError("deployment must be blocked")
+
+    class _Verifier:
+        def verify(self, *args):
+            return True
+
+    class _FullStackVerifier:
+        def verify_bound(self, inputs, candidate_hash):
+            return type("Result", (), {
+                "passed": False,
+                "candidate_hash": candidate_hash,
+                "findings": ("intentional coherence failure",),
+            })()
+
+    class _SemanticVerifier:
+        def verify_bound(self, inputs, candidate_hash):
+            return type("Result", (), {
+                "passed": True,
+                "source_hash": "source-hash",
+                "mapping_hash": "mapping-hash",
+                "candidate_hash": candidate_hash,
+                "findings": (),
+            })()
+
+    runner = CampaignRunner(
+        builder=_Builder(),
+        tester=_Tester(),
+        deployer=_Deployer(),
+        verifier=_Verifier(),
+        full_stack_verifier=_FullStackVerifier(),
+        semantic_correspondence_verifier=_SemanticVerifier(),
+    )
+    trial = runner.run_trial(
+        intent="verification-before-deployment",
+        category="api",
+        novelty_class="template",
+        plan=_plan(),
+        revision_id="rev-gate",
+        backend=_backend(),
+        full_stack_inputs=("frontend", "api", "backend", (), ()),
+        semantic_correspondence_inputs={"source_artifacts": {}, "explicit_mapping": {}},
+    )
+
+    assert calls == ["build", "test"]
+    assert trial.verdict == "NOT_CERTIFIED"
+    by_stage = {stage.stage: stage for stage in trial.stages}
+    assert by_stage[TrialStage.VERIFY].passed is False
+    assert by_stage[TrialStage.DEPLOY].passed is False
+    assert "verification" in by_stage[TrialStage.DEPLOY].detail

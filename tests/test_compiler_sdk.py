@@ -51,6 +51,7 @@ def build_sdk_app(tmp_path: Path) -> FastAPI:
 
     app = FastAPI()
     app.state.compiler = compiler
+    app.state.compiler_authorizer = lambda _request: True
     app.state.certification_engine = BackendCertificationEngine(
         compiler.registry
     )
@@ -179,3 +180,16 @@ def test_api_certify_and_revoke(tmp_path: Path):
 
     assert revoke_body["status"] == "REVOKED"
     assert revoke_body["revocation_reason"] == "Testing revocation."
+
+def test_sdk_certification_requires_authorization(tmp_path: Path):
+    compiler = create_default_compiler(tmp_path)
+    app = FastAPI()
+    app.state.compiler = compiler
+    app.state.certification_engine = BackendCertificationEngine(compiler.registry)
+    app.include_router(sdk_router)
+    client = TestClient(app)
+    response = client.post(
+        "/v1/compiler/sdk/certify",
+        json={"backend_id": "reference.summary"},
+    )
+    assert response.status_code == 503

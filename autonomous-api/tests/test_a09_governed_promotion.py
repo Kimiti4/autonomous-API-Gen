@@ -10,28 +10,75 @@ class _Settings:
 
 
 class _Governance:
-    def __init__(self, state):
-        self.state = state
+    def __init__(self, state_factory):
+        self.state_factory = state_factory
 
-    async def materialize_candidate(self, _candidate_id):
-        return self.state
+    async def materialize_candidate(self, candidate_id):
+        return self.state_factory(candidate_id)
+
+
+DIGEST = "a" * 64
+ARTIFACT_REF = f"sha256:{DIGEST}"
+
+
+def _approved_state(candidate_id, *, digest=ARTIFACT_REF, from_state="selected",
+                    to_state="deployed", include_certification=True):
+    decision = SimpleNamespace(
+        candidateId=candidate_id,
+        generation=1,
+        verdict="approve",
+        authorizesTransition=True,
+        fromState=from_state,
+        toState=to_state,
+        evidenceRefs=[digest],
+    )
+    certification = SimpleNamespace(
+        candidateId=candidate_id,
+        revokedAt=None,
+        evidenceRefs=[digest],
+        validUntil="2099-01-01T00:00:00+00:00",
+    )
+    certifications = [certification] if include_certification else []
+    return SimpleNamespace(
+        candidate_id=candidate_id,
+        current_state="deployed" if to_state == "deployed" else "selected",
+        latest_decision=lambda: decision,
+        active_certifications=lambda: certifications,
+    )
+
+
+def _verified_evidence(**overrides):
+    evidence = {
+        "build_ok": True,
+        "artifact_compile_ok": True,
+        "verification_status": "verified",
+        "evaluation_mode": "runtime",
+        "runtime_score": 1.0,
+        "artifact_path": "/tmp/candidate-source",
+        "output_path": "/tmp/candidate-release",
+        "artifact_digest": ARTIFACT_REF,
+    }
+    evidence.update(overrides)
+    return evidence
 
 
 @pytest.mark.asyncio
 async def test_governance_denies_promotion_without_authorizing_decision(monkeypatch):
     state = SimpleNamespace(
+        candidate_id="candidate-denied",
         current_state="verified",
         latest_decision=lambda: None,
+        active_certifications=lambda: [],
     )
     monkeypatch.setattr("app.engine.evolution.get_settings", lambda: _Settings())
     monkeypatch.setattr(
-        "app.engine.evolution.get_governance", lambda: _Governance(state)
+        "app.engine.evolution.get_governance",
+        lambda: _Governance(lambda _candidate_id: state),
     )
 
     engine = EvolutionEngine()
     genome = SimpleNamespace(genome_id="candidate-denied")
-
-    assert await engine._governance_allows_promotion(genome) is False
+    assert await engine._governance_allows_promotion(genome, ARTIFACT_REF) is False
 
     called = False
 
@@ -42,58 +89,106 @@ async def test_governance_denies_promotion_without_authorizing_decision(monkeypa
 
     monkeypatch.setattr("app.engine.evolution.promote_verified_artifact", publisher)
     with pytest.raises(ValueError, match="governance promotion gate denied"):
+        await engine._publish_governed_candidate(genome, _verified_evidence())
+    assert called is False
+
+
+@pytest.mark.asyncio
+async def test_governance_requires_deployed_transition_and_digest_bound_certification(monkeypatch):
+    candidate_id = "candidate-approved"
+    allowed_state = _approved_state(candidate_id)
+    monkeypatch.setattr("app.engine.evolution.get_settings", lambda: _Settings())
+    monkeypatch.setattr(
+        "app.engine.evolution.get_governance",
+        lambda: _Governance(lambda _candidate_id: allowed_state),
+    )
+    engine = EvolutionEngine()
+    genome = SimpleNamespace(genome_id=candidate_id)
+
+    assert await engine._governance_allows_promotion(genome, ARTIFACT_REF) is True
+    assert await engine._governance_allows_promotion(genome, f"sha256:{'b' * 64}") is False
+
+    wrong_transition = _approved_state(candidate_id, from_state="proposed", to_state="evaluating")
+    monkeypatch.setattr(
+        "app.engine.evolution.get_governance",
+        lambda: _Governance(lambda _candidate_id: wrong_transition),
+    )
+    assert await engine._governance_allows_promotion(genome, ARTIFACT_REF) is False
+
+    missing_cert = _approved_state(candidate_id, include_certification=False)
+    monkeypatch.setattr(
+        "app.engine.evolution.get_governance",
+        lambda: _Governance(lambda _candidate_id: missing_cert),
+    )
+    assert await engine._governance_allows_promotion(genome, ARTIFACT_REF) is False
+
+    expired_cert_state = _approved_state(candidate_id)
+    expired_cert_state.active_certifications = lambda: [
+        SimpleNamespace(
+            candidateId=candidate_id,
+            revokedAt=None,
+            evidenceRefs=[ARTIFACT_REF],
+            validUntil="2000-01-01T00:00:00+00:00",
+        )
+    ]
+    monkeypatch.setattr(
+        "app.engine.evolution.get_governance",
+        lambda: _Governance(lambda _candidate_id: expired_cert_state),
+    )
+    assert await engine._governance_allows_promotion(genome, ARTIFACT_REF) is False
+
+
+@pytest.mark.asyncio
+async def test_governed_publish_rejects_static_or_unverified_candidates(monkeypatch):
+    candidate_id = "candidate-static"
+    monkeypatch.setattr("app.engine.evolution.get_settings", lambda: _Settings())
+    engine = EvolutionEngine()
+    genome = SimpleNamespace(genome_id=candidate_id)
+    called = False
+
+    def publisher(*_args, **_kwargs):
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr("app.engine.evolution.promote_verified_artifact", publisher)
+    with pytest.raises(ValueError, match="not fully runtime-verified"):
         await engine._publish_governed_candidate(
             genome,
-            {
-                "verification_status": "verified",
-                "artifact_path": "/tmp/a",
-                "artifact_digest": "sha256:x",
-            },
+            _verified_evidence(evaluation_mode="static", runtime_score=None),
         )
     assert called is False
 
 
 @pytest.mark.asyncio
-async def test_governance_allows_promotion_only_after_authorizing_decision(monkeypatch):
-    decision = SimpleNamespace(verdict="approve", authorizesTransition=True)
-    state = SimpleNamespace(
-        current_state="certified",
-        latest_decision=lambda: decision,
-    )
+async def test_governed_publish_passes_verified_digest_to_promoter(monkeypatch):
+    candidate_id = "candidate-release"
+    allowed_state = _approved_state(candidate_id)
     monkeypatch.setattr("app.engine.evolution.get_settings", lambda: _Settings())
     monkeypatch.setattr(
-        "app.engine.evolution.get_governance", lambda: _Governance(state)
+        "app.engine.evolution.get_governance",
+        lambda: _Governance(lambda _candidate_id: allowed_state),
     )
-
-    engine = EvolutionEngine()
-    genome = SimpleNamespace(genome_id="candidate-approved")
-
-    assert await engine._governance_allows_promotion(genome) is True
 
     published = []
 
     def publisher(*args, **kwargs):
         published.append((args, kwargs))
-        return "output/generated_api"
+        return "/tmp/candidate-release"
 
     monkeypatch.setattr("app.engine.evolution.promote_verified_artifact", publisher)
+    engine = EvolutionEngine()
     output = await engine._publish_governed_candidate(
-        genome,
-        {
-            "verification_status": "verified",
-            "artifact_path": "/tmp/a",
-            "artifact_digest": "sha256:x",
-        },
+        SimpleNamespace(genome_id=candidate_id),
+        _verified_evidence(),
     )
-    assert output == "output/generated_api"
-    assert published
+    assert output == "/tmp/candidate-release"
+    assert published[0][1]["expected_digest"] == DIGEST
 
 
 def test_promotion_event_is_emitted_only_by_explicit_promotion_event():
     from app.engine.elite_evolution import EliteEvolutionEngine
 
     mapping = EvolutionEngine._EVENT_TYPE_MAP
-
     assert mapping["new_best"] == "evolution.stage_changed"
     assert mapping["candidate_promoted"] == "candidate.promoted"
     assert list(mapping.values()).count("candidate.promoted") == 1
@@ -110,27 +205,32 @@ async def test_run_level_governance_denial_fails_closed_without_promotion(monkey
 
     async def _verified(*_args, **_kwargs):
         return {
-            "build_ok": True,
-            "artifact_compile_ok": True,
-            "verification_status": "verified",
-            "artifact_digest": "sha256:test-digest",
+            **_verified_evidence(),
             "artifact_path": "/tmp/candidate.bin",
-            "evaluation_mode": "static",
-            "static_score": 0.9,
-            "runtime_score": None,
         }
 
-    denied_state = SimpleNamespace(current_state="verified", latest_decision=lambda: None)
-
-    async def _materialize(_candidate_id):
-        return denied_state
+    denied_state = SimpleNamespace(
+        candidate_id="not-the-current-candidate",
+        current_state="verified",
+        latest_decision=lambda: None,
+        active_certifications=lambda: [],
+    )
 
     monkeypatch.setattr("app.engine.evolution.evaluate_candidate_async", _verified)
     monkeypatch.setattr("app.engine.evolution.get_settings", lambda: _Settings())
     monkeypatch.setattr(
         "app.engine.evolution.get_governance",
-        lambda: SimpleNamespace(materialize_candidate=_materialize),
+        lambda: _Governance(lambda _candidate_id: denied_state),
     )
+
+    builder_reached = False
+
+    def _builder(*_args, **_kwargs):
+        nonlocal builder_reached
+        builder_reached = True
+        raise AssertionError("unverified builder must not write the release directory")
+
+    monkeypatch.setattr("app.engine.evolution.build_genome_output", _builder)
 
     publisher_reached = False
 
@@ -151,10 +251,11 @@ async def test_run_level_governance_denial_fails_closed_without_promotion(monkey
     engine = EvolutionEngine()
     engine.dispatcher = SimpleNamespace(emit=_capture)
     result = await engine.run_async(
-        generations=1, population_size=2, use_docker=False, seed=3
+        generations=1, population_size=2, use_docker=True, seed=3
     )
 
     assert publisher_reached is False
+    assert builder_reached is False
     assert result["output_path"] is None
     assert result["best_genome"] is None
     assert result["build_error"] is not None
@@ -185,26 +286,27 @@ async def test_run_level_authorized_candidate_promotes_exactly_once(monkeypatch)
 
     async def _verified(*_args, **_kwargs):
         return {
-            "build_ok": True,
-            "artifact_compile_ok": True,
-            "verification_status": "verified",
-            "artifact_digest": "sha256:test-digest",
+            **_verified_evidence(),
             "artifact_path": "/tmp/candidate.bin",
-            "evaluation_mode": "static",
-            "static_score": 0.9,
-            "runtime_score": None,
         }
 
-    decision = SimpleNamespace(verdict="approve", authorizesTransition=True)
-    allowed_state = SimpleNamespace(
-        current_state="certified", latest_decision=lambda: decision
-    )
+    def _state_for(candidate_id):
+        return _approved_state(candidate_id)
 
-    async def _materialize(_candidate_id):
-        return allowed_state
+    async def _materialize(candidate_id):
+        return _state_for(candidate_id)
 
     monkeypatch.setattr("app.engine.evolution.evaluate_candidate_async", _verified)
     monkeypatch.setattr("app.engine.evolution.get_settings", lambda: _Settings())
+
+    builder_reached = False
+
+    def _builder(*_args, **_kwargs):
+        nonlocal builder_reached
+        builder_reached = True
+        raise AssertionError("governed path must promote the verified candidate directory directly")
+
+    monkeypatch.setattr("app.engine.evolution.build_genome_output", _builder)
     monkeypatch.setattr(
         "app.engine.evolution.get_governance",
         lambda: SimpleNamespace(materialize_candidate=_materialize),
@@ -226,9 +328,10 @@ async def test_run_level_authorized_candidate_promotes_exactly_once(monkeypatch)
     engine = EvolutionEngine()
     engine.dispatcher = SimpleNamespace(emit=_capture)
     result = await engine.run_async(
-        generations=1, population_size=2, use_docker=False, seed=3
+        generations=1, population_size=2, use_docker=True, seed=3
     )
 
+    assert builder_reached is False
     assert result["build_error"] is None
     assert result["output_path"] == "output/generated_api"
     assert result["best_genome"] is not None
@@ -249,3 +352,153 @@ async def test_run_level_authorized_candidate_promotes_exactly_once(monkeypatch)
         assert record.history["promotion_status"] == "published"
     finally:
         db.close()
+
+
+@pytest.mark.asyncio
+async def test_ungoverned_run_is_staged_not_reported_as_published(monkeypatch):
+    from app.storage.db import SessionLocal
+    from app.storage.models import EvolutionRun
+
+    async def _static_evidence(*_args, **_kwargs):
+        return {
+            "build_ok": True,
+            "artifact_compile_ok": True,
+            "artifact_digest": ARTIFACT_REF,
+            "verification_status": "static_only",
+            "evaluation_mode": "static",
+            "static_score": 0.9,
+            "runtime_score": None,
+            "artifact_path": "/tmp/candidate-static",
+        }
+
+    monkeypatch.setattr("app.engine.evolution.evaluate_candidate_async", _static_evidence)
+    monkeypatch.setattr(
+        "app.engine.evolution.get_settings",
+        lambda: SimpleNamespace(GOVERNANCE_ENFORCEMENT_REQUIRED=False),
+    )
+    monkeypatch.setattr(
+        "app.engine.evolution.build_genome_output",
+        lambda *_args, **_kwargs: "/tmp/staged-candidate",
+    )
+
+    emitted = []
+
+    async def _capture(*, stream_id, event_type, payload, correlation_id, generation):
+        emitted.append((event_type, payload.get("type")))
+
+    engine = EvolutionEngine()
+    engine.dispatcher = SimpleNamespace(emit=_capture)
+    result = await engine.run_async(
+        generations=1, population_size=2, use_docker=False, seed=17
+    )
+
+    assert result["build_error"] is None
+    assert result["output_path"] == "/tmp/staged-candidate"
+    assert result["promotion_status"] == "staged_unapproved"
+    assert result["governance_required"] is False
+    assert not any(event == "candidate.promoted" for event, _ in emitted)
+    assert EvolutionEngine._is_authoritative(
+        SimpleNamespace(status="completed", history={
+            "phase": "completed",
+            "promotion_status": result["promotion_status"],
+            "best_artifact_digest": ARTIFACT_REF,
+        })
+    ) is False
+
+    db = SessionLocal()
+    try:
+        record = (
+            db.query(EvolutionRun)
+            .filter(EvolutionRun.run_id == result["run_id"])
+            .first()
+        )
+        assert record is not None
+        assert record.status == "completed"
+        assert record.history["promotion_status"] == "staged_unapproved"
+        assert record.history["governance_required"] is False
+    finally:
+        db.close()
+
+
+def test_synchronous_evolution_cannot_bypass_required_governance(monkeypatch):
+    monkeypatch.setattr(
+        "app.engine.evolution.get_settings",
+        lambda: SimpleNamespace(GOVERNANCE_ENFORCEMENT_REQUIRED=True),
+    )
+    build_called = False
+
+    def _build(*_args, **_kwargs):
+        nonlocal build_called
+        build_called = True
+        return "/tmp/should-not-exist"
+
+    monkeypatch.setattr("app.engine.evolution.build_genome_output", _build)
+    result = EvolutionEngine().run_synchronous(generations=1, population_size=3)
+
+    assert build_called is False
+    assert result["output_path"] is None
+    assert result["best_genome"] is None
+    assert result["build_error"] == (
+        "synchronous evolution cannot perform governed runtime verification and promotion"
+    )
+    assert result["promotion_status"] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_elite_evolution_refuses_artifact_build_when_governance_is_required(monkeypatch):
+    from app.engine.elite_evolution import EliteEvolutionEngine
+
+    monkeypatch.setattr(
+        "app.core.config.get_settings",
+        lambda: SimpleNamespace(GOVERNANCE_ENFORCEMENT_REQUIRED=True),
+    )
+    build_called = False
+
+    def _build(*_args, **_kwargs):
+        nonlocal build_called
+        build_called = True
+        return "/tmp/should-not-exist"
+
+    monkeypatch.setattr("app.engine.elite_evolution.build_genome_output", _build)
+    result = await EliteEvolutionEngine().run_elite_evolution(
+        generations=1,
+        population_size=2,
+        use_multi_population=False,
+        enable_adaptive_mutation=False,
+        seed=19,
+    )
+
+    assert build_called is False
+    assert result["output_path"] is None
+    assert result["best_genome"] is None
+    assert result["build_error"] == (
+        "elite evolution has no runtime evidence or governed promotion path"
+    )
+    assert result["promotion_status"] == "failed"
+    assert result["governance_required"] is True
+
+
+@pytest.mark.asyncio
+async def test_elite_evolution_labels_non_governed_output_as_staged(monkeypatch):
+    from app.engine.elite_evolution import EliteEvolutionEngine
+
+    monkeypatch.setattr(
+        "app.core.config.get_settings",
+        lambda: SimpleNamespace(GOVERNANCE_ENFORCEMENT_REQUIRED=False),
+    )
+    monkeypatch.setattr(
+        "app.engine.elite_evolution.build_genome_output",
+        lambda *_args, **_kwargs: "/tmp/elite-staged",
+    )
+    result = await EliteEvolutionEngine().run_elite_evolution(
+        generations=1,
+        population_size=2,
+        use_multi_population=False,
+        enable_adaptive_mutation=False,
+        seed=23,
+    )
+
+    assert result["build_error"] is None
+    assert result["output_path"] == "/tmp/elite-staged"
+    assert result["promotion_status"] == "staged_unapproved"
+    assert result["governance_required"] is False

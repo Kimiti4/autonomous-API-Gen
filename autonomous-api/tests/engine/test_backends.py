@@ -350,3 +350,95 @@ def test_backend_outputs_are_deterministic_for_same_architecture():
 
     assert first.files == second.files
     assert first.metadata == second.metadata
+
+
+
+@pytest.mark.parametrize(
+    "unsafe_path",
+    [
+        "../escape.txt",
+        "/absolute/escape.txt",
+        "C:/absolute/escape.txt",
+        r"\\server\share\escape.txt",
+        ".git/config",
+        ".TIANNARA/provenance.json",
+        "a//b.txt",
+        "a/./b.txt",
+        "artifact-manifest.json",
+    ],
+)
+def test_evolution_materializer_rejects_unsafe_paths_before_writing(tmp_path, unsafe_path):
+    from app.engine.backend_contract import CompiledArtifact
+    from app.engine.backends import materialize
+
+    destination = tmp_path / "candidate"
+    artifact = CompiledArtifact(
+        backend_id="python-fastapi",
+        files={"safe.txt": "safe", unsafe_path: "unsafe"},
+        metadata={},
+    )
+    with pytest.raises(ValueError, match="unsafe|reserved"):
+        materialize(artifact, str(destination))
+    assert not destination.exists()
+    assert not (tmp_path.parent / "escape.txt").exists()
+
+
+def test_evolution_materializer_rejects_casefolded_path_collisions(tmp_path):
+    from app.engine.backend_contract import CompiledArtifact
+    from app.engine.backends import materialize
+
+    artifact = CompiledArtifact(
+        backend_id="python-fastapi",
+        files={"src/Main.py": "one", "src/main.py": "two"},
+        metadata={},
+    )
+    with pytest.raises(ValueError, match="duplicate normalized"):
+        materialize(artifact, str(tmp_path / "candidate"))
+    assert not (tmp_path / "candidate").exists()
+
+
+def test_verified_artifact_rejects_unmanifested_files(tmp_path):
+    import hashlib
+    import json
+
+    from app.engine.backends import _validate_verified_artifact
+
+    artifact_dir = tmp_path / "candidate"
+    artifact_dir.mkdir()
+    (artifact_dir / "main.py").write_text("known", encoding="utf-8")
+    (artifact_dir / "extra.py").write_text("unmanifested", encoding="utf-8")
+    file_digest = hashlib.sha256(b"known").hexdigest()
+    payload = {
+        "manifest_version": 1,
+        "backend_id": "test",
+        "architecture_hash": "arch-test",
+        "files": {"main.py": file_digest},
+    }
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    (artifact_dir / "artifact-manifest.json").write_text(
+        json.dumps({**payload, "artifact_digest": digest}), encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match="unmanifested"):
+        _validate_verified_artifact(str(artifact_dir), digest)
+
+
+def test_evolution_materializer_normalizes_safe_windows_relative_paths(tmp_path):
+    from app.engine.backend_contract import CompiledArtifact
+    import hashlib
+    import json
+
+    from app.engine.backends import materialize, _validate_verified_artifact
+
+    artifact = CompiledArtifact(
+        backend_id="python-fastapi",
+        files={r"nested\escape.txt": "ok"},
+        metadata={},
+    )
+    output = materialize(artifact, str(tmp_path / "candidate"))
+    assert (tmp_path / "candidate" / "nested" / "escape.txt").read_text(encoding="utf-8") == "ok"
+    manifest_path = tmp_path / "candidate" / "artifact-manifest.json"
+    digest = json.loads(manifest_path.read_text(encoding="utf-8"))["artifact_digest"]
+    manifest = _validate_verified_artifact(output, digest)
+    assert manifest["files"] == {"nested/escape.txt": hashlib.sha256(b"ok").hexdigest()}

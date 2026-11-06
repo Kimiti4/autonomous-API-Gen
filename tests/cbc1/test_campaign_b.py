@@ -1083,3 +1083,85 @@ def test_run_wave_stops_honestly_when_port_capacity_insufficient(tmp_path, monke
     assert "port capacity insufficient" in summary["verdict_reason"]
     assert summary["port_preflight"]["ok"] is False
     assert EvidenceLedger.count(ledger_path) == 0
+
+
+
+def _campaign_b_fixture(tmp_path, monkeypatch, test_passed=True):
+    import certification.campaign.campaign_b as cb
+    from certification.campaign.plan_builder import build_artifacts_for
+    from certification.evidence.ledger import EvidenceLedger
+
+    workload = default_corpus()[0]
+    artifacts = build_artifacts_for(workload)
+    backend = build_backend_registry().get("python-fastapi")
+    calls = []
+
+    def stage(stage_name, passed=True, image_digest="", container_id=""):
+        return StageExecution(
+            stage=getattr(TrialStage, stage_name),
+            mode=ExecutionMode.REAL_DOCKER,
+            passed=passed,
+            duration_s=0.01,
+            logs_hash=f"{stage_name.lower()}-hash",
+            image_digest=image_digest,
+            container_id=container_id,
+            detail=f"{stage_name} result",
+        )
+
+    class _Stages:
+        def build(self, directory, tag):
+            calls.append("build")
+            return stage("BUILD", image_digest="sha256:image")
+
+        def run_tests(self, image, spec, **kwargs):
+            calls.append("test")
+            return stage("TEST", passed=test_passed)
+
+        def deploy(self, image, port):
+            calls.append("deploy")
+            return stage("DEPLOY", container_id="container-1")
+
+        def probe(self, port, container_id):
+            calls.append("probe")
+            return stage("RUNTIME")
+
+        def destroy(self, container_id):
+            calls.append("destroy")
+            return stage("DESTROY")
+
+    monkeypatch.setattr(
+        cb, "_run_independent_verify",
+        lambda *args, **kwargs: (calls.append("verify") is None, "verified"),
+    )
+    runner = CampaignBRunner(
+        stages=_Stages(),
+        ledger=EvidenceLedger(str(tmp_path / "campaign-b-ledger.jsonl")),
+        required_mode=ExecutionMode.REAL_DOCKER,
+    )
+    trial = runner.run_trial(
+        intent=workload.intent,
+        category=workload.category.value,
+        novelty_class="template",
+        plan=artifacts.plan,
+        revision=artifacts.revision,
+        backend=backend,
+        workload=workload,
+        artifacts=artifacts,
+    )
+    return trial, calls
+
+
+def test_campaign_b_verifies_before_deploy_and_cleans_up(tmp_path, monkeypatch):
+    trial, calls = _campaign_b_fixture(tmp_path, monkeypatch, test_passed=True)
+    assert calls == ["build", "test", "verify", "deploy", "probe", "destroy"]
+    assert trial.verdict == "CERTIFIED"
+
+
+def test_campaign_b_never_deploys_after_failed_tests(tmp_path, monkeypatch):
+    trial, calls = _campaign_b_fixture(tmp_path, monkeypatch, test_passed=False)
+    assert calls == ["build", "test"]
+    assert "verify" not in calls
+    assert "deploy" not in calls
+    assert "probe" not in calls
+    assert "destroy" not in calls
+    assert trial.verdict != "CERTIFIED"

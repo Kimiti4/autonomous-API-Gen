@@ -4,7 +4,7 @@ import asyncio
 import uuid
 import random
 from typing import Callable, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from app.core.logger import logger
 from app.engine.genome import Genome
 from app.core.population import Population
@@ -117,28 +117,85 @@ class EvolutionEngine:
             return 0.0
         return float(score) if score is not None else 0.0
 
-    async def _governance_allows_promotion(self, genome) -> bool:
+    async def _governance_allows_promotion(self, genome, artifact_digest: str) -> bool:
+        """Require an active candidate certificate and exact deployed-transition approval."""
         if not getattr(get_settings(), "GOVERNANCE_ENFORCEMENT_REQUIRED", False):
-            return True
-        state = await get_governance().materialize_candidate(genome.genome_id)
+            return False
+
+        digest = artifact_digest.removeprefix("sha256:")
+        if len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
+            return False
+        artifact_ref = f"sha256:{digest}"
+        candidate_id = getattr(genome, "genome_id", None)
+        if not isinstance(candidate_id, str) or not candidate_id:
+            return False
+
+        state = await get_governance().materialize_candidate(candidate_id)
+        if getattr(state, "candidate_id", None) != candidate_id:
+            return False
+        if getattr(state, "current_state", None) != "deployed":
+            return False
+
         decision = state.latest_decision()
         if decision is None:
             return False
-        return (
-            getattr(decision, "verdict", None) == "approve"
-            and bool(getattr(decision, "authorizesTransition", False))
-        )
+        if (
+            getattr(decision, "candidateId", None) != candidate_id
+            or getattr(decision, "verdict", None) != "approve"
+            or getattr(decision, "authorizesTransition", None) is not True
+            or getattr(decision, "fromState", None) != "selected"
+            or getattr(decision, "toState", None) != "deployed"
+            or artifact_ref not in getattr(decision, "evidenceRefs", ())
+        ):
+            return False
+
+        active_certifications = getattr(state, "active_certifications", None)
+        if not callable(active_certifications):
+            return False
+        for certification in active_certifications():
+            if (
+                getattr(certification, "candidateId", None) != candidate_id
+                or getattr(certification, "revokedAt", None) is not None
+                or artifact_ref not in getattr(certification, "evidenceRefs", ())
+            ):
+                continue
+            valid_until = getattr(certification, "validUntil", None)
+            if valid_until is not None:
+                try:
+                    expiry = (
+                        valid_until
+                        if isinstance(valid_until, datetime)
+                        else datetime.fromisoformat(str(valid_until).replace("Z", "+00:00"))
+                    )
+                except (TypeError, ValueError):
+                    continue
+                if expiry.tzinfo is None or expiry <= datetime.now(timezone.utc):
+                    continue
+            return True
+        return False
 
     async def _publish_governed_candidate(self, genome, evidence: dict):
-        if not await self._governance_allows_promotion(genome):
-            raise ValueError("governance promotion gate denied")
-        source = evidence.get("artifact_path") or evidence.get("output_path")
-        destination = evidence.get("output_path") or evidence.get("artifact_path")
         digest = str(evidence.get("artifact_digest") or "")
-        if digest.startswith("sha256:"):
-            digest = digest[len("sha256:"):]
-        return promote_verified_artifact(source, destination, expected_digest=digest)
+        if (
+            evidence.get("build_ok") is not True
+            or evidence.get("artifact_compile_ok") is not True
+            or evidence.get("verification_status") != "verified"
+            or evidence.get("evaluation_mode") != "runtime"
+            or evidence.get("runtime_score") != 1.0
+        ):
+            raise ValueError("candidate is not fully runtime-verified for governed promotion")
+        if not await self._governance_allows_promotion(genome, digest):
+            raise ValueError("governance promotion gate denied or is not bound to this artifact")
 
+        source = evidence.get("artifact_path")
+        destination = evidence.get("output_path")
+        if not isinstance(source, str) or not source or not isinstance(destination, str) or not destination:
+            raise ValueError("governed promotion requires explicit source and destination artifact paths")
+        return promote_verified_artifact(
+            source,
+            destination,
+            expected_digest=digest.removeprefix("sha256:"),
+        )
     async def _run_async_unleased(self, generations: int = 10, population_size: int = 10, use_docker: bool = True, seed: Optional[int] = None) -> dict:
         if generations < 1 or population_size < 2: raise ValueError("generations must be >= 1 and population_size must be >= 2")
         run_id = str(uuid.uuid4())
@@ -177,37 +234,72 @@ class EvolutionEngine:
                 while len(new_population) < population_size: new_population.append(mutate(crossover(parents[0], parents[1]), mutation_rate=0.2))
                 population.replace(new_population)
             build_error = None
+            governance_required = bool(getattr(get_settings(), "GOVERNANCE_ENFORCEMENT_REQUIRED", False))
+            promotion_status = "not_attempted"
             if best_genome:
-                try:
-                    output_path = build_genome_output(best_genome, target=self.target)
-                except ValueError as exc:
-                    output_path = None
-                    build_error = f"best genome not lowerable: {exc}"
-                    logger.error("Best genome build failed: %s", exc)
-                await self._emit_update({"type":"building_best","run_id":run_id,"output_path":output_path}, run_id=run_id)
-                if output_path and not build_error and getattr(get_settings(), "GOVERNANCE_ENFORCEMENT_REQUIRED", False):
+                if governance_required:
+                    # Never write an unverified candidate into the shared release
+                    # directory before the digest-bound governance gate succeeds.
+                    promotion_status = "awaiting_governance"
                     publish_evidence = dict(best_evidence or {})
-                    publish_evidence["output_path"] = output_path
-                    publish_evidence.setdefault("artifact_path", output_path)
+                    publish_evidence["output_path"] = "output/generated_api"
+                    await self._emit_update(
+                        {
+                            "type": "building_best",
+                            "run_id": run_id,
+                            "output_path": None,
+                            "promotion_status": promotion_status,
+                        },
+                        run_id=run_id,
+                    )
                     try:
-                        output_path = await self._publish_governed_candidate(best_genome, publish_evidence)
-                        await self._emit_update({"type":"candidate_promoted","run_id":run_id,"output_path":output_path}, run_id=run_id)
-                    except ValueError as exc:
+                        output_path = await self._publish_governed_candidate(
+                            best_genome, publish_evidence
+                        )
+                        promotion_status = "published"
+                        await self._emit_update(
+                            {
+                                "type": "candidate_promoted",
+                                "run_id": run_id,
+                                "output_path": output_path,
+                            },
+                            run_id=run_id,
+                        )
+                    except Exception as exc:
                         output_path = None
                         build_error = str(exc)
+                        promotion_status = "failed"
                         logger.error("Governed promotion denied: %s", exc)
+                else:
+                    try:
+                        output_path = build_genome_output(best_genome, target=self.target)
+                        promotion_status = "staged_unapproved"
+                    except ValueError as exc:
+                        output_path = None
+                        build_error = f"best genome not lowerable: {exc}"
+                        promotion_status = "failed"
+                        logger.error("Best genome build failed: %s", exc)
+                    await self._emit_update(
+                        {
+                            "type": "building_best",
+                            "run_id": run_id,
+                            "output_path": output_path,
+                            "promotion_status": promotion_status,
+                        },
+                        run_id=run_id,
+                    )
             elif best_genome is None:
                 build_error = "no candidate could be lowered by the selected backend"
-            result = {"run_id":run_id,"best_genome":best_genome.encode() if best_genome and not build_error else None,"best_fitness":best_fitness if best_genome and not build_error else 0.0,"production_readiness":self.production_analyzer.analyze(best_genome) if best_genome and not build_error else None,"history":history,"output_path":output_path,"build_error":build_error,"total_generations":generations,"evaluation_mode":"runtime" if use_docker and get_backend(self.target.backend_id).runtime_supported else "static","backend_id":self.target.backend_id,"seed":seed}
+            result = {"run_id":run_id,"best_genome":best_genome.encode() if best_genome and not build_error else None,"best_fitness":best_fitness if best_genome and not build_error else 0.0,"production_readiness":self.production_analyzer.analyze(best_genome) if best_genome and not build_error else None,"history":history,"output_path":output_path,"build_error":build_error,"promotion_status":promotion_status,"governance_required":governance_required,"total_generations":generations,"evaluation_mode":"runtime" if use_docker and get_backend(self.target.backend_id).runtime_supported else "static","backend_id":self.target.backend_id,"seed":seed}
             db = SessionLocal()
             try:
                 record = db.query(EvolutionRun).filter(EvolutionRun.run_id == run_id).first()
                 if record:
-                    record.status="failed" if build_error else "completed"; record.best_fitness=result["best_fitness"]; record.best_genome=result["best_genome"]; record.completed_at=datetime.utcnow()
+                    record.status="failed" if build_error else "completed"; record.best_fitness=result["best_fitness"]; record.best_genome=result["best_genome"]; record.completed_at=datetime.now(timezone.utc).replace(tzinfo=None)
                     if build_error:
                         record.history={"schema_version":1,"phase":"failed","promotion_status":"failed","generations":history,"build_error":build_error,"error":build_error}
                     else:
-                        record.history={"schema_version":1,"phase":"completed","promotion_status":"published","generations":history,"build_error":None}
+                        record.history={"schema_version":1,"phase":"completed","promotion_status":promotion_status,"governance_required":governance_required,"generations":history,"build_error":None}
                         if best_evidence and best_evidence.get("artifact_digest"):
                             record.history["best_artifact_digest"]=best_evidence["artifact_digest"]
                     db.commit()
@@ -244,11 +336,15 @@ class EvolutionEngine:
             while len(new_population) < population_size: new_population.append(mutate(crossover(parents[0], parents[1]), mutation_rate=0.2))
             population.replace(new_population)
         build_error = None
+        governance_required = bool(getattr(get_settings(), "GOVERNANCE_ENFORCEMENT_REQUIRED", False))
         if best_genome:
-            try:
-                output_path = build_genome_output(best_genome, target=self.target)
-            except ValueError as exc:
-                output_path = None
-                build_error = f"best genome not lowerable: {exc}"
-                logger.error("Best genome build failed: %s", exc)
-        return {"best_genome": best_genome.encode() if best_genome and not build_error else None, "best_fitness": best_fitness if best_genome and not build_error else 0.0, "production_readiness": self.production_analyzer.analyze(best_genome) if best_genome and not build_error else None, "history": history, "output_path": output_path, "build_error": build_error, "total_generations": generations, "backend_id": self.target.backend_id}
+            if governance_required:
+                build_error = "synchronous evolution cannot perform governed runtime verification and promotion"
+            else:
+                try:
+                    output_path = build_genome_output(best_genome, target=self.target)
+                except ValueError as exc:
+                    output_path = None
+                    build_error = f"best genome not lowerable: {exc}"
+                    logger.error("Best genome build failed: %s", exc)
+        return {"best_genome": best_genome.encode() if best_genome and not build_error else None, "best_fitness": best_fitness if best_genome and not build_error else 0.0, "production_readiness": self.production_analyzer.analyze(best_genome) if best_genome and not build_error else None, "history": history, "output_path": output_path, "build_error": build_error, "promotion_status": "staged_unapproved" if output_path and not governance_required else ("failed" if build_error else "not_attempted"), "governance_required": governance_required, "total_generations": generations, "backend_id": self.target.backend_id}

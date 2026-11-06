@@ -14,7 +14,7 @@ from tiannara.application.factory import (
     SoftwareFactoryError,
 )
 from tiannara.application.factory.evidence_sink import make_factory_evidence_sink
-from tiannara.application.materializer.materializer import RepositoryMaterializer
+from tiannara.application.materializer.materializer import MaterializationError, RepositoryMaterializer
 from tiannara.bootstrap import build_harness
 from tiannara.infrastructure.ledger.jsonl_evidence_ledger import JsonlEvidenceLedger
 from tiannara.infrastructure.sandbox.local_environment import LocalExecutionEnvironment
@@ -148,8 +148,9 @@ def main(argv: list[str] | None = None) -> int:
                 args.out,
                 force=args.force,
                 branch=args.branch,
+                defer_commit=True,
             )
-        except ProjectCompilationError as exc:
+        except (ProjectCompilationError, MaterializationError) as exc:
             print(f"error: {exc}")
             return 1
         commit_preview = (

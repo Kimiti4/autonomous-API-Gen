@@ -20,6 +20,7 @@ from app.middleware.error_handler import ErrorHandlingConfig, install_error_hand
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.security import (
     ApiKeyAuthProvider,
+    PrincipalApiKeyAuthProvider,
     CompositeAuthProvider,
     SecurityHeadersMiddleware,
     set_auth_provider,
@@ -42,11 +43,35 @@ configure_governance(
             settings.GOVERNANCE_AUDIT_SIGNING_KEY
         ),
         reference_store=SqliteGovernanceReferenceStore(),
-        recognized_certifiers={"certifier-1"},
+        recognized_certifiers={settings.GOVERNANCE_CERTIFIER_ID},
     )
 )
 
 auth_providers = []
+if settings.GOVERNANCE_COUNCIL_API_KEYS:
+    auth_providers.append(
+        PrincipalApiKeyAuthProvider(
+            keys=settings.GOVERNANCE_COUNCIL_API_KEYS,
+            header_name="X-Governance-Council-Key",
+            scope="governance:decide",
+        )
+    )
+if settings.GOVERNANCE_EVALUATOR_API_KEYS:
+    auth_providers.append(
+        PrincipalApiKeyAuthProvider(
+            keys=settings.GOVERNANCE_EVALUATOR_API_KEYS,
+            header_name="X-Governance-Evaluator-Key",
+            scope="governance:evaluate",
+        )
+    )
+if settings.GOVERNANCE_CERTIFIER_API_KEY:
+    auth_providers.append(
+        PrincipalApiKeyAuthProvider(
+            keys={settings.GOVERNANCE_CERTIFIER_ID: settings.GOVERNANCE_CERTIFIER_API_KEY},
+            header_name="X-Governance-Certifier-Key",
+            scope="governance:certify",
+        )
+    )
 if settings.ADMIN_API_KEY:
     auth_providers.append(ApiKeyAuthProvider(api_key=settings.ADMIN_API_KEY))
 validate_auth_config(settings.ENVIRONMENT, auth_providers)
@@ -73,7 +98,11 @@ app.add_middleware(
     allow_origins=validated_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Accept", "X-API-Key"],
+    allow_headers=[
+        "Authorization", "Content-Type", "Accept", "X-API-Key",
+        "X-Governance-Council-Key", "X-Governance-Evaluator-Key",
+        "X-Governance-Certifier-Key",
+    ],
     expose_headers=["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
     max_age=600,
 )

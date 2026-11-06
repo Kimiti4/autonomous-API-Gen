@@ -6,10 +6,11 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 
 from ..errors import BackendNotFoundError, ISRValidationError
+from ..security import require_compiler_authorization
 from .certification import BackendCertificationEngine
 from .models import BackendCertificationRequest, RevokeCertificationRequest
 
@@ -17,6 +18,7 @@ from .models import BackendCertificationRequest, RevokeCertificationRequest
 router = APIRouter(
     prefix="/v1/compiler/sdk",
     tags=["compiler-sdk"],
+    dependencies=[Depends(require_compiler_authorization)],
 )
 
 

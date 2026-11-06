@@ -10,7 +10,7 @@ import json
 import hashlib
 import shutil
 import tempfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Dict
 
 from app.engine.backend_contract import (
@@ -524,11 +524,40 @@ def _artifact_manifest_digest(manifest: dict) -> str:
     ).hexdigest()
 
 
+def _safe_artifact_parts(relative_path: str) -> tuple[str, ...]:
+    if (
+        not isinstance(relative_path, str)
+        or not relative_path
+        or "\x00" in relative_path
+    ):
+        raise ValueError(f"unsafe artifact path: {relative_path!r}")
+
+    normalized_input = relative_path.replace("\\", "/")
+    raw_parts = normalized_input.split("/")
+    posix = PurePosixPath(normalized_input)
+    windows = PureWindowsPath(relative_path)
+    if (
+        posix.is_absolute()
+        or windows.is_absolute()
+        or bool(windows.drive)
+        or bool(windows.root)
+        or any(part in ("", ".", "..") for part in raw_parts)
+        or any(part.casefold() in {".git", ".tiannara"} for part in raw_parts)
+        or "/".join(part.casefold() for part in posix.parts) == "artifact-manifest.json"
+    ):
+        raise ValueError(f"unsafe or reserved artifact path: {relative_path!r}")
+    return posix.parts
+
+
 def _validate_verified_artifact(artifact_dir: str, expected_digest: str) -> dict:
     root = Path(artifact_dir).resolve()
     manifest_path = root / "artifact-manifest.json"
-    if not root.is_dir() or not manifest_path.is_file():
-        raise ValueError("verified artifact manifest is missing")
+    if (
+        not root.is_dir()
+        or not manifest_path.is_file()
+        or manifest_path.is_symlink()
+    ):
+        raise ValueError("verified artifact manifest is missing or unsafe")
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -542,15 +571,40 @@ def _validate_verified_artifact(artifact_dir: str, expected_digest: str) -> dict
     files = manifest.get("files")
     if not isinstance(files, dict) or not files:
         raise ValueError("verified artifact manifest has no files")
+
+    seen: set[str] = set()
     for relative, expected_file_digest in files.items():
-        path = (root / relative).resolve()
-        if root not in path.parents or not path.is_file():
-            raise ValueError(f"artifact file is missing: {relative}")
+        parts = _safe_artifact_parts(relative)
+        normalized = "/".join(part.casefold() for part in parts)
+        if normalized in seen:
+            raise ValueError(f"duplicate normalized artifact path: {relative}")
+        seen.add(normalized)
+
+        path = root.joinpath(*parts)
+        current = root
+        for part in parts[:-1]:
+            current = current / part
+            if current.is_symlink():
+                raise ValueError(f"artifact path traverses a symlink: {relative}")
+        if path.is_symlink():
+            raise ValueError(f"artifact path targets a symlink: {relative}")
+        resolved = path.resolve(strict=False)
+        if not resolved.is_relative_to(root) or not path.is_file():
+            raise ValueError(f"artifact file is missing or outside root: {relative}")
         actual = hashlib.sha256(path.read_bytes(), usedforsecurity=False).hexdigest()
         if actual != expected_file_digest:
             raise ValueError(f"artifact file digest mismatch: {relative}")
-    return manifest
 
+    actual_files: set[str] = set()
+    for entry in root.rglob("*"):
+        if entry.is_symlink():
+            raise ValueError(f"verified artifact contains a symlink: {entry.relative_to(root)}")
+        if entry.is_file():
+            actual_files.add(entry.relative_to(root).as_posix())
+    expected_files = set(files) | {"artifact-manifest.json"}
+    if actual_files != expected_files:
+        raise ValueError("verified artifact contains missing or unmanifested files")
+    return manifest
 
 def backup_verified_artifact(source_dir: str, backup_dir: str, *, expected_digest: str) -> str:
     _validate_verified_artifact(source_dir, expected_digest)
@@ -605,7 +659,22 @@ def promote_verified_artifact(source_dir: str, destination_dir: str, *, expected
 
 
 def materialize(artifact: CompiledArtifact, output_dir: str) -> str:
-    """Publish a compiled artifact's file tree as one atomic replacement."""
+    """Preflight and atomically replace an artifact tree."""
+
+    if not artifact.files:
+        raise ValueError("cannot materialize an empty artifact")
+    planned: list[tuple[str, str, tuple[str, ...]]] = []
+    seen: set[str] = set()
+    for relative_path, content in artifact.files.items():
+        parts = _safe_artifact_parts(relative_path)
+        normalized = "/".join(part.casefold() for part in parts)
+        if normalized in seen:
+            raise ValueError(f"duplicate normalized artifact path: {relative_path}")
+        if not isinstance(content, str):
+            raise ValueError(f"artifact content must be text: {relative_path}")
+        seen.add(normalized)
+        canonical_path = "/".join(parts)
+        planned.append((canonical_path, content, parts))
 
     destination = Path(output_dir).resolve()
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -617,24 +686,28 @@ def materialize(artifact: CompiledArtifact, output_dir: str) -> str:
     )
     backup = destination.with_name(f".{destination.name}.materialize-previous")
     try:
-        for relative_path, content in artifact.files.items():
-            target = staging / relative_path
+        staging_root = staging.resolve()
+        for relative_path, content, parts in planned:
+            target = staging_root.joinpath(*parts)
             target.parent.mkdir(parents=True, exist_ok=True)
+            if not target.parent.resolve().is_relative_to(staging_root) or target.is_symlink():
+                raise ValueError(f"artifact path escaped staging workspace: {relative_path}")
             target.write_bytes(content.encode("utf-8"))
+
         manifest = {
             "manifest_version": 1,
             "backend_id": artifact.backend_id,
             "architecture_hash": artifact.metadata.get("architecture_hash", ""),
             "files": {
                 relative: hashlib.sha256(content.encode("utf-8"), usedforsecurity=False).hexdigest()
-                for relative, content in artifact.files.items()
+                for relative, content, _parts in planned
             },
         }
         manifest["artifact_digest"] = _artifact_manifest_digest(manifest)
-        (staging / "artifact-manifest.json").write_text(
+        (staging_root / "artifact-manifest.json").write_text(
             json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8"
         )
-        _validate_verified_artifact(str(staging), manifest["artifact_digest"])
+        _validate_verified_artifact(str(staging_root), manifest["artifact_digest"])
         if backup.exists():
             shutil.rmtree(backup)
         if destination.exists():
@@ -650,8 +723,8 @@ def materialize(artifact: CompiledArtifact, output_dir: str) -> str:
     finally:
         if staging.exists():
             shutil.rmtree(staging)
+    _validate_verified_artifact(str(destination), manifest["artifact_digest"])
     return output_dir
-
 
 def compile_and_materialize(
     architecture: Dict[str, object],

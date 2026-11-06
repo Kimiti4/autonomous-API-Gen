@@ -85,7 +85,7 @@ class SoftwareFactory:
             out_root = tempfile.mkdtemp(prefix="tiannara-factory-")
 
         materialization = self._materializer.materialize(
-            compilation_report, out_root=out_root, force=force
+            compilation_report, out_root=out_root, force=force, defer_commit=True
         )
         bundles = tuple(getattr(materialization, "bundles", ()) or ())
         if not bundles:
@@ -109,17 +109,33 @@ class SoftwareFactory:
             ok=ok,
         )
 
-        if self._evidence_sink is not None:
-            try:
-                self._evidence_sink(report)
-            except Exception:
-                pass
-
         if not ok:
             raise SoftwareFactoryError(
                 "one or more bundles failed verification after repair",
                 report=report,
             )
+
+        # Promotion to a local source-control commit happens only after every
+        # bundle has passed the factory's static/runtime verification path.
+        commit_materialization = getattr(self._materializer, "commit", None)
+        if callable(commit_materialization):
+            materialization = commit_materialization(materialization)
+            report = SoftwareFactoryReport(
+                statement_hash=report.statement_hash,
+                isr_hash=report.isr_hash,
+                plan_id=report.plan_id,
+                policy_name=report.policy_name,
+                materialization=materialization,
+                verification_outcomes=report.verification_outcomes,
+                fitness=report.fitness,
+                ok=report.ok,
+            )
+
+        if self._evidence_sink is not None:
+            try:
+                self._evidence_sink(report)
+            except Exception:
+                pass
         return report
 
     # -- internals ---------------------------------------------------------
@@ -182,9 +198,10 @@ class SoftwareFactory:
         )
         return VerificationOutcome(
             bundle_backend_id=backend_id or "",
-            static_ok=bool(getattr(static_report, "ok", True))
-            if static_report is not None
-            else True,
+            static_ok=(
+                static_report is not None
+                and getattr(static_report, "ok", None) is True
+            ),
             static_report=static_report,
             test_result=test_result,
             repair_attempts=repair_attempts,
@@ -195,7 +212,9 @@ class SoftwareFactory:
     def _verify_once(self, bundle, bundle_path, verifier):
         static_report = verifier.verify(bundle_path) if verifier is not None else None
         static_ok = (
-            bool(getattr(static_report, "ok", True)) if static_report is not None else True
+            verifier is not None
+            and static_report is not None
+            and getattr(static_report, "ok", None) is True
         )
         test_result = None
         if static_ok and self._execution_environment is not None:
@@ -212,12 +231,12 @@ class SoftwareFactory:
     @staticmethod
     def _all_ok(static_report, test_result) -> bool:
         static_ok = (
-            bool(getattr(static_report, "ok", True)) if static_report is not None else True
+            static_report is not None
+            and getattr(static_report, "ok", None) is True
         )
         test_ok = (
-            bool(getattr(test_result, "passed", True))
-            if test_result is not None
-            else True
+            test_result is not None
+            and getattr(test_result, "passed", None) is True
         )
         return static_ok and test_ok
 

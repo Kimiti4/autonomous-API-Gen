@@ -73,14 +73,24 @@ class EliteEvolutionEngine:
                 if use_multi_population and (gen+1)%3==0: self.multi_pop.cross_pollinate()
                 await asyncio.sleep(.05)
             build_error = None
+            output_path = None
+            from app.core.config import get_settings
+            governance_required = bool(getattr(get_settings(), "GOVERNANCE_ENFORCEMENT_REQUIRED", False))
+            promotion_status = "not_attempted"
             if global_best_genome:
-                try:
-                    output_path = build_genome_output(global_best_genome, target=self.target)
-                except ValueError as exc:
-                    output_path = None
-                    build_error = f"best genome not lowerable: {exc}"
-                    logger.error("Best genome build failed: %s", exc)
-            return {"run_id":run_id,"best_genome":global_best_genome.encode() if global_best_genome and not build_error else None,"best_fitness":global_best_fitness if global_best_genome and not build_error else 0.0,"production_readiness":self.production_analyzer.analyze(global_best_genome) if global_best_genome and not build_error else None,"history":all_history,"output_path":output_path,"build_error":build_error,"total_generations":generations,"insights":self.memory.get_pattern_insights(),"top_features":self.adaptive_mutator.get_top_features(5) if enable_adaptive_mutation else [],"memory_stats":self.memory.get_statistics(),"seed":seed,"evaluation_mode":"static"}
+                if governance_required:
+                    build_error = "elite evolution has no runtime evidence or governed promotion path"
+                    promotion_status = "failed"
+                else:
+                    try:
+                        output_path = build_genome_output(global_best_genome, target=self.target)
+                        promotion_status = "staged_unapproved"
+                    except ValueError as exc:
+                        output_path = None
+                        build_error = f"best genome not lowerable: {exc}"
+                        promotion_status = "failed"
+                        logger.error("Best genome build failed: %s", exc)
+            return {"run_id":run_id,"best_genome":global_best_genome.encode() if global_best_genome and not build_error else None,"best_fitness":global_best_fitness if global_best_genome and not build_error else 0.0,"production_readiness":self.production_analyzer.analyze(global_best_genome) if global_best_genome and not build_error else None,"history":all_history,"output_path":output_path,"build_error":build_error,"promotion_status":promotion_status,"governance_required":governance_required,"total_generations":generations,"insights":self.memory.get_pattern_insights(),"top_features":self.adaptive_mutator.get_top_features(5) if enable_adaptive_mutation else [],"memory_stats":self.memory.get_statistics(),"seed":seed,"evaluation_mode":"static"}
         finally:
             if seed is not None: random.setstate(previous_state)
             release_control_plane_lease(_lease_token)

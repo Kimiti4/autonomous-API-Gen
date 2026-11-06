@@ -1,36 +1,201 @@
-"""Publisher contract -- provider-neutral, ledger-addressable, never certifies."""
+"""Fail-closed publication contract.
+
+Publication consumes independently earned certification and exact artifact
+bytes. It never creates certification evidence or treats repository creation
+alone as a successful upload.
+"""
 from __future__ import annotations
-from dataclasses import dataclass
-from typing import Protocol
+
+from dataclasses import dataclass, field
+from pathlib import PurePosixPath, PureWindowsPath
+from typing import Callable, Mapping, Protocol
+
 from tiannara.application.evolution.ledger import EvolutionEvent, EvolutionLedger, EventType
 from tiannara.domain.services.canonical import canonical_hash
+from .secret_boundary import scan_artifact_secrets
+
 
 @dataclass(frozen=True)
 class SystemDeploymentBundle:
-    isr_hash: str; artifact_hash: str; certification_refs: tuple[str,...]; deployment_ref: str
+    isr_hash: str
+    artifact_hash: str
+    certification_refs: tuple[str, ...]
+    deployment_ref: str
+    artifact_files: Mapping[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ProviderPublicationReceipt:
+    repo_url: str
+    commit_sha: str
+    artifact_hash: str
+
 
 class RepositoryProvider(Protocol):
-    def create_repository(self, name: str, bundle: SystemDeploymentBundle) -> str: ...
-    def push_repository(self, local_path: str, remote_url: str) -> str: ...
-    def create_release(self, repo: str, tag: str) -> str: ...
-    def create_milestone(self, repo: str, title: str) -> str: ...
-    def create_issue(self, repo: str, title: str) -> str: ...
+    def publish_repository(
+        self,
+        name: str,
+        bundle: SystemDeploymentBundle,
+        files: Mapping[str, str],
+    ) -> ProviderPublicationReceipt: ...
+
+    def verify_publication(
+        self,
+        receipt: ProviderPublicationReceipt,
+        files: Mapping[str, str],
+    ) -> bool: ...
+
 
 @dataclass(frozen=True)
 class PublicationResult:
-    repo_url: str; commit_refs: tuple[str,...]; ledger_ref: str; bundle_hash: str
+    repo_url: str
+    commit_refs: tuple[str, ...]
+    ledger_ref: str
+    bundle_hash: str
 
-def publish_bundle(bundle: SystemDeploymentBundle, provider: RepositoryProvider, ledger: EvolutionLedger, certification_gate) -> PublicationResult:
-    # Gate: never publish if not CERTIFIED
+
+def _validate_artifact_files(files: Mapping[str, str]) -> dict[str, str]:
+    if not isinstance(files, Mapping) or not files:
+        raise ValueError("publication blocked: exact artifact files are required")
+    normalized: dict[str, str] = {}
+    seen_paths: set[str] = set()
+    for path, content in files.items():
+        if (
+            not isinstance(path, str)
+            or not path
+            or "\x00" in path
+            or "\\" in path
+        ):
+            raise ValueError(f"publication blocked: unsafe artifact path {path!r}")
+        raw_parts = path.split("/")
+        posix = PurePosixPath(path)
+        windows = PureWindowsPath(path)
+        if (
+            posix.is_absolute()
+            or windows.is_absolute()
+            or bool(windows.drive)
+            or any(part in ("", ".", "..") for part in raw_parts)
+            or any(part.casefold() in {".git", ".tiannara"} for part in raw_parts)
+        ):
+            raise ValueError(f"publication blocked: unsafe artifact path {path!r}")
+        if not isinstance(content, str):
+            raise ValueError(f"publication blocked: artifact {path!r} is not text")
+        path_key = "/".join(part.casefold() for part in posix.parts)
+        if path_key in seen_paths:
+            raise ValueError(f"publication blocked: duplicate normalized artifact path {path!r}")
+        seen_paths.add(path_key)
+        normalized[path] = content
+    return normalized
+
+
+def publish_bundle(
+    bundle: SystemDeploymentBundle,
+    provider: RepositoryProvider,
+    ledger: EvolutionLedger,
+    certification_gate: Callable[[str], bool],
+) -> PublicationResult:
+    """Publish exact bytes only after explicit, candidate-bound certification.
+
+    The certification callback must return literal True. Ledger lookups and
+    chain integrity are independently checked; a truthy object is not approval.
+    """
+    if not bundle.isr_hash or not bundle.artifact_hash or not bundle.deployment_ref:
+        raise ValueError("publication blocked: ISR, artifact and deployment references are required")
+    if not bundle.certification_refs:
+        raise ValueError("publication blocked: no independent certification reference supplied")
+    if not callable(certification_gate):
+        raise ValueError("publication blocked: authoritative certification gate is required")
+    if not ledger.verify_event_chain():
+        raise ValueError("publication blocked: evidence ledger chain is invalid")
+
+    files = _validate_artifact_files(bundle.artifact_files)
+    secret_findings = scan_artifact_secrets(files)
+    if secret_findings:
+        raise ValueError(
+            "publication blocked: artifact secret scan failed: "
+            + ", ".join(secret_findings)
+        )
+
+    computed_hash = canonical_hash(files)
+    if computed_hash != bundle.artifact_hash:
+        raise ValueError("publication blocked: artifact hash does not match supplied bytes")
+
     for ref in bundle.certification_refs:
-        ev = ledger.event_by_ref(ref)
-        if ev is None or ev.payload.get("verdict") != "CERTIFIED":
-            raise ValueError(f"certification {ref} not CERTIFIED -- publication blocked")
-        if ev.payload.get("bounded") or ev.payload.get("verdict") == "BOUNDED":
-            raise ValueError("bounded evidence -- publication blocked")
-    # Ledger-addressable
-    payload = {"bundle_hash": canonical_hash(bundle.artifact_hash), "isr": bundle.isr_hash}
-    ev = EvolutionEvent(event_id=f"publish-{bundle.artifact_hash[:8]}", evolution_id=bundle.artifact_hash, sequence=0, event_type=EventType.CERTIFICATION, subject_id=bundle.artifact_hash, payload=payload)
-    ref = ledger.append_event(ev, evolution_id=bundle.artifact_hash)
-    repo_url = provider.create_repository(f"tiannara-{bundle.artifact_hash[:8]}", bundle)
-    return PublicationResult(repo_url, (ref,), ref, bundle.artifact_hash)
+        event = ledger.event_by_ref(ref)
+        if event is None:
+            raise ValueError(f"publication blocked: certification {ref!r} is missing")
+        if event.event_type is not EventType.CERTIFICATION:
+            raise ValueError(f"publication blocked: {ref!r} is not a certification event")
+        if event.subject_id != bundle.artifact_hash:
+            raise ValueError(f"publication blocked: certification {ref!r} is for another artifact")
+        if event.artifact_hash != bundle.artifact_hash or event.isr_hash != bundle.isr_hash:
+            raise ValueError(f"publication blocked: certification {ref!r} typed hashes do not bind this candidate")
+        if event.payload.get("verdict") != "CERTIFIED" or event.payload.get("bounded") is not False:
+            raise ValueError(f"publication blocked: certification {ref!r} is not unbounded CERTIFIED evidence")
+        if event.payload.get("artifact_hash") != bundle.artifact_hash:
+            raise ValueError(f"publication blocked: certification {ref!r} does not bind artifact hash")
+        if event.payload.get("isr_hash") != bundle.isr_hash:
+            raise ValueError(f"publication blocked: certification {ref!r} does not bind ISR hash")
+        try:
+            approved = certification_gate(ref)
+        except Exception as exc:
+            raise ValueError(
+                f"publication blocked: certification gate failed for {ref!r}: {type(exc).__name__}"
+            ) from exc
+        if approved is not True:
+            raise ValueError(f"publication blocked: certification gate did not explicitly approve {ref!r}")
+
+    publish = getattr(provider, "publish_repository", None)
+    verify_publication = getattr(provider, "verify_publication", None)
+    if not callable(publish):
+        raise ValueError("publication blocked: provider lacks an exact-bytes publish operation")
+    if not callable(verify_publication):
+        raise ValueError("publication blocked: provider lacks remote read-back verification")
+    receipt = publish(
+        f"tiannara-{bundle.artifact_hash[:12]}",
+        bundle,
+        files,
+    )
+    if not isinstance(receipt, ProviderPublicationReceipt):
+        raise ValueError("publication blocked: provider returned no verifiable publication receipt")
+    if (
+        not receipt.repo_url
+        or not receipt.commit_sha
+        or receipt.artifact_hash != computed_hash
+    ):
+        raise ValueError("publication blocked: provider receipt does not bind uploaded artifact bytes")
+
+    try:
+        remotely_verified = verify_publication(receipt, files)
+    except Exception as exc:
+        raise ValueError(
+            f"publication blocked: remote read-back failed: {type(exc).__name__}"
+        ) from exc
+    if remotely_verified is not True:
+        raise ValueError("publication blocked: remote artifact read-back did not explicitly pass")
+
+    event = EvolutionEvent(
+        event_id=f"delivery-{bundle.artifact_hash[:12]}",
+        evolution_id=bundle.artifact_hash,
+        sequence=0,
+        event_type=EventType.DELIVERY,
+        subject_id=bundle.artifact_hash,
+        artifact_hash=bundle.artifact_hash,
+        isr_hash=bundle.isr_hash,
+        payload={
+            "kind": "repository_publication",
+            "repo_url": receipt.repo_url,
+            "commit_sha": receipt.commit_sha,
+            "artifact_hash": computed_hash,
+            "isr_hash": bundle.isr_hash,
+            "deployment_ref": bundle.deployment_ref,
+            "certification_refs": list(bundle.certification_refs),
+        },
+    )
+    ledger_ref = ledger.append_event(event, evolution_id=bundle.artifact_hash)
+    return PublicationResult(
+        repo_url=receipt.repo_url,
+        commit_refs=(receipt.commit_sha,),
+        ledger_ref=ledger_ref,
+        bundle_hash=computed_hash,
+    )

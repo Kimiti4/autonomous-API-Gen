@@ -18,12 +18,12 @@ report with the SourceControlBackend port.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
 from tiannara.application.compiler.project_compiler import ProjectCompilationReport
-from tiannara.application.compiler.writer import write_bundle
+from tiannara.application.compiler.writer import validate_bundle_paths, write_bundle
 from tiannara.application.materializer.provenance_builder import build_manifest
 from tiannara.domain.models.bundle import SystemDeploymentBundle
 from tiannara.domain.models.compilation import CompilationResult
@@ -54,14 +54,24 @@ class MaterializationResult:
 
 
 def _iter_files(root: Path) -> list[str]:
-    return sorted(
-        p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file()
-    )
+    files: list[str] = []
+    for path in root.rglob("*"):
+        relative = path.relative_to(root)
+        # Git metadata is created by init() and must never be staged as
+        # candidate content. Symlinks are rejected rather than followed.
+        if ".git" in relative.parts:
+            continue
+        if path.is_symlink():
+            raise MaterializationError(f"refusing to commit symlink in candidate tree: {relative}")
+        if path.is_file():
+            files.append(relative.as_posix())
+    return sorted(files)
 
 
 def _verification_failed(outcome: Any) -> bool:
-    report = outcome.verification_report
-    return report is not None and not bool(report.ok)
+    report = getattr(outcome, "verification_report", None)
+    # Missing, malformed, or non-literal-True verification is absence of proof.
+    return report is None or getattr(report, "ok", None) is not True
 
 
 class RepositoryMaterializer:
@@ -69,6 +79,45 @@ class RepositoryMaterializer:
 
     def __init__(self, sc_backend: SourceControlBackend | None) -> None:
         self._sc = sc_backend
+
+
+    def commit(
+        self,
+        result: MaterializationResult,
+        *,
+        commit_message: str = "materialize: verified compiled project bundle",
+        branch: str = "main",
+        author_name: str = "tiannara",
+        author_email: str = "bot@tiannara.local",
+    ) -> MaterializationResult:
+        """Commit a staged tree only after downstream verification succeeds."""
+        if result.commit is not None:
+            raise MaterializationError("materialization already has a commit")
+        if self._sc is None:
+            return result
+        commit = self._commit_tree(
+            result.out_root, commit_message, branch, author_name, author_email
+        )
+        return replace(result, commit=commit)
+
+    def _commit_tree(
+        self,
+        out_root: Path,
+        commit_message: str,
+        branch: str,
+        author_name: str,
+        author_email: str,
+    ) -> CommitRef:
+        self._sc.init(str(out_root))
+        self._sc.add(str(out_root), _iter_files(out_root))
+        commit = self._sc.commit(
+            str(out_root), commit_message, author_name, author_email
+        )
+        try:
+            self._sc.branch(str(out_root), branch)
+        except SourceControlError:
+            pass
+        return commit
 
     def materialize(
         self,
@@ -82,9 +131,14 @@ class RepositoryMaterializer:
         branch: str = "main",
         author_name: str = "tiannara",
         author_email: str = "bot@tiannara.local",
+        defer_commit: bool = False,
     ) -> MaterializationResult:
         out_root = Path(out_root)
         out_root.mkdir(parents=True, exist_ok=True)
+        if any(out_root.iterdir()):
+            raise MaterializationError(
+                "output directory must be empty; use a fresh quarantine workspace"
+            )
 
         successful: list[Any] = []
         bundles: list[SystemDeploymentBundle] = []
@@ -94,11 +148,6 @@ class RepositoryMaterializer:
             result = getattr(outcome, "result", None)
             if not isinstance(result, CompilationResult):
                 continue
-            # Backends root their own files at <system_name>/ (e.g.
-            # ``order-management/main.py``); writing to out_root preserves that
-            # layout, which is what makes a multi-backend fleet collision-free
-            # (distinct system names -> distinct top-level dirs).
-            write_bundle(result, out_root)
             successful.append(outcome)
             bundles.append(
                 SystemDeploymentBundle(
@@ -129,6 +178,29 @@ class RepositoryMaterializer:
                 )
             forced = True
 
+        # Validate the entire selected set before the first candidate write.
+        # A failed verification must not leave a partial trusted-looking tree.
+        seen_paths: set[str] = set()
+        for outcome in successful:
+            targets = validate_bundle_paths(outcome.result, out_root)
+            normalized_targets = {
+                "/".join(part.casefold() for part in target.relative_to(out_root.resolve()).parts)
+                for target in targets
+            }
+            if MANIFEST_RELATIVE_PATH.casefold() in normalized_targets:
+                raise MaterializationError(
+                    f"generated bundle cannot overwrite reserved {MANIFEST_RELATIVE_PATH}"
+                )
+            collisions = seen_paths.intersection(normalized_targets)
+            if collisions:
+                raise MaterializationError(
+                    f"generated bundles contain colliding paths: {sorted(collisions)}"
+                )
+            seen_paths.update(normalized_targets)
+
+        for outcome in successful:
+            write_bundle(outcome.result, out_root)
+
         if policy_name is None:
             policy_name = getattr(report, "policy_name", None)
         manifest = build_manifest(
@@ -145,16 +217,10 @@ class RepositoryMaterializer:
         )
 
         commit: CommitRef | None = None
-        if self._sc is not None:
-            self._sc.init(str(out_root))
-            self._sc.add(str(out_root), _iter_files(out_root))
-            commit = self._sc.commit(
-                str(out_root), commit_message, author_name, author_email
+        if self._sc is not None and not defer_commit:
+            commit = self._commit_tree(
+                out_root, commit_message, branch, author_name, author_email
             )
-            try:
-                self._sc.branch(str(out_root), branch)
-            except SourceControlError:
-                pass
         return MaterializationResult(
             out_root=out_root,
             commit=commit,

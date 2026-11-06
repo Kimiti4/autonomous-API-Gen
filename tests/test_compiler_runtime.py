@@ -116,7 +116,7 @@ def test_unknown_backend_fails(tmp_path: Path) -> None:
 
 
 def test_api_compile(tmp_path: Path) -> None:
-    app = create_app(output_root=tmp_path)
+    app = create_app(output_root=tmp_path, authorization_dependency=lambda _request: True)
     client = TestClient(app)
 
     response = client.post(
@@ -138,7 +138,7 @@ def test_api_compile(tmp_path: Path) -> None:
 
 
 def test_api_invalid_isr(tmp_path: Path) -> None:
-    app = create_app(output_root=tmp_path)
+    app = create_app(output_root=tmp_path, authorization_dependency=lambda _request: True)
     client = TestClient(app)
 
     invalid_isr = minimal_isr()
@@ -180,3 +180,61 @@ def test_api_backend_discovery(tmp_path: Path) -> None:
     backend_ids = {backend["backend_id"] for backend in backends}
 
     assert "reference.summary" in backend_ids
+
+def test_api_compile_requires_explicit_authorization(tmp_path: Path) -> None:
+    app = create_app(output_root=tmp_path)
+    client = TestClient(app)
+    response = client.post(
+        "/v1/compiler/compile",
+        json={
+            "isr": minimal_isr(),
+            "target": {"backend_id": "reference.summary"},
+        },
+    )
+    assert response.status_code == 503
+    assert "authorization is not configured" in response.json()["detail"]
+
+
+def test_api_governance_is_wired_and_protected(tmp_path: Path) -> None:
+    app = create_app(
+        output_root=tmp_path,
+        authorization_dependency=lambda _request: True,
+    )
+    client = TestClient(app)
+    response = client.get("/v1/compiler/governance/policy")
+    assert response.status_code == 200
+    assert response.json()["require_governance_for_production"] is True
+
+
+def test_api_production_compile_requires_certification_and_governance(tmp_path: Path) -> None:
+    app = create_app(
+        output_root=tmp_path,
+        authorization_dependency=lambda _request: True,
+    )
+    client = TestClient(app)
+    response = client.post(
+        "/v1/compiler/compile",
+        json={
+            "isr": minimal_isr(),
+            "target": {"backend_id": "reference.summary"},
+            "environment": "production",
+        },
+    )
+    assert response.status_code == 400
+    assert "requires a certified backend" in response.json()["message"]
+
+
+def test_api_rejects_non_boolean_authorization_decision(tmp_path: Path) -> None:
+    app = create_app(
+        output_root=tmp_path,
+        authorization_dependency=lambda _request: {"user": "operator"},
+    )
+    client = TestClient(app)
+    response = client.post(
+        "/v1/compiler/compile",
+        json={
+            "isr": minimal_isr(),
+            "target": {"backend_id": "reference.summary"},
+        },
+    )
+    assert response.status_code == 403

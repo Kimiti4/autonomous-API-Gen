@@ -413,70 +413,6 @@ class CampaignRunner:
                     ok, detail = _unconfigured_stage(TrialStage.TEST)
                     _record(TrialStage.TEST, ok, detail)
     
-                port = 18000 + int(trial_id.replace("-", "")[:6], 16) % 1000
-                cid = ""
-                if not (b_ok and t_ok):
-                    d_ok, d_detail = False, "skipped: build or test stage failed; deployment not attempted"
-                    _record(TrialStage.DEPLOY, d_ok, d_detail)
-                elif self.deployer:
-                    try:
-                        deploy_result = self.deployer.deploy(tag, port)
-                        if hasattr(deploy_result, "stage") and deploy_result.stage == TrialStage.DEPLOY:
-                            real_docker_result = deploy_result.mode.value == "real_docker"
-                            # Preserve any real container identity even when the
-                            # stage failed its health/acceptance condition, so the
-                            # cleanup stage can still remove the resource.
-                            cid = deploy_result.container_id if real_docker_result else ""
-                            d_ok = deploy_result.passed is True and real_docker_result and bool(cid)
-                            d_detail = (
-                                f"mode={deploy_result.mode.value}; cid={cid}; logs_hash={deploy_result.logs_hash}; "
-                                f"detail={deploy_result.detail}"
-                            )
-                        else:
-                            d_ok, d_detail = False, "invalid deploy adapter result; explicit stage evidence required"
-                    except Exception as exc:
-                        d_ok, d_detail = False, f"deploy adapter failed closed: {type(exc).__name__}: {exc}"
-                    _record(TrialStage.DEPLOY, d_ok, d_detail)
-                else:
-                    ok, detail = _unconfigured_stage(TrialStage.DEPLOY)
-                    _record(TrialStage.DEPLOY, ok, detail)
-    
-                if not cid:
-                    r_ok, r_detail = False, "skipped: deployment produced no container to probe"
-                    _record(TrialStage.RUNTIME, r_ok, r_detail)
-                elif self.prober:
-                    try:
-                        probe_result = self.prober.probe(port, cid)
-                        r_ok = probe_result.passed is True and probe_result.mode.value == "real_docker"
-                        r_detail = (
-                            f"mode={probe_result.mode.value}; logs_hash={probe_result.logs_hash}; "
-                            f"detail={probe_result.detail}"
-                        )
-                    except Exception as exc:
-                        r_ok, r_detail = False, f"runtime adapter failed closed: {type(exc).__name__}: {exc}"
-                    _record(TrialStage.RUNTIME, r_ok, r_detail)
-                else:
-                    ok, detail = _unconfigured_stage(TrialStage.RUNTIME)
-                    _record(TrialStage.RUNTIME, ok, detail)
-    
-                if not cid:
-                    x_ok, x_detail = False, "not_applicable: no container was created; no cleanup target exists"
-                    _record(TrialStage.DESTROY, x_ok, x_detail)
-                elif self.destroyer:
-                    try:
-                        destroy_result = self.destroyer.destroy(cid)
-                        x_ok = destroy_result.passed is True and destroy_result.mode.value == "real_docker"
-                        x_detail = (
-                            f"mode={destroy_result.mode.value}; logs_hash={destroy_result.logs_hash}; "
-                            f"detail={destroy_result.detail}"
-                        )
-                    except Exception as exc:
-                        x_ok, x_detail = False, f"destroy adapter failed closed: {type(exc).__name__}: {exc}"
-                    _record(TrialStage.DESTROY, x_ok, x_detail)
-                else:
-                    ok, detail = _unconfigured_stage(TrialStage.DESTROY)
-                    _record(TrialStage.DESTROY, ok, detail)
-    
                 # Candidate identity is the exact repository the backend
                 # compiled: every emitted file (including glue/aggregate modules
                 # that map to no plan element, e.g. Rust mod.rs wiring) must be
@@ -582,6 +518,71 @@ class CampaignRunner:
                     f"independent=[{independent_detail}]; full_stack=[{full_stack_detail}]; "
                     f"semantic_correspondence=[{semantic_detail}]",
                 )
+    
+
+                port = 18000 + int(trial_id.replace("-", "")[:6], 16) % 1000
+                cid = ""
+                if not (b_ok and t_ok and verify_ok):
+                    d_ok, d_detail = False, "skipped: build, test and candidate-bound verification must pass before deployment"
+                    _record(TrialStage.DEPLOY, d_ok, d_detail)
+                elif self.deployer:
+                    try:
+                        deploy_result = self.deployer.deploy(tag, port)
+                        if hasattr(deploy_result, "stage") and deploy_result.stage == TrialStage.DEPLOY:
+                            real_docker_result = deploy_result.mode.value == "real_docker"
+                            # Preserve any real container identity even when the
+                            # stage failed its health/acceptance condition, so the
+                            # cleanup stage can still remove the resource.
+                            cid = deploy_result.container_id if real_docker_result else ""
+                            d_ok = deploy_result.passed is True and real_docker_result and bool(cid)
+                            d_detail = (
+                                f"mode={deploy_result.mode.value}; cid={cid}; logs_hash={deploy_result.logs_hash}; "
+                                f"detail={deploy_result.detail}"
+                            )
+                        else:
+                            d_ok, d_detail = False, "invalid deploy adapter result; explicit stage evidence required"
+                    except Exception as exc:
+                        d_ok, d_detail = False, f"deploy adapter failed closed: {type(exc).__name__}: {exc}"
+                    _record(TrialStage.DEPLOY, d_ok, d_detail)
+                else:
+                    ok, detail = _unconfigured_stage(TrialStage.DEPLOY)
+                    _record(TrialStage.DEPLOY, ok, detail)
+    
+                if not cid:
+                    r_ok, r_detail = False, "skipped: deployment produced no container to probe"
+                    _record(TrialStage.RUNTIME, r_ok, r_detail)
+                elif self.prober:
+                    try:
+                        probe_result = self.prober.probe(port, cid)
+                        r_ok = probe_result.passed is True and probe_result.mode.value == "real_docker"
+                        r_detail = (
+                            f"mode={probe_result.mode.value}; logs_hash={probe_result.logs_hash}; "
+                            f"detail={probe_result.detail}"
+                        )
+                    except Exception as exc:
+                        r_ok, r_detail = False, f"runtime adapter failed closed: {type(exc).__name__}: {exc}"
+                    _record(TrialStage.RUNTIME, r_ok, r_detail)
+                else:
+                    ok, detail = _unconfigured_stage(TrialStage.RUNTIME)
+                    _record(TrialStage.RUNTIME, ok, detail)
+    
+                if not cid:
+                    x_ok, x_detail = False, "not_applicable: no container was created; no cleanup target exists"
+                    _record(TrialStage.DESTROY, x_ok, x_detail)
+                elif self.destroyer:
+                    try:
+                        destroy_result = self.destroyer.destroy(cid)
+                        x_ok = destroy_result.passed is True and destroy_result.mode.value == "real_docker"
+                        x_detail = (
+                            f"mode={destroy_result.mode.value}; logs_hash={destroy_result.logs_hash}; "
+                            f"detail={destroy_result.detail}"
+                        )
+                    except Exception as exc:
+                        x_ok, x_detail = False, f"destroy adapter failed closed: {type(exc).__name__}: {exc}"
+                    _record(TrialStage.DESTROY, x_ok, x_detail)
+                else:
+                    ok, detail = _unconfigured_stage(TrialStage.DESTROY)
+                    _record(TrialStage.DESTROY, ok, detail)
     
                 verdict = compose_verdict(stage_results, evidence_present=True)
     

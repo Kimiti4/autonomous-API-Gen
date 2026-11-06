@@ -16,17 +16,18 @@ def _safe_target(root: Path, relative_path: str) -> Path:
         not isinstance(relative_path, str)
         or not relative_path
         or "\x00" in relative_path
-        or "\\" in relative_path
     ):
         raise ValueError(f"unsafe generated path: {relative_path!r}")
 
-    raw_parts = relative_path.split("/")
-    posix = PurePosixPath(relative_path)
+    normalized_input = relative_path.replace("\\", "/")
+    raw_parts = normalized_input.split("/")
+    posix = PurePosixPath(normalized_input)
     windows = PureWindowsPath(relative_path)
     if (
         posix.is_absolute()
         or windows.is_absolute()
         or bool(windows.drive)
+        or bool(windows.root)
         or any(part in ("", ".", "..") for part in raw_parts)
         or any(part.casefold() in {".git", ".tiannara"} for part in raw_parts)
     ):

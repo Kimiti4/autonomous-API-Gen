@@ -139,15 +139,16 @@ def validate_compilation_output(output: CompilationOutput) -> ValidationReport:
             )
             continue
 
-        raw_parts = path.split("/")
-        posix = PurePosixPath(path)
+        normalized_input = path.replace("\\", "/")
+        raw_parts = normalized_input.split("/")
+        posix = PurePosixPath(normalized_input)
         windows = PureWindowsPath(path)
         unsafe = (
             "\x00" in path
-            or "\\" in path
             or posix.is_absolute()
             or windows.is_absolute()
             or bool(windows.drive)
+            or bool(windows.root)
             or any(part in ("", ".", "..") for part in raw_parts)
             or any(part.casefold() in {".git", ".tiannara"} for part in raw_parts)
         )

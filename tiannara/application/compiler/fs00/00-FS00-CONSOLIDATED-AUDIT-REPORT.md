@@ -1844,3 +1844,56 @@ Therefore, the new `publish_bundle()` contract is hardened and regression-tested
 - PR #208 remains open/draft/unmerged; PR #201 remains open/draft/unmerged; `main` remains unchanged.
 
 **Next architectural checkpoint:** after the remaining FS-00 entry-point inventory is reconciled, use the existing deferred ADR/governance process to decide the canonical ISR↔IR/orchestration contract. Do not begin universal-route implementation or promote any product capability until the architecture decision is approved and the route's preflight, verification, publication and deployment gates are enforceable.
+
+
+## 28. Checkpoint 29 — candidate-specific governance approval and runtime promotion audit
+
+**Scope:** trace the autonomous-api evolution engine's actual candidate evaluation, governance decision, certification and local artifact promotion sequence. This checkpoint audits whether a governance approval authorizes the exact bytes being promoted and whether static-only evidence can reach promotion.
+
+### 28.1 FS00-FS-032 — governance approval was not constrained to the exact deployed transition and candidate artifact (High)
+
+Prior `_governance_allows_promotion()` accepted a latest decision when `verdict == "approve"` and `authorizesTransition` was truthy. It did not require:
+- the decision's candidate ID to equal the genome being promoted;
+- the current candidate state to be `deployed`;
+- the approved transition to be exactly `selected → deployed`;
+- the decision's evidence references to bind the exact artifact digest;
+- an active certification for the same candidate and artifact digest;
+- that the certification had not expired.
+
+The aggregate's `active_certifications()` filters revoked certificates but does not itself filter expired certificates. Therefore an approval for a different transition or a certificate for a different/expired artifact could previously be insufficiently constrained at the promotion boundary.
+
+**Remediation authored in PR #208:**
+- Requires governance enforcement to be enabled; otherwise promotion authorization returns false.
+- Validates the candidate ID and SHA-256 digest.
+- Requires state candidate ID equality and current state `deployed`.
+- Requires the latest decision to name the same candidate, have literal `authorizesTransition is True`, verdict `approve`, transition exactly `selected → deployed`, and include `sha256:<artifact_digest>` in its evidence references.
+- Requires an active, non-revoked certification for the same candidate and exact artifact digest.
+- Rejects malformed, timezone-naive or expired `validUntil` timestamps.
+
+### 28.2 FS00-FS-033 — governed promotion did not require runtime acceptance or candidate-evidence digest binding (High)
+
+The prior candidate evaluator recorded artifact path, build/runtime probe outcomes and runtime score, but did not record a verified artifact-manifest digest or a single explicit promotion-readiness status. The promotion method did not independently require a full runtime score. Consequently, a static-only evaluation could reach the governed promotion call if a separate governance state appeared to approve it.
+
+**Remediation authored in PR #208:**
+- Candidate evaluation reads and verifies the generated artifact manifest and records `artifact_digest` as `sha256:<digest>`.
+- It records `artifact_compile_ok` only after exact manifest/file-set verification.
+- Static evaluation is explicitly `static_only`; failed build/runtime probes are `failed`.
+- `verification_status` becomes `verified` only when artifact verification passed, runtime mode was actually used, and the full runtime score is exactly 1.0.
+- `_publish_governed_candidate()` requires literal successful build and artifact verification, `verification_status == "verified"`, `evaluation_mode == "runtime"`, and `runtime_score == 1.0` before checking governance.
+- The exact digest is passed to `promote_verified_artifact()`.
+
+Tests added:
+- static-only candidate binds a real artifact digest but cannot be marked promotion-verified;
+- governance approval must bind candidate, exact selected-to-deployed transition and digest;
+- missing, wrong-transition, missing-certification and expired-certification cases deny;
+- static or incomplete runtime evidence cannot reach the promoter;
+- only a matching candidate/digest approval and active certification can promote;
+- run-level denied/approved promotion behavior and event emission.
+
+**Status at this checkpoint:** REMEDIATION CODED; targeted CI run pending. The governance decision and certification must now explicitly cite the artifact digest. Existing governance records that lack this binding will fail closed and must not be silently upgraded.
+
+### 28.3 Promotion semantics and remaining boundary
+
+`promote_verified_artifact()` remains a local artifact replacement helper. The stricter caller checks ensure the evolution engine invokes it only after runtime and candidate-bound governance approval. This does not implement a live production deployment or replace the standalone publication provider. A real provider must independently read back the remote repository tree and bind its delivery record to the same artifact digest.
+
+FS00-FS-032 and FS00-FS-033 are added as HIGH findings. Their targeted regression run is tracked separately; no finding is marked verified until the workflow completes successfully.

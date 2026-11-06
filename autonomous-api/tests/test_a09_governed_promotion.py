@@ -36,6 +36,7 @@ def _approved_state(candidate_id, *, digest=ARTIFACT_REF, from_state="selected",
         candidateId=candidate_id,
         revokedAt=None,
         evidenceRefs=[digest],
+        validUntil="2099-01-01T00:00:00+00:00",
     )
     certifications = [certification] if include_certification else []
     return SimpleNamespace(
@@ -118,6 +119,21 @@ async def test_governance_requires_deployed_transition_and_digest_bound_certific
     monkeypatch.setattr(
         "app.engine.evolution.get_governance",
         lambda: _Governance(lambda _candidate_id: missing_cert),
+    )
+    assert await engine._governance_allows_promotion(genome, ARTIFACT_REF) is False
+
+    expired_cert_state = _approved_state(candidate_id)
+    expired_cert_state.active_certifications = lambda: [
+        SimpleNamespace(
+            candidateId=candidate_id,
+            revokedAt=None,
+            evidenceRefs=[ARTIFACT_REF],
+            validUntil="2000-01-01T00:00:00+00:00",
+        )
+    ]
+    monkeypatch.setattr(
+        "app.engine.evolution.get_governance",
+        lambda: _Governance(lambda _candidate_id: expired_cert_state),
     )
     assert await engine._governance_allows_promotion(genome, ARTIFACT_REF) is False
 

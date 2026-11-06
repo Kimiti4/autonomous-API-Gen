@@ -1980,3 +1980,18 @@ Tests added for production configuration, ungoverned staging classification, no 
 - FS00-FS-035 is a new Critical finding. Do not enable real production promotion until authenticated governance identities and a trusted evidence registry are implemented and tested.
 - PR #208 remains open/draft/unmerged and targets the draft Stage A branch. No merge to `main` is authorized.
 - FS-00 remains NOT CLOSED.
+
+
+### 30.4 FS00-FS-037 — EliteEvolutionEngine bypassed runtime and governed promotion boundaries (High)
+
+**Source evidence:** `autonomous-api/app/engine/elite_evolution.py` used a separate static fitness path, then called `build_genome_output()` and returned an `output_path`. It did not invoke the candidate evaluator, require a verified artifact manifest/runtime evidence, consult the governance subsystem, or bind output to a digest-bound approval. Its event map did not emit `candidate.promoted`, but a successful result still exposed the built output without a promotion-status distinction.
+
+**Remediation authored in PR #208:**
+- If governance enforcement is required, Elite Evolution now refuses artifact building because this engine has no runtime-evidence and governed-promotion route.
+- If governance enforcement is disabled in non-production, its output is explicitly classified `staged_unapproved`; it is not represented as a governed promotion.
+- The result includes `promotion_status` and `governance_required`.
+- Regression tests assert no artifact builder invocation when governance is required and explicit staged status in non-governed mode.
+
+**Status:** REMEDIATION CODED; targeted CI pending.
+
+This finding demonstrates why governance must be enforced across every production entry point, not just the primary `EvolutionEngine`.

@@ -54,9 +54,18 @@ class MaterializationResult:
 
 
 def _iter_files(root: Path) -> list[str]:
-    return sorted(
-        p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file()
-    )
+    files: list[str] = []
+    for path in root.rglob("*"):
+        relative = path.relative_to(root)
+        # Git metadata is created by init() and must never be staged as
+        # candidate content. Symlinks are rejected rather than followed.
+        if ".git" in relative.parts:
+            continue
+        if path.is_symlink():
+            raise MaterializationError(f"refusing to commit symlink in candidate tree: {relative}")
+        if path.is_file():
+            files.append(relative.as_posix())
+    return sorted(files)
 
 
 def _verification_failed(outcome: Any) -> bool:
@@ -126,6 +135,10 @@ class RepositoryMaterializer:
     ) -> MaterializationResult:
         out_root = Path(out_root)
         out_root.mkdir(parents=True, exist_ok=True)
+        if any(out_root.iterdir()):
+            raise MaterializationError(
+                "output directory must be empty; use a fresh quarantine workspace"
+            )
 
         successful: list[Any] = []
         bundles: list[SystemDeploymentBundle] = []
@@ -167,15 +180,23 @@ class RepositoryMaterializer:
 
         # Validate the entire selected set before the first candidate write.
         # A failed verification must not leave a partial trusted-looking tree.
-        seen_paths: set[Path] = set()
+        seen_paths: set[str] = set()
         for outcome in successful:
             targets = validate_bundle_paths(outcome.result, out_root)
-            collisions = seen_paths.intersection(targets)
+            normalized_targets = {
+                "/".join(part.casefold() for part in target.relative_to(out_root.resolve()).parts)
+                for target in targets
+            }
+            if MANIFEST_RELATIVE_PATH.casefold() in normalized_targets:
+                raise MaterializationError(
+                    f"generated bundle cannot overwrite reserved {MANIFEST_RELATIVE_PATH}"
+                )
+            collisions = seen_paths.intersection(normalized_targets)
             if collisions:
                 raise MaterializationError(
-                    f"generated bundles contain colliding paths: {sorted(map(str, collisions))}"
+                    f"generated bundles contain colliding paths: {sorted(collisions)}"
                 )
-            seen_paths.update(targets)
+            seen_paths.update(normalized_targets)
 
         for outcome in successful:
             write_bundle(outcome.result, out_root)

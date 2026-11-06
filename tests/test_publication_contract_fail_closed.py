@@ -166,3 +166,24 @@ def test_publication_requires_remote_readback_verification():
     with pytest.raises(ValueError, match="remote read-back verification"):
         publish_bundle(_bundle([ref]), provider, ledger, lambda _ref: True)
     assert provider.calls == []
+
+
+@pytest.mark.parametrize(
+    "files",
+    [
+        {".git/config": "malicious"},
+        {".TIANNARA/manifest.json": "reserved"},
+        {"src/Main.py": "one", "src/main.py": "two"},
+    ],
+)
+def test_publication_rejects_reserved_and_casefolded_paths(files):
+    ledger, ref = _certified_ledger()
+    bundle = SystemDeploymentBundle(
+        isr_hash=ISR_HASH,
+        artifact_hash=canonical_hash(files),
+        certification_refs=(ref,),
+        deployment_ref="deployment-1",
+        artifact_files=files,
+    )
+    with pytest.raises(ValueError, match="unsafe artifact path|duplicate normalized"):
+        publish_bundle(bundle, _Provider(), ledger, lambda _ref: True)

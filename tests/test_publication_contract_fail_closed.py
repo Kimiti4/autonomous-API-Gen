@@ -28,6 +28,9 @@ class _Provider:
             artifact_hash=canonical_hash(files),
         )
 
+    def verify_publication(self, receipt, files):
+        return receipt.artifact_hash == canonical_hash(files)
+
 
 def _certified_ledger():
     ledger = EvolutionLedger()
@@ -142,3 +145,18 @@ def test_uber_for_boats_demo_does_not_mint_certification_or_publish():
     assert result["published"] is False
     assert result["repo_url"] is None
     assert ledger.event_count == 0
+
+
+def test_publication_requires_remote_readback_verification():
+    ledger, ref = _certified_ledger()
+
+    class _NoReadbackProvider:
+        def publish_repository(self, name, bundle, files):
+            return ProviderPublicationReceipt(
+                repo_url="https://example.invalid/repo",
+                commit_sha="commit-123",
+                artifact_hash=canonical_hash(files),
+            )
+
+    with pytest.raises(ValueError, match="remote read-back verification"):
+        publish_bundle(_bundle([ref]), _NoReadbackProvider(), ledger, lambda _ref: True)

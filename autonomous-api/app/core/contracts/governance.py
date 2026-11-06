@@ -123,6 +123,7 @@ class GovernanceDecision(BaseModel):
     rationale: str
     supersedesDecisionId: Optional[str] = None
     evidenceRefs: list = Field(default_factory=list)
+    memberSignatures: dict[str, str] = Field(default_factory=dict)
     decidedAt: str
 
 

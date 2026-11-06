@@ -38,6 +38,12 @@ class RepositoryProvider(Protocol):
         files: Mapping[str, str],
     ) -> ProviderPublicationReceipt: ...
 
+    def verify_publication(
+        self,
+        receipt: ProviderPublicationReceipt,
+        files: Mapping[str, str],
+    ) -> bool: ...
+
 
 @dataclass(frozen=True)
 class PublicationResult:
@@ -88,8 +94,8 @@ def publish_bundle(
     The certification callback must return literal True. Ledger lookups and
     chain integrity are independently checked; a truthy object is not approval.
     """
-    if not bundle.isr_hash or not bundle.artifact_hash:
-        raise ValueError("publication blocked: ISR and artifact hashes are required")
+    if not bundle.isr_hash or not bundle.artifact_hash or not bundle.deployment_ref:
+        raise ValueError("publication blocked: ISR, artifact and deployment references are required")
     if not bundle.certification_refs:
         raise ValueError("publication blocked: no independent certification reference supplied")
     if not callable(certification_gate):
@@ -141,6 +147,18 @@ def publish_bundle(
         or receipt.artifact_hash != computed_hash
     ):
         raise ValueError("publication blocked: provider receipt does not bind uploaded artifact bytes")
+
+    verify_publication = getattr(provider, "verify_publication", None)
+    if not callable(verify_publication):
+        raise ValueError("publication blocked: provider lacks remote read-back verification")
+    try:
+        remotely_verified = verify_publication(receipt, files)
+    except Exception as exc:
+        raise ValueError(
+            f"publication blocked: remote read-back failed: {type(exc).__name__}"
+        ) from exc
+    if remotely_verified is not True:
+        raise ValueError("publication blocked: remote artifact read-back did not explicitly pass")
 
     event = EvolutionEvent(
         event_id=f"delivery-{bundle.artifact_hash[:12]}",

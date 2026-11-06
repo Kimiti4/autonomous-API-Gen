@@ -1,0 +1,80 @@
+name: Publication and Deployment Hardening
+
+on:
+  pull_request:
+    paths:
+      - "certification/campaign/campaign_b.py"
+      - "certification/campaign/runner.py"
+      - "tiannara/application/compiler/writer.py"
+      - "tiannara/application/factory/factory.py"
+      - "tiannara/application/materializer/**"
+      - "tiannara/application/publication/**"
+      - "tests/cbc1/test_campaign_b.py"
+      - "tests/cbc1/test_cbc1_gates.py"
+      - "tests/cbc1/test_candidate_bound_full_stack_gate.py"
+      - "tests/test_compiler_writer_path_security.py"
+      - "tests/test_phase17_materializer_inmemory.py"
+      - "tests/test_phase18_factory.py"
+      - "tests/test_publication_contract_fail_closed.py"
+      - ".github/workflows/publication-deployment-hardening.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publication-deployment-hardening-\${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  targeted-hardening:
+    name: Targeted publication, materialization and campaign gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            autonomous-api/requirements.txt
+            autonomous-api/requirements-dev.txt
+
+      - name: Install root and platform test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          pip install -r autonomous-api/requirements.txt -r autonomous-api/requirements-dev.txt
+          pip install pytest-xdist pytest-asyncio pyyaml pydantic-settings hypothesis
+
+      - name: Compile changed Python modules
+        run: |
+          python -m compileall -q \
+            certification/campaign/campaign_b.py \
+            certification/campaign/runner.py \
+            tiannara/application/compiler/writer.py \
+            tiannara/application/factory/factory.py \
+            tiannara/application/materializer \
+            tiannara/application/publication \
+            tests/cbc1/test_campaign_b.py \
+            tests/cbc1/test_cbc1_gates.py \
+            tests/test_compiler_writer_path_security.py \
+            tests/test_phase17_materializer_inmemory.py \
+            tests/test_phase18_factory.py \
+            tests/test_publication_contract_fail_closed.py
+
+      - name: Run targeted regression tests
+        env:
+          PYTHONPATH: autonomous-api
+        run: |
+          python -m pytest -q \
+            tests/cbc1/test_campaign_b.py \
+            tests/cbc1/test_cbc1_gates.py \
+            tests/cbc1/test_candidate_bound_full_stack_gate.py \
+            tests/test_compiler_writer_path_security.py \
+            tests/test_phase17_materializer_inmemory.py \
+            tests/test_phase18_factory.py \
+            tests/test_publication_contract_fail_closed.py

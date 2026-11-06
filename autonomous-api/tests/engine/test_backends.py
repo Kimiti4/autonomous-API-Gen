@@ -360,7 +360,6 @@ def test_backend_outputs_are_deterministic_for_same_architecture():
         "/absolute/escape.txt",
         "C:/absolute/escape.txt",
         r"\\server\share\escape.txt",
-        r"nested\escape.txt",
         ".git/config",
         ".TIANNARA/provenance.json",
         "a//b.txt",
@@ -423,3 +422,18 @@ def test_verified_artifact_rejects_unmanifested_files(tmp_path):
     )
     with pytest.raises(ValueError, match="unmanifested"):
         _validate_verified_artifact(str(artifact_dir), digest)
+
+
+def test_evolution_materializer_normalizes_safe_windows_relative_paths(tmp_path):
+    from app.engine.backend_contract import CompiledArtifact
+    from app.engine.backends import materialize, _validate_verified_artifact
+
+    artifact = CompiledArtifact(
+        backend_id="python-fastapi",
+        files={r"nested\escape.txt": "ok"},
+        metadata={},
+    )
+    output = materialize(artifact, str(tmp_path / "candidate"))
+    assert (tmp_path / "candidate" / "nested" / "escape.txt").read_text(encoding="utf-8") == "ok"
+    manifest = _validate_verified_artifact(output, (tmp_path / "candidate" / "artifact-manifest.json").exists() and __import__("json").loads((tmp_path / "candidate" / "artifact-manifest.json").read_text())["artifact_digest"])
+    assert manifest["files"] == {"nested/escape.txt": __import__("hashlib").sha256(b"ok").hexdigest()}

@@ -125,6 +125,7 @@ def test_materializer_refuses_unverified_bundle_without_force(tmp_path):
     with pytest.raises(MaterializationError, match="verification failed"):
         materializer.materialize(report, tmp_path)
     assert not (tmp_path / "provenance" / "manifest.json").exists()
+    assert not (tmp_path / _SYSTEM / "main.py").exists()
 
 
 def test_force_records_verification_override_in_manifest(tmp_path):
@@ -164,3 +165,18 @@ def test_materializer_rejects_report_with_no_successful_bundles(tmp_path):
     )
     with pytest.raises(MaterializationError, match="no successful"):
         RepositoryMaterializer(None).materialize(report, tmp_path)
+
+
+
+def test_materializer_can_stage_without_committing_until_acceptance(tmp_path):
+    backend = InMemorySourceControlBackend()
+    materializer = RepositoryMaterializer(backend)
+    staged = materializer.materialize(
+        _report(_outcome()), tmp_path, defer_commit=True, build_id="staged"
+    )
+    assert staged.commit is None
+    assert [call[0] for call in backend.calls] == []
+
+    committed = materializer.commit(staged)
+    assert committed.commit is not None
+    assert [call[0] for call in backend.calls] == ["init", "add", "commit", "branch"]

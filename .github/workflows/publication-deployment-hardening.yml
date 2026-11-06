@@ -105,7 +105,8 @@ jobs:
             tests/test_compiler_writer_path_security.py \
             tests/test_phase17_materializer_inmemory.py \
             tests/test_phase18_factory.py \
-            tests/test_publication_contract_fail_closed.py
+            tests/test_publication_contract_fail_closed.py \
+            tests/test_secret_boundary.py
 
       - name: Run autonomous-api evolution regression tests
         working-directory: autonomous-api

@@ -7,6 +7,7 @@ on:
     paths:
       - "autonomous-api/app/engine/backends.py"
       - "autonomous-api/app/engine/evolution.py"
+      - "autonomous-api/app/engine/elite_evolution.py"
       - "autonomous-api/app/core/config.py"
       - "autonomous-api/tests/test_governance_production_config.py"
       - "autonomous-api/app/engine/candidate_evaluator.py"
@@ -109,6 +110,7 @@ jobs:
           python -m compileall -q \
             autonomous-api/app/engine/backends.py \
             autonomous-api/app/engine/evolution.py \
+            autonomous-api/app/engine/elite_evolution.py \
             autonomous-api/app/core/config.py \
             autonomous-api/tests/test_governance_production_config.py \
             autonomous-api/app/engine/candidate_evaluator.py \

@@ -6,9 +6,10 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 
 from ..models import CompilationRequest
+from ..security import require_compiler_authorization
 from .audit import LoggingAuditEmitter
 from .client import GovernanceClient
 from .compiler import GovernedCompiler
@@ -19,6 +20,7 @@ from .models import CompilerGovernancePolicy
 router = APIRouter(
     prefix="/v1/compiler/governance",
     tags=["compiler-governance"],
+    dependencies=[Depends(require_compiler_authorization)],
 )
 
 

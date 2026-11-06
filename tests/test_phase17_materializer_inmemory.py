@@ -180,3 +180,12 @@ def test_materializer_can_stage_without_committing_until_acceptance(tmp_path):
     committed = materializer.commit(staged)
     assert committed.commit is not None
     assert [call[0] for call in backend.calls] == ["init", "add", "commit", "branch"]
+
+
+def test_materializer_treats_missing_verification_as_failure(tmp_path):
+    outcome = _outcome().model_copy(update={"verification_report": None})
+    backend = InMemorySourceControlBackend()
+    with pytest.raises(MaterializationError, match="verification failed"):
+        RepositoryMaterializer(backend).materialize(_report(outcome), tmp_path)
+    assert not (tmp_path / _SYSTEM / "main.py").exists()
+    assert backend.calls == []

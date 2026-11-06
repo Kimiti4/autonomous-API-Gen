@@ -1744,3 +1744,31 @@ The 187 passing tests establish targeted regression behavior for the changed con
 PR #208 remains open/draft/unmerged and targets `remediation/esap-android-compiler-stage-a`. PR #201 remains open/draft/unmerged. `main` remains unchanged. No backend was retired and no certification state was upgraded by this checkpoint.
 
 **Next checkpoint:** conduct final diff/review hardening for PR #208, inspect any remaining call sites affected by the stricter factory/materializer and compiler API defaults, then begin the next architectural remediation tranche: one canonical orchestration/IR contract across retained compiler families and candidate-specific product acceptance. Payroll remains the first substantial vertical-slice target, followed by a materially different global domain.
+
+
+## 25. Checkpoint 26 — publication secret boundary audit and hardening
+
+**Scope:** inspect the existing secret-boundary helpers, repository assembler and actual publication contract after the publisher was changed to accept exact artifact bytes.
+
+### 25.1 FS00-FS-030 — publication did not scan artifact contents for embedded credentials (High)
+
+The prior `secret_boundary.py` exposed only exact-string helpers (`is_credential_in_isr`, `is_credential_in_artifact`, `is_credential_in_commit`). Those helpers required a credential value supplied by the caller, were not wired into `publish_bundle()`, and did not detect common credentials when the specific credential string was unknown. The repository assembler produced generic metadata/template files; it was not an artifact-content security gate.
+
+**Remediation authored in PR #208:**
+- Added `scan_artifact_secrets()`, which returns only path/rule identifiers and never returns or logs matched secret values.
+- Detects common AWS access-key IDs, GitHub tokens, Slack tokens, Google API keys, Stripe secret keys, private-key PEM blocks, credential-bearing database URLs, credential-like assignments and sensitive credential-file paths (including real `.env`, private key stores and credential directories).
+- Allows explicitly named example/template environment files but still scans their contents for non-placeholder credentials.
+- Integrated the scanner into `publish_bundle()` before provider invocation. Any finding blocks publication before the provider can create a repository or push bytes.
+- Added tests for common token types, private key blocks, database URLs, sensitive environment files, placeholder examples and zero provider invocation on a secret finding.
+
+**Status:** REMEDIATION CODED; targeted CI execution pending at the time of this checkpoint. This is a heuristic detector, not a proof that arbitrary secrets can never be embedded. Production publication still requires provider-side secret scanning and independent security verification.
+
+### 25.2 Publication assembly boundary
+
+`repository_assembler.assemble()` emits generic repository metadata/templates; it does not assemble the actual compiled application. The hardened publisher now takes the exact artifact file mapping as its input and hashes those bytes. The assembler output must not be mistaken for the generated product, and it is not used as a substitute for the exact-byte publication contract.
+
+### 25.3 Updated open/closed disposition
+
+- FS00-FS-030 is added as HIGH and remains pending targeted test confirmation.
+- Existing publication contract, candidate-bound certification and no-simulated-provider boundaries remain as documented in Checkpoints 22–25.
+- No production provider or deployment adapter is claimed.

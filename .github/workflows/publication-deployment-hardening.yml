@@ -92,6 +92,8 @@ jobs:
           PYTHONPATH: autonomous-api
         run: |
           python -m pytest -q \
+            autonomous-api/tests/engine/test_backends.py \
+            autonomous-api/tests/test_artifact_backup_restore.py \
             tests/cbc1/test_campaign_b.py \
             tests/cbc1/test_cbc1_gates.py \
             tests/cbc1/test_candidate_bound_full_stack_gate.py \

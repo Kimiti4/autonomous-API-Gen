@@ -237,28 +237,57 @@ class EvolutionEngine:
             governance_required = bool(getattr(get_settings(), "GOVERNANCE_ENFORCEMENT_REQUIRED", False))
             promotion_status = "not_attempted"
             if best_genome:
-                try:
-                    output_path = build_genome_output(best_genome, target=self.target)
-                    promotion_status = "staged_unapproved"
-                except ValueError as exc:
-                    output_path = None
-                    build_error = f"best genome not lowerable: {exc}"
-                    promotion_status = "failed"
-                    logger.error("Best genome build failed: %s", exc)
-                await self._emit_update({"type":"building_best","run_id":run_id,"output_path":output_path,"promotion_status":promotion_status}, run_id=run_id)
-                if output_path and not build_error and governance_required:
+                if governance_required:
+                    # Never write an unverified candidate into the shared release
+                    # directory before the digest-bound governance gate succeeds.
+                    promotion_status = "awaiting_governance"
                     publish_evidence = dict(best_evidence or {})
-                    publish_evidence["output_path"] = output_path
-                    publish_evidence.setdefault("artifact_path", output_path)
+                    publish_evidence["output_path"] = "output/generated_api"
+                    await self._emit_update(
+                        {
+                            "type": "building_best",
+                            "run_id": run_id,
+                            "output_path": None,
+                            "promotion_status": promotion_status,
+                        },
+                        run_id=run_id,
+                    )
                     try:
-                        output_path = await self._publish_governed_candidate(best_genome, publish_evidence)
+                        output_path = await self._publish_governed_candidate(
+                            best_genome, publish_evidence
+                        )
                         promotion_status = "published"
-                        await self._emit_update({"type":"candidate_promoted","run_id":run_id,"output_path":output_path}, run_id=run_id)
-                    except ValueError as exc:
+                        await self._emit_update(
+                            {
+                                "type": "candidate_promoted",
+                                "run_id": run_id,
+                                "output_path": output_path,
+                            },
+                            run_id=run_id,
+                        )
+                    except Exception as exc:
                         output_path = None
                         build_error = str(exc)
                         promotion_status = "failed"
                         logger.error("Governed promotion denied: %s", exc)
+                else:
+                    try:
+                        output_path = build_genome_output(best_genome, target=self.target)
+                        promotion_status = "staged_unapproved"
+                    except ValueError as exc:
+                        output_path = None
+                        build_error = f"best genome not lowerable: {exc}"
+                        promotion_status = "failed"
+                        logger.error("Best genome build failed: %s", exc)
+                    await self._emit_update(
+                        {
+                            "type": "building_best",
+                            "run_id": run_id,
+                            "output_path": output_path,
+                            "promotion_status": promotion_status,
+                        },
+                        run_id=run_id,
+                    )
             elif best_genome is None:
                 build_error = "no candidate could be lowered by the selected backend"
             result = {"run_id":run_id,"best_genome":best_genome.encode() if best_genome and not build_error else None,"best_fitness":best_fitness if best_genome and not build_error else 0.0,"production_readiness":self.production_analyzer.analyze(best_genome) if best_genome and not build_error else None,"history":history,"output_path":output_path,"build_error":build_error,"promotion_status":promotion_status,"governance_required":governance_required,"total_generations":generations,"evaluation_mode":"runtime" if use_docker and get_backend(self.target.backend_id).runtime_supported else "static","backend_id":self.target.backend_id,"seed":seed}

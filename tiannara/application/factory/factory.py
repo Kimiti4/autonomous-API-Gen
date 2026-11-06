@@ -109,12 +109,6 @@ class SoftwareFactory:
             ok=ok,
         )
 
-        if self._evidence_sink is not None:
-            try:
-                self._evidence_sink(report)
-            except Exception:
-                pass
-
         if not ok:
             raise SoftwareFactoryError(
                 "one or more bundles failed verification after repair",
@@ -136,6 +130,12 @@ class SoftwareFactory:
                 fitness=report.fitness,
                 ok=report.ok,
             )
+
+        if self._evidence_sink is not None:
+            try:
+                self._evidence_sink(report)
+            except Exception:
+                pass
         return report
 
     # -- internals ---------------------------------------------------------

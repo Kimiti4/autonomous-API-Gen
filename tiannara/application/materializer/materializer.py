@@ -60,8 +60,9 @@ def _iter_files(root: Path) -> list[str]:
 
 
 def _verification_failed(outcome: Any) -> bool:
-    report = outcome.verification_report
-    return report is not None and not bool(report.ok)
+    report = getattr(outcome, "verification_report", None)
+    # Missing, malformed, or non-literal-True verification is absence of proof.
+    return report is None or getattr(report, "ok", None) is not True
 
 
 class RepositoryMaterializer:

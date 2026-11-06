@@ -12,6 +12,7 @@ from typing import Callable, Mapping, Protocol
 
 from tiannara.application.evolution.ledger import EvolutionEvent, EvolutionLedger, EventType
 from tiannara.domain.services.canonical import canonical_hash
+from .secret_boundary import scan_artifact_secrets
 
 
 @dataclass(frozen=True)
@@ -108,6 +109,13 @@ def publish_bundle(
         raise ValueError("publication blocked: evidence ledger chain is invalid")
 
     files = _validate_artifact_files(bundle.artifact_files)
+    secret_findings = scan_artifact_secrets(files)
+    if secret_findings:
+        raise ValueError(
+            "publication blocked: artifact secret scan failed: "
+            + ", ".join(secret_findings)
+        )
+
     computed_hash = canonical_hash(files)
     if computed_hash != bundle.artifact_hash:
         raise ValueError("publication blocked: artifact hash does not match supplied bytes")

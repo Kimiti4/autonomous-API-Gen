@@ -31,6 +31,9 @@ class GitHubProvider:
     ) -> ProviderPublicationReceipt:
         self._not_configured()
 
+    def verify_publication(self, receipt, files) -> bool:
+        self._not_configured()
+
     def create_repository(self, name: str, bundle) -> str:
         self._not_configured()
 

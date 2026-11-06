@@ -1555,3 +1555,88 @@ The inspected deployment handoff must remain blocked/unconfigured until a real p
 5. Apply equivalent gate ordering to Campaign A and all other audited routes; add counting-adapter tests proving zero deploy/publish calls on failed/missing prerequisites.
 6. Add path, symlink, credential, content-hash, immutable manifest and provenance integrity tests to the publication/materialization boundary.
 7. Run targeted unit/integration tests and CI; only then update finding status based on observed evidence. No backend is to be retired.
+
+
+## 22. Checkpoint 23 — standalone compiler API, governance wiring and artifact-packager audit
+
+**Scope:** inspect the additional `compiler.api` FastAPI application, SDK certification routes, governance wrapper, artifact packager, and distinguish the autonomous-api evolution service from the ESAP compiler route. This checkpoint also records remediation progress from PR #208. No tests have been executed in this environment.
+
+### 22.1 Additional standalone compiler route
+
+`compiler/api.py:create_app()` creates a separate FastAPI application (also exported as module-level `app`). Its route is independent of both the root behavioral compiler and ProjectCompiler:
+
+`CompilationRequest(dict ISR) → validate_isr_payload() → BackendRegistry → UniversalCompiler._build_plan() → OptimizationPipeline → backend.compile(CompilationContext) → validate_compilation_output() → ArtifactPackager.package() → CompilationResult`.
+
+The request carries a minimal dictionary ISR; the API's `CompilationPlan` is a separate metadata plan, not `compiler.core.plan.CompilationPlan`. This route does not call root `isr_to_plan()`, `required_features()/assert_plan_supported()`, source-bound full-stack mapping, or Campaign A/B candidate verification. Its output is a packaged artifact directory and manifest. It does not demonstrate full-stack application composition, product-level acceptance, publication, or deployment.
+
+The route is separately instantiable through `compiler.api:app`; the audit did not establish that this module-level app is mounted in the autonomous-api service's `app/main.py`. It must be treated as a distinct route and not counted as evidence for the root behavioral compiler or ProjectCompiler.
+
+### 22.2 FS00-FS-024 — standalone compiler API is a separate noncanonical compilation route (High)
+
+The standalone API has its own registry (reference backend plus production backend registrations), request/plan models, optimization pipeline, output validator and packager. It accepts the minimal dictionary ISR contract and calls backend compilation directly. It is not adapted into the source-bound canonical ISR/CompilationPlan path or the shared campaign evidence route.
+
+**Required:** either integrate this API behind the authoritative ISR→IR/orchestration boundary with explicit loss-reporting adapters and shared evidence, or retain it as a separately scoped API whose results cannot claim universal semantic conformance or product certification. No compiler family is to be removed solely to simplify this integration.
+
+### 22.3 FS00-FS-025 — standalone compiler API previously bypassed authorization and default governance wiring (Critical)
+
+Before remediation, `compiler.api:create_app()` called `enable_compiler_sdk()` but did not call `enable_compiler_governance()`; the compile endpoint and SDK certify/revoke routes had no authorization dependency. The governance wrapper and routes existed as opt-in helpers, so the default API could compile without the governance wrapper. SDK certification could be requested without authorization.
+
+**Remediation authored in PR #208:**
+- Added `compiler.security.require_compiler_authorization()`. The default is fail-closed (503 when no host authorizer is configured; only literal `True` authorizes).
+- `create_app()` accepts a host authorization callback, enables the SDK, wires the SDK certification engine into `enable_compiler_governance()`, and exposes the governed compiler as the compile route's compiler.
+- Compile, job-result, SDK certification/list/revoke, and governance routes now require the authorization dependency. Read-only backend discovery/validation and health remain public.
+- Default policy still requires backend certification and an available governance approval for production compilation; missing governance remains fail-closed.
+- Tests were added for default-deny authorization, governance route wiring, SDK authorization and production denial.
+
+**Status:** REMEDIATION CODED; NOT TEST-VERIFIED. The API's backend certification is still not product-level certification (see FS00-FS-027).
+
+### 22.4 FS00-FS-026 — compiler artifact packager path containment was vulnerable to prefix confusion and incomplete path validation (High)
+
+Prior `ArtifactPackager._safe_path()` used string-prefix containment (`str(candidate).startswith(str(output_root))`). This can confuse sibling paths sharing a prefix and does not by itself reject Windows drive/UNC paths, backslash traversal, symlink components, reserved Git/provenance metadata, or case-folded collisions. `validate_compilation_output()` previously checked for a `..` substring and an exact reserved manifest filename, which is not a complete cross-platform path contract.
+
+**Remediation authored in PR #208:**
+- Replaced prefix checks with canonical POSIX/Windows path parsing and resolved `Path.is_relative_to()` containment.
+- Rejects absolute, drive, UNC, backslash, NUL, empty/dot/traversal segments, `.git` and `.tiannara` metadata paths, and the reserved artifact manifest.
+- Preflights every artifact before the first write; rejects normalized/case-folded duplicate paths and non-empty output workspaces; rejects symlink redirection.
+- Strengthened `validate_compilation_output()` with the same canonical path and duplicate rules.
+- Added path traversal, Windows path, reserved metadata, symlink, collision and no-partial-write tests.
+
+**Status:** REMEDIATION CODED; NOT TEST-VERIFIED. Filesystem race resistance beyond the implemented preflight/recheck is not claimed.
+
+### 22.5 FS00-FS-027 — backend SDK CERTIFIED status is sample-contract certification, not generated-product certification (High)
+
+`BackendCertificationEngine.certify()` runs a default or supplied test ISR through backend contract tests, a determinism test, and output-schema validation. It records a backend-level `CERTIFIED` report. The inspected certification path does not run the generated product in a real runtime, prove full ISR requirement coverage, exercise payroll/global domain oracles, or bind a complete product candidate to deployed-instance evidence.
+
+The default governance enforcer consumes this backend-level status for environment policy. The default standalone API now additionally requires a governance client for production compilation and denies when unavailable, but a configured governance client approving the request does not transform backend certification into product certification.
+
+**Required:** keep backend certification and product certification as separate evidence types. Product promotion must require candidate-specific semantic correspondence, independent runtime/business oracles, exact artifact binding, and deployment identity/health evidence. Do not promote backend sample certification to product certification.
+
+### 22.6 Autonomous-api evolution service is a separate bounded generator/evaluator
+
+The autonomous-api `app/main.py` composes `app.api.routes` and evolution/governance subsystems. Its `/api/v1/evolve/start` route requires authentication and the evolution kill-switch guard, then schedules the Evolution Engine. The engine's generated-candidate path uses the Genome/backend/evaluator family; the Python/FastAPI and Go targets in `app/engine/backends.py` are separate from the root behavioral compiler and ProjectCompiler registries. The candidate evaluator has bounded local-Docker build/runtime probes, which is meaningful runtime evidence for that path, but it does not establish canonical ISR→Compiler IR provenance or full-stack product lineage.
+
+`autonomous-api/app/engine/fastapi_compiler.py` is a separate BackendProjectIR compiler; the inspected references found its direct instantiation in tests, not a production entry point. It is not counted as a production route without caller evidence.
+
+This distinction preserves the evolution engine's real bounded runtime capabilities without conflating them with ESAP's universal software compiler acceptance.
+
+### 22.7 Consolidated remediation status after Checkpoint 23
+
+| Finding | Remediation authored | Evidence status |
+|---|---|---|
+| FS00-FS-016 — Campaign A verify after deploy | Moved candidate-bound verification before deploy; deploy now requires build, test and verification | Regression test added; not run |
+| FS00-FS-019 — factory commit before runtime verification | Deferred factory commit until explicit static and runtime acceptance; CLI create remains staged | Regression tests added; not run |
+| FS00-FS-020 — publisher ignores certification gate/no byte upload | Requires exact artifact bytes, explicit gate approval, candidate-bound certification and provider receipt/read-back; records DELIVERY | Regression tests added; not run |
+| FS00-FS-021 — demo self-issues certification/simulates GitHub | Demo now returns BLOCKED; GitHub placeholder always fails closed | Regression tests added; not run |
+| FS00-FS-022 — Campaign B deploy before independent verification | Added structural/build/test/verify prerequisites, pre-deploy verification, short-circuiting and cleanup finally | Regression tests added; not run |
+| FS00-FS-025 — compiler API auth/governance bypass | Default-deny host authorization; governance wrapper enabled by default | Regression tests added; not run |
+| FS00-FS-026 — artifact path containment | Canonical path validation, preflight, symlink and collision checks | Regression tests added; not run |
+
+FS00-FS-017 (complete infrastructure/deployment IR), FS00-FS-018 (one universal orchestration/publication authority), FS00-FS-024 (standalone compiler route convergence), and FS00-FS-027 (product-level certification distinct from backend certification) remain OPEN.
+
+### 22.8 PR and execution boundary
+
+The remediation work is isolated in PR #208, targeting `remediation/esap-android-compiler-stage-a`; PR #201 remains open/draft/unmerged. A focused GitHub Actions workflow was added for the changed routes and tests. No workflow run or status check was returned for the current PR head, and no local test execution was performed; therefore no test is reported as passed and no finding is marked resolved. The code is an implementation candidate pending CI execution and review.
+
+No backend was retired. No changes were made to `main`. FS-00 remains NOT CLOSED.
+
+**Next checkpoint:** finish auditing remaining API and CLI entry points and their callers, then inspect the candidate-level authorization, evidence-ledger and deployment promotion paths. After that, run the focused hardening suite, correct failures, and only then update finding statuses.

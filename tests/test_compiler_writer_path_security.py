@@ -58,3 +58,8 @@ def test_writer_rejects_reserved_and_noncanonical_paths(tmp_path, reserved):
     with pytest.raises(ValueError, match="unsafe generated path"):
         write_bundle(_result({reserved: "blocked"}), tmp_path)
     assert not any(tmp_path.rglob("*"))
+
+
+def test_writer_normalizes_safe_windows_relative_paths(tmp_path):
+    write_bundle(_result({r"nested\escape.txt": "ok"}), tmp_path)
+    assert (tmp_path / "nested" / "escape.txt").read_text(encoding="utf-8") == "ok"

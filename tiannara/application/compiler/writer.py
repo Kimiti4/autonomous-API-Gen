@@ -20,13 +20,14 @@ def _safe_target(root: Path, relative_path: str) -> Path:
     ):
         raise ValueError(f"unsafe generated path: {relative_path!r}")
 
+    raw_parts = relative_path.split("/")
     posix = PurePosixPath(relative_path)
     windows = PureWindowsPath(relative_path)
     if (
         posix.is_absolute()
         or windows.is_absolute()
         or bool(windows.drive)
-        or any(part in ("", ".", "..") for part in posix.parts)
+        or any(part in ("", ".", "..") for part in raw_parts)
     ):
         raise ValueError(f"unsafe generated path: {relative_path!r}")
 
@@ -53,7 +54,10 @@ def validate_bundle_paths(result: CompilationResult, output_dir: str | Path) -> 
     root = Path(output_dir)
     root.mkdir(parents=True, exist_ok=True)
     root = root.resolve()
-    return tuple(_safe_target(root, relative_path) for relative_path in result.files)
+    targets = tuple(_safe_target(root, relative_path) for relative_path in result.files)
+    if len(set(targets)) != len(targets):
+        raise ValueError("generated bundle contains duplicate normalized paths")
+    return targets
 
 
 def write_bundle(result: CompilationResult, output_dir: str | Path) -> Path:

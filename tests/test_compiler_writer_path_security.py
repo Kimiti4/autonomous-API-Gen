@@ -51,3 +51,10 @@ def test_writer_rejects_symlink_parent_escape(tmp_path):
 def test_writer_accepts_nested_relative_files(tmp_path):
     write_bundle(_result({"src/main.py": "print('ok')"}), tmp_path)
     assert (tmp_path / "src" / "main.py").read_text(encoding="utf-8") == "print('ok')"
+
+
+@pytest.mark.parametrize("reserved", [".git/config", ".TIANNARA/provenance.json", "a//b.txt", "a/./b.txt"])
+def test_writer_rejects_reserved_and_noncanonical_paths(tmp_path, reserved):
+    with pytest.raises(ValueError, match="unsafe generated path"):
+        write_bundle(_result({reserved: "blocked"}), tmp_path)
+    assert not any(tmp_path.rglob("*"))

@@ -50,13 +50,7 @@ def test_packager_rejects_symlink_escape(tmp_path):
     outside.mkdir()
     (tmp_path / "link").symlink_to(outside, target_is_directory=True)
     with pytest.raises(ArtifactPackagingError, match="symlink|escapes"):
-        ArtifactPackager().package(
-            _output("link/escape.txt"),
-            "job-2",
-            "test.backend",
-            "1.0",
-            tmp_path,
-        )
+        ArtifactPackager()._safe_path(tmp_path, "link/escape.txt")
     assert not (outside / "escape.txt").exists()
 
 

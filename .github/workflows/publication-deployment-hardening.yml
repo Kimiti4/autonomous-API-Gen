@@ -5,6 +5,12 @@ on:
     paths:
       - "certification/campaign/campaign_b.py"
       - "certification/campaign/runner.py"
+      - "compiler/api.py"
+      - "compiler/security.py"
+      - "compiler/validation.py"
+      - "compiler/packaging.py"
+      - "compiler/sdk/routes.py"
+      - "compiler/governance/routes.py"
       - "tiannara/application/compiler/writer.py"
       - "tiannara/application/factory/factory.py"
       - "tiannara/application/materializer/**"
@@ -12,6 +18,9 @@ on:
       - "tests/cbc1/test_campaign_b.py"
       - "tests/cbc1/test_cbc1_gates.py"
       - "tests/cbc1/test_candidate_bound_full_stack_gate.py"
+      - "tests/test_compiler_runtime.py"
+      - "tests/test_compiler_sdk.py"
+      - "tests/test_compiler_packaging_security.py"
       - "tests/test_compiler_writer_path_security.py"
       - "tests/test_phase17_materializer_inmemory.py"
       - "tests/test_phase18_factory.py"
@@ -55,6 +64,8 @@ jobs:
           python -m compileall -q \
             certification/campaign/campaign_b.py \
             certification/campaign/runner.py \
+            compiler/api.py compiler/security.py compiler/validation.py compiler/packaging.py \
+            compiler/sdk/routes.py compiler/governance/routes.py \
             tiannara/application/compiler/writer.py \
             tiannara/application/factory/factory.py \
             tiannara/application/materializer \
@@ -74,6 +85,8 @@ jobs:
             tests/cbc1/test_campaign_b.py \
             tests/cbc1/test_cbc1_gates.py \
             tests/cbc1/test_candidate_bound_full_stack_gate.py \
+            tests/test_compiler_runtime.py tests/test_compiler_sdk.py \
+            tests/test_compiler_packaging_security.py \
             tests/test_compiler_writer_path_security.py \
             tests/test_phase17_materializer_inmemory.py \
             tests/test_phase18_factory.py \

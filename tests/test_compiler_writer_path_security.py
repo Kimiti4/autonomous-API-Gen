@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from tiannara.application.compiler.writer import write_bundle
-from tiannara.domain.models.capability_manifest import CapabilityManifest
+from tiannara.domain.models.capability_manifest import BundleCapability, CapabilityManifest
 from tiannara.domain.models.compilation import CompilationResult
 
 
@@ -13,7 +13,7 @@ def _result(files):
         system_name="test-system",
         files=files,
         capability_manifest=CapabilityManifest(
-            backend_id="test-backend", capabilities=[]
+            backend_id="test-backend", capabilities=[BundleCapability.BUILD]
         ),
     )
 

@@ -6,6 +6,10 @@ same fail-closed API-key boundary as the evolution control plane.
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.governance.commands import (
@@ -19,6 +23,7 @@ from app.core.governance.commands import (
 )
 from app.middleware.security import require_auth
 from app.governance.runtime import get_governance
+from app.core.config import get_settings
 
 router = APIRouter(prefix="/governance", tags=["governance"])
 
@@ -29,6 +34,41 @@ def _require_governance_actor(auth, *, scope: str, actor: str) -> None:
         raise HTTPException(status_code=403, detail="Governance authority scope required")
     if actor != getattr(auth, "subject", None):
         raise HTTPException(status_code=403, detail="Governance actor must match authenticated principal")
+
+
+def _verify_council_attestations(command: RequestGovernanceDecision, auth) -> None:
+    """Verify every named council member signed the exact immutable decision command."""
+    _require_governance_actor(
+        auth, scope="governance:decide", actor=command.requestedBy
+    )
+    keys = get_settings().GOVERNANCE_COUNCIL_API_KEYS
+    members = command.decidedBy
+    signatures = command.memberSignatures
+    if (
+        not members
+        or len(members) != len(set(members))
+        or auth.subject not in members
+        or set(signatures) != set(members)
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Decision requires one valid signature from every named council member",
+        )
+
+    payload = command.model_dump(mode="json", exclude={"memberSignatures"})
+    canonical = json.dumps(
+        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
+    for member_id in members:
+        secret = keys.get(member_id)
+        supplied = signatures.get(member_id, "")
+        if not secret or not supplied:
+            raise HTTPException(status_code=403, detail="Council member attestation is missing")
+        expected = hmac.new(
+            secret.encode("utf-8"), canonical, hashlib.sha256
+        ).hexdigest()
+        if not hmac.compare_digest(supplied, expected):
+            raise HTTPException(status_code=403, detail="Council member attestation is invalid")
 
 
 @router.post("/council")
@@ -66,14 +106,7 @@ async def record_gate_evaluation(
 async def request_decision(
     command: RequestGovernanceDecision, _auth=Depends(require_auth)
 ):
-    _require_governance_actor(
-        _auth, scope="governance:decide", actor=command.requestedBy
-    )
-    if command.decidedBy != [_auth.subject]:
-        raise HTTPException(
-            status_code=403,
-            detail="A council principal may submit only its own decision attestation",
-        )
+    _verify_council_attestations(command, _auth)
     return await get_governance().request_decision(command)
 
 

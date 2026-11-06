@@ -103,17 +103,18 @@ class ArtifactPackager:
             not isinstance(artifact_path, str)
             or not artifact_path
             or "\x00" in artifact_path
-            or "\\" in artifact_path
         ):
             raise ArtifactPackagingError(f"Unsafe artifact path: {artifact_path!r}")
 
-        raw_parts = artifact_path.split("/")
-        posix = PurePosixPath(artifact_path)
+        normalized_input = artifact_path.replace("\\", "/")
+        raw_parts = normalized_input.split("/")
+        posix = PurePosixPath(normalized_input)
         windows = PureWindowsPath(artifact_path)
         if (
             posix.is_absolute()
             or windows.is_absolute()
             or bool(windows.drive)
+            or bool(windows.root)
             or any(part in ("", ".", "..") for part in raw_parts)
             or any(part.casefold() in {".git", ".tiannara"} for part in raw_parts)
             or "/".join(part.casefold() for part in posix.parts) == "artifact-manifest.json"

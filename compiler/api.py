@@ -167,7 +167,10 @@ def create_app(
     def compile_isr(payload: CompilationRequest):
         return compiler.compile(payload)
 
-    @app.get("/v1/compiler/jobs/{job_id}")
+    @app.get(
+        "/v1/compiler/jobs/{job_id}",
+        dependencies=[Depends(require_compiler_authorization)],
+    )
     def get_compilation_job(job_id: str):
         job = compiler.get_job(job_id)
 

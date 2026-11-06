@@ -24,7 +24,6 @@ def _output(*paths):
         "/absolute/escape.txt",
         "C:/absolute/escape.txt",
         r"\\server\share\escape.txt",
-        r"nested\escape.txt",
         ".git/config",
         ".TIANNARA/provenance.json",
         "a//b.txt",
@@ -86,3 +85,20 @@ def test_output_validator_rejects_noncanonical_artifact_paths():
     assert report.valid is False
     codes = {issue.code for issue in report.issues}
     assert "ARTIFACT_UNSAFE_PATH" in codes
+
+
+def test_packager_normalizes_safe_windows_relative_paths(tmp_path):
+    manifest = ArtifactPackager().package(
+        _output(r"nested\escape.txt"),
+        "job-win",
+        "test.backend",
+        "1.0",
+        tmp_path,
+    )
+    assert (tmp_path / "nested" / "escape.txt").read_text(encoding="utf-8") == "candidate"
+    assert manifest.files[0].path == "nested/escape.txt"
+
+
+def test_output_validator_accepts_safe_windows_relative_paths():
+    report = validate_compilation_output(_output(r"nested\escape.txt"))
+    assert report.valid is True

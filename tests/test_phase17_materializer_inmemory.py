@@ -1,6 +1,8 @@
 """Phase 17 -- RepositoryMaterializer against the in-memory SourceControlBackend."""
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from tiannara.application.compiler.project_compiler import (
@@ -183,7 +185,7 @@ def test_materializer_can_stage_without_committing_until_acceptance(tmp_path):
 
 
 def test_materializer_treats_missing_verification_as_failure(tmp_path):
-    outcome = _outcome().model_copy(update={"verification_report": None})
+    outcome = replace(_outcome(), verification_report=None)
     backend = InMemorySourceControlBackend()
     with pytest.raises(MaterializationError, match="verification failed"):
         RepositoryMaterializer(backend).materialize(_report(outcome), tmp_path)

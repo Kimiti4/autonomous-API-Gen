@@ -198,9 +198,10 @@ class SoftwareFactory:
         )
         return VerificationOutcome(
             bundle_backend_id=backend_id or "",
-            static_ok=bool(getattr(static_report, "ok", True))
-            if static_report is not None
-            else True,
+            static_ok=(
+                static_report is not None
+                and getattr(static_report, "ok", None) is True
+            ),
             static_report=static_report,
             test_result=test_result,
             repair_attempts=repair_attempts,
@@ -211,7 +212,9 @@ class SoftwareFactory:
     def _verify_once(self, bundle, bundle_path, verifier):
         static_report = verifier.verify(bundle_path) if verifier is not None else None
         static_ok = (
-            bool(getattr(static_report, "ok", True)) if static_report is not None else True
+            verifier is not None
+            and static_report is not None
+            and getattr(static_report, "ok", None) is True
         )
         test_result = None
         if static_ok and self._execution_environment is not None:
@@ -228,12 +231,12 @@ class SoftwareFactory:
     @staticmethod
     def _all_ok(static_report, test_result) -> bool:
         static_ok = (
-            bool(getattr(static_report, "ok", True)) if static_report is not None else True
+            static_report is not None
+            and getattr(static_report, "ok", None) is True
         )
         test_ok = (
-            bool(getattr(test_result, "passed", True))
-            if test_result is not None
-            else True
+            test_result is not None
+            and getattr(test_result, "passed", None) is True
         )
         return static_ok and test_ok
 

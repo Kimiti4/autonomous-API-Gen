@@ -60,3 +60,19 @@ def test_production_configuration_requires_distinct_governance_principals():
         Settings(**_production_values(
             GOVERNANCE_EVALUATOR_API_KEYS={"evaluator-1": "council-secret-1"}
         ))
+
+
+def test_governance_principal_roles_and_secrets_cannot_overlap_outside_production():
+    with pytest.raises(ValidationError, match="identities must be distinct"):
+        Settings(
+            ENVIRONMENT="development",
+            GOVERNANCE_COUNCIL_API_KEYS={"member-1": "council-secret"},
+            GOVERNANCE_EVALUATOR_API_KEYS={"member-1": "evaluator-secret"},
+        )
+
+    with pytest.raises(ValidationError, match="must differ from ADMIN_API_KEY"):
+        Settings(
+            ENVIRONMENT="development",
+            ADMIN_API_KEY="shared-secret",
+            GOVERNANCE_COUNCIL_API_KEYS={"member-1": "shared-secret"},
+        )

@@ -9,6 +9,13 @@ on:
       - "autonomous-api/app/engine/evolution.py"
       - "autonomous-api/app/engine/elite_evolution.py"
       - "autonomous-api/app/core/config.py"
+      - "autonomous-api/tests/test_governance_principal_auth.py"
+      - "autonomous-api/app/core/contracts/governance.py"
+      - "autonomous-api/app/core/governance/commands.py"
+      - "autonomous-api/app/main.py"
+      - "autonomous-api/app/governance/subsystem.py"
+      - "autonomous-api/app/api/governance_routes.py"
+      - "autonomous-api/app/middleware/security.py"
       - "autonomous-api/tests/test_governance_production_config.py"
       - "autonomous-api/app/engine/candidate_evaluator.py"
       - "autonomous-api/tests/test_a09_governed_promotion.py"
@@ -112,6 +119,13 @@ jobs:
             autonomous-api/app/engine/evolution.py \
             autonomous-api/app/engine/elite_evolution.py \
             autonomous-api/app/core/config.py \
+            autonomous-api/tests/test_governance_principal_auth.py \
+            autonomous-api/app/core/contracts/governance.py \
+            autonomous-api/app/core/governance/commands.py \
+            autonomous-api/app/main.py \
+            autonomous-api/app/governance/subsystem.py \
+            autonomous-api/app/api/governance_routes.py \
+            autonomous-api/app/middleware/security.py \
             autonomous-api/tests/test_governance_production_config.py \
             autonomous-api/app/engine/candidate_evaluator.py \
             autonomous-api/tests/test_a09_governed_promotion.py \
@@ -162,4 +176,5 @@ jobs:
             tests/test_artifact_backup_restore.py \
             tests/test_a09_governed_promotion.py \
             tests/test_governance_production_config.py \
+            tests/test_governance_principal_auth.py \
             tests/engine/test_candidate_evaluator_governance_evidence.py

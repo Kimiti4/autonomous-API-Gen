@@ -1694,3 +1694,53 @@ Safe Windows-relative paths are normalized rather than rejected in the three fil
 - The autonomous-api evolution engine and its local artifact promotion remain separate from ESAP's canonical source-bound compiler and do not establish payroll/global product capability.
 
 No test execution is claimed. PR #208 remains open/draft; PR #201 remains open/draft/unmerged; no backend has been retired and `main` has not been changed.
+
+
+## 24. Checkpoint 25 — remediation regression execution and evidence reconciliation
+
+**Execution evidence:** GitHub Actions workflow `Publication and Deployment Hardening`, run **42258475145**, commit `230a7113fa79e63f1a1514e2472f9a888cb19527`, completed successfully.
+
+- Python 3.14 dependency installation: PASS.
+- Changed Python module compilation (`compileall`): PASS.
+- Root ESAP targeted regression suite: **156 passed** in 13.48 seconds.
+- Autonomous-api evolution artifact suite: **31 passed** in 29.45 seconds.
+- Total: **187 passed, 0 failed** across the two targeted pytest processes.
+
+The test processes are deliberately separate because both repository subprojects contain a `tests/conftest.py` imported as `tests.conftest`. The first workflow attempt exposed a collection collision when both trees were passed to one pytest process; the workflow was corrected to run root and autonomous-api suites in separate processes. A subsequent root test run exposed 19 genuine test/fixture issues (Campaign B cleanup import, invalid capability manifest fixture, incorrect dataclass replacement, and stale publication expectations); those were corrected and the complete second run passed. The failures were not suppressed or marked xfail.
+
+### 24.1 Finding status after targeted execution
+
+| Finding | Status after code + targeted regression evidence | Remaining boundary |
+|---|---|---|
+| FS00-FS-016 — Campaign A verification after deploy | **REMEDIATION VERIFIED BY TARGETED TESTS** | No production promotion adapter is established; test proves deploy is not called after failed candidate verification. |
+| FS00-FS-019 — factory commit before runtime acceptance | **REMEDIATION VERIFIED BY TARGETED TESTS** | Direct lower-level materializer still supports local commit for explicit callers; CLI create stages without commit and SoftwareFactory commits only after explicit static/runtime pass. |
+| FS00-FS-020 — publisher ignored certification gate and did not upload candidate bytes | **FALSE-SUCCESS PATH CLOSED; CONTRACT TESTED** | Current GitHub provider has no live API and now fails closed; no real repository upload is claimed. |
+| FS00-FS-021 — demo manufactured CERTIFIED evidence | **REMEDIATION VERIFIED BY TARGETED TESTS** | Uber-for-Boats demo returns BLOCKED until real compile/certification/provider/deployment evidence exists. |
+| FS00-FS-022 — Campaign B deployed before independent verification | **REMEDIATION VERIFIED BY TARGETED TESTS** | Campaign B uses its independent repository verifier before deploy; shared source-bound five-layer mapping remains an integration gap. |
+| FS00-FS-025 — standalone compiler API auth/governance bypass | **REMEDIATION VERIFIED BY TARGETED TESTS** | Host must supply an actual secure authorization callback; default module-level app intentionally denies compiler/SDK/governance operations. |
+| FS00-FS-026 — compiler artifact path containment | **REMEDIATION VERIFIED BY TARGETED TESTS** | Filesystem race resistance beyond path preflight/rechecks is not claimed. |
+| FS00-FS-029 — autonomous-api evolution artifact path traversal | **REMEDIATION VERIFIED BY TARGETED TESTS** | This is artifact materialization/manifest evidence, not proof of full product or production deployment acceptance. |
+
+### 24.2 Findings that remain open
+
+- **FS00-FS-017:** the canonical full-stack contract still lacks explicit infrastructure/deployment/operations layers.
+- **FS00-FS-018:** root campaign, ProjectCompiler, standalone compiler API and autonomous-api evolution engine still do not share one mandatory ISR/IR/orchestration/publication authority.
+- **FS00-FS-024:** standalone `compiler.api` remains a separate noncanonical compilation route; auth/governance protection does not make it converge on canonical ISR/IR.
+- **FS00-FS-027:** backend SDK sample-contract certification remains distinct from product-specific semantic/runtime certification.
+- Campaign B still lacks Campaign A's source-bound requirement-to-five-layer correspondence input; its deployment gate is now ordered safely but its semantic evidence contract must converge.
+- No live GitHub provider or production deployment adapter is implemented. Both remain blocked/unconfigured rather than returning simulated success.
+- Payroll and global-product capability findings from Checkpoint 20 remain unchanged: complete payroll product capability and domain-independent global-product acceptance are NOT ESTABLISHED.
+
+### 24.3 Evidence scope and release disposition
+
+The 187 passing tests establish targeted regression behavior for the changed contracts and code paths. They do not establish:
+- live GitHub repository publication;
+- live production deployment, rollout, health/telemetry or rollback;
+- universal compiler-route conformance;
+- complete frontend/API/backend/data/auth/infrastructure composition;
+- payroll statutory/business correctness or a second global-domain acceptance oracle;
+- production certification of any generated product.
+
+PR #208 remains open/draft/unmerged and targets `remediation/esap-android-compiler-stage-a`. PR #201 remains open/draft/unmerged. `main` remains unchanged. No backend was retired and no certification state was upgraded by this checkpoint.
+
+**Next checkpoint:** conduct final diff/review hardening for PR #208, inspect any remaining call sites affected by the stricter factory/materializer and compiler API defaults, then begin the next architectural remediation tranche: one canonical orchestration/IR contract across retained compiler families and candidate-specific product acceptance. Payroll remains the first substantial vertical-slice target, followed by a materially different global domain.

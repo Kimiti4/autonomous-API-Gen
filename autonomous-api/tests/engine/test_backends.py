@@ -426,6 +426,9 @@ def test_verified_artifact_rejects_unmanifested_files(tmp_path):
 
 def test_evolution_materializer_normalizes_safe_windows_relative_paths(tmp_path):
     from app.engine.backend_contract import CompiledArtifact
+    import hashlib
+    import json
+
     from app.engine.backends import materialize, _validate_verified_artifact
 
     artifact = CompiledArtifact(
@@ -435,5 +438,7 @@ def test_evolution_materializer_normalizes_safe_windows_relative_paths(tmp_path)
     )
     output = materialize(artifact, str(tmp_path / "candidate"))
     assert (tmp_path / "candidate" / "nested" / "escape.txt").read_text(encoding="utf-8") == "ok"
-    manifest = _validate_verified_artifact(output, (tmp_path / "candidate" / "artifact-manifest.json").exists() and __import__("json").loads((tmp_path / "candidate" / "artifact-manifest.json").read_text())["artifact_digest"])
-    assert manifest["files"] == {"nested/escape.txt": __import__("hashlib").sha256(b"ok").hexdigest()}
+    manifest_path = tmp_path / "candidate" / "artifact-manifest.json"
+    digest = json.loads(manifest_path.read_text(encoding="utf-8"))["artifact_digest"]
+    manifest = _validate_verified_artifact(output, digest)
+    assert manifest["files"] == {"nested/escape.txt": hashlib.sha256(b"ok").hexdigest()}

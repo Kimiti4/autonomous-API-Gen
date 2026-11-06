@@ -1,11 +1,11 @@
 # FS-00 — Consolidated Compiler and Semantic-Lineage Audit Report
 
-**Version:** 1.0 | **Date:** 2026-11-05  
+**Version:** 1.1 | **Date:** 2026-11-06  
 **Repository:** `Kimiti4/autonomous-API-Gen`  
 **Branch:** `remediation/esap-android-compiler-stage-a`  
-**Audited head:** `130501b8aff88e750cfeb62c6ae816b982f45499`  
+**Audited head:** `c314049acca839358a46dd8371f3c51321e401` (targeted backend evidence delta; historical checkpoint findings retain their individually listed inspected revisions)  
 **PR:** #201, open draft, unmerged; base `remediation/w12-executable-effect-contract`  
-**Boundary:** Documentation/source audit only. No production code, tests, workflows, registrations or certification records changed.
+**Boundary:** Documentation-only update. The targeted source/test/workflow inspection below records evidence already produced by CI; no production code, tests, workflows, registrations or certification records are changed by this report update.
 
 ---
 
@@ -939,3 +939,73 @@ All 15 planned audit checkpoints have now been completed and consolidated. This 
 The decisive blockers remain: no single reconciled requirement/ISR authority; no universal mandatory source-to-IR lineage; multiple registries and compiler routes without one compulsory governance boundary; uneven semantic and native evidence across targets; incomplete independent requirement acceptance; and no universal quarantine/authorized atomic publication path.
 
 **No target is retired. No capability, readiness or certification status is upgraded. No production implementation, test, workflow or benchmark is modified. Only this consolidated audit report is updated.**
+
+
+## 16. Current-head evidence freshness delta — 2026-11-06
+
+### 16.1 Scope and source identity
+
+This is a targeted delta against the earlier architecture/source baseline `68696e2a07595fed98a19e24ee96c3e4e0e5bfeb`, not a repetition of Checkpoints 1–15. The PR head inspected for this delta is `c314049acca839358a46dd8371f3c51321e401`.
+
+The source comparison identified four backend implementations changed after the architecture baseline: Ktor, Laravel, Rails and Spring Boot. Their corresponding generator tests, generated-application integration tests and dedicated GitHub Actions workflows were inspected. These changes improve the executable framework scaffold/runtime contract; they do not replace the shared RequirementGraph/ISR/CompilationPlan architecture or establish a new universal compiler authority.
+
+### 16.2 Current CI evidence
+
+All four dedicated workflows completed successfully on the current PR head:
+
+| Target | Workflow run | Generator contract tests | Generated-project integration test | Evidence classification |
+|---|---:|---|---|---|
+| Ktor | `42156712935` | 3 passed | 1 passed; Gradle test/installDist; Docker image build, container launch and live `GET /health` probe are exercised when Docker is present; this run did not skip the test | Native build and narrow health-route runtime verified |
+| Laravel | `42156712786` | 3 passed | 1 passed; Composer install, `php artisan test`, `artisan about`; Docker image build, container launch and live `GET /api/health` probe are exercised when Docker is present; this run did not skip the test | Native build and narrow health-route runtime verified |
+| Rails | `42156712852` | 3 passed | 1 passed; Bundler install, `rails test`, `rails about`, Docker image build | Native build/test and image build verified; container startup/live HTTP runtime not exercised |
+| Spring Boot | `42156712891` | 3 passed | 1 passed; Maven test, package, Docker image build; health assertion uses Spring MockMvc | Native build/test and image build verified; container startup/live HTTP runtime not exercised |
+
+The test code conditionally skips its Docker path when Docker is absent. The Ktor and Laravel integration tests completed as passed rather than skipped, and their Docker branches include a launched container and a live HTTP probe. Rails and Spring Boot tests only build the Docker image; they do not start that image or probe its live HTTP endpoint. Spring Boot's health assertion is an in-process MockMvc test, not an external process/runtime probe.
+
+The Android backend-test workflow on this same PR head, run `42156712886`, passed. Its Android cloud-build job was skipped by the workflow's manual-dispatch condition. Therefore no Android Gradle/APK/emulator execution is established by this PR-triggered run.
+
+### 16.3 Capability and semantic boundary
+
+The four backend manifests declare only BUILD, TEST, CONTAINERIZE, HEALTH_CHECK and DOCUMENTATION. The generated output and tests support a narrow framework/application-shell conclusion, not broad backend semantic conformance:
+
+- **Ktor:** emits typed Kotlin data classes, a Ktor application and a `/health` route. It does not emit domain CRUD, persistence, authorization or business operations.
+- **Laravel:** emits a bootable Laravel 12 application and health routes. Generated Eloquent model classes are structural shells; migrations, persistence semantics, CRUD, authentication, authorization and business operations are explicitly not implemented/certified.
+- **Rails:** emits a bootable Rails 8 application and `GET /health`. Generated model classes are structural shells; migrations, schema, CRUD, authentication, authorization and business operations are explicitly not implemented/certified.
+- **Spring Boot:** emits a Spring Boot application, health controller and Java domain classes. The current test proves the in-process health controller contract and native Maven build/package; it does not establish generated persistence, CRUD, authentication/authorization, transactions or requirement-derived business behavior.
+
+The integration fixtures use a minimal `SystemModel` with a problem statement and placeholder graph reference. They do not exercise a rich requirement graph, complete ISR behavioral semantics, independent requirement oracles, adversarial authorization, persistence, transactions, event delivery, failure/retry semantics or cross-target parity. Passing these workflows must not be represented as production application certification.
+
+### 16.4 Target-matrix delta
+
+For the four targets, the earlier matrix wording “UNKNOWN pending target-specific evidence” is now superseded only for the narrow evidence layers stated here:
+
+| Target | Current supported evidence state | Still UNKNOWN / NOT ESTABLISHED |
+|---|---|---|
+| Ktor | SOURCE_PRESENT; generator contract tests PASS; NATIVE_BUILD_VERIFIED; limited health-route RUNTIME_VERIFIED | Requirement-faithful behavior, persistence, auth/security, full API semantics, operational readiness, independent certification |
+| Laravel | SOURCE_PRESENT; generator contract tests PASS; NATIVE_BUILD_VERIFIED; limited health-route RUNTIME_VERIFIED | Migrations/data integrity, persistence/transactions, CRUD, auth/security, business behavior, independent certification |
+| Rails | SOURCE_PRESENT; generator contract tests PASS; NATIVE_BUILD_VERIFIED; container image build PASS | Container startup/live runtime, migrations/data integrity, persistence/transactions, CRUD, auth/security, business behavior, independent certification |
+| Spring Boot | SOURCE_PRESENT; generator contract tests PASS; NATIVE_BUILD_VERIFIED; in-process MockMvc health test PASS; container image build PASS | Container startup/live runtime, persistence/transactions, CRUD, auth/security, business behavior, independent certification |
+
+These are evidence-layer updates, not capability or certification promotions. The remaining backend acceptance criteria in Section 5 of `05-target-engineering-acceptance-criteria.md` continue to apply.
+
+### 16.5 Architecture conclusion revalidation
+
+The targeted source review does not invalidate the existing architecture conclusions:
+
+1. These four ProjectCompiler backends consume the legacy-compatible `IntermediateSoftwareRepresentation.system_model()` payload and generate directly from `SystemModel`. Their inspected `compile()` paths do not establish mandatory traversal through `ISRRevision → CompilationPlan`.
+2. Their dedicated CI workflows are target-specific validation, not a universal route gate. No evidence here shows that every production compiler entrypoint must pass the same canonical ISR binding, semantic capability gate, independent verifier and publication authority.
+3. No change in this delta reconciles the multiple RequirementGraph/ISR representations, compiler families, registries or direct materialization paths identified in the earlier checkpoints.
+4. The proposed architecture boundary/ADR remains proposed; this delta does not approve it or authorize architecture migration.
+
+A non-blocking Python SyntaxWarning about an invalid escape sequence is emitted from `rails_backend.py` during generator tests. It did not fail these workflows and should be cleaned up in a separate code-maintenance change.
+
+### 16.6 Integrated disposition
+
+- The four backend scaffolds now have materially stronger, current-head native build/test evidence.
+- Ktor and Laravel additionally have narrow live health-route evidence in the passing CI integration tests.
+- Rails and Spring Boot have image-build evidence but still lack container-start/live HTTP verification in these workflows.
+- No evidence here establishes durable persistence, complete domain/API semantics, security acceptance, independent requirement-oracle coverage, full-stack coherence or production readiness.
+- The architecture conclusions remain PARTIAL / OPEN. FS-00 remains NOT CLOSED. No backend is retired; no capability, readiness or certification state is upgraded.
+- PR #201 remains open, draft and unmerged. The Android cloud build remains NOT RUN by the PR-triggered workflow.
+
+**Checkpoint disposition:** targeted evidence-freshness reconciliation COMPLETE for these four changed backends. This does not close FS-00 or approve FS-01, the proposed architecture ADR, benchmark decisions R1/R5/R6/R7, or PR #201.

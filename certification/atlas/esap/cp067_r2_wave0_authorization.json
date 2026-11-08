@@ -1,17 +1,17 @@
 {
   "schema": "tiannara.checkpoint.cp067_r2_wave0_authorization",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "checkpoint": "CP067-R2",
   "planning_and_authorization_artifact": true,
   "created_at": "2026-11-08T12:00:00Z",
-  "updated_at": "2026-11-08T15:39:00+03:00",
+  "updated_at": "2026-11-08T22:20:00+03:00",
   "ratification_evidence": "release/evidence/cp067_r2_human_adr_ratification_2026-11-08.json",
   "source_reports": {
     "cp067": "folder/fs00_checkpoint_067_isr_family_canonicality_and_semantic_preservation_audit.md",
     "cp067_r1": "folder/fs00_checkpoint_067_r1_p0_remediation_ownership_and_dependency_plan.md",
     "cp067_r2": "folder/fs00_checkpoint_067_r2_architecture_decision_ratification_and_wave0_authorization.md"
   },
-  "repository_head_observed": "78fbcad6e357328c9d7ef5df92e9e2aa40044f17",
+  "repository_head_observed": "4857d295f31332cce213ca82c1e802b78562638b",
   "branch_observed": "remediation/w12-executable-effect-contract",
   "approver": {
     "identity": "Amos Kimiti Kariuki",
@@ -125,11 +125,31 @@
       "verification_status": "INDEPENDENTLY_VERIFIED",
       "verification_evidence": "release/evidence/cp067_r4_independent_verification_report.json"
     },
-    "R1-W06": { "authorization_status": "AUTHORIZED_TO_START", "verification_status": "NOT_VERIFIED" },
+    "R1-W06": {
+      "authorization_status": "INDEPENDENTLY_VERIFIED",
+      "implementation_status": "IMPLEMENTED",
+      "implementation_checkpoint": "CP067-R6",
+      "verification_status": "INDEPENDENTLY_VERIFIED",
+      "verification_evidence": "release/evidence/cp067_isr002_supplement_ratification_2026-11-08.json",
+      "independent_verification_ref": "release/evidence/cp067_p0_closure_independent_proof_report.json",
+      "verification_note": "B-04 obligation diff verifier v1; payroll/orders/appointments slice"
+    },
     "R1-W07": { "authorization_status": "AUTHORIZED_TO_START", "verification_status": "NOT_VERIFIED" },
-    "R1-W08": { "authorization_status": "AUTHORIZED_TO_START", "verification_status": "NOT_VERIFIED" },
+    "R1-W08": {
+      "authorization_status": "AUTHORIZED_TO_START",
+      "verification_status": "PARTIALLY_VERIFIED",
+      "verification_note": "CP067-R5 HTTP + matrix slice only",
+      "verification_evidence": "release/evidence/cp067_r5_independent_verification_report.json"
+    },
     "R1-W09": { "authorization_status": "AUTHORIZED_TO_START", "verification_status": "NOT_VERIFIED" },
-    "R1-W10": { "authorization_status": "AUTHORIZED_TO_START", "verification_status": "NOT_VERIFIED" }
+    "R1-W10": {
+      "authorization_status": "INDEPENDENTLY_VERIFIED",
+      "implementation_status": "IMPLEMENTED",
+      "implementation_checkpoint": "CP067-R10",
+      "verification_status": "INDEPENDENTLY_VERIFIED",
+      "verification_evidence": "release/evidence/cp067_r10_w10_integration_gate_report.json",
+      "verification_note": "Governed integration gate (W01–W08 slice); supersedes R5 W10 partial evidence"
+    }
   },
   "w01_scope_authorized": {
     "finding_ids": ["CP067-ISR-001"],

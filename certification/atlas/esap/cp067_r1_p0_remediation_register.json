@@ -1,0 +1,161 @@
+{
+  "schema": "tiannara.checkpoint.cp067_r1_remediation_register",
+  "version": "1.0.0",
+  "checkpoint": "CP067-R1",
+  "source_cp067_report": "folder/fs00_checkpoint_067_isr_family_canonicality_and_semantic_preservation_audit.md",
+  "repository_head_observed": "78fbcad6e357328c9d7ef5df92e9e2aa40044f17",
+  "branch_observed": "remediation/w12-executable-effect-contract",
+  "planning_artifact_only": true,
+  "cp067_p0_reconciliation": {
+    "authoritative_register_section": "CP067 §N",
+    "registered_p0_finding_ids": [
+      "CP067-ISR-001",
+      "CP067-ISR-002",
+      "CP067-ISR-003",
+      "CP067-ISR-004",
+      "CP067-ISR-008"
+    ],
+    "executive_section_a_claimed_p0_count": 8,
+    "reconciliation_note": "CP067 §N lists five P0 finding IDs. §A '8 P0' reconciled as five registered P0 plus three CP067-ISR-004 decomposition tracks (constitutional, autonomous-api, plan/contract) used for planning breadth without new severity IDs."
+  },
+  "p0_findings": [
+    {
+      "finding_id": "CP067-ISR-001",
+      "sub_tracks": [],
+      "status": "CONFIRMED_OPEN",
+      "work_packages": ["R1-W01", "R1-W02"],
+      "accountable_authority": "isr.core.identity + constitutional_architecture.isr.versioning",
+      "implementation_owner": "UNCONFIRMED: isr-core maintainers",
+      "independent_verifier": "certification/conformance + CP052 trusted evidence",
+      "governance_authority": "constitutional_architecture.governance"
+    },
+    {
+      "finding_id": "CP067-ISR-002",
+      "sub_tracks": [],
+      "status": "CONFIRMED_OPEN",
+      "work_packages": ["R1-W04", "R1-W08"],
+      "accountable_authority": "compiler.core.lowering + certification.orchestration",
+      "implementation_owner": "UNCONFIRMED: compiler-core",
+      "independent_verifier": "certification/conformance semantic_suite",
+      "governance_authority": "FullStackOrchestrationAuthority"
+    },
+    {
+      "finding_id": "CP067-ISR-003",
+      "sub_tracks": [],
+      "status": "CONFIRMED_OPEN",
+      "work_packages": ["R1-W05", "R1-W09"],
+      "accountable_authority": "autonomous-api ingress + certification orchestration",
+      "implementation_owner": "UNCONFIRMED: autonomous-api engine",
+      "independent_verifier": "CP052 + orchestration contract tests",
+      "governance_authority": "governed_publication_boundary"
+    },
+    {
+      "finding_id": "CP067-ISR-004",
+      "sub_tracks": [
+        "CP067-ISR-004-TRACK-constitutional",
+        "CP067-ISR-004-TRACK-autonomous-api",
+        "CP067-ISR-004-TRACK-plan-contract"
+      ],
+      "status": "CONFIRMED_OPEN",
+      "work_packages": ["R1-W02", "R1-W06"],
+      "accountable_authority": "per-family schema owners (see report)",
+      "implementation_owner": "UNCONFIRMED: multi-module",
+      "independent_verifier": "family-scoped adversarial harness",
+      "governance_authority": "ESAP architecture review"
+    },
+    {
+      "finding_id": "CP067-ISR-008",
+      "sub_tracks": [],
+      "status": "CONFIRMED_OPEN",
+      "work_packages": ["R1-W05"],
+      "accountable_authority": "autonomous-api.app.engine.requirement_isr",
+      "implementation_owner": "UNCONFIRMED: autonomous-api",
+      "independent_verifier": "independent verifier (non-generator)",
+      "governance_authority": "orchestration_ingress_gateway"
+    }
+  ],
+  "work_packages": [
+    {
+      "id": "R1-W01",
+      "name": "ISR revision identity and digest authority policy",
+      "finding_ids": ["CP067-ISR-001"],
+      "phase": 0,
+      "prerequisites": [],
+      "cp068_blocks_governed_runtime": true
+    },
+    {
+      "id": "R1-W02",
+      "name": "Family-specific canonicalization contracts",
+      "finding_ids": ["CP067-ISR-001", "CP067-ISR-004"],
+      "phase": 1,
+      "prerequisites": ["R1-W01"],
+      "cp068_blocks_governed_runtime": true
+    },
+    {
+      "id": "R1-W03",
+      "name": "Revision immutability and integrity envelopes",
+      "finding_ids": ["CP067-ISR-005"],
+      "phase": 1,
+      "prerequisites": ["R1-W01"],
+      "cp068_blocks_governed_runtime": false
+    },
+    {
+      "id": "R1-W04",
+      "name": "Plan-to-ISR immutable binding contract",
+      "finding_ids": ["CP067-ISR-002"],
+      "phase": 3,
+      "prerequisites": ["R1-W01", "R1-W02"],
+      "cp068_blocks_governed_runtime": true
+    },
+    {
+      "id": "R1-W05",
+      "name": "EngineeringISR/ImplementationIR ingress authority",
+      "finding_ids": ["CP067-ISR-003", "CP067-ISR-008"],
+      "phase": 2,
+      "prerequisites": ["R1-W01"],
+      "cp068_blocks_governed_runtime": true
+    },
+    {
+      "id": "R1-W06",
+      "name": "Bridge semantic-preservation contracts",
+      "finding_ids": ["CP067-ISR-004", "CP067-ISR-002"],
+      "phase": 2,
+      "prerequisites": ["R1-W02"],
+      "cp068_blocks_governed_runtime": true
+    },
+    {
+      "id": "R1-W07",
+      "name": "Evidence-graph identity and invalidation",
+      "finding_ids": ["CP067-ISR-009"],
+      "phase": 4,
+      "prerequisites": ["R1-W04"],
+      "cp068_blocks_governed_runtime": false
+    },
+    {
+      "id": "R1-W08",
+      "name": "Ingress and trust-boundary enforcement matrix",
+      "finding_ids": ["CP067-ISR-002", "CP067-ISR-003", "CP067-ISR-008"],
+      "phase": 4,
+      "prerequisites": ["R1-W05", "R1-W04"],
+      "cp068_blocks_governed_runtime": true
+    },
+    {
+      "id": "R1-W09",
+      "name": "Historical revision and migration verification",
+      "finding_ids": ["CP067-ISR-001"],
+      "phase": 1,
+      "prerequisites": ["R1-W01"],
+      "cp068_blocks_governed_runtime": false
+    },
+    {
+      "id": "R1-W10",
+      "name": "Independent integration and adversarial verification",
+      "finding_ids": ["CP067-ISR-001", "CP067-ISR-002", "CP067-ISR-003", "CP067-ISR-004", "CP067-ISR-008"],
+      "phase": 5,
+      "prerequisites": ["R1-W08"],
+      "cp068_blocks_governed_runtime": true
+    }
+  ],
+  "cp068_admission": "CP068_CONDITIONAL_ISOLATED_TESTING_ONLY",
+  "production_code_modified_in_cp067_r1": false
+}

@@ -1,0 +1,31 @@
+{
+  "schema": "tiannara.governance.remediation_authorization",
+  "version": "1.0.0",
+  "approver": {
+    "identity": "Amos Kimiti Kariuki",
+    "role": "Human Project Owner / Architecture Decision Authority"
+  },
+  "approval_timestamp": "2026-11-08T15:51:00+03:00",
+  "scope": {
+    "adrs": "ADR-R1-01 through ADR-R1-06 (reaffirmed)",
+    "tier_b_canonicalization": "F-04 CompilationPlan, F-05 CanonicalApiContract",
+    "work_packages_authorized_for_implementation_or_verification": [
+      "R1-W01",
+      "R1-W02",
+      "R1-W03",
+      "R1-W04",
+      "R1-W05",
+      "R1-W06",
+      "R1-W07",
+      "R1-W08",
+      "R1-W09",
+      "R1-W10"
+    ],
+    "independent_verification": "Authorized to record non-generator oracle evidence"
+  },
+  "limitations": [
+    "Does not close P0 without full closure contract",
+    "Does not relax CP068 governed conformance gates",
+    "Does not authorize production promotion"
+  ]
+}

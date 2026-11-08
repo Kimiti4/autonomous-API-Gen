@@ -1,0 +1,10 @@
+{
+  "verifier_id": "certification.isr_independent_verification.digest_oracle.v1",
+  "tier_a_f01_passed": true,
+  "tier_b_f04_passed": true,
+  "tier_b_f05_passed": true,
+  "adversarial_cross_domain_passed": true,
+  "findings": [],
+  "isr_revision_id": "rev-payroll-candidate-1",
+  "isr_content_hash": "f0d117c998675e493e8a02bb101c76eea549ec0aa2db953f14a99f6984e69e4a"
+}

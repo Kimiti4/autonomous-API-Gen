@@ -1,0 +1,154 @@
+{
+  "schema": "tiannara.checkpoint.cp067_r2_wave0_authorization",
+  "version": "1.1.0",
+  "checkpoint": "CP067-R2",
+  "planning_and_authorization_artifact": true,
+  "created_at": "2026-11-08T12:00:00Z",
+  "updated_at": "2026-11-08T15:39:00+03:00",
+  "ratification_evidence": "release/evidence/cp067_r2_human_adr_ratification_2026-11-08.json",
+  "source_reports": {
+    "cp067": "folder/fs00_checkpoint_067_isr_family_canonicality_and_semantic_preservation_audit.md",
+    "cp067_r1": "folder/fs00_checkpoint_067_r1_p0_remediation_ownership_and_dependency_plan.md",
+    "cp067_r2": "folder/fs00_checkpoint_067_r2_architecture_decision_ratification_and_wave0_authorization.md"
+  },
+  "repository_head_observed": "78fbcad6e357328c9d7ef5df92e9e2aa40044f17",
+  "branch_observed": "remediation/w12-executable-effect-contract",
+  "approver": {
+    "identity": "Amos Kimiti Kariuki",
+    "role": "Human Project Owner / Architecture Decision Authority"
+  },
+  "production_implementation_authorized_for_w01_w02_only": true,
+  "production_implementation_authorized_globally": false,
+  "p0_finding_ids_preserved": [
+    "CP067-ISR-001",
+    "CP067-ISR-002",
+    "CP067-ISR-003",
+    "CP067-ISR-004",
+    "CP067-ISR-008"
+  ],
+  "adrs": [
+    {
+      "id": "ADR-R1-01",
+      "path": "docs/adr/ADR-R1-01-isr-revision-identity-and-hash-authority.md",
+      "decision_status": "APPROVED",
+      "implementation_status": "NOT_IMPLEMENTED",
+      "verification_status": "NOT_VERIFIED",
+      "governance_status": "APPROVED",
+      "approval_evidence_ref": "release/evidence/cp067_r2_human_adr_ratification_2026-11-08.json"
+    },
+    {
+      "id": "ADR-R1-02",
+      "path": "docs/adr/ADR-R1-02-family-canonicalization-and-versioning.md",
+      "decision_status": "APPROVED",
+      "implementation_status": "NOT_IMPLEMENTED",
+      "verification_status": "NOT_VERIFIED",
+      "governance_status": "APPROVED",
+      "approval_evidence_ref": "release/evidence/cp067_r2_human_adr_ratification_2026-11-08.json"
+    },
+    {
+      "id": "ADR-R1-03",
+      "path": "docs/adr/ADR-R1-03-semantic-equivalence-and-bridge-evidence.md",
+      "decision_status": "APPROVED",
+      "implementation_status": "NOT_IMPLEMENTED",
+      "verification_status": "NOT_VERIFIED",
+      "governance_status": "APPROVED",
+      "approval_evidence_ref": "release/evidence/cp067_r2_human_adr_ratification_2026-11-08.json"
+    },
+    {
+      "id": "ADR-R1-04",
+      "path": "docs/adr/ADR-R1-04-plan-to-isr-immutable-binding.md",
+      "decision_status": "APPROVED",
+      "implementation_status": "NOT_IMPLEMENTED",
+      "verification_status": "NOT_VERIFIED",
+      "governance_status": "APPROVED",
+      "approval_evidence_ref": "release/evidence/cp067_r2_human_adr_ratification_2026-11-08.json"
+    },
+    {
+      "id": "ADR-R1-05",
+      "path": "docs/adr/ADR-R1-05-engineeringisr-implementationir-ingress.md",
+      "decision_status": "APPROVED",
+      "implementation_status": "NOT_IMPLEMENTED",
+      "verification_status": "NOT_VERIFIED",
+      "governance_status": "APPROVED",
+      "approval_evidence_ref": "release/evidence/cp067_r2_human_adr_ratification_2026-11-08.json"
+    },
+    {
+      "id": "ADR-R1-06",
+      "path": "docs/adr/ADR-R1-06-evidence-graph-identity-and-governance.md",
+      "decision_status": "APPROVED",
+      "implementation_status": "NOT_IMPLEMENTED",
+      "verification_status": "NOT_VERIFIED",
+      "governance_status": "APPROVED",
+      "approval_evidence_ref": "release/evidence/cp067_r2_human_adr_ratification_2026-11-08.json"
+    }
+  ],
+  "approval_summary": {
+    "approved": 6,
+    "pending_approval": 0,
+    "rejected": 0,
+    "deferred": 0
+  },
+  "work_packages": {
+    "R1-W01": {
+      "authorization_status": "INDEPENDENTLY_VERIFIED",
+      "verification_evidence": "release/evidence/cp067_r3_independent_verification_report.json",
+      "implementation_checkpoint": "CP067-R3",
+      "authorized_at": "2026-11-08T15:39:00+03:00",
+      "required_adrs": ["ADR-R1-01"],
+      "blocker": null
+    },
+    "R1-W02": {
+      "authorization_status": "INDEPENDENTLY_VERIFIED",
+      "verification_evidence": "release/evidence/cp067_r3_independent_verification_report.json",
+      "implementation_checkpoint": "CP067-R3",
+      "authorized_at": "2026-11-08T15:39:00+03:00",
+      "required_adrs": ["ADR-R1-02"],
+      "other_prerequisites": ["R1-W01 implementation may proceed in parallel only where ADR-R1-02 Tier A does not depend on W01 envelopes — register default: W01 before W02 integration gates"],
+      "blocker": null
+    },
+    "R1-W03": {
+      "authorization_status": "AUTHORIZED_TO_START",
+      "expanded_authorization": "release/evidence/cp067_r3_expanded_remediation_authorization_2026-11-08.json",
+      "verification_status": "NOT_VERIFIED"
+    },
+    "R1-W04": { "authorization_status": "AUTHORIZED_TO_START", "verification_status": "NOT_VERIFIED" },
+    "R1-W05": { "authorization_status": "AUTHORIZED_TO_START", "verification_status": "NOT_VERIFIED" },
+    "R1-W06": { "authorization_status": "AUTHORIZED_TO_START", "verification_status": "NOT_VERIFIED" },
+    "R1-W07": { "authorization_status": "AUTHORIZED_TO_START", "verification_status": "NOT_VERIFIED" },
+    "R1-W08": { "authorization_status": "AUTHORIZED_TO_START", "verification_status": "NOT_VERIFIED" },
+    "R1-W09": { "authorization_status": "AUTHORIZED_TO_START", "verification_status": "NOT_VERIFIED" },
+    "R1-W10": { "authorization_status": "AUTHORIZED_TO_START", "verification_status": "NOT_VERIFIED" }
+  },
+  "w01_scope_authorized": {
+    "finding_ids": ["CP067-ISR-001"],
+    "permitted": [
+      "DigestEnvelope types and policy",
+      "Verification helpers",
+      "Fail-closed checks at documented trust boundaries",
+      "Tests per ADR-R1-01"
+    ],
+    "prohibited": [
+      "Cross-domain hash merge without bridge",
+      "Semantic changes to constitutional serializer without separate approval",
+      "P0 closure without independent verification"
+    ]
+  },
+  "w02_tier_b_authorized": ["compiler.core.plan", "compiler.core.canonical_api_contract"],
+  "w02_scope_authorized": {
+    "finding_ids": ["CP067-ISR-001", "CP067-ISR-004"],
+    "initial_family_tier_a": ["F-01", "F-02"],
+    "tier_b": ["F-04", "F-05"],
+    "permitted": [
+      "CanonicalizationContract registry",
+      "Golden byte vectors Tier A",
+      "Family-scoped adversarial tests"
+    ],
+    "prohibited": [
+      "Claiming all 17 families contracted",
+      "Trusted F-10–F-13 ingress changes",
+      "P0 closure without independent verification"
+    ]
+  },
+  "cp068_admission": "CP068_CONDITIONAL_ISOLATED_TESTING_ONLY",
+  "cp068_note": "ADR approval and Wave 0 start authorization do not relax CP068 governed conformance gates"
+}

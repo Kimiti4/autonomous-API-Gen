@@ -1,0 +1,69 @@
+{
+  "schema": "tiannara.governance.architecture_decision_ratification",
+  "version": "1.0.0",
+  "checkpoint": "CP067-R2",
+  "ratification_event_id": "CP067-R2-RAT-2026-11-08-1539",
+  "approver": {
+    "identity": "Amos Kimiti Kariuki",
+    "role": "Human Project Owner / Architecture Decision Authority",
+    "authority_basis": "Human authority responsible for approving ESAP architectural direction, technical governance decisions and controlled remediation priorities within the project's delegated authority."
+  },
+  "approval_timestamp": "2026-11-08T15:39:00+03:00",
+  "approval_limitations": [
+    "Does not independently certify implementation correctness",
+    "Does not replace independent verification",
+    "Does not authorize constitutional amendments outside approver authority",
+    "Does not bypass security, governance, certification and deployment controls"
+  ],
+  "adr_decisions": [
+    {
+      "adr_id": "ADR-R1-01",
+      "decision_status": "APPROVED",
+      "artifact": "docs/adr/ADR-R1-01-isr-revision-identity-and-hash-authority.md"
+    },
+    {
+      "adr_id": "ADR-R1-02",
+      "decision_status": "APPROVED",
+      "artifact": "docs/adr/ADR-R1-02-family-canonicalization-and-versioning.md"
+    },
+    {
+      "adr_id": "ADR-R1-03",
+      "decision_status": "APPROVED",
+      "artifact": "docs/adr/ADR-R1-03-semantic-equivalence-and-bridge-evidence.md"
+    },
+    {
+      "adr_id": "ADR-R1-04",
+      "decision_status": "APPROVED",
+      "artifact": "docs/adr/ADR-R1-04-plan-to-isr-immutable-binding.md"
+    },
+    {
+      "adr_id": "ADR-R1-05",
+      "decision_status": "APPROVED",
+      "artifact": "docs/adr/ADR-R1-05-engineeringisr-implementationir-ingress.md"
+    },
+    {
+      "adr_id": "ADR-R1-06",
+      "decision_status": "APPROVED",
+      "artifact": "docs/adr/ADR-R1-06-evidence-graph-identity-and-governance.md"
+    }
+  ],
+  "wave0_authorization": {
+    "decision": "AUTHORIZED_TO_START",
+    "packages": ["R1-W01", "R1-W02"],
+    "conditions": [
+      "Strictly within approved scopes and dependencies",
+      "Preserve all ISR families and backend registrations",
+      "No P0 closure on implementation claims alone",
+      "Independent verification required for closure",
+      "No deployment, promotion, certification outside package boundaries"
+    ],
+    "not_authorized": [
+      "R1-W03 through R1-W10 implementation",
+      "Governed CP068 conformance promotion",
+      "Unrelated remediation"
+    ]
+  },
+  "cp068_admission_unchanged": "CP068_CONDITIONAL_ISOLATED_TESTING_ONLY",
+  "evidence_type": "human_governance_approval",
+  "generator_note": "Recorded from project owner ratification message; not self-certified by implementation agent."
+}

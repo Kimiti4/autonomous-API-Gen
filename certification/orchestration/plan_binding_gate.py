@@ -10,6 +10,7 @@ from compiler.core.plan_binding import (
     verify_plan_binding_record_matches,
 )
 from isr.core.revision import ISRRevision
+from certification.bridges.transformation_contracts import assert_trusted_bridge_allowed
 from isr.core.revision_integrity import assert_revision_integrity_at_boundary
 
 
@@ -22,6 +23,7 @@ def assert_plan_binding_before_compile(
     backend_id: str | None = None,
 ) -> PlanBindingRecord:
     """Mandatory gate immediately before compile on governed orchestration paths."""
+    assert_trusted_bridge_allowed("B-04")
     assert_revision_integrity_at_boundary(revision)
     binding = build_plan_binding_record(
         revision,

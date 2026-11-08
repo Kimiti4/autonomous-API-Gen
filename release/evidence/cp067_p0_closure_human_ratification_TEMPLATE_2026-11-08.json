@@ -1,0 +1,79 @@
+{
+  "schema": "tiannara.governance.p0_closure_ratification",
+  "version": "1.0.0",
+  "status": "PENDING_RATIFICATION",
+  "checkpoint": "CP067-P0-IV",
+  "ratification_event_id": "CP067-P0-CLOSURE-RAT-2026-11-08-TBD",
+  "approver": {
+    "identity": "Amos Kimiti Kariuki",
+    "role": "Human Project Owner / Architecture Decision Authority",
+    "authority_basis": "Human authority responsible for accepting or rejecting independent verification evidence and updating governed P0 register status under CP067-R1 §18."
+  },
+  "approval_timestamp": "REPLACE_WITH_ISO8601_OFFSET",
+  "source_independent_proof": "release/evidence/cp067_p0_closure_independent_proof_report.json",
+  "source_independent_verifier": "certification.isr_independent_verification.p0_closure_harness.v1",
+  "checkpoint_report": "folder/fs00_checkpoint_067_p0_closure_independent_proof.md",
+  "repository_head_reviewed": "5afa678a114351872320479adba1ddc045590098",
+  "branch_reviewed": "remediation/w12-executable-effect-contract",
+  "approval_limitations": [
+    "Ratification accepts scoped independent proof only; not universal ISR conformance",
+    "Does not promote CP068 beyond CP068_CONDITIONAL_ISOLATED_TESTING_ONLY",
+    "Does not waive remaining work packages for partial findings",
+    "Does not authorize production promotion or governed runtime conformance",
+    "Does not replace future independent verification for expanded scope"
+  ],
+  "p0_register_decisions": [
+    {
+      "finding_id": "CP067-ISR-001",
+      "prior_status": "CONFIRMED_OPEN",
+      "governed_status_after_ratification": "CLOSED_SCOPED",
+      "independent_stage_accepted": "CLOSED_INDEPENDENTLY_VERIFIED",
+      "scope_accepted": "Governed F-01 certification path (payroll, orders, appointments); dual-domain digest policy; not universal ISR"
+    },
+    {
+      "finding_id": "CP067-ISR-002",
+      "prior_status": "CONFIRMED_OPEN",
+      "governed_status_after_ratification": "PARTIAL_REMEDIATION_OPEN",
+      "independent_stage_accepted": "PARTIAL_INDEPENDENTLY_VERIFIED",
+      "scope_accepted": "B-04 LOSSY_EXPLICIT + plan binding gate; round-trip verifier still required",
+      "remaining_blockers_acknowledged": [
+        "no-plan-isr-round-trip-verifier"
+      ]
+    },
+    {
+      "finding_id": "CP067-ISR-003",
+      "prior_status": "CONFIRMED_OPEN",
+      "governed_status_after_ratification": "CLOSED_SCOPED",
+      "independent_stage_accepted": "CLOSED_INDEPENDENTLY_VERIFIED",
+      "scope_accepted": "Model C: trusted orchestration/publication ingress blocked for ImplementationIR; F-01 ISRRevision path only"
+    },
+    {
+      "finding_id": "CP067-ISR-004",
+      "prior_status": "CONFIRMED_OPEN",
+      "governed_status_after_ratification": "PARTIAL_REMEDIATION_OPEN",
+      "independent_stage_accepted": "PARTIAL_INDEPENDENTLY_VERIFIED",
+      "scope_accepted": "Tier A/B contracts registered; unknown families fail-closed; no false universal canonicality claim",
+      "remaining_blockers_acknowledged": [
+        "families-without-contract:approx-13",
+        "universal-canonicality-not-claimed"
+      ]
+    },
+    {
+      "finding_id": "CP067-ISR-008",
+      "prior_status": "CONFIRMED_OPEN",
+      "governed_status_after_ratification": "CLOSED_SCOPED",
+      "independent_stage_accepted": "CLOSED_INDEPENDENTLY_VERIFIED",
+      "scope_accepted": "EngISR/ImplIR heuristic path excluded from trusted ingress; same evidence basis as CP067-ISR-003"
+    }
+  ],
+  "cp068_admission_unchanged": "CP068_CONDITIONAL_ISOLATED_TESTING_ONLY",
+  "remaining_mandatory_work_before_cp068_promotion": [
+    "R1-W06",
+    "R1-W08",
+    "R1-W10",
+    "R1-W02 family expansion",
+    "R1-W09 historical verification"
+  ],
+  "evidence_type": "human_governance_approval",
+  "generator_note": "Template only — set status to RATIFIED and replace timestamp after verbatim owner message is received."
+}

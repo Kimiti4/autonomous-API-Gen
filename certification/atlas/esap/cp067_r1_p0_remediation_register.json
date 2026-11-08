@@ -1,6 +1,6 @@
 {
   "schema": "tiannara.checkpoint.cp067_r1_remediation_register",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "checkpoint": "CP067-R1",
   "source_cp067_report": "folder/fs00_checkpoint_067_isr_family_canonicality_and_semantic_preservation_audit.md",
   "repository_head_observed": "78fbcad6e357328c9d7ef5df92e9e2aa40044f17",
@@ -22,7 +22,8 @@
     {
       "finding_id": "CP067-ISR-001",
       "sub_tracks": [],
-      "status": "CONFIRMED_OPEN",
+      "status": "CLOSED_SCOPED",
+      "governance_ratification_ref": "release/evidence/cp067_p0_closure_human_ratification_2026-11-08.json",
       "work_packages": ["R1-W01", "R1-W02"],
       "accountable_authority": "isr.core.identity + constitutional_architecture.isr.versioning",
       "implementation_owner": "UNCONFIRMED: isr-core maintainers",
@@ -32,7 +33,8 @@
     {
       "finding_id": "CP067-ISR-002",
       "sub_tracks": [],
-      "status": "CONFIRMED_OPEN",
+      "status": "PARTIAL_REMEDIATION_OPEN",
+      "governance_ratification_ref": "release/evidence/cp067_p0_closure_human_ratification_2026-11-08.json",
       "work_packages": ["R1-W04", "R1-W08"],
       "accountable_authority": "compiler.core.lowering + certification.orchestration",
       "implementation_owner": "UNCONFIRMED: compiler-core",
@@ -42,7 +44,8 @@
     {
       "finding_id": "CP067-ISR-003",
       "sub_tracks": [],
-      "status": "CONFIRMED_OPEN",
+      "status": "CLOSED_SCOPED",
+      "governance_ratification_ref": "release/evidence/cp067_p0_closure_human_ratification_2026-11-08.json",
       "work_packages": ["R1-W05", "R1-W09"],
       "accountable_authority": "autonomous-api ingress + certification orchestration",
       "implementation_owner": "UNCONFIRMED: autonomous-api engine",
@@ -56,7 +59,8 @@
         "CP067-ISR-004-TRACK-autonomous-api",
         "CP067-ISR-004-TRACK-plan-contract"
       ],
-      "status": "CONFIRMED_OPEN",
+      "status": "PARTIAL_REMEDIATION_OPEN",
+      "governance_ratification_ref": "release/evidence/cp067_p0_closure_human_ratification_2026-11-08.json",
       "work_packages": ["R1-W02", "R1-W06"],
       "accountable_authority": "per-family schema owners (see report)",
       "implementation_owner": "UNCONFIRMED: multi-module",
@@ -66,7 +70,8 @@
     {
       "finding_id": "CP067-ISR-008",
       "sub_tracks": [],
-      "status": "CONFIRMED_OPEN",
+      "status": "CLOSED_SCOPED",
+      "governance_ratification_ref": "release/evidence/cp067_p0_closure_human_ratification_2026-11-08.json",
       "work_packages": ["R1-W05"],
       "accountable_authority": "autonomous-api.app.engine.requirement_isr",
       "implementation_owner": "UNCONFIRMED: autonomous-api",
@@ -157,5 +162,29 @@
     }
   ],
   "cp068_admission": "CP068_CONDITIONAL_ISOLATED_TESTING_ONLY",
-  "production_code_modified_in_cp067_r1": false
+  "production_code_modified_in_cp067_r1": false,
+  "p0_independent_closure_proof": {
+    "checkpoint": "CP067-P0-IV",
+    "evidence_path": "release/evidence/cp067_p0_closure_independent_proof_report.json",
+    "report_path": "folder/fs00_checkpoint_067_p0_closure_independent_proof.md",
+    "verifier_id": "certification.isr_independent_verification.p0_closure_harness.v1",
+    "governance_closure_ratified": true,
+    "governance_ratification_evidence": "release/evidence/cp067_p0_closure_human_ratification_2026-11-08.json",
+    "governance_ratification_timestamp": "2026-11-08T20:30:00+03:00",
+    "independent_stages": {
+      "CP067-ISR-001": "CLOSED_INDEPENDENTLY_VERIFIED",
+      "CP067-ISR-002": "PARTIAL_INDEPENDENTLY_VERIFIED",
+      "CP067-ISR-003": "CLOSED_INDEPENDENTLY_VERIFIED",
+      "CP067-ISR-004": "PARTIAL_INDEPENDENTLY_VERIFIED",
+      "CP067-ISR-008": "CLOSED_INDEPENDENTLY_VERIFIED"
+    },
+    "governed_status_after_ratification": {
+      "CP067-ISR-001": "CLOSED_SCOPED",
+      "CP067-ISR-002": "PARTIAL_REMEDIATION_OPEN",
+      "CP067-ISR-003": "CLOSED_SCOPED",
+      "CP067-ISR-004": "PARTIAL_REMEDIATION_OPEN",
+      "CP067-ISR-008": "CLOSED_SCOPED"
+    },
+    "authoritative_open_until_governance": []
+  }
 }

@@ -1,0 +1,71 @@
+{
+  "schema": "tiannara.cp067.p0_closure_independent_proof",
+  "verifier_id": "certification.isr_independent_verification.p0_closure_harness.v1",
+  "cp068_admission": "CP068_CONDITIONAL_ISOLATED_TESTING_ONLY",
+  "governance_approval": true,
+  "governance_ratification_evidence": "release/evidence/cp067_p0_closure_human_ratification_2026-11-08.json",
+  "governance_ratification_timestamp": "2026-11-08T20:30:00+03:00",
+  "findings": [
+    {
+      "finding_id": "CP067-ISR-001",
+      "stage": "CLOSED_INDEPENDENTLY_VERIFIED",
+      "scope_note": "Governed F-01 certification path; dual-domain policy; not universal ISR",
+      "independent_evidence": [
+        "f01-oracle:payroll",
+        "f01-oracle:orders",
+        "f01-oracle:appointments",
+        "cross-domain-policy-fail-closed"
+      ],
+      "blockers": []
+    },
+    {
+      "finding_id": "CP067-ISR-002",
+      "stage": "PARTIAL_INDEPENDENTLY_VERIFIED",
+      "scope_note": "Binding + B-04 LOSSY contract; round-trip still absent",
+      "independent_evidence": [
+        "b04-contract-registered",
+        "plan-binding-gate-payroll"
+      ],
+      "blockers": [
+        "no-plan-isr-round-trip-verifier"
+      ]
+    },
+    {
+      "finding_id": "CP067-ISR-003",
+      "stage": "CLOSED_INDEPENDENTLY_VERIFIED",
+      "scope_note": "Model C: trusted orchestration/publication blocked for ImplIR; F-01 path only",
+      "independent_evidence": [
+        "implir-policy-oracle",
+        "wave5-policy"
+      ],
+      "blockers": []
+    },
+    {
+      "finding_id": "CP067-ISR-004",
+      "stage": "PARTIAL_INDEPENDENTLY_VERIFIED",
+      "scope_note": "Tier A/B only (4 contracts); remainder invent no false PASS",
+      "independent_evidence": [
+        "registered-contracts:compiler.core.canonical_api_contract,compiler.core.plan,isr.core.graph,isr.core.revision",
+        "explicit-gap:constitutional_architecture",
+        "explicit-gap:autonomous-api",
+        "explicit-gap:certification.evidence_graph",
+        "explicit-gap:tiannara",
+        "unknown-family-fail-closed"
+      ],
+      "blockers": [
+        "families-without-contract:approx-13",
+        "universal-canonicality-not-claimed"
+      ]
+    },
+    {
+      "finding_id": "CP067-ISR-008",
+      "stage": "CLOSED_INDEPENDENTLY_VERIFIED",
+      "scope_note": "EngISR/ImplIR: trusted ingress blocked (Model C); heuristic path not trusted",
+      "independent_evidence": [
+        "implir-policy-oracle",
+        "wave5-policy"
+      ],
+      "blockers": []
+    }
+  ]
+}

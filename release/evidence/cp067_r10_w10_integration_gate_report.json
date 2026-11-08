@@ -83,6 +83,12 @@
       "findings": []
     },
     {
+      "gate_id": "W09-IMPLIR-ENFORCEMENT-EXPANSION",
+      "verifier_ref": "certification.isr_independent_verification.w09_implir_enforcement_expansion.v1",
+      "result": "PASSED",
+      "findings": []
+    },
+    {
       "gate_id": "W10-R5-SLICE",
       "verifier_ref": "certification.isr_independent_verification.wave10_integration_gate.v1",
       "result": "PASSED",

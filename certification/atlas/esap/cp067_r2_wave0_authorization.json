@@ -151,7 +151,14 @@
       "verification_evidence": "release/evidence/cp067_r6_http_ingress_verification_report.json",
       "matrix_slice_ref": "release/evidence/cp067_r5_independent_verification_report.json"
     },
-    "R1-W09": { "authorization_status": "AUTHORIZED_TO_START", "verification_status": "NOT_VERIFIED" },
+    "R1-W09": {
+      "authorization_status": "INDEPENDENTLY_VERIFIED",
+      "implementation_status": "IMPLEMENTED",
+      "implementation_checkpoint": "CP067-W09",
+      "verification_status": "PARTIALLY_VERIFIED",
+      "verification_note": "ImplIR Model C expansion across subordinate ingress; not full historical revision corpus",
+      "verification_evidence": "release/evidence/cp067_w09_implir_enforcement_expansion_report.json"
+    },
     "R1-W10": {
       "authorization_status": "INDEPENDENTLY_VERIFIED",
       "implementation_status": "IMPLEMENTED",

@@ -66,6 +66,38 @@ def ingress_trust_matrix() -> tuple[IngressTrustRow, ...]:
             EnforcementStatus.IMPLEMENTED,
             "CLI/programmatic bypass if caller skips authority",
         ),
+        IngressTrustRow(
+            "evolution-start",
+            "POST /api/v1/evolve/start",
+            ("subordinate_lifecycle", "implir_model_c", "no_governed_product_claim"),
+            "autonomous-api/app/engine/evolution_ingress_guard.py",
+            EnforcementStatus.IMPLEMENTED,
+            "evolution promotion blocked under governed production",
+        ),
+        IngressTrustRow(
+            "maintenance-record",
+            "record_verified_maintenance",
+            ("trusted_evidence", "implir_model_c", "isr_revision_on_write"),
+            "autonomous-api/app/engine/governed_maintenance_execution.py",
+            EnforcementStatus.IMPLEMENTED,
+            "production_write_requested path only",
+        ),
+        IngressTrustRow(
+            "marketplace-certify",
+            "prepare_certified_product",
+            ("governed_certification", "implir_model_c", "isr_revision_authority_only"),
+            "autonomous-api/app/marketplace/productization.py",
+            EnforcementStatus.PARTIAL,
+            "TrustBoundary.PRODUCTION paths",
+        ),
+        IngressTrustRow(
+            "factory-cli",
+            "tiannara factory create",
+            ("subordinate_cli", "implir_model_c"),
+            "tiannara/application/orchestration/factory_ingress_guard.py",
+            EnforcementStatus.IMPLEMENTED,
+            "ESAP_GOVERNED_PRODUCTION blocks create",
+        ),
     )
 
 

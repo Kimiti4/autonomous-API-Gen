@@ -1,0 +1,21 @@
+{
+  "schema": "tiannara.cp067.w09_implir_enforcement_expansion",
+  "verifier_id": "certification.isr_independent_verification.w09_implir_enforcement_expansion.v1",
+  "expanded_boundaries": [
+    "orchestration",
+    "publication",
+    "maintenance",
+    "marketplace",
+    "evolution",
+    "factory_cli"
+  ],
+  "w05_oracle_passed": true,
+  "matrix_implir_tagged": true,
+  "maintenance_write_blocked_for_implir": true,
+  "marketplace_implir_blocked": true,
+  "evolution_lifecycle_blocked": true,
+  "factory_governed_blocked": true,
+  "passed": true,
+  "findings": [],
+  "cp068_admission": "CP068_CONDITIONAL_ISOLATED_TESTING_ONLY"
+}

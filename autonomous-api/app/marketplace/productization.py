@@ -3,8 +3,24 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib, json
 
+import sys
+from pathlib import Path
+
+_ROOT = Path(__file__).resolve().parents[3]
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
+from constitutional_architecture.governance.trusted_evidence_resolution import (  # noqa: E402
+    GovernedProductCertification,
+    TrustBoundary,
+)
+
 from app.engine.governed_pipeline import GovernedPipelineResult
 from app.marketplace.listing import HumanMarketplaceAuthorization, SoftwareListing, ProductStatus
+from certification.orchestration.implir_ingress_guard import (  # noqa: E402
+    IsrIngressAuthority,
+    assert_trusted_marketplace_ingress,
+)
 
 @dataclass(frozen=True)
 class MarketplaceProductCandidate:
@@ -46,11 +62,31 @@ def prepare_certified_product(
     price_minor: int, currency: str, license: str,
     certification_digest: str, artifact_digest: str,
     evidence_digest: str, documentation_digest: str,
+    trust_boundary: TrustBoundary = TrustBoundary.LEGACY_DEVELOPMENT,
+    governed_certification: GovernedProductCertification | None = None,
+    ingress_authority: str = IsrIngressAuthority.ISR_REVISION.value,
+    governed_lineage_ref: str = "",
 ) -> MarketplaceProductCandidate:
+    if trust_boundary is TrustBoundary.PRODUCTION:
+        assert_trusted_marketplace_ingress(
+            ingress_authority,
+            governed_lineage_ref=governed_lineage_ref or certification_digest,
+        )
     if not pipeline.closure.ready_to_stop:
         raise ValueError("marketplace-product-requires-complete-certified-pipeline")
     if pipeline.closure.digest != certification_digest:
         raise ValueError("marketplace-product-certification-mismatch")
+    if trust_boundary is TrustBoundary.PRODUCTION:
+        if governed_certification is None:
+            raise ValueError("marketplace-product-governed-certification-required")
+        if not governed_certification.verify_digest():
+            raise ValueError("marketplace-product-governed-certification-invalid")
+        if governed_certification.certification_digest != certification_digest:
+            raise ValueError("marketplace-product-governed-certification-digest-mismatch")
+        if governed_certification.artifact_sha256 != artifact_digest:
+            raise ValueError("marketplace-product-governed-artifact-mismatch")
+        if len(evidence_digest) != 64:
+            raise ValueError("marketplace-product-governed-evidence-digest-invalid")
     return MarketplaceProductCandidate(
         product_id,version,name,price_minor,currency,license,pipeline.pipeline_digest,
         certification_digest,artifact_digest,evidence_digest,documentation_digest,

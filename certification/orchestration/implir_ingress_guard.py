@@ -61,3 +61,66 @@ def assert_trusted_publication_ingress(
         raise ImplirIngressBlocked(
             "trusted-publication-requires-isr-revision-authority"
         )
+
+
+def assert_trusted_maintenance_ingress(
+    ingress_authority: str,
+    *,
+    governed_lineage_ref: str,
+    production_write_requested: bool,
+) -> None:
+    """Maintenance may record observations; production writes bind ISR revision only."""
+    if not production_write_requested:
+        return
+    if ingress_authority == IsrIngressAuthority.IMPLEMENTATION_IR.value:
+        raise ImplirIngressBlocked("trusted-maintenance-implir-blocked")
+    if ingress_authority != IsrIngressAuthority.ISR_REVISION.value:
+        raise ImplirIngressBlocked("trusted-maintenance-requires-isr-revision")
+    if not governed_lineage_ref.strip():
+        raise ImplirIngressBlocked("trusted-maintenance-missing-lineage-ref")
+
+
+def assert_trusted_marketplace_ingress(
+    ingress_authority: str,
+    *,
+    governed_lineage_ref: str = "",
+) -> None:
+    """Marketplace listing requires certification-grade ISR authority."""
+    assert_trusted_publication_ingress(
+        ingress_authority,
+        governed_lineage_ref=governed_lineage_ref,
+    )
+
+
+def assert_trusted_evolution_ingress(
+    *,
+    ingress_authority: str = "",
+    claim_governed_product_lifecycle: bool = False,
+) -> None:
+    """Evolution is subordinate; cannot claim full-stack lifecycle or ImplIR authority."""
+    if claim_governed_product_lifecycle:
+        raise ImplirIngressBlocked("evolution-cannot-claim-governed-full-stack-lifecycle")
+    auth = ingress_authority.strip()
+    if auth == IsrIngressAuthority.IMPLEMENTATION_IR.value:
+        raise ImplirIngressBlocked("evolution-implir-authority-blocked")
+
+
+def assert_trusted_factory_ingress(
+    *,
+    governed_production: bool,
+    dev_subordinate_override: bool = False,
+) -> None:
+    """Factory/create CLI must not substitute for orchestration authority."""
+    if dev_subordinate_override or not governed_production:
+        return
+    raise ImplirIngressBlocked("factory-create-blocked-under-governed-production")
+
+
+W09_EXPANDED_BOUNDARIES: tuple[str, ...] = (
+    "orchestration",
+    "publication",
+    "maintenance",
+    "marketplace",
+    "evolution",
+    "factory_cli",
+)

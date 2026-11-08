@@ -28,6 +28,10 @@ from certification.isr_independent_verification.w07_bridge_semantic_evidence imp
     INDEPENDENT_VERIFIER_W07,
     run_w07_bridge_semantic_evidence,
 )
+from certification.isr_independent_verification.w09_implir_enforcement_expansion import (
+    INDEPENDENT_VERIFIER_W09,
+    run_w09_implir_enforcement_expansion,
+)
 from certification.isr_independent_verification.digest_oracle import (
     run_independent_digest_verification,
 )
@@ -206,6 +210,16 @@ def run_wave10_integration_gate() -> Wave10IntegrationGateReport:
             INDEPENDENT_VERIFIER_W07,
             GateResult.PASSED if w07.passed else GateResult.FAILED,
             w07.findings,
+        )
+    )
+
+    w09 = run_w09_implir_enforcement_expansion()
+    gates.append(
+        IntegrationGateRow(
+            "W09-IMPLIR-ENFORCEMENT-EXPANSION",
+            INDEPENDENT_VERIFIER_W09,
+            GateResult.PASSED if w09.passed else GateResult.FAILED,
+            w09.findings,
         )
     )
 

@@ -203,6 +203,7 @@ FS-00 checkpoints **051–062** are the **evidence ledger** for compiler/verific
 | 067-R8 | HTTP ingress wiring — `folder/fs00_checkpoint_067_r8_w08_http_ingress_wiring.md` |
 | 067-R10 | W10 integration gate — `folder/fs00_checkpoint_067_r10_w10_integration_gate.md`; evidence `release/evidence/cp067_r10_w10_integration_gate_report.json` |
 | 067-W07 | ADR-R1-03 bridge semantic evidence — `folder/fs00_checkpoint_067_w07_adr_r1_03_bridge_evidence.md`; evidence `release/evidence/cp067_w07_bridge_semantic_evidence_report.json` |
+| 067-W09 | ImplIR enforcement expansion — `folder/fs00_checkpoint_067_w09_implir_enforcement_expansion.md`; evidence `release/evidence/cp067_w09_implir_enforcement_expansion_report.json` |
 | 068 | *(planned)* Expanded runtime conformance corpus — **`CONDITIONAL_ISOLATED_TESTING_ONLY`**; CP068 promotion **not** authorized (scoped P0 closure ≠ governed runtime conformance) |
 
 **CP067 §N P0 register (v1.3.0):** all five findings **`CLOSED_SCOPED`** — `certification/atlas/esap/cp067_r1_p0_remediation_register.json`.

@@ -7,6 +7,9 @@ from app.api.ws import router as ws_router
 from app.api.observation_routes import router as observation_router
 from app.api.operator_auth import router as operator_auth_router, evolution_control_router
 from app.api.governance_routes import router as governance_router
+from app.api.publication_routes import router as publication_router
+from app.api.orchestration_routes import router as orchestration_router
+from app.api.dashboard_orchestration_routes import router as dashboard_orchestration_router
 from app.api.maintenance_outbox_routes import router as maintenance_outbox_router
 from app.core.config import get_settings
 from app.core.logger import logger
@@ -18,6 +21,7 @@ from app.governance.adapters.sqlite import (
 )
 from app.middleware.error_handler import ErrorHandlingConfig, install_error_handlers
 from app.middleware.rate_limit import RateLimitMiddleware
+from app.middleware.orchestration_scope import OrchestrationScopeMiddleware
 from app.middleware.security import (
     ApiKeyAuthProvider,
     CompositeAuthProvider,
@@ -65,6 +69,7 @@ app = FastAPI(
 
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RateLimitMiddleware)
+app.add_middleware(OrchestrationScopeMiddleware)
 
 validated_origins = validate_cors_origins(settings.CORS_ORIGINS)
 logger.info(f"CORS origins configured: {validated_origins}")
@@ -154,8 +159,14 @@ app.include_router(observation_router, prefix="/api/v1")
 app.include_router(observation_router, include_in_schema=False)
 app.include_router(operator_auth_router)
 app.include_router(governance_router, prefix="/api/v1")
+app.include_router(publication_router, prefix="/api/v1")
+app.include_router(orchestration_router, prefix="/api/v1")
+app.include_router(dashboard_orchestration_router, prefix="/api/v1")
 app.include_router(maintenance_outbox_router, prefix="/api/v1/observation", include_in_schema=False)
 app.include_router(governance_router, include_in_schema=False)
+app.include_router(publication_router, include_in_schema=False)
+app.include_router(orchestration_router, include_in_schema=False)
+app.include_router(dashboard_orchestration_router, include_in_schema=False)
 setup_metrics(app)
 
 

@@ -111,6 +111,18 @@ Generic `rust_axum` / `_rust_declared` fixes for WSL build: router `;`, `AppStat
 | Tests | IV **5** + R4 regression **13** = **18 passed** |
 | P0 | Still **open** (universal ingress / workloads not IV-complete) |
 
+## CP067-R5 (expanded IV — multi-workload + HTTP W08 slice)
+
+| Item | Value |
+| --- | --- |
+| Report | `folder/fs00_checkpoint_067_r5_expanded_verification.md` |
+| Evidence | `release/evidence/cp067_r5_independent_verification_report.json` |
+| Workloads | payroll, orders, appointments — W04 oracle **pass** |
+| HTTP | orchestration + publication ImplIR → **403** |
+| Tests | R5 **6 passed** (3 conformance + 3 HTTP) |
+| W08/W10 | Matrix catalog + integration gate slice (**not** full adversarial corpus) |
+| P0 / CP068 | **Open** / **conditional** |
+
 ## CP067-R4 (Wave 2 — W04/W05 implementation)
 
 | Item | Value |
@@ -129,3 +141,59 @@ Generic `rust_axum` / `_rust_declared` fixes for WSL build: router `;`, `AppStat
 | `python -m pytest tests/conformance/test_checkpoint_066_rust_runtime_http.py tests/conformance/test_checkpoint_062_rust_runtime_http.py -q` | **13 passed** in ~19 min (WSL `cargo` builds) |
 | `python -m pytest tests/conformance/ tests/evidence_graph/ tests/synthesis/test_checkpoint_065_obligation_preservation.py -q` | **56 passed** in ~55 min (includes graph + CP065; WSL builds in conformance) |
 | `python -m pytest tests/conformance/test_cp067_r4_plan_binding.py tests/orchestration/test_cp067_r4_*.py tests/orchestration/test_checkpoint_055_unified_orchestration.py -q` | **27 passed** in ~6s |
+
+## CP067 P0 closure (scoped — governance + IV)
+
+| Item | Value |
+| --- | --- |
+| Harness | `certification/isr_independent_verification/p0_closure_harness.py` |
+| Checkpoint | `folder/fs00_checkpoint_067_p0_closure_independent_proof.md` |
+| Human ratification | `release/evidence/cp067_p0_closure_human_ratification_2026-11-08.json` (Amos Kimiti Kariuki) |
+| IV evidence | `release/evidence/cp067_p0_closure_independent_proof_report.json` |
+| Register | **v1.3.0** — all **5** §N findings **`CLOSED_SCOPED`** (`certification/atlas/esap/cp067_r1_p0_remediation_register.json`) |
+| CP068 | **`CP068_CONDITIONAL_ISOLATED_TESTING_ONLY`** — scoped P0 closure ≠ governed runtime conformance |
+
+**Not claimed:** universal ISR canonicality, full ingress matrix on every route, `CP068_READY_FOR_GOVERNED_RUNTIME_CONFORMANCE`.
+
+## CP067-R6 — W06 B-04 obligation verifier
+
+| Item | Value |
+| --- | --- |
+| Checkpoint | `folder/fs00_checkpoint_067_r6_w06_b04_obligation_verifier.md` |
+| R1-W06 IV | **`INDEPENDENTLY_VERIFIED`** — wave ledger v1.2.1 (`cp067_r2_wave0_authorization.json`) |
+| Governance | `release/evidence/cp067_isr002_supplement_ratification_2026-11-08.json` — **CP067-ISR-002** `CLOSED_SCOPED` |
+
+## CP067-R7 — F-06 + F-01..F-17 inventory
+
+| Item | Value |
+| --- | --- |
+| Checkpoint | `folder/fs00_checkpoint_067_r7_w02_canonicalization_expansion.md` |
+| Governance | `release/evidence/cp067_isr004_supplement_ratification_2026-11-08.json` — **CP067-ISR-004** `CLOSED_SCOPED` |
+
+## CP067-R8 — W08 HTTP ingress wiring
+
+| Item | Value |
+| --- | --- |
+| Checkpoint | `folder/fs00_checkpoint_067_r8_w08_http_ingress_wiring.md` |
+| Evidence | `release/evidence/cp067_r6_http_ingress_verification_report.json` |
+| R1-W08 | **`PARTIALLY_VERIFIED`** (matrix R5 + HTTP R8); ledger refs both reports |
+
+## CP067-R10 — W10 integration gate
+
+| Item | Value |
+| --- | --- |
+| Checkpoint | `folder/fs00_checkpoint_067_r10_w10_integration_gate.md` |
+| Evidence | `release/evidence/cp067_r10_w10_integration_gate_report.json` |
+| R1-W10 | **`INDEPENDENTLY_VERIFIED`** (3-workload slice) |
+| Tests | `tests/conformance/test_cp067_r10_w10_integration_gate.py` — **2 passed** (local) |
+
+## Programme ledger (this update)
+
+| Item | Value |
+| --- | --- |
+| Branch | `remediation/w12-executable-effect-contract` |
+| Remote | `97dea53f` — W10 + ISR-004 ratification; wave ledger v1.2.0 W06/W10 (pre–HEAD-align) |
+| ESAP master | `folder/ESAP_MASTER_ENGINEERING_PROCEDURE.md` — FS-00 index R5–R10 + §8 scoped P0 |
+| Wave 0 register | v1.2.1 — `repository_head_observed` aligned to `97dea53f…` (ledger v1.2.0 commit) |
+
+**Supersedes (stale rows above):** CP067-R1/R2 tables showing CONFIRMED_OPEN / NOT_AUTHORIZED / PENDING ADRs — use register v1.3.0 and wave ledger v1.2.1 instead.

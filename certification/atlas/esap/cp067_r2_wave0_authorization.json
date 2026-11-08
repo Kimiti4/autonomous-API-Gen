@@ -1,17 +1,17 @@
 {
   "schema": "tiannara.checkpoint.cp067_r2_wave0_authorization",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "checkpoint": "CP067-R2",
   "planning_and_authorization_artifact": true,
   "created_at": "2026-11-08T12:00:00Z",
-  "updated_at": "2026-11-08T22:20:00+03:00",
+  "updated_at": "2026-11-08T23:45:00+03:00",
   "ratification_evidence": "release/evidence/cp067_r2_human_adr_ratification_2026-11-08.json",
   "source_reports": {
     "cp067": "folder/fs00_checkpoint_067_isr_family_canonicality_and_semantic_preservation_audit.md",
     "cp067_r1": "folder/fs00_checkpoint_067_r1_p0_remediation_ownership_and_dependency_plan.md",
     "cp067_r2": "folder/fs00_checkpoint_067_r2_architecture_decision_ratification_and_wave0_authorization.md"
   },
-  "repository_head_observed": "4857d295f31332cce213ca82c1e802b78562638b",
+  "repository_head_observed": "cd03662c91802bf537e284dd19aa1ddaff9f8e82",
   "branch_observed": "remediation/w12-executable-effect-contract",
   "approver": {
     "identity": "Amos Kimiti Kariuki",
@@ -137,9 +137,12 @@
     "R1-W07": { "authorization_status": "AUTHORIZED_TO_START", "verification_status": "NOT_VERIFIED" },
     "R1-W08": {
       "authorization_status": "AUTHORIZED_TO_START",
+      "implementation_status": "IMPLEMENTED",
+      "implementation_checkpoint": "CP067-R8",
       "verification_status": "PARTIALLY_VERIFIED",
-      "verification_note": "CP067-R5 HTTP + matrix slice only",
-      "verification_evidence": "release/evidence/cp067_r5_independent_verification_report.json"
+      "verification_note": "Ingress matrix catalog (R5) + governed HTTP routes (R8 wave6 verification)",
+      "verification_evidence": "release/evidence/cp067_r6_http_ingress_verification_report.json",
+      "matrix_slice_ref": "release/evidence/cp067_r5_independent_verification_report.json"
     },
     "R1-W09": { "authorization_status": "AUTHORIZED_TO_START", "verification_status": "NOT_VERIFIED" },
     "R1-W10": {

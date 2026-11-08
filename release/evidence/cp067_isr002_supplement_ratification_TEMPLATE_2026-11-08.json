@@ -1,0 +1,63 @@
+{
+  "schema": "tiannara.governance.p0_finding_supplement_ratification",
+  "version": "1.0.0",
+  "status": "PENDING_RATIFICATION",
+  "checkpoint": "CP067-R6",
+  "ratification_type": "FINDING_STATUS_SUPPLEMENT",
+  "ratification_event_id": "CP067-ISR-002-SUPP-RAT-2026-11-08-TBD",
+  "supersedes_partial_only_for": ["CP067-ISR-002"],
+  "prior_ratification": "release/evidence/cp067_p0_closure_human_ratification_2026-11-08.json",
+  "approver": {
+    "identity": "Amos Kimiti Kariuki",
+    "role": "Human Project Owner / Architecture Decision Authority",
+    "authority_basis": "Human authority to accept supplemental independent verification and update governed P0 register status under CP067-R1 §18."
+  },
+  "approval_timestamp": "REPLACE_WITH_ISO8601_OFFSET",
+  "source_independent_proof": "release/evidence/cp067_p0_closure_independent_proof_report.json",
+  "supplemental_evidence": [
+    "release/evidence/cp067_r6_http_ingress_verification_report.json",
+    "folder/fs00_checkpoint_067_r6_w06_b04_obligation_verifier.md"
+  ],
+  "source_independent_verifiers": [
+    "certification.isr_independent_verification.p0_closure_harness.v1",
+    "certification.isr_independent_verification.b04_lowering_oracle.v1"
+  ],
+  "implementation_refs": [
+    "certification/bridges/b04_lowering_obligation_verifier.py",
+    "certification/bridges/transformation_contracts.py",
+    "certification/orchestration/plan_binding_gate.py"
+  ],
+  "repository_head_reviewed": "REPLACE_WITH_GIT_HEAD",
+  "branch_reviewed": "remediation/w12-executable-effect-contract",
+  "approval_limitations": [
+    "Supplement ratifies CP067-ISR-002 only; other findings unchanged",
+    "Accepts obligation-diff verifier, not a full plan-to-ISR inverse compiler",
+    "Does not promote CP068 beyond CP068_CONDITIONAL_ISOLATED_TESTING_ONLY",
+    "Does not authorize production promotion or governed runtime conformance",
+    "Does not waive W08 full ingress matrix or W10 integration gate completion"
+  ],
+  "finding_decision": {
+    "finding_id": "CP067-ISR-002",
+    "prior_governed_status": "PARTIAL_REMEDIATION_OPEN",
+    "prior_independent_stage_from_register": "PARTIAL_INDEPENDENTLY_VERIFIED",
+    "governed_status_after_supplement": "CLOSED_SCOPED",
+    "independent_stage_accepted": "CLOSED_INDEPENDENTLY_VERIFIED",
+    "scope_accepted": "B-04 LOSSY_EXPLICIT; plan binding gate; ISR-to-plan obligation diff on payroll, orders, appointments; deterministic re-lowering digest; explicit loss inventory for topology/requirement nodes",
+    "explicitly_not_accepted": [
+      "Universal plan-to-ISR semantic rebuild",
+      "Lossless lowering claim across all ISR families"
+    ],
+    "remaining_work_acknowledged": [
+      "R1-W08 full ingress matrix beyond HTTP slice",
+      "R1-W10 adversarial integration gate",
+      "Expansion beyond R5 three-workload slice where not yet IV'd"
+    ],
+    "prior_blockers_superseded": [
+      "no-plan-isr-round-trip-verifier"
+    ],
+    "replacement_acceptance_criterion": "b04-obligation-diff-verifier-v1"
+  },
+  "cp068_admission_unchanged": "CP068_CONDITIONAL_ISOLATED_TESTING_ONLY",
+  "evidence_type": "human_governance_approval",
+  "generator_note": "Template only — set status to RATIFIED after verbatim owner message."
+}

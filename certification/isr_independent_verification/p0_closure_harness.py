@@ -18,6 +18,9 @@ from certification.isr_independent_verification.plan_binding_oracle import (
     run_plan_binding_oracle,
 )
 from certification.isr_independent_verification.wave2_verification import _w05_passed
+from certification.isr_independent_verification.b04_lowering_oracle import (
+    run_b04_lowering_oracle,
+)
 from certification.isr_independent_verification.wave5_verification import (
     R5_MULTI_WORKLOAD_SLICE,
     run_wave5_independent_verification,
@@ -127,13 +130,32 @@ def _evaluate_002() -> P0ClosureRow:
     assert_plan_binding_before_compile(rev, plan)
     evidence.append("plan-binding-gate-payroll")
 
-    blockers.append("no-plan-isr-round-trip-verifier")
+    for wid in R5_MULTI_WORKLOAD_SLICE:
+        spec = __import__(
+            "certification.orchestration.workload_registry",
+            fromlist=["get_workload_spec"],
+        ).get_workload_spec(wid)
+        b04 = run_b04_lowering_oracle(spec.revision_fn())
+        if b04.passed:
+            evidence.append(f"b04-obligation-oracle:{wid}")
+        else:
+            blockers.extend(b04.findings)
+
+    scope = (
+        "B-04 LOSSY + plan binding + obligation diff verifier; "
+        "no inverse plan→ISR compile"
+    )
+    stage = (
+        P0ClosureStage.CLOSED_INDEPENDENTLY_VERIFIED
+        if not blockers
+        else P0ClosureStage.PARTIAL_INDEPENDENTLY_VERIFIED
+    )
     return P0ClosureRow(
         "CP067-ISR-002",
-        P0ClosureStage.PARTIAL_INDEPENDENTLY_VERIFIED,
+        stage,
         tuple(evidence),
         tuple(blockers),
-        "Binding + B-04 LOSSY contract; round-trip still absent",
+        scope,
     )
 
 
@@ -203,12 +225,30 @@ def run_p0_closure_harness() -> tuple[P0ClosureRow, ...]:
     return (r001, r002, r003, r004, r008)
 
 
+def _governance_ratification_fields() -> dict[str, object]:
+    ratification = Path(
+        "release/evidence/cp067_p0_closure_human_ratification_2026-11-08.json"
+    )
+    if not ratification.is_file():
+        return {"governance_approval": False}
+    payload = json.loads(ratification.read_text(encoding="utf-8"))
+    if payload.get("status") != "RATIFIED":
+        return {"governance_approval": False}
+    return {
+        "governance_approval": True,
+        "governance_ratification_evidence": (
+            "release/evidence/cp067_p0_closure_human_ratification_2026-11-08.json"
+        ),
+        "governance_ratification_timestamp": payload.get("approval_timestamp"),
+    }
+
+
 def write_p0_closure_evidence(path: Path, rows: tuple[P0ClosureRow, ...]) -> None:
     payload = {
         "schema": "tiannara.cp067.p0_closure_independent_proof",
         "verifier_id": INDEPENDENT_VERIFIER_P0,
         "cp068_admission": "CP068_CONDITIONAL_ISOLATED_TESTING_ONLY",
-        "governance_approval": False,
+        **_governance_ratification_fields(),
         "findings": [
             {
                 "finding_id": r.finding_id,

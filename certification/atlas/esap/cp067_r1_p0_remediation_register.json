@@ -1,6 +1,6 @@
 {
   "schema": "tiannara.checkpoint.cp067_r1_remediation_register",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "checkpoint": "CP067-R1",
   "source_cp067_report": "folder/fs00_checkpoint_067_isr_family_canonicality_and_semantic_preservation_audit.md",
   "repository_head_observed": "78fbcad6e357328c9d7ef5df92e9e2aa40044f17",
@@ -33,8 +33,10 @@
     {
       "finding_id": "CP067-ISR-002",
       "sub_tracks": [],
-      "status": "PARTIAL_REMEDIATION_OPEN",
+      "status": "CLOSED_SCOPED",
       "governance_ratification_ref": "release/evidence/cp067_p0_closure_human_ratification_2026-11-08.json",
+      "supplement_ratification_ref": "release/evidence/cp067_isr002_supplement_ratification_2026-11-08.json",
+      "acceptance_criterion": "b04-obligation-diff-verifier-v1",
       "work_packages": ["R1-W04", "R1-W08"],
       "accountable_authority": "compiler.core.lowering + certification.orchestration",
       "implementation_owner": "UNCONFIRMED: compiler-core",
@@ -171,16 +173,23 @@
     "governance_closure_ratified": true,
     "governance_ratification_evidence": "release/evidence/cp067_p0_closure_human_ratification_2026-11-08.json",
     "governance_ratification_timestamp": "2026-11-08T20:30:00+03:00",
+    "supplement_ratifications": [
+      {
+        "finding_id": "CP067-ISR-002",
+        "evidence": "release/evidence/cp067_isr002_supplement_ratification_2026-11-08.json",
+        "timestamp": "2026-11-08T20:45:00+03:00"
+      }
+    ],
     "independent_stages": {
       "CP067-ISR-001": "CLOSED_INDEPENDENTLY_VERIFIED",
-      "CP067-ISR-002": "PARTIAL_INDEPENDENTLY_VERIFIED",
+      "CP067-ISR-002": "CLOSED_INDEPENDENTLY_VERIFIED",
       "CP067-ISR-003": "CLOSED_INDEPENDENTLY_VERIFIED",
       "CP067-ISR-004": "PARTIAL_INDEPENDENTLY_VERIFIED",
       "CP067-ISR-008": "CLOSED_INDEPENDENTLY_VERIFIED"
     },
     "governed_status_after_ratification": {
       "CP067-ISR-001": "CLOSED_SCOPED",
-      "CP067-ISR-002": "PARTIAL_REMEDIATION_OPEN",
+      "CP067-ISR-002": "CLOSED_SCOPED",
       "CP067-ISR-003": "CLOSED_SCOPED",
       "CP067-ISR-004": "PARTIAL_REMEDIATION_OPEN",
       "CP067-ISR-008": "CLOSED_SCOPED"

@@ -10,6 +10,9 @@ from compiler.core.plan_binding import (
     verify_plan_binding_record_matches,
 )
 from isr.core.revision import ISRRevision
+from certification.bridges.b04_lowering_obligation_verifier import (
+    verify_b04_lowering_obligations,
+)
 from certification.bridges.transformation_contracts import assert_trusted_bridge_allowed
 from isr.core.revision_integrity import assert_revision_integrity_at_boundary
 
@@ -25,6 +28,11 @@ def assert_plan_binding_before_compile(
     """Mandatory gate immediately before compile on governed orchestration paths."""
     assert_trusted_bridge_allowed("B-04")
     assert_revision_integrity_at_boundary(revision)
+    obligation = verify_b04_lowering_obligations(revision, plan)
+    if not obligation.passed:
+        raise PlanBindingError(
+            "b04-obligation-failed:" + ",".join(obligation.findings)
+        )
     binding = build_plan_binding_record(
         revision,
         plan,

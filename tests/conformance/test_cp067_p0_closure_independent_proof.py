@@ -31,12 +31,31 @@ def test_p0_001_003_008_closed_in_governed_scope():
     assert by_id["CP067-ISR-008"].stage == P0ClosureStage.CLOSED_INDEPENDENTLY_VERIFIED
 
 
-def test_p0_002_004_remain_partial_or_open():
+def test_p0_002_obligation_verifier_closed_in_governed_scope():
     by_id = {r.finding_id: r for r in run_p0_closure_harness()}
-    assert by_id["CP067-ISR-002"].stage == P0ClosureStage.PARTIAL_INDEPENDENTLY_VERIFIED
+    assert by_id["CP067-ISR-002"].stage == P0ClosureStage.CLOSED_INDEPENDENTLY_VERIFIED
+    assert not by_id["CP067-ISR-002"].blockers
+
+
+def test_p0_004_remains_partial():
+    by_id = {r.finding_id: r for r in run_p0_closure_harness()}
     assert by_id["CP067-ISR-004"].stage == P0ClosureStage.PARTIAL_INDEPENDENTLY_VERIFIED
-    assert by_id["CP067-ISR-002"].blockers
     assert by_id["CP067-ISR-004"].blockers
+
+
+def test_cp067_isr002_supplement_ratified_on_disk():
+    import json
+    from pathlib import Path
+
+    path = Path("release/evidence/cp067_isr002_supplement_ratification_2026-11-08.json")
+    assert path.is_file()
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["status"] == "RATIFIED"
+    assert payload["finding_decision"]["finding_id"] == "CP067-ISR-002"
+    assert (
+        payload["finding_decision"]["governed_status_after_supplement"]
+        == "CLOSED_SCOPED"
+    )
 
 
 def test_p0_closure_evidence_on_disk_governance_linked():

@@ -20,15 +20,16 @@
     },
     {
       "finding_id": "CP067-ISR-002",
-      "stage": "PARTIAL_INDEPENDENTLY_VERIFIED",
-      "scope_note": "Binding + B-04 LOSSY contract; round-trip still absent",
+      "stage": "CLOSED_INDEPENDENTLY_VERIFIED",
+      "scope_note": "B-04 LOSSY + plan binding + obligation diff verifier; no inverse plan\u2192ISR compile",
       "independent_evidence": [
         "b04-contract-registered",
-        "plan-binding-gate-payroll"
+        "plan-binding-gate-payroll",
+        "b04-obligation-oracle:payroll",
+        "b04-obligation-oracle:orders",
+        "b04-obligation-oracle:appointments"
       ],
-      "blockers": [
-        "no-plan-isr-round-trip-verifier"
-      ]
+      "blockers": []
     },
     {
       "finding_id": "CP067-ISR-003",

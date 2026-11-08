@@ -1,0 +1,11 @@
+{
+  "schema": "tiannara.cp067.wave2_independent_verification",
+  "w04_passed": true,
+  "w05_passed": true,
+  "workload": "payroll-human",
+  "revision_id": "rev-payroll-candidate-1",
+  "w04_findings": [],
+  "w05_findings": [],
+  "p0_closure": false,
+  "cp068_admission": "CP068_CONDITIONAL_ISOLATED_TESTING_ONLY"
+}

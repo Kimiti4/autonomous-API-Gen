@@ -4,8 +4,8 @@
 | --- | --- |
 | **Identifier** | ADR-R1-04 |
 | **decision_status** | `APPROVED` |
-| **implementation_status** | `NOT_IMPLEMENTED` |
-| **verification_status** | `NOT_VERIFIED` |
+| **implementation_status** | `IMPLEMENTED` (R1-W04 — CP067-R4) |
+| **verification_status** | `INDEPENDENTLY_VERIFIED` (Payroll slice — `cp067_r4_independent_verification_report.json`) |
 | **governance_status** | `APPROVED` |
 | **Date proposed** | 2026-11-08 |
 | **Related findings** | CP067-ISR-002 |
@@ -49,5 +49,5 @@ Types, gate in orchestration authority, evidence fields — after ADR approval.
 
 | Approver | Amos Kimiti Kariuki — 2026-11-08T15:39+03:00 |
 | Evidence | `release/evidence/cp067_r2_human_adr_ratification_2026-11-08.json` |
-| implementation_status | `NOT_IMPLEMENTED` (R1-W04 not authorized to start) |
+| implementation_status | `IMPLEMENTATION_PRESENT_UNVERIFIED` (CP067-R4; IV pending) |
 | verification_status | `NOT_VERIFIED` |

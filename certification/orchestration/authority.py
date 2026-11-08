@@ -61,6 +61,7 @@ class OrchestrationRunReport:
     isr_source_mode: str = "human_baseline"
     isr_content_hash_consumed: str = ""
     synthesis_binding_digest: str = ""
+    plan_binding_digest: str = ""
 
 
 class _CompileAdapter:
@@ -92,6 +93,14 @@ class FullStackOrchestrationAuthority:
 
     def run(self, request: FullStackOrchestrationRequest) -> OrchestrationRunReport:
         assert_governed_request_kind(request.request_kind)
+        from certification.orchestration.implir_ingress_guard import (
+            assert_trusted_orchestration_ingress,
+        )
+
+        assert_trusted_orchestration_ingress(
+            request.isr_ingress_authority,
+            governed_lineage_ref=request.governed_lineage_ref,
+        )
         spec = get_workload_spec(request.workload_id)
         run_id = request.run_id or new_run_id()
         record = OrchestrationRunRecord(
@@ -162,12 +171,25 @@ class FullStackOrchestrationAuthority:
                 limitations.append(f"ISR consumed digest: {revision.content_hash[:16]}…")
                 limitations.append(f"Synthesis run: {synthesis_provenance.synthesis_run_id}")
             from isr.core.digest_verification import assert_certification_digest_envelope
+            from isr.core.revision_integrity import assert_revision_integrity_at_boundary
 
+            assert_revision_integrity_at_boundary(revision)
             _ = assert_certification_digest_envelope(revision)
             record.transition(OrchestrationLifecycleState.ISR_VALIDATED)
             record.revision_id = revision.revision_id
 
             plan = isr_to_plan(revision)
+            from certification.orchestration.plan_binding_gate import (
+                assert_plan_binding_before_compile,
+            )
+
+            plan_binding = assert_plan_binding_before_compile(
+                revision,
+                plan,
+                expected_plan_digest=request.plan_binding_digest,
+                backend_id=request.frontend_backend_id,
+            )
+            limitations.append(f"Plan binding digest: {plan_binding.plan_digest[:16]}…")
             _ = build_canonical_api_contract(plan)
             record.transition(OrchestrationLifecycleState.PLAN_APPROVED)
 
@@ -328,6 +350,7 @@ class FullStackOrchestrationAuthority:
                 isr_source_mode=isr_source.value,
                 isr_content_hash_consumed=revision.content_hash,
                 synthesis_binding_digest=binding_digest,
+                plan_binding_digest=plan_binding.plan_digest,
             )
             if self._store:
                 self._store.save(record)
@@ -413,6 +436,9 @@ def run_canonical_full_stack(
     populate_senior_dimensions: bool = False,
     isr_source_mode: str = "human_baseline",
     synthesis_binding_digest: str = "",
+    isr_ingress_authority: str = "isr.core.revision",
+    governed_lineage_ref: str = "",
+    plan_binding_digest: str = "",
 ) -> OrchestrationRunReport:
     """Composition root for all governed full-stack workloads."""
     store = (
@@ -432,5 +458,8 @@ def run_canonical_full_stack(
             populate_senior_dimensions=populate_senior_dimensions,
             isr_source_mode=isr_source_mode,
             synthesis_binding_digest=synthesis_binding_digest,
+            isr_ingress_authority=isr_ingress_authority,
+            governed_lineage_ref=governed_lineage_ref,
+            plan_binding_digest=plan_binding_digest,
         )
     )

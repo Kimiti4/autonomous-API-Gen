@@ -111,8 +111,20 @@
       "expanded_authorization": "release/evidence/cp067_r3_expanded_remediation_authorization_2026-11-08.json",
       "verification_status": "NOT_VERIFIED"
     },
-    "R1-W04": { "authorization_status": "AUTHORIZED_TO_START", "verification_status": "NOT_VERIFIED" },
-    "R1-W05": { "authorization_status": "AUTHORIZED_TO_START", "verification_status": "NOT_VERIFIED" },
+    "R1-W04": {
+      "authorization_status": "INDEPENDENTLY_VERIFIED",
+      "implementation_status": "IMPLEMENTED",
+      "implementation_checkpoint": "CP067-R4",
+      "verification_status": "INDEPENDENTLY_VERIFIED",
+      "verification_evidence": "release/evidence/cp067_r4_independent_verification_report.json"
+    },
+    "R1-W05": {
+      "authorization_status": "INDEPENDENTLY_VERIFIED",
+      "implementation_status": "IMPLEMENTED",
+      "implementation_checkpoint": "CP067-R4",
+      "verification_status": "INDEPENDENTLY_VERIFIED",
+      "verification_evidence": "release/evidence/cp067_r4_independent_verification_report.json"
+    },
     "R1-W06": { "authorization_status": "AUTHORIZED_TO_START", "verification_status": "NOT_VERIFIED" },
     "R1-W07": { "authorization_status": "AUTHORIZED_TO_START", "verification_status": "NOT_VERIFIED" },
     "R1-W08": { "authorization_status": "AUTHORIZED_TO_START", "verification_status": "NOT_VERIFIED" },

@@ -6,10 +6,18 @@ from certification.isr_independent_verification.digest_oracle import (
     IndependentVerificationReport,
     run_independent_digest_verification,
 )
+from certification.isr_independent_verification.wave2_verification import (
+    Wave2IndependentReport,
+    run_wave2_independent_verification,
+    write_wave2_evidence,
+)
 
 __all__ = [
     "INDEPENDENT_VERIFIER_ID",
     "IndependentDigestOracle",
     "IndependentVerificationReport",
+    "Wave2IndependentReport",
     "run_independent_digest_verification",
+    "run_wave2_independent_verification",
+    "write_wave2_evidence",
 ]

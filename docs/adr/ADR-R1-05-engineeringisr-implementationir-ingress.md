@@ -4,8 +4,8 @@
 | --- | --- |
 | **Identifier** | ADR-R1-05 |
 | **decision_status** | `APPROVED` |
-| **implementation_status** | `NOT_IMPLEMENTED` |
-| **verification_status** | `NOT_VERIFIED` |
+| **implementation_status** | `IMPLEMENTED` (R1-W05 — CP067-R4) |
+| **verification_status** | `INDEPENDENTLY_VERIFIED` (Model C policy matrix + Payroll orch path) |
 | **governance_status** | `APPROVED` |
 | **Date proposed** | 2026-11-08 |
 | **Related findings** | CP067-ISR-003, CP067-ISR-008 |
@@ -55,5 +55,5 @@ Non-authoritative artifacts must carry `provenance.non_authoritative=true` (or e
 | Approver | Amos Kimiti Kariuki — 2026-11-08T15:39+03:00 |
 | Evidence | `release/evidence/cp067_r2_human_adr_ratification_2026-11-08.json` |
 | Scope | **Model C** interim; Model A/B requires separate decision |
-| implementation_status | `NOT_IMPLEMENTED` (R1-W05 not authorized to start) |
+| implementation_status | `IMPLEMENTED` (CP067-R4; IV recorded) |
 | verification_status | `NOT_VERIFIED` |

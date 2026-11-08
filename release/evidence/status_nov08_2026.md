@@ -101,9 +101,31 @@ Generic `rust_axum` / `_rust_declared` fixes for WSL build: router `;`, `AppStat
 
 **P0 closure:** still **not** claimed.
 
+## CP067-R4-IV (W04/W05 independent verification)
+
+| Item | Value |
+| --- | --- |
+| Report | `folder/fs00_checkpoint_067_r4_independent_verification.md` |
+| Evidence | `release/evidence/cp067_r4_independent_verification_report.json` |
+| W04 / W05 | **`INDEPENDENTLY_VERIFIED`** (Payroll human + ingress policy matrix) |
+| Tests | IV **5** + R4 regression **13** = **18 passed** |
+| P0 | Still **open** (universal ingress / workloads not IV-complete) |
+
+## CP067-R4 (Wave 2 — W04/W05 implementation)
+
+| Item | Value |
+| --- | --- |
+| Report | `folder/fs00_checkpoint_067_r4_remediation_wave2_plan_binding_and_implir_ingress.md` |
+| R1-W04 | `IMPLEMENTATION_PRESENT_UNVERIFIED` — plan binding record + orchestration execution gate |
+| R1-W05 | `IMPLEMENTATION_PRESENT_UNVERIFIED` — Model C trusted ingress guards (orchestration + publication) |
+| IV | **Pending** for W04/W05 (no `INDEPENDENTLY_VERIFIED` claim) |
+| P0 closure | **Not claimed** |
+| CP068 | **`CP068_CONDITIONAL_ISOLATED_TESTING_ONLY`** |
+
 ## Regression (this update)
 
 | Command | Result |
 | --- | --- |
 | `python -m pytest tests/conformance/test_checkpoint_066_rust_runtime_http.py tests/conformance/test_checkpoint_062_rust_runtime_http.py -q` | **13 passed** in ~19 min (WSL `cargo` builds) |
 | `python -m pytest tests/conformance/ tests/evidence_graph/ tests/synthesis/test_checkpoint_065_obligation_preservation.py -q` | **56 passed** in ~55 min (includes graph + CP065; WSL builds in conformance) |
+| `python -m pytest tests/conformance/test_cp067_r4_plan_binding.py tests/orchestration/test_cp067_r4_*.py tests/orchestration/test_checkpoint_055_unified_orchestration.py -q` | **27 passed** in ~6s |

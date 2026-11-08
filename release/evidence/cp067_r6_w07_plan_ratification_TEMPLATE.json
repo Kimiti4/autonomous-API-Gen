@@ -1,0 +1,23 @@
+{
+  "schema": "tiannara.cp067.r6_w07_semantic_preservation_plan_ratification",
+  "version": "1.0.0",
+  "status": "PENDING_RATIFICATION",
+  "plan_register": "certification/atlas/esap/cp067_r6_w07_semantic_preservation_plan.json",
+  "plan_report": "folder/fs00_checkpoint_067_r6_w07_semantic_preservation_remediation_plan.md",
+  "approver": {
+    "identity": "",
+    "role": "Human Project Owner / Architecture Decision Authority"
+  },
+  "ratified_at": "",
+  "decisions": {
+    "authorize_b03_implementation_slice": false,
+    "authorize_w08_matrix_expansion": false,
+    "reconcile_adr_r1_03_metadata": false,
+    "preserve_w03_partial_verified": true,
+    "preserve_w08_partial_verified": true,
+    "cp068_admission": "CP068_CONDITIONAL_ISOLATED_TESTING_ONLY"
+  },
+  "acceptance_criterion_on_implementation_complete": "b03-obligation-replay-v1",
+  "implementation_authorized_after_ratification": true,
+  "notes": "Ratification authorizes planning execution only; does not close R1-W07 or W08."
+}

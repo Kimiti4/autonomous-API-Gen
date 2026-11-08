@@ -1,0 +1,98 @@
+{
+  "schema": "tiannara.checkpoint.cp067_r6_w07_semantic_preservation_plan",
+  "version": "1.0.0",
+  "checkpoint_id": "CP067-R6-W07-PLAN",
+  "disambiguation": "Not CP067-R6 W06 B-04 implementation; planning artifact only",
+  "planning_artifact_only": true,
+  "implementation_authorized": false,
+  "ratification_required": true,
+  "ratification_evidence_template": "release/evidence/cp067_r6_w07_plan_ratification_TEMPLATE.json",
+  "report_path": "folder/fs00_checkpoint_067_r6_w07_semantic_preservation_remediation_plan.md",
+  "created_at": "2026-11-09T00:00:00+03:00",
+  "cp068_admission": "CP068_CONDITIONAL_ISOLATED_TESTING_ONLY",
+  "preserved_statuses": {
+    "R1-W03_verification_status": "PARTIALLY_VERIFIED",
+    "R1-W08_verification_status": "PARTIALLY_VERIFIED",
+    "w08_matrix_expansion": false
+  },
+  "adr_r1_03_reconciliation": {
+    "governance_status": "APPROVED",
+    "adr_implementation_status_header": "NOT_IMPLEMENTED",
+    "repo_partial_delivery": [
+      "certification/bridges/transformation_contracts.py",
+      "certification/isr_independent_verification/w07_bridge_semantic_evidence.py"
+    ],
+    "adr_verification_gap": "B-03 obligation replay not independently verified",
+    "authority_note": "ADR lists R1-W06; W07 ADR-R1-03 slice delivered under separate checkpoint CP067-W07"
+  },
+  "w07_evidence_gaps": [
+    "b03_synthesis_obligation_replay_harness",
+    "b03_three_workload_synthesized_slice",
+    "obligation_adversarial_corpus",
+    "evidence_graph_binding_to_cp065",
+    "w07_independent_closure_supplement"
+  ],
+  "b03_bounded_slice": {
+    "workloads": ["payroll", "orders", "appointments"],
+    "source_family": "reqgraph.synthesis.engineering_synthesizer",
+    "destination_family": "isr.core.revision.ISRRevision",
+    "source_identity_fields": ["synthesis_run_id", "tor_digest", "reviewer_verdict_ref"],
+    "destination_identity_fields": ["revision_id", "content_hash", "schema_version"],
+    "verification_method": "synthesis-obligation-preservation-v1",
+    "future_verifier_id": "certification.isr_independent_verification.b03_synthesis_obligation_replay.v1"
+  },
+  "inverse_plan_to_isr": {
+    "authorized": false,
+    "isr_to_plan_bridge": "B-04",
+    "reconstructible_via_forward_replay_only": [
+      "behavioral_operation_ids",
+      "lowered_auth_policy_refs",
+      "effect_bindings"
+    ],
+    "not_reconstructible": [
+      "graph_topology",
+      "requirement_ref_materialization",
+      "constitutional_envelopes",
+      "synthesis_provenance"
+    ],
+    "failure_behavior": "FAIL_CLOSED"
+  },
+  "adversarial_cases_required": [
+    "dropped_authz",
+    "altered_validation",
+    "duplicated_operation",
+    "unsupported_family",
+    "loss_budget_breach"
+  ],
+  "w07_iv_closure_criteria": [
+    "b03_replay_passed_three_workloads",
+    "adversarial_minimum_five_automated",
+    "evidence_artifact_cp067_w07_b03_obligation_replay_report",
+    "cp063_slice_lineage_bindings",
+    "governance_supplement_or_acceptance_criterion_b03-obligation-replay-v1",
+    "w03_w08_status_unchanged",
+    "cp068_conditional"
+  ],
+  "authority_gates": [
+    {
+      "id": "G1",
+      "description": "Human owner ratifies plan markdown + this JSON",
+      "satisfied": false
+    },
+    {
+      "id": "G2",
+      "description": "ADR-R1-03 implementation/verification metadata reconciled",
+      "satisfied": false
+    },
+    {
+      "id": "G3",
+      "description": "No plan_to_isr on trusted paths without new ADR",
+      "satisfied": true
+    }
+  ],
+  "existing_partial_evidence_refs": [
+    "release/evidence/cp067_w07_bridge_semantic_evidence_report.json",
+    "release/evidence/cp067_isr002_supplement_ratification_2026-11-08.json",
+    "release/evidence/cp067_r5_w03_closure_w10_assessment_report.json"
+  ]
+}

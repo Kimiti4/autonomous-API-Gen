@@ -200,6 +200,7 @@ FS-00 checkpoints **051–062** are the **evidence ledger** for compiler/verific
 | 067-R5b | W03 closure assessment & W10 verification — `folder/fs00_checkpoint_067_r5_w03_closure_w10_verification.md`; evidence `cp067_r5_w03_closure_w10_assessment_report.json` (**does not** close W03/W08) |
 | 067-P0-IV | P0 closure independent proof — `folder/fs00_checkpoint_067_p0_closure_independent_proof.md`; evidence `cp067_p0_closure_independent_proof_report.json` + `cp067_p0_closure_human_ratification_2026-11-08.json` |
 | 067-R6 | B-04 obligation verifier + ISR-002 supplement — `folder/fs00_checkpoint_067_r6_w06_b04_obligation_verifier.md`; evidence `cp067_isr002_supplement_ratification_2026-11-08.json` |
+| 067-R6-W07-PLAN | W07 semantic-preservation remediation **plan only** — `folder/fs00_checkpoint_067_r6_w07_semantic_preservation_remediation_plan.md`; register `cp067_r6_w07_semantic_preservation_plan.json` (**no implementation** until ratified) |
 | 067-R7 | F-06 + F-01..F-17 inventory — `folder/fs00_checkpoint_067_r7_w02_canonicalization_expansion.md`; evidence `cp067_isr004_supplement_ratification_2026-11-08.json` |
 | 067-R8 | HTTP ingress wiring — `folder/fs00_checkpoint_067_r8_w08_http_ingress_wiring.md` |
 | 067-R10 | W10 integration gate — `folder/fs00_checkpoint_067_r10_w10_integration_gate.md`; evidence `release/evidence/cp067_r10_w10_integration_gate_report.json` |

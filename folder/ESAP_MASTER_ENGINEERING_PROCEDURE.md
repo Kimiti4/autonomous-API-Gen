@@ -197,6 +197,7 @@ FS-00 checkpoints **051–062** are the **evidence ledger** for compiler/verific
 | 067-R3 | Wave 1 implementation + IV — `folder/fs00_checkpoint_067_r3_remediation_wave1_isr_identity_and_canonicalization.md`, `folder/fs00_checkpoint_067_r3_independent_verification.md` (W01/W02 **IV**; evidence `cp067_r3_independent_verification_report.json`) |
 | 067-R4 | Wave 2 + IV — `folder/fs00_checkpoint_067_r4_remediation_wave2_plan_binding_and_implir_ingress.md`, `folder/fs00_checkpoint_067_r4_independent_verification.md` (W04/W05 **IV**; evidence `cp067_r4_independent_verification_report.json`) |
 | 067-R5 | Expanded IV — `folder/fs00_checkpoint_067_r5_expanded_verification.md` (payroll/orders/appointments; W08 matrix slice) |
+| 067-R5b | W03 closure assessment & W10 verification — `folder/fs00_checkpoint_067_r5_w03_closure_w10_verification.md`; evidence `cp067_r5_w03_closure_w10_assessment_report.json` (**does not** close W03/W08) |
 | 067-P0-IV | P0 closure independent proof — `folder/fs00_checkpoint_067_p0_closure_independent_proof.md`; evidence `cp067_p0_closure_independent_proof_report.json` + `cp067_p0_closure_human_ratification_2026-11-08.json` |
 | 067-R6 | B-04 obligation verifier + ISR-002 supplement — `folder/fs00_checkpoint_067_r6_w06_b04_obligation_verifier.md`; evidence `cp067_isr002_supplement_ratification_2026-11-08.json` |
 | 067-R7 | F-06 + F-01..F-17 inventory — `folder/fs00_checkpoint_067_r7_w02_canonicalization_expansion.md`; evidence `cp067_isr004_supplement_ratification_2026-11-08.json` |

@@ -1,0 +1,59 @@
+{
+  "schema": "tiannara.cp067.r5_w03_w10_closure_assessment",
+  "verifier_id": "certification.isr_independent_verification.r5_w03_w10_closure_assessment.v1",
+  "checks": [
+    {
+      "check_id": "C1-W03-WORKLOAD-AND-TAMPER",
+      "result": "PASSED",
+      "detail": "slice=True; tamper=True; verifier=certification.isr_independent_verification.w03_revision_integrity_verification.v1"
+    },
+    {
+      "check_id": "C2-HTTP-PREFLIGHT-BEFORE-CANONICAL",
+      "result": "PASSED",
+      "detail": "integrity_at=1616; canonical_at=1688"
+    },
+    {
+      "check_id": "C3-DASHBOARD-PARTIAL-PRESERVED",
+      "result": "PASSED",
+      "detail": "status=partial"
+    },
+    {
+      "check_id": "C4-W10-GATE-EVIDENCE-SEMANTICS",
+      "result": "PASSED",
+      "detail": "gates=17; integration_passed=True"
+    },
+    {
+      "check_id": "C5-W03-LINKED-W08-NOT-CLOSED",
+      "result": "PASSED",
+      "detail": "w03_vs=PARTIALLY_VERIFIED; w08_vs=PARTIALLY_VERIFIED; boundaries_identified=True"
+    },
+    {
+      "check_id": "C6-WORK-PACKAGE-RECONCILIATION",
+      "result": "PASSED",
+      "detail": "incomplete=R1-W01:NOT_VERIFIED,R1-W02:NOT_VERIFIED,R1-W03:PARTIALLY_VERIFIED,R1-W07:PARTIALLY_VERIFIED,R1-W08:PARTIALLY_VERIFIED,R1-W09:PARTIALLY_VERIFIED"
+    },
+    {
+      "check_id": "C7-NEXT-INCOMPLETE-DEPENDENCY",
+      "result": "ADVISORY",
+      "detail": "recommended_next=R1-W07:PARTIALLY_VERIFIED; do_not_expand_w08_matrix_by_default"
+    }
+  ],
+  "w03_iv_passed": true,
+  "w10_gate_count": 17,
+  "w10_integration_passed": true,
+  "dashboard_ingress_status": "status=partial",
+  "r1_w03_closure_claimed": false,
+  "r1_w08_closure_claimed": false,
+  "w08_universal_closure_claimed": false,
+  "next_incomplete_dependencies": [
+    "R1-W01:NOT_VERIFIED",
+    "R1-W02:NOT_VERIFIED",
+    "R1-W03:PARTIALLY_VERIFIED",
+    "R1-W07:PARTIALLY_VERIFIED",
+    "R1-W08:PARTIALLY_VERIFIED",
+    "R1-W09:PARTIALLY_VERIFIED"
+  ],
+  "assessment_passed": true,
+  "findings": [],
+  "cp068_admission": "CP068_CONDITIONAL_ISOLATED_TESTING_ONLY"
+}

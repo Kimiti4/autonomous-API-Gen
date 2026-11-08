@@ -113,7 +113,8 @@
       "expanded_authorization": "release/evidence/cp067_r3_expanded_remediation_authorization_2026-11-08.json",
       "verification_status": "PARTIALLY_VERIFIED",
       "verification_note": "Frozen ISR envelope + digest replay at W08 orchestration ingress slice",
-      "verification_evidence": "release/evidence/cp067_w03_revision_integrity_report.json"
+      "verification_evidence": "release/evidence/cp067_w03_revision_integrity_report.json",
+      "closure_assessment_evidence": "release/evidence/cp067_r5_w03_closure_w10_assessment_report.json"
     },
     "R1-W04": {
       "authorization_status": "INDEPENDENTLY_VERIFIED",
@@ -153,7 +154,8 @@
       "verification_status": "PARTIALLY_VERIFIED",
       "verification_note": "W03 revision integrity on orchestration ingress rows + R8 HTTP slice; not full universal matrix",
       "verification_evidence": "release/evidence/cp067_r6_http_ingress_verification_report.json",
-      "matrix_slice_ref": "release/evidence/cp067_r5_independent_verification_report.json"
+      "matrix_slice_ref": "release/evidence/cp067_r5_independent_verification_report.json",
+      "closure_assessment_evidence": "release/evidence/cp067_r5_w03_closure_w10_assessment_report.json"
     },
     "R1-W09": {
       "authorization_status": "INDEPENDENTLY_VERIFIED",

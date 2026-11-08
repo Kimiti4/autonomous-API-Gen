@@ -24,6 +24,10 @@ from certification.isr_independent_verification.wave5_verification import (
 from certification.isr_independent_verification.wave6_http_verification import (
     run_wave6_http_ingress_verification,
 )
+from certification.isr_independent_verification.w07_bridge_semantic_evidence import (
+    INDEPENDENT_VERIFIER_W07,
+    run_w07_bridge_semantic_evidence,
+)
 from certification.isr_independent_verification.digest_oracle import (
     run_independent_digest_verification,
 )
@@ -192,6 +196,16 @@ def run_wave10_integration_gate() -> Wave10IntegrationGateReport:
             http.verifier_id,
             GateResult.PASSED if http.passed else GateResult.FAILED,
             http.findings,
+        )
+    )
+
+    w07 = run_w07_bridge_semantic_evidence()
+    gates.append(
+        IntegrationGateRow(
+            "W07-ADR-R1-03-BRIDGE-EVIDENCE",
+            INDEPENDENT_VERIFIER_W07,
+            GateResult.PASSED if w07.passed else GateResult.FAILED,
+            w07.findings,
         )
     )
 

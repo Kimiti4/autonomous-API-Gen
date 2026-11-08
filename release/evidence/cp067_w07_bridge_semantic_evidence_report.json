@@ -1,0 +1,50 @@
+{
+  "schema": "tiannara.cp067.w07_bridge_semantic_evidence",
+  "verifier_id": "certification.isr_independent_verification.w07_bridge_semantic_evidence.v1",
+  "adr_r1_03_minimum_set": [
+    "B-03",
+    "B-04",
+    "B-07",
+    "B-08",
+    "B-09"
+  ],
+  "contracts": {
+    "B-03": {
+      "lossiness": "LOSSY_EXPLICIT",
+      "trusted_compile_allowed": true,
+      "verification_method": "synthesis-obligation-preservation-v1",
+      "failure_behavior": "FAIL_CLOSED"
+    },
+    "B-04": {
+      "lossiness": "LOSSY_EXPLICIT",
+      "trusted_compile_allowed": true,
+      "verification_method": "b04-obligation-diff-verifier-v1",
+      "failure_behavior": "FAIL_CLOSED"
+    },
+    "B-07": {
+      "lossiness": "UNSUPPORTED_FAIL_CLOSED",
+      "trusted_compile_allowed": false,
+      "verification_method": "cross-domain-digest-substitution-forbidden-v1",
+      "failure_behavior": "FAIL_CLOSED"
+    },
+    "B-08": {
+      "lossiness": "LOSSY_EXPLICIT",
+      "trusted_compile_allowed": false,
+      "verification_method": "engineering-isr-projection-heuristic-v1",
+      "failure_behavior": "FAIL_CLOSED"
+    },
+    "B-09": {
+      "lossiness": "UNSUPPORTED_FAIL_CLOSED",
+      "trusted_compile_allowed": false,
+      "verification_method": "implir-ingress-oracle-v1",
+      "failure_behavior": "FAIL_CLOSED"
+    }
+  },
+  "contracts_complete": true,
+  "b04_oracle_passed": true,
+  "b07_fail_closed_enforced": true,
+  "unsupported_bridges_untrusted": true,
+  "passed": true,
+  "findings": [],
+  "cp068_admission": "CP068_CONDITIONAL_ISOLATED_TESTING_ONLY"
+}

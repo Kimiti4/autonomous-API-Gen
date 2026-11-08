@@ -77,6 +77,12 @@
       "findings": []
     },
     {
+      "gate_id": "W07-ADR-R1-03-BRIDGE-EVIDENCE",
+      "verifier_ref": "certification.isr_independent_verification.w07_bridge_semantic_evidence.v1",
+      "result": "PASSED",
+      "findings": []
+    },
+    {
       "gate_id": "W10-R5-SLICE",
       "verifier_ref": "certification.isr_independent_verification.wave10_integration_gate.v1",
       "result": "PASSED",

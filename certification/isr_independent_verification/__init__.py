@@ -21,6 +21,11 @@ from certification.isr_independent_verification.wave10_integration_gate import (
     run_wave10_integration_gate,
     write_wave10_integration_evidence,
 )
+from certification.isr_independent_verification.w07_bridge_semantic_evidence import (
+    W07BridgeSemanticEvidenceReport,
+    run_w07_bridge_semantic_evidence,
+    write_w07_bridge_evidence,
+)
 
 __all__ = [
     "INDEPENDENT_VERIFIER_ID",
@@ -36,4 +41,7 @@ __all__ = [
     "Wave10IntegrationGateReport",
     "run_wave10_integration_gate",
     "write_wave10_integration_evidence",
+    "W07BridgeSemanticEvidenceReport",
+    "run_w07_bridge_semantic_evidence",
+    "write_w07_bridge_evidence",
 ]

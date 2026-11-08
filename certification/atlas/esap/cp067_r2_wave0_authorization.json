@@ -134,7 +134,14 @@
       "independent_verification_ref": "release/evidence/cp067_p0_closure_independent_proof_report.json",
       "verification_note": "B-04 obligation diff verifier v1; payroll/orders/appointments slice"
     },
-    "R1-W07": { "authorization_status": "AUTHORIZED_TO_START", "verification_status": "NOT_VERIFIED" },
+    "R1-W07": {
+      "authorization_status": "INDEPENDENTLY_VERIFIED",
+      "implementation_status": "IMPLEMENTED",
+      "implementation_checkpoint": "CP067-W07",
+      "verification_status": "PARTIALLY_VERIFIED",
+      "verification_note": "ADR-R1-03 minimum bridge set B-03..B-09; semantic evidence slice (≠ full CP063 graph identity package)",
+      "verification_evidence": "release/evidence/cp067_w07_bridge_semantic_evidence_report.json"
+    },
     "R1-W08": {
       "authorization_status": "AUTHORIZED_TO_START",
       "implementation_status": "IMPLEMENTED",

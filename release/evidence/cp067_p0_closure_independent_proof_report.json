@@ -44,18 +44,17 @@
     {
       "finding_id": "CP067-ISR-004",
       "stage": "PARTIAL_INDEPENDENTLY_VERIFIED",
-      "scope_note": "Tier A/B only (4 contracts); remainder invent no false PASS",
+      "scope_note": "CP067 F-01..F-17 inventory; 5 contracts; fail-closed gaps explicit",
       "independent_evidence": [
-        "registered-contracts:compiler.core.canonical_api_contract,compiler.core.plan,isr.core.graph,isr.core.revision",
-        "explicit-gap:constitutional_architecture",
-        "explicit-gap:autonomous-api",
-        "explicit-gap:certification.evidence_graph",
-        "explicit-gap:tiannara",
-        "unknown-family-fail-closed"
+        "registered-contracts:compiler.core.canonical_api_contract,compiler.core.plan,constitutional_architecture.isr.model,isr.core.graph,isr.core.revision",
+        "canonicalization-oracle-v1",
+        "inventory-registered:5",
+        "inventory-unsupported:12",
+        "inventory-complete-17"
       ],
       "blockers": [
-        "families-without-contract:approx-13",
-        "universal-canonicality-not-claimed"
+        "universal-canonicality-not-claimed",
+        "unsupported-families-explicit:12"
       ]
     },
     {

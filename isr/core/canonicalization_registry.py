@@ -70,6 +70,18 @@ F04_COMPILATION_PLAN = CanonicalizationContract(
     description="Frozen CompilationPlan model_dump canonical JSON",
 )
 
+F06_CONSTITUTIONAL_ISR = CanonicalizationContract(
+    isr_family_id="constitutional_architecture.isr.model",
+    schema_versions_supported=("1.0",),
+    canonicalization_id="constitutional.isr.serializer",
+    canonicalization_version="1.0.0",
+    hash_algorithm="sha256",
+    authority_domain="constitutional.isr",
+    determinism_rules=("ISRSerializer.to_canonical_json", "sorted-json-keys", "utf-8"),
+    unknown_field_policy=UnknownFieldPolicy.FAIL_CLOSED,
+    description="Constitutional ISR ContentHasher domain — never substitutable for F-01",
+)
+
 F05_API_CONTRACT = CanonicalizationContract(
     isr_family_id="compiler.core.canonical_api_contract",
     schema_versions_supported=("1.0.0",),
@@ -87,6 +99,7 @@ _CONTRACTS: dict[str, CanonicalizationContract] = {
     F02_ISR_GRAPH.isr_family_id: F02_ISR_GRAPH,
     F04_COMPILATION_PLAN.isr_family_id: F04_COMPILATION_PLAN,
     F05_API_CONTRACT.isr_family_id: F05_API_CONTRACT,
+    F06_CONSTITUTIONAL_ISR.isr_family_id: F06_CONSTITUTIONAL_ISR,
 }
 
 

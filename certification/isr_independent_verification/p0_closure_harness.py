@@ -25,15 +25,16 @@ from certification.isr_independent_verification.wave5_verification import (
     R5_MULTI_WORKLOAD_SLICE,
     run_wave5_independent_verification,
 )
+from certification.isr_independent_verification.canonicalization_oracle import (
+    run_canonicalization_oracle,
+)
+from isr.core.canonicalization_inventory import inventory_complete, unsupported_family_ids
 from isr.core.canonicalization_registry import registered_family_ids
 from isr.core.digest_verification import (
     DigestPolicyViolation,
     assert_cross_domain_digest_substitution_forbidden,
     build_digest_envelope_for_revision,
 )
-from isr.core.canonicalization_registry import F01_ISR_REVISION, get_canonicalization_contract
-
-
 class P0ClosureStage(str, Enum):
     OPEN = "OPEN"
     PARTIAL_INDEPENDENTLY_VERIFIED = "PARTIAL_INDEPENDENTLY_VERIFIED"
@@ -50,15 +51,6 @@ class P0ClosureRow:
 
 
 INDEPENDENT_VERIFIER_P0 = "certification.isr_independent_verification.p0_closure_harness.v1"
-
-# Families without contracts per CP067 (17 confirmed - registered Tier A/B)
-_KNOWN_UNREGISTERED_FAMILY_PREFIXES = (
-    "constitutional_architecture",
-    "autonomous-api",
-    "certification.evidence_graph",
-    "tiannara",
-)
-
 
 def _evaluate_001() -> P0ClosureRow:
     blockers: list[str] = []
@@ -196,24 +188,28 @@ def _evaluate_003_008() -> tuple[P0ClosureRow, P0ClosureRow]:
 def _evaluate_004() -> P0ClosureRow:
     registered = set(registered_family_ids())
     evidence = [f"registered-contracts:{','.join(sorted(registered))}"]
-    unregistered_count = 17 - len(registered)  # approximate vs CP067 inventory
-    blockers = [
-        f"families-without-contract:approx-{max(0, unregistered_count)}",
-        "universal-canonicality-not-claimed",
-    ]
-    for prefix in _KNOWN_UNREGISTERED_FAMILY_PREFIXES:
-        evidence.append(f"explicit-gap:{prefix}")
-    try:
-        get_canonicalization_contract("nonexistent.family")
-        blockers.append("fail-closed-missing")
-    except ValueError:
-        evidence.append("unknown-family-fail-closed")
+    blockers: list[str] = []
+    canon = run_canonicalization_oracle()
+    if canon.passed:
+        evidence.append("canonicalization-oracle-v1")
+        evidence.append(f"inventory-registered:{canon.registered_count}")
+        evidence.append(f"inventory-unsupported:{canon.unsupported_count}")
+    else:
+        blockers.extend(canon.findings)
+
+    if inventory_complete():
+        evidence.append("inventory-complete-17")
+    else:
+        blockers.append("inventory-incomplete")
+
+    blockers.append("universal-canonicality-not-claimed")
+    blockers.append(f"unsupported-families-explicit:{len(unsupported_family_ids())}")
     return P0ClosureRow(
         "CP067-ISR-004",
         P0ClosureStage.PARTIAL_INDEPENDENTLY_VERIFIED,
         tuple(evidence),
         tuple(blockers),
-        f"Tier A/B only ({len(registered)} contracts); remainder invent no false PASS",
+        f"CP067 F-01..F-17 inventory; {len(registered)} contracts; fail-closed gaps explicit",
     )
 
 

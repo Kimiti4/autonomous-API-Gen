@@ -1,0 +1,66 @@
+{
+  "schema": "tiannara.governance.p0_finding_supplement_ratification",
+  "version": "1.0.0",
+  "status": "RATIFIED",
+  "checkpoint": "CP067-R7",
+  "ratification_type": "FINDING_STATUS_SUPPLEMENT",
+  "ratification_event_id": "CP067-ISR-004-SUPP-RAT-2026-11-08-2100",
+  "supersedes_partial_only_for": ["CP067-ISR-004"],
+  "prior_ratification": "release/evidence/cp067_p0_closure_human_ratification_2026-11-08.json",
+  "owner_message_verbatim_ref": "release/evidence/cp067_isr004_owner_message_WORDING.md",
+  "approver": {
+    "identity": "Amos Kimiti Kariuki",
+    "role": "Human Project Owner / Architecture Decision Authority",
+    "authority_basis": "Human authority to accept supplemental independent verification and update governed P0 register status under CP067-R1 §18."
+  },
+  "approval_timestamp": "2026-11-08T21:00:00+03:00",
+  "source_independent_proof": "release/evidence/cp067_p0_closure_independent_proof_report.json",
+  "supplemental_evidence": [
+    "folder/fs00_checkpoint_067_r7_w02_canonicalization_expansion.md"
+  ],
+  "source_independent_verifiers": [
+    "certification.isr_independent_verification.p0_closure_harness.v1",
+    "certification.isr_independent_verification.canonicalization_oracle.v1"
+  ],
+  "implementation_refs": [
+    "isr/core/canonicalization_registry.py",
+    "isr/core/canonicalization_inventory.py",
+    "certification/isr_independent_verification/canonicalization_oracle.py"
+  ],
+  "repository_head_reviewed": "a09dd74d0d044faf658462c37700f4d90956cf29",
+  "branch_reviewed": "remediation/w12-executable-effect-contract",
+  "approval_limitations": [
+    "Supplement ratifies CP067-ISR-004 only; other findings unchanged",
+    "Accepts governed inventory and five registered contracts only",
+    "Does not claim universal ISR-family canonicality",
+    "Twelve families remain UNSUPPORTED_FAIL_CLOSED until future W02 work",
+    "Does not promote CP068 beyond CP068_CONDITIONAL_ISOLATED_TESTING_ONLY",
+    "Does not authorize production promotion or governed runtime conformance"
+  ],
+  "finding_decision": {
+    "finding_id": "CP067-ISR-004",
+    "prior_governed_status": "PARTIAL_REMEDIATION_OPEN",
+    "prior_independent_stage_from_register": "PARTIAL_INDEPENDENTLY_VERIFIED",
+    "governed_status_after_supplement": "CLOSED_SCOPED",
+    "independent_stage_accepted": "PARTIAL_INDEPENDENTLY_VERIFIED",
+    "scope_accepted": "CP067 F-01..F-17 canonicalization inventory (17/17); registered contracts F-01, F-02, F-04, F-05, F-06; twelve explicit UNSUPPORTED_FAIL_CLOSED; unknown-family fail-closed in registry",
+    "explicitly_not_accepted": [
+      "Universal canonical specification across all ISR families",
+      "Contracts for F-03, F-07..F-17 beyond inventory classification",
+      "Remediation of ad-hoc json.dumps as universal canonicalizer"
+    ],
+    "remaining_work_acknowledged": [
+      "R1-W02 per-family contract expansion for unsupported entries",
+      "CP067-ISR-004-TRACK-constitutional",
+      "CP067-ISR-004-TRACK-autonomous-api",
+      "CP067-ISR-004-TRACK-plan-contract beyond current Tier A/B"
+    ],
+    "prior_blockers_superseded": [
+      "families-without-contract:approx-13"
+    ],
+    "replacement_acceptance_criterion": "cp067-f01-f17-inventory-v1"
+  },
+  "cp068_admission_unchanged": "CP068_CONDITIONAL_ISOLATED_TESTING_ONLY",
+  "evidence_type": "human_governance_approval",
+  "generator_note": "Recorded from project owner supplement ratification 2026-11-08T21:00+03:00."
+}

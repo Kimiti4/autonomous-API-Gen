@@ -16,6 +16,11 @@ from certification.isr_independent_verification.wave5_verification import (
     run_wave5_independent_verification,
     write_wave5_evidence,
 )
+from certification.isr_independent_verification.wave10_integration_gate import (
+    Wave10IntegrationGateReport,
+    run_wave10_integration_gate,
+    write_wave10_integration_evidence,
+)
 
 __all__ = [
     "INDEPENDENT_VERIFIER_ID",
@@ -28,4 +33,7 @@ __all__ = [
     "Wave5IndependentReport",
     "run_wave5_independent_verification",
     "write_wave5_evidence",
+    "Wave10IntegrationGateReport",
+    "run_wave10_integration_gate",
+    "write_wave10_integration_evidence",
 ]

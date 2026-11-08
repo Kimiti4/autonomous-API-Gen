@@ -11,6 +11,6 @@
 | Oracle | `certification/isr_independent_verification/canonicalization_oracle.py` |
 | Tests | `tests/isr/test_cp067_r7_canonicalization_inventory.py` |
 
-**Governed register:** **CP067-ISR-004** still **`PARTIAL_REMEDIATION_OPEN`** until per-family contracts or scoped ratification.
+**Governance (supplement):** Amos Kimiti Kariuki ratified **CP067-ISR-004** → **`CLOSED_SCOPED`** (`release/evidence/cp067_isr004_supplement_ratification_2026-11-08.json`, 2026-11-08T21:00+03:00). Criterion: **`cp067-f01-f17-inventory-v1`**.
 
 **Next:** W08 autonomous-api ingress commit slice; per-family contract work for high-value unsupported families (F-03, F-14, F-15).

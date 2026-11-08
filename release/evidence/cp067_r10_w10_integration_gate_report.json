@@ -1,0 +1,99 @@
+{
+  "schema": "tiannara.cp067.w10_integration_gate",
+  "verifier_id": "certification.isr_independent_verification.wave10_integration_gate.v1",
+  "integration_gate_passed": true,
+  "governed_p0_all_closed_scoped": true,
+  "cp068_admission": "CP068_CONDITIONAL_ISOLATED_TESTING_ONLY",
+  "workload_slice": [
+    "payroll",
+    "orders",
+    "appointments"
+  ],
+  "gates": [
+    {
+      "gate_id": "W01-W02-F01-F05-DIGEST",
+      "verifier_ref": "certification.isr_independent_verification.digest_oracle",
+      "result": "PASSED",
+      "findings": []
+    },
+    {
+      "gate_id": "W04-PLAN-BINDING:payroll",
+      "verifier_ref": "certification.isr_independent_verification.plan_binding_oracle",
+      "result": "PASSED",
+      "findings": []
+    },
+    {
+      "gate_id": "W06-B04-OBLIGATION:payroll",
+      "verifier_ref": "certification.isr_independent_verification.b04_lowering_oracle.v1",
+      "result": "PASSED",
+      "findings": []
+    },
+    {
+      "gate_id": "W04-PLAN-BINDING:orders",
+      "verifier_ref": "certification.isr_independent_verification.plan_binding_oracle",
+      "result": "PASSED",
+      "findings": []
+    },
+    {
+      "gate_id": "W06-B04-OBLIGATION:orders",
+      "verifier_ref": "certification.isr_independent_verification.b04_lowering_oracle.v1",
+      "result": "PASSED",
+      "findings": []
+    },
+    {
+      "gate_id": "W04-PLAN-BINDING:appointments",
+      "verifier_ref": "certification.isr_independent_verification.plan_binding_oracle",
+      "result": "PASSED",
+      "findings": []
+    },
+    {
+      "gate_id": "W06-B04-OBLIGATION:appointments",
+      "verifier_ref": "certification.isr_independent_verification.b04_lowering_oracle.v1",
+      "result": "PASSED",
+      "findings": []
+    },
+    {
+      "gate_id": "W05-IMPLIR-POLICY",
+      "verifier_ref": "certification.isr_independent_verification.implir_ingress_oracle",
+      "result": "PASSED",
+      "findings": []
+    },
+    {
+      "gate_id": "W02-INVENTORY-F06",
+      "verifier_ref": "certification.isr_independent_verification.canonicalization_oracle.v1",
+      "result": "PASSED",
+      "findings": []
+    },
+    {
+      "gate_id": "W08-INGRESS-MATRIX",
+      "verifier_ref": "certification.orchestration.ingress_trust_matrix",
+      "result": "PASSED",
+      "findings": []
+    },
+    {
+      "gate_id": "W08-HTTP-ADVERSARIAL",
+      "verifier_ref": "certification.isr_independent_verification.wave6_http_verification.v1",
+      "result": "PASSED",
+      "findings": []
+    },
+    {
+      "gate_id": "W10-R5-SLICE",
+      "verifier_ref": "certification.isr_independent_verification.wave10_integration_gate.v1",
+      "result": "PASSED",
+      "findings": []
+    },
+    {
+      "gate_id": "P0-IV-HARNESS",
+      "verifier_ref": "certification.isr_independent_verification.p0_closure_harness.v1",
+      "result": "PASSED",
+      "findings": []
+    },
+    {
+      "gate_id": "GOVERNANCE-P0-CLOSED-SCOPED",
+      "verifier_ref": "release/evidence/cp067_*_ratification_*.json",
+      "result": "PASSED",
+      "findings": []
+    }
+  ],
+  "findings": []
+}

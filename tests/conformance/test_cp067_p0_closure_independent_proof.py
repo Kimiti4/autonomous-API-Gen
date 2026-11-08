@@ -43,6 +43,20 @@ def test_p0_004_remains_partial():
     assert by_id["CP067-ISR-004"].blockers
 
 
+def test_cp067_isr004_supplement_ratified_on_disk():
+    import json
+    from pathlib import Path
+
+    path = Path("release/evidence/cp067_isr004_supplement_ratification_2026-11-08.json")
+    assert path.is_file()
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["status"] == "RATIFIED"
+    assert payload["finding_decision"]["finding_id"] == "CP067-ISR-004"
+    assert payload["finding_decision"]["replacement_acceptance_criterion"] == (
+        "cp067-f01-f17-inventory-v1"
+    )
+
+
 def test_cp067_isr002_supplement_ratified_on_disk():
     import json
     from pathlib import Path

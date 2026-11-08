@@ -1,6 +1,6 @@
 {
   "schema": "tiannara.checkpoint.cp067_r1_remediation_register",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "checkpoint": "CP067-R1",
   "source_cp067_report": "folder/fs00_checkpoint_067_isr_family_canonicality_and_semantic_preservation_audit.md",
   "repository_head_observed": "78fbcad6e357328c9d7ef5df92e9e2aa40044f17",
@@ -61,8 +61,10 @@
         "CP067-ISR-004-TRACK-autonomous-api",
         "CP067-ISR-004-TRACK-plan-contract"
       ],
-      "status": "PARTIAL_REMEDIATION_OPEN",
+      "status": "CLOSED_SCOPED",
       "governance_ratification_ref": "release/evidence/cp067_p0_closure_human_ratification_2026-11-08.json",
+      "supplement_ratification_ref": "release/evidence/cp067_isr004_supplement_ratification_2026-11-08.json",
+      "acceptance_criterion": "cp067-f01-f17-inventory-v1",
       "work_packages": ["R1-W02", "R1-W06"],
       "accountable_authority": "per-family schema owners (see report)",
       "implementation_owner": "UNCONFIRMED: multi-module",
@@ -178,6 +180,11 @@
         "finding_id": "CP067-ISR-002",
         "evidence": "release/evidence/cp067_isr002_supplement_ratification_2026-11-08.json",
         "timestamp": "2026-11-08T20:45:00+03:00"
+      },
+      {
+        "finding_id": "CP067-ISR-004",
+        "evidence": "release/evidence/cp067_isr004_supplement_ratification_2026-11-08.json",
+        "timestamp": "2026-11-08T21:00:00+03:00"
       }
     ],
     "independent_stages": {
@@ -191,7 +198,7 @@
       "CP067-ISR-001": "CLOSED_SCOPED",
       "CP067-ISR-002": "CLOSED_SCOPED",
       "CP067-ISR-003": "CLOSED_SCOPED",
-      "CP067-ISR-004": "PARTIAL_REMEDIATION_OPEN",
+      "CP067-ISR-004": "CLOSED_SCOPED",
       "CP067-ISR-008": "CLOSED_SCOPED"
     },
     "authoritative_open_until_governance": []

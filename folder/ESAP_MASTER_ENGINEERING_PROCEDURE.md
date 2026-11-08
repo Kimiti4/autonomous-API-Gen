@@ -152,20 +152,20 @@ Legend: **I** implemented with tests or checkpoints · **P** partial / fixture-s
 
 | Concern | Disposition | Next programme item |
 | --- | --- | --- |
-| Single ISR authority | **P** — convergence via orchestration + synthesis; multiple historical surfaces remain | **P0** constitutional ISR integrity |
-| ISR hash / canonicality | **P** | **P0** |
-| Semantic preservation across bridges | **P** — CP061 compile digest parity; runtime gaps | **P0** semantic preservation |
+| Single ISR authority | **P** — Model C trusted ingress; F-01 slice IV | CP068 / universal surfaces |
+| ISR hash / canonicality | **P** — five §N P0 **`CLOSED_SCOPED`** (governed ratification 2026-11-08) | F-03 / F-07…F-17 contracts |
+| Semantic preservation across bridges | **P** — B-04 obligation verifier + CP061 compile parity | Inverse plan→ISR; runtime gaps |
 | Backend parity | **P** — CP061–062 | **P1** reproducible Rust lane + differential |
 | Execution contract unity | **P** — CP051 Python; Rust partial | **P0** compiler authority |
 | Req → oracle traceability | **P** — payroll/orders fixtures; not universal | **P0** + **P1** |
-| Production ingress enforcement | **P** — CP056–057 | **P2** |
+| Production ingress enforcement | **P** — CP067-R8 HTTP + ingress matrix slice | Full CP056–057 matrix |
 | E2E deploy guarantees | **M** | **P2** |
 
 ### Recommended build order (affirmed)
 
-Do **not** add a second top-level orchestration abstraction before **P0** closes:
+Do **not** add a second top-level orchestration abstraction before **universal** P0 claims are evidenced:
 
-1. **P0** — One canonical ISR contract, req–oracle binding, governed compilation authority, semantic preservation proofs.  
+1. **P0 (scoped)** — §N findings **`CLOSED_SCOPED`** with IV + human ratification (2026-11-08); not universal ISR.  
 2. **P1** — Discovery, planner, expert FE/BE/data, independent verification, repair engine.  
 3. **P2** — Full-stack runtime validation, delivery/release, production feedback.  
 4. **P3** — Evidence-driven evolution.
@@ -192,11 +192,19 @@ FS-00 checkpoints **051–062** are the **evidence ledger** for compiler/verific
 | 065 | Synthesized obligation, security and validation |
 | 066 | Rust runtime lane + Python–Rust HTTP differential (seven-vector slice verified on WSL; see `release/evidence/cp066_synth_payroll_rust_http_observations.json`) |
 | 067 | Universal ISR-family canonicality audit — `folder/fs00_checkpoint_067_isr_family_canonicality_and_semantic_preservation_audit.md` (`PARTIAL_EVIDENCE`: 17 families; **§N registers 5 P0 IDs**; §A executive rollup 8 P0-class themes) |
-| 067-R1 | P0 remediation ownership & dependency plan — `folder/fs00_checkpoint_067_r1_p0_remediation_ownership_and_dependency_plan.md` (`PARTIAL_EVIDENCE`: planning-only; **5** §N P0 findings → **10** work packages `R1-W01`…`W10`; register `certification/atlas/esap/cp067_r1_p0_remediation_register.json`; CP068 **`CONDITIONAL_ISOLATED_TESTING_ONLY`**; HEAD `78fbcad6…`; authority ADRs **`PENDING_APPROVAL`**) |
-| 067-R2 | ADR ratification & Wave 0 authorization — `folder/fs00_checkpoint_067_r2_architecture_decision_ratification_and_wave0_authorization.md` (`PARTIAL_EVIDENCE`: **6/6** ADRs **APPROVED** — evidence `release/evidence/cp067_r2_human_adr_ratification_2026-11-08.json`, approver Amos Kimiti Kariuki 2026-11-08T15:39+03:00; R1-W01/W02 **`AUTHORIZED_TO_START`**; W03–W10 **not** authorized; CP068 **`CONDITIONAL_ISOLATED_TESTING_ONLY`**) |
-| 067-R3 | Wave 1 implementation + IV — `folder/fs00_checkpoint_067_r3_remediation_wave1_isr_identity_and_canonicalization.md`, `folder/fs00_checkpoint_067_r3_independent_verification.md` (W01/W02 **IV** on Payroll slice; Tier **B** F-04/F-05; W03–W10 **authorized** not IV-complete; P0 **open**) |
-| 067-R4 | Wave 2 + IV — `folder/fs00_checkpoint_067_r4_remediation_wave2_plan_binding_and_implir_ingress.md`, `folder/fs00_checkpoint_067_r4_independent_verification.md` (W04/W05 **IV** Payroll slice; evidence `release/evidence/cp067_r4_independent_verification_report.json`; P0 **open**) |
-| 068 | *(planned)* Expanded runtime conformance corpus — gated per CP067-R1/R2; **`CONDITIONAL_ISOLATED_TESTING_ONLY`** until P0 controls independently verified |
+| 067-R1 | P0 remediation ownership & dependency plan — `folder/fs00_checkpoint_067_r1_p0_remediation_ownership_and_dependency_plan.md` (register **v1.3.0**: all **5** §N findings **`CLOSED_SCOPED`**; **10** work packages `R1-W01`…`W10`; CP068 **`CONDITIONAL_ISOLATED_TESTING_ONLY`**; ADRs ratified under **067-R2**) |
+| 067-R2 | ADR ratification & Wave 0 authorization — `folder/fs00_checkpoint_067_r2_architecture_decision_ratification_and_wave0_authorization.md` (**6/6** ADRs **APPROVED** — `release/evidence/cp067_r2_human_adr_ratification_2026-11-08.json`; W01–W02 **IV** under R3; W03–W10 **AUTHORIZED_TO_START** via `cp067_r3_expanded_remediation_authorization_2026-11-08.json`; wave ledger `certification/atlas/esap/cp067_r2_wave0_authorization.json`) |
+| 067-R3 | Wave 1 implementation + IV — `folder/fs00_checkpoint_067_r3_remediation_wave1_isr_identity_and_canonicalization.md`, `folder/fs00_checkpoint_067_r3_independent_verification.md` (W01/W02 **IV**; evidence `cp067_r3_independent_verification_report.json`) |
+| 067-R4 | Wave 2 + IV — `folder/fs00_checkpoint_067_r4_remediation_wave2_plan_binding_and_implir_ingress.md`, `folder/fs00_checkpoint_067_r4_independent_verification.md` (W04/W05 **IV**; evidence `cp067_r4_independent_verification_report.json`) |
+| 067-R5 | Expanded IV — `folder/fs00_checkpoint_067_r5_expanded_verification.md` (payroll/orders/appointments; W08 matrix slice) |
+| 067-P0-IV | P0 closure independent proof — `folder/fs00_checkpoint_067_p0_closure_independent_proof.md`; evidence `cp067_p0_closure_independent_proof_report.json` + `cp067_p0_closure_human_ratification_2026-11-08.json` |
+| 067-R6 | B-04 obligation verifier + ISR-002 supplement — `folder/fs00_checkpoint_067_r6_w06_b04_obligation_verifier.md`; evidence `cp067_isr002_supplement_ratification_2026-11-08.json` |
+| 067-R7 | F-06 + F-01..F-17 inventory — `folder/fs00_checkpoint_067_r7_w02_canonicalization_expansion.md`; evidence `cp067_isr004_supplement_ratification_2026-11-08.json` |
+| 067-R8 | HTTP ingress wiring — `folder/fs00_checkpoint_067_r8_w08_http_ingress_wiring.md` |
+| 067-R10 | W10 integration gate — `folder/fs00_checkpoint_067_r10_w10_integration_gate.md`; evidence `release/evidence/cp067_r10_w10_integration_gate_report.json` |
+| 068 | *(planned)* Expanded runtime conformance corpus — **`CONDITIONAL_ISOLATED_TESTING_ONLY`**; CP068 promotion **not** authorized (scoped P0 closure ≠ governed runtime conformance) |
+
+**CP067 §N P0 register (v1.3.0):** all five findings **`CLOSED_SCOPED`** — `certification/atlas/esap/cp067_r1_p0_remediation_register.json`.
 
 Detailed closure records: `folder/fs00_checkpoint_*.md`.
 

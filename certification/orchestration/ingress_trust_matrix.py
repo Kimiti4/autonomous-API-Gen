@@ -31,6 +31,7 @@ def ingress_trust_matrix() -> tuple[IngressTrustRow, ...]:
             (
                 "identity",
                 "isr_revision_digest",
+                "revision_integrity_w03",
                 "plan_binding",
                 "implir_model_c",
             ),
@@ -41,7 +42,13 @@ def ingress_trust_matrix() -> tuple[IngressTrustRow, ...]:
         IngressTrustRow(
             "orch-dashboard-full-stack",
             "POST /api/v1/dashboard/orchestration/full-stack/run",
-            ("identity", "isr_revision_digest", "plan_binding", "implir_model_c"),
+            (
+                "identity",
+                "isr_revision_digest",
+                "revision_integrity_w03",
+                "plan_binding",
+                "implir_model_c",
+            ),
             "autonomous-api/app/api/dashboard_orchestration_routes.py",
             EnforcementStatus.PARTIAL,
             "same gateway as API route",
@@ -59,6 +66,7 @@ def ingress_trust_matrix() -> tuple[IngressTrustRow, ...]:
             "FullStackOrchestrationAuthority.run",
             (
                 "digest_envelope",
+                "revision_integrity_w03",
                 "plan_binding",
                 "implir_model_c",
             ),

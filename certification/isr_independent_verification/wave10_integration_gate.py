@@ -32,6 +32,10 @@ from certification.isr_independent_verification.w09_implir_enforcement_expansion
     INDEPENDENT_VERIFIER_W09,
     run_w09_implir_enforcement_expansion,
 )
+from certification.isr_independent_verification.w03_revision_integrity_verification import (
+    INDEPENDENT_VERIFIER_W03,
+    run_w03_revision_integrity_verification,
+)
 from certification.isr_independent_verification.digest_oracle import (
     run_independent_digest_verification,
 )
@@ -220,6 +224,16 @@ def run_wave10_integration_gate() -> Wave10IntegrationGateReport:
             INDEPENDENT_VERIFIER_W09,
             GateResult.PASSED if w09.passed else GateResult.FAILED,
             w09.findings,
+        )
+    )
+
+    w03 = run_w03_revision_integrity_verification()
+    gates.append(
+        IntegrationGateRow(
+            "W03-REVISION-INTEGRITY-W08-SLICE",
+            INDEPENDENT_VERIFIER_W03,
+            GateResult.PASSED if w03.passed else GateResult.FAILED,
+            w03.findings,
         )
     )
 

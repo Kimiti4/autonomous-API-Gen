@@ -89,6 +89,12 @@
       "findings": []
     },
     {
+      "gate_id": "W03-REVISION-INTEGRITY-W08-SLICE",
+      "verifier_ref": "certification.isr_independent_verification.w03_revision_integrity_verification.v1",
+      "result": "PASSED",
+      "findings": []
+    },
+    {
       "gate_id": "W10-R5-SLICE",
       "verifier_ref": "certification.isr_independent_verification.wave10_integration_gate.v1",
       "result": "PASSED",

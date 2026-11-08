@@ -18,6 +18,7 @@ from certification.orchestration.implir_ingress_guard import (
     assert_trusted_maintenance_ingress,
     assert_trusted_marketplace_ingress,
 )
+from certification.orchestration.ingress_revision_integrity_gate import W08_W03_BOUNDARY_IDS
 from certification.orchestration.ingress_trust_matrix import ingress_trust_matrix
 
 INDEPENDENT_VERIFIER_W09 = (
@@ -56,6 +57,9 @@ def _matrix_has_implir() -> tuple[bool, tuple[str, ...]]:
     for row in rows:
         if "implir_model_c" not in row.mandatory_checks:
             findings.append(f"matrix-missing-implir:{row.boundary_id}")
+        if row.boundary_id in W08_W03_BOUNDARY_IDS:
+            if "revision_integrity_w03" not in row.mandatory_checks:
+                findings.append(f"matrix-missing-w03:{row.boundary_id}")
     return not findings, tuple(findings)
 
 

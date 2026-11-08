@@ -112,7 +112,11 @@ def execute_governed_full_stack_ingress(
         isr_ingress_authority,
         governed_lineage_ref=governed_lineage_ref,
     )
-    get_workload_spec(workload_id)
+    from certification.orchestration.ingress_revision_integrity_gate import (
+        assert_workload_revision_integrity_at_ingress,
+    )
+
+    assert_workload_revision_integrity_at_ingress(workload_id)
     report = run_canonical_full_stack(
         workload_id,
         evidence_registry_path=tev,

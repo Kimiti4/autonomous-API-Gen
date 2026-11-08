@@ -192,8 +192,8 @@ Generic `rust_axum` / `_rust_declared` fixes for WSL build: router `;`, `AppStat
 | Item | Value |
 | --- | --- |
 | Branch | `remediation/w12-executable-effect-contract` |
-| Remote | `97dea53f` — W10 + ISR-004 ratification; wave ledger v1.2.0 W06/W10 (pre–HEAD-align) |
+| Remote | **`d4590374`** — wave ledger v1.2.1 (W08 R8 + HEAD align) atop W10/004 ratification |
 | ESAP master | `folder/ESAP_MASTER_ENGINEERING_PROCEDURE.md` — FS-00 index R5–R10 + §8 scoped P0 |
-| Wave 0 register | v1.2.1 — `repository_head_observed` aligned to `97dea53f…` (ledger v1.2.0 commit) |
+| Wave 0 register | v1.2.1 — `repository_head_observed` **matches ledger commit** |
 
 **Supersedes (stale rows above):** CP067-R1/R2 tables showing CONFIRMED_OPEN / NOT_AUTHORIZED / PENDING ADRs — use register v1.3.0 and wave ledger v1.2.1 instead.

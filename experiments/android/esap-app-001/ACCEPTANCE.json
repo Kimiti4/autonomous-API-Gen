@@ -1,0 +1,166 @@
+{
+  "benchmark_id": "ESAP-APP-001",
+  "version": "1.0.0",
+  "status": "PROPOSED_AWAITING_REVIEW_AND_HASH_FREEZE",
+  "platform": {
+    "type": "native_android",
+    "language": "Kotlin",
+    "ui": "Jetpack Compose",
+    "minimum_api": 26,
+    "offline_required": true
+  },
+  "acceptance_policy": {
+    "all_must_pass": true,
+    "unknown_is_not_pass": true,
+    "simulated_or_static_evidence_does_not_satisfy_runtime_criteria": true,
+    "every_result_must_bind_to_exact_source_revision_and_generated_candidate": true
+  },
+  "criteria": [
+    {
+      "id": "AC-001",
+      "name": "Install and launch",
+      "level": "build_and_evidence",
+      "pass": "A debug APK builds, installs on an Android emulator API 26 or newer, launches without crash, and displays the inventory screen.",
+      "evidence": [
+        "Gradle build log",
+        "APK SHA-256",
+        "emulator install/launch log",
+        "runtime test result"
+      ]
+    },
+    {
+      "id": "AC-002",
+      "name": "Create valid item",
+      "level": "runtime",
+      "pass": "Submitting a valid name and quantity creates one item with a stable ID; list and details show saved values.",
+      "evidence": [
+        "Automated UI interaction",
+        "persisted-state assertion"
+      ]
+    },
+    {
+      "id": "AC-003",
+      "name": "Input validation",
+      "level": "runtime",
+      "pass": "Blank/overlong name, invalid quantity, quantity outside 0–100000, and notes over 500 characters are rejected with visible feedback and no stored mutation.",
+      "evidence": [
+        "Positive and negative UI tests",
+        "before/after durable-state assertions"
+      ]
+    },
+    {
+      "id": "AC-004",
+      "name": "Edit item",
+      "level": "runtime",
+      "pass": "Editing fields updates the same item ID and updated_at; no duplicate item is created.",
+      "evidence": [
+        "UI test",
+        "durable-state assertion"
+      ]
+    },
+    {
+      "id": "AC-005",
+      "name": "Delete confirmation",
+      "level": "runtime",
+      "pass": "Canceling deletion preserves the item; confirming deletion removes it from list and durable storage.",
+      "evidence": [
+        "UI tests for cancel and confirm",
+        "durable-state assertion"
+      ]
+    },
+    {
+      "id": "AC-006",
+      "name": "Search",
+      "level": "runtime",
+      "pass": "Search matches case-insensitive name substrings, filters results correctly, and shows an explicit no-results state.",
+      "evidence": [
+        "UI tests with multiple records and case variants"
+      ]
+    },
+    {
+      "id": "AC-007",
+      "name": "Durable persistence",
+      "level": "runtime",
+      "pass": "Created and edited data remains correct after activity recreation and force-stop/relaunch.",
+      "evidence": [
+        "Emulator lifecycle test",
+        "state comparison before and after relaunch"
+      ]
+    },
+    {
+      "id": "AC-008",
+      "name": "Offline operation",
+      "level": "runtime",
+      "pass": "All in-scope CRUD/search workflows succeed with emulator network disabled; there is no required network permission or remote dependency.",
+      "evidence": [
+        "Manifest inspection",
+        "offline emulator test log"
+      ]
+    },
+    {
+      "id": "AC-009",
+      "name": "Empty and feedback states",
+      "level": "runtime",
+      "pass": "Fresh install shows an empty state; successful and failed operations provide understandable feedback.",
+      "evidence": [
+        "UI assertions on fresh install and operation outcomes"
+      ]
+    },
+    {
+      "id": "AC-010",
+      "name": "Data integrity",
+      "level": "runtime",
+      "pass": "Each item has a stable unique ID; invalid operations do not change stored state; deleting one item does not modify other items.",
+      "evidence": [
+        "Repository/data-layer tests",
+        "end-to-end state assertions"
+      ]
+    },
+    {
+      "id": "AC-011",
+      "name": "Semantic source traceability",
+      "level": "compiler_and_independent_verification",
+      "pass": "Exact problem/acceptance bytes are hashed; source revision, requirements graph, ISR revision, plan, generated files, build and runtime evidence link by immutable identifiers/hashes. An independent verifier confirms required behaviors are represented and tested.",
+      "evidence": [
+        "SHA-256 manifest",
+        "source-to-plan traceability report",
+        "independent verifier report"
+      ]
+    },
+    {
+      "id": "AC-012",
+      "name": "Negative semantic coverage",
+      "level": "runtime",
+      "pass": "Tests cover invalid inputs, canceled deletion, no search matches, offline mode and process relaunch; unsupported semantics are explicitly refused, not silently omitted.",
+      "evidence": [
+        "Negative-case matrix",
+        "test logs",
+        "unsupported-feature refusal tests"
+      ]
+    },
+    {
+      "id": "AC-013",
+      "name": "Reproducibility",
+      "level": "build_and_evidence",
+      "pass": "A clean CI run against the pinned revision can regenerate candidate/evidence manifest; toolchain and dependency resolution are recorded.",
+      "evidence": [
+        "CI run URL and logs",
+        "toolchain manifest",
+        "artifact hashes"
+      ]
+    }
+  ],
+  "required_test_layers": [
+    "backend_unit_tests",
+    "compiler_contract_and_capability_tests",
+    "generated_project_build",
+    "emulator_end_to_end_ui_tests",
+    "independent_semantic_verification"
+  ],
+  "verdict_rules": {
+    "PASS": "All AC-001 through AC-013 have direct candidate-bound evidence and independent verification succeeds.",
+    "BLOCKED": "Required source binding, independent verification, toolchain, build, emulator, or evidence is unavailable.",
+    "FAIL": "A criterion is demonstrably violated.",
+    "no_partial_certification": "Passing a subset must not be reported as benchmark PASS."
+  }
+}
